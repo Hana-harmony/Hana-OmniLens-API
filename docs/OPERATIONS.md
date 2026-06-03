@@ -103,8 +103,13 @@ EXCHANGE_RATE_REFRESH_CURRENCIES=USD,JPY
 - 운영 임계값은 `OMNILENS_RATE_LIMIT_CAPACITY`, `OMNILENS_RATE_LIMIT_REFILL_TOKENS`, `OMNILENS_RATE_LIMIT_REFILL_PERIOD`로 조정한다.
 - 임시 비활성화는 `OMNILENS_RATE_LIMIT_ENABLED=false`로 한다.
 
+## Audit Log & Correlation ID
+- 모든 요청은 `X-HANA-OMNILENS-CORRELATION-ID` 응답 헤더를 받는다.
+- 협력사가 같은 헤더를 보내면 안전한 형식의 값만 그대로 사용하고, 없거나 안전하지 않으면 서버가 UUID를 생성한다.
+- correlation id는 MDC `correlationId`에 저장되어 애플리케이션 로그와 장애 추적을 연결한다.
+- 보안 감사 로그는 `com.hana.omnilens.audit.security` logger로 남긴다.
+- 감사 로그는 인증 결과, method, path, API key hash prefix, 실패 사유만 기록하고 API key 원문은 기록하지 않는다.
+
 ## 운영 전 보강
-- audit log
-- 장애 추적 correlation id
 - 외부 API timeout, retry, circuit breaker
 - 배포 환경별 Secret Manager 연동

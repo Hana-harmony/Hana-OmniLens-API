@@ -15,6 +15,8 @@ docker compose -f compose.local.yml up -d
 - HMAC 요청 서명 성공
 - HMAC 요청 서명 누락, nonce 재사용, stale timestamp 거부
 - 요청 body 변조 시 HMAC 서명 불일치 거부
+- correlation id 응답 헤더 echo/generation
+- 보안 감사 로그의 API key fingerprint masking
 - health endpoint 공개
 - OpenAPI 문서 API key 보호와 핵심 REST/WebSocket 계약 포함 여부
 - 시장 데이터 응답 계약

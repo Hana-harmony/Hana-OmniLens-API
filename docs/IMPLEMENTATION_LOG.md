@@ -155,6 +155,14 @@
 - POST body도 signature에 포함되도록 request body를 필터에서 캐시한 뒤 컨트롤러로 전달한다.
 - 단위 테스트로 body 변조 감지와 nonce 저장을 검증하고, MockMvc 통합 테스트로 유효 서명, 누락 서명, nonce replay, stale timestamp를 검증했다.
 
+## 2026-06-04 감사 로그와 correlation id
+- `CorrelationIdFilter`를 최우선 필터로 추가해 모든 응답에 `X-HANA-OMNILENS-CORRELATION-ID`를 포함한다.
+- 협력사가 안전한 형식의 correlation id를 보내면 그대로 사용하고, 없거나 안전하지 않으면 서버가 UUID를 생성한다.
+- correlation id는 로그 MDC `correlationId`에 저장해 요청 처리 로그와 장애 추적을 연결한다.
+- `SecurityAuditLogger`는 인증 성공, API key 미설정, invalid API key, rate limit, invalid signature 이벤트를 `com.hana.omnilens.audit.security` logger로 기록한다.
+- 감사 로그에는 API key 원문을 남기지 않고 SHA-256 hash prefix만 남긴다.
+- 테스트로 correlation id echo/generation과 감사 로그 fingerprint masking을 검증했다.
+
 ## 2026-06-04 협력사 입력 환율 캐시
 - `ExchangeRateCache` 포트를 추가해 환율 저장소를 시장 데이터 계산 로직에서 분리했다.
 - 현재 구현은 `InMemoryExchangeRateCache`이며 `KRW -> 현지통화` 표시용 환율과 갱신 시각을 프로세스 캐시에 보관한다.
@@ -246,6 +254,7 @@
 - API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 - 운영 요청 서명은 HMAC-SHA256, timestamp clock skew, nonce replay 방어를 적용할 수 있다.
+- 모든 요청은 correlation id로 추적 가능하고, 보안 인증 이벤트는 API key 원문 없이 감사 로그로 기록한다.
 
 ## 외부 연동 예정
 - KRX 외국인보유량 provider는 운영 전 Redis/DB 캐시로 승격한다.

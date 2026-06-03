@@ -10,6 +10,8 @@
 - 요청 서명 canonical string은 `METHOD`, `URI_WITH_QUERY`, `TIMESTAMP`, `NONCE`, `SHA256_BODY_HEX`를 줄바꿈으로 연결한 값이다.
 - 서명 헤더는 `X-HANA-OMNILENS-TIMESTAMP`, `X-HANA-OMNILENS-NONCE`, `X-HANA-OMNILENS-SIGNATURE`를 사용한다.
 - timestamp는 허용 clock skew 안에 있어야 하고, nonce는 같은 API key fingerprint에서 한 번만 사용할 수 있다.
+- 모든 응답에는 `X-HANA-OMNILENS-CORRELATION-ID`를 포함하고, 같은 값은 로그 MDC `correlationId`에 저장한다.
+- 보안 감사 로그는 인증 결과, method, path, API key hash prefix, 실패 사유만 기록한다.
 - CORS는 profile별 설정 파일의 허용 목록만 사용한다.
 - WebSocket `/ws/alerts` handshake도 API key 검증 대상이다.
 - 세션은 stateless로 유지한다.
