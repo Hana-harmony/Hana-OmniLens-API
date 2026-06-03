@@ -25,7 +25,8 @@ public class MarketDataService {
             "005930",
             "삼성전자",
             "Samsung Electronics",
-            "KOSPI");
+            "KOSPI",
+            "00126380");
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;

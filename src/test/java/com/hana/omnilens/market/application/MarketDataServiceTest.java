@@ -31,7 +31,7 @@ class MarketDataServiceTest {
         MarketDataService service = new MarketDataService(client, repository, FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
-                new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI")));
+                new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI", "00126380")));
         when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.of(
                 new PublicDataStockPriceSnapshot(
                         "005930",
@@ -58,7 +58,7 @@ class MarketDataServiceTest {
         MarketDataService service = new MarketDataService(client, repository, FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
-                new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI")));
+                new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI", "00126380")));
         when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
                 .thenThrow(new IllegalStateException("provider is not configured"));
 

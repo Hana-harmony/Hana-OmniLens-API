@@ -2,12 +2,14 @@ package com.hana.omnilens.alert.api;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -18,7 +20,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
+import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
+import com.hana.omnilens.provider.disclosure.OpenDartDisclosure;
+import com.hana.omnilens.provider.disclosure.OpenDartDisclosureClient;
+import com.hana.omnilens.provider.news.NaverNewsArticle;
+import com.hana.omnilens.provider.news.NaverNewsClient;
 
 @SpringBootTest(properties = {
         "omnilens.security.api-key-enabled=true",
@@ -32,6 +39,12 @@ class AlertControllerTest {
 
     @MockitoBean
     private HannahAiAnalysisClient hannahAiAnalysisClient;
+
+    @MockitoBean
+    private NaverNewsClient naverNewsClient;
+
+    @MockitoBean
+    private OpenDartDisclosureClient openDartDisclosureClient;
 
     @Test
     void analyzeAndPublishReturnsAnalyzedAlertEvent() throws Exception {
@@ -78,5 +91,68 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.importance", equalTo("HIGH")))
                 .andExpect(jsonPath("$.holderTarget", equalTo(true)))
                 .andExpect(jsonPath("$.watchlistTarget", equalTo(true)));
+    }
+
+    @Test
+    void collectAndPublishFetchesProviderItemsAndPublishesAnalyzedEvents() throws Exception {
+        when(naverNewsClient.search("삼성전자", 2)).thenReturn(List.of(
+                new NaverNewsArticle(
+                        "삼성전자 실적 개선",
+                        "반도체 회복으로 실적 개선 기대",
+                        "https://news.example.com/1",
+                        Instant.parse("2026-06-04T00:00:00Z")),
+                new NaverNewsArticle(
+                        "삼성전자 실적 개선",
+                        "중복 기사",
+                        "https://news.example.com/1",
+                        Instant.parse("2026-06-04T00:01:00Z"))));
+        when(openDartDisclosureClient.search(
+                eq("00126380"),
+                any(),
+                any()))
+                .thenReturn(List.of(new OpenDartDisclosure(
+                        "20260604000123",
+                        "삼성전자",
+                        "주요사항보고서",
+                        java.time.LocalDate.of(2026, 6, 4),
+                        "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260604000123")));
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
+            HannahAiAnalysisRequest request = invocation.getArgument(0);
+            return new HannahAiAnalysisResponse(
+                    "005930",
+                    "삼성전자",
+                    request.sourceType(),
+                    request.title(),
+                    request.snippet(),
+                    List.of(request.sourceType().equals("NEWS") ? "EARNINGS" : "DISCLOSURE"),
+                    "POSITIVE",
+                    "HIGH",
+                    List.of("005930"),
+                    true,
+                    true,
+                    "duplicate-key",
+                    "financial-ml-tfidf-logreg-test");
+        });
+
+        mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerId": "partner-a",
+                                  "stockCodes": ["005930"],
+                                  "newsDisplay": 2,
+                                  "disclosureLookbackDays": 7
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
+                .andExpect(jsonPath("$.collectedNewsCount", equalTo(2)))
+                .andExpect(jsonPath("$.collectedDisclosureCount", equalTo(1)))
+                .andExpect(jsonPath("$.publishedCount", equalTo(2)))
+                .andExpect(jsonPath("$.skippedDuplicateCount", equalTo(1)))
+                .andExpect(jsonPath("$.failedAnalysisCount", equalTo(0)))
+                .andExpect(jsonPath("$.events[0].sourceType", equalTo("NEWS")))
+                .andExpect(jsonPath("$.events[1].sourceType", equalTo("DISCLOSURE")));
     }
 }
