@@ -74,6 +74,14 @@
 - 테스트 profile에서는 외부 Redis 없이 `in-memory` 모드로 전환하고 Redis health indicator를 비활성화
 - Redis store, in-memory store, fallback 동작을 단위 테스트로 검증
 
+## 2026-06-04 협력사 watchlist 주기 수집 스케줄러
+- `omnilens.alert.scheduler.enabled`가 켜진 경우 설정된 협력사 watchlist를 주기적으로 수집한다.
+- 스케줄러는 `/collect-and-publish`와 같은 `AlertProviderCollectionService`를 재사용해 Naver News, OpenDART, Hannah-Montana-AI 분석, WebSocket 발행 흐름을 수행한다.
+- 기본값은 disabled이며, `fixed-delay-ms`, `news-display`, `disclosure-lookback-days`, `watchlists`를 설정으로 조정한다.
+- 한 협력사 수집 실패가 전체 스케줄러 중단으로 전파되지 않도록 파트너 단위로 예외를 격리한다.
+- 종목명이 없는 잘못된 watchlist 설정은 provider 호출 전에 skip한다.
+- 단위 테스트로 disabled 상태, 정상 요청 생성, 한 파트너 실패 후 다음 파트너 계속 처리, properties 기본값을 검증한다.
+
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
@@ -81,6 +89,7 @@
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
 - 알림 분석 발행 endpoint는 AI 분석 결과를 받아 기존 알림 이벤트 송신 로직을 재사용한다.
 - 알림 수집 발행 endpoint는 Naver 뉴스와 OpenDART 공시를 수집한 뒤 AI 분석과 WebSocket 발행을 순차 수행한다.
+- 알림 스케줄러는 설정된 협력사 watchlist별로 수집 발행 흐름을 주기 실행한다.
 - provider 수집 기반 알림은 Redis TTL dedupe로 같은 원문 URL의 반복 발행을 줄인다.
 - Naver News 응답의 HTML 태그와 entity를 정규화해 제목과 snippet으로 변환한다.
 - OpenDART 공시검색 응답의 접수번호로 원문 공시 URL을 생성한다.
@@ -90,4 +99,4 @@
 ## 외부 연동 예정
 - KIS, 한국수출입은행 환율은 현재 포트만 정의된 상태다.
 - KRX 외국인보유량 provider는 화면 기반 endpoint이므로 운영 전 Redis/DB 전일 캐시와 장애 재시도 정책을 붙인다.
-- Redis 또는 DB 기반 저장형 dedupe와 주기 수집 스케줄러를 추가한다.
+- 협력사 watchlist를 DB에서 관리하는 저장소를 추가한다.
