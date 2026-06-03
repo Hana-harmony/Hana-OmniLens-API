@@ -1,0 +1,526 @@
+openapi: 3.1.0
+info:
+  title: Hana OmniLens API
+  version: 0.1.0-feature
+  summary: B2B Korea market data and watchlist alert API
+  description: >
+    Hana OmniLens API provides Korea stock information, foreign ownership
+    snapshots, and news/disclosure alert events for overseas exchange and broker
+    partners. It does not provide order, execution, settlement, FX trading, or
+    omnibus account processing.
+servers:
+  - url: https://api.hana-omnilens.example.com
+    description: Production placeholder
+  - url: http://localhost:8080
+    description: Local development
+security:
+  - partnerApiKey: []
+tags:
+  - name: Market Data
+    description: Korea stock quote, orderbook, and stock search APIs.
+  - name: Alerts
+    description: News and disclosure alert publish, analysis, and collection APIs.
+x-websocket:
+  endpoint: /ws/alerts
+  protocol: STOMP
+  subscribeTopics:
+    partnerAlerts: /topic/partners/{partnerId}/alerts
+    stockAlerts: /topic/stocks/{stockCode}/alerts
+  payloadSchema: AlertEvent
+paths:
+  /api/v1/market/stocks/{stockCode}/quote:
+    get:
+      tags:
+        - Market Data
+      operationId: getMarketQuote
+      summary: Get a Korea stock quote with foreign ownership and local currency price.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+            default: USD
+          description: Local currency code shown to partner users.
+        - name: fxRate
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0.000001
+          description: Partner-provided KRW to local currency conversion rate.
+      responses:
+        "200":
+          description: Quote response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketQuote"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/{stockCode}/orderbook:
+    get:
+      tags:
+        - Market Data
+      operationId: getOrderBook
+      summary: Get a Korea stock orderbook snapshot.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+      responses:
+        "200":
+          description: Orderbook response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBook"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/search:
+    get:
+      tags:
+        - Market Data
+      operationId: searchStocks
+      summary: Search supported Korea stocks by code, Korean name, or English name.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+      responses:
+        "200":
+          description: Matching stocks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/alerts/events:
+    post:
+      tags:
+        - Alerts
+      operationId: publishAlertEvent
+      summary: Publish an already analyzed alert event to partner and stock topics.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertPublishRequest"
+      responses:
+        "200":
+          description: Published alert event.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/alerts/analyze-and-publish:
+    post:
+      tags:
+        - Alerts
+      operationId: analyzeAndPublishAlert
+      summary: Analyze one news or disclosure item with Hannah-Montana-AI and publish it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertAnalysisPublishRequest"
+      responses:
+        "200":
+          description: Published alert event.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Hannah-Montana-AI did not match the item to a supported stock.
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/alerts/collect-and-publish:
+    post:
+      tags:
+        - Alerts
+      operationId: collectAnalyzeAndPublishAlerts
+      summary: Collect provider news and disclosures for stock codes, analyze them, and publish alerts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertCollectPublishRequest"
+      responses:
+        "200":
+          description: Collection and publishing result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertCollectPublishResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: None of the requested stock codes are supported.
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+components:
+  securitySchemes:
+    partnerApiKey:
+      type: apiKey
+      in: header
+      name: X-HANA-OMNILENS-API-KEY
+  parameters:
+    StockCode:
+      name: stockCode
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^\\d{6}$"
+      description: Six digit Korea stock code.
+  responses:
+    Unauthorized:
+      description: Missing or invalid partner API key.
+    ServiceUnavailable:
+      description: Server security or provider configuration is incomplete.
+  schemas:
+    MarketQuote:
+      type: object
+      required:
+        - stockCode
+        - stockName
+        - stockNameEn
+        - market
+        - currentPriceKrw
+        - changeRate
+        - volume
+        - executionPriceKrw
+        - baseCurrency
+        - localCurrencyPrice
+        - localCurrency
+        - foreignOwnedQuantity
+        - foreignOwnershipRate
+        - foreignLimitExhaustionRate
+        - foreignOwnershipBaseDate
+        - marketDataTime
+        - source
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+        stockNameEn:
+          type: string
+        market:
+          type: string
+          example: KOSPI
+        currentPriceKrw:
+          type: number
+        changeRate:
+          type: number
+        volume:
+          type: integer
+          format: int64
+        executionPriceKrw:
+          type: number
+        baseCurrency:
+          type: string
+          example: KRW
+        localCurrencyPrice:
+          type: number
+        localCurrency:
+          type: string
+          example: USD
+        foreignOwnedQuantity:
+          type: integer
+          format: int64
+        foreignOwnershipRate:
+          type: number
+        foreignLimitExhaustionRate:
+          type: number
+        foreignOwnershipBaseDate:
+          type: string
+          format: date
+        marketDataTime:
+          type: string
+          format: date-time
+        source:
+          type: string
+    OrderBook:
+      type: object
+      required:
+        - stockCode
+        - asks
+        - bids
+        - marketDataTime
+        - source
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        asks:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderBookLevel"
+        bids:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderBookLevel"
+        marketDataTime:
+          type: string
+          format: date-time
+        source:
+          type: string
+    OrderBookLevel:
+      type: object
+      required:
+        - priceKrw
+        - quantity
+      properties:
+        priceKrw:
+          type: number
+        quantity:
+          type: integer
+          format: int64
+    StockSummary:
+      type: object
+      required:
+        - stockCode
+        - stockName
+        - stockNameEn
+        - market
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+        stockNameEn:
+          type: string
+        market:
+          type: string
+        isinCode:
+          type:
+            - string
+            - "null"
+        dartCorpCode:
+          type:
+            - string
+            - "null"
+    AlertPublishRequest:
+      type: object
+      required:
+        - partnerId
+        - stockCode
+        - stockName
+        - sourceType
+        - originalTitle
+        - translatedTitle
+        - summary
+        - originalUrl
+        - publishedAt
+        - sentiment
+        - importance
+      properties:
+        partnerId:
+          type: string
+          maxLength: 80
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+          maxLength: 80
+        sourceType:
+          $ref: "#/components/schemas/SourceType"
+        originalTitle:
+          type: string
+          maxLength: 300
+        translatedTitle:
+          type: string
+          maxLength: 300
+        summary:
+          type: string
+          maxLength: 1000
+        originalUrl:
+          type: string
+          maxLength: 500
+        publishedAt:
+          type: string
+          format: date-time
+        eventTags:
+          type: array
+          items:
+            type: string
+        sentiment:
+          $ref: "#/components/schemas/Sentiment"
+        importance:
+          $ref: "#/components/schemas/Importance"
+        relatedStocks:
+          type: array
+          items:
+            type: string
+            pattern: "^\\d{6}$"
+        holderTarget:
+          type: boolean
+        watchlistTarget:
+          type: boolean
+    AlertAnalysisPublishRequest:
+      type: object
+      required:
+        - partnerId
+        - sourceType
+        - title
+        - originalUrl
+        - publishedAt
+      properties:
+        partnerId:
+          type: string
+          maxLength: 80
+        sourceType:
+          $ref: "#/components/schemas/SourceType"
+        title:
+          type: string
+          maxLength: 300
+        snippet:
+          type: string
+          maxLength: 1000
+        originalUrl:
+          type: string
+          maxLength: 500
+        publishedAt:
+          type: string
+          format: date-time
+        stockUniverse:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockCandidate"
+    StockCandidate:
+      type: object
+      required:
+        - stockCode
+        - stockName
+        - stockNameEn
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+          maxLength: 80
+        stockNameEn:
+          type: string
+          maxLength: 120
+        aliases:
+          type: array
+          items:
+            type: string
+            maxLength: 80
+    AlertCollectPublishRequest:
+      type: object
+      required:
+        - partnerId
+        - stockCodes
+      properties:
+        partnerId:
+          type: string
+          maxLength: 80
+        stockCodes:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            pattern: "^\\d{6}$"
+        newsDisplay:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+        disclosureLookbackDays:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+    AlertCollectPublishResponse:
+      type: object
+      required:
+        - partnerId
+        - requestedStockCodes
+        - collectedNewsCount
+        - collectedDisclosureCount
+        - publishedCount
+        - skippedDuplicateCount
+        - failedAnalysisCount
+        - events
+      properties:
+        partnerId:
+          type: string
+        requestedStockCodes:
+          type: array
+          items:
+            type: string
+        collectedNewsCount:
+          type: integer
+        collectedDisclosureCount:
+          type: integer
+        publishedCount:
+          type: integer
+        skippedDuplicateCount:
+          type: integer
+        failedAnalysisCount:
+          type: integer
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertEvent"
+    AlertEvent:
+      allOf:
+        - $ref: "#/components/schemas/AlertPublishRequest"
+        - type: object
+          required:
+            - alertId
+            - createdAt
+          properties:
+            alertId:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+    SourceType:
+      type: string
+      enum:
+        - NEWS
+        - DISCLOSURE
+    Sentiment:
+      type: string
+      enum:
+        - POSITIVE
+        - NEUTRAL
+        - NEGATIVE
+    Importance:
+      type: string
+      enum:
+        - LOW
+        - MEDIUM
+        - HIGH
+        - CRITICAL
