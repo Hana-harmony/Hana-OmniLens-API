@@ -56,6 +56,9 @@ omnilens:
     hannah:
       base-url: http://hannah-montana-ai:8000
   market:
+    exchange-rate-cache:
+      mode: redis
+      ttl: 24h
     kis-realtime:
       enabled: false
       stock-codes: []

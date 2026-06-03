@@ -39,6 +39,9 @@ omnilens:
     hannah:
       base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}
   market:
+    exchange-rate-cache:
+      mode: ${EXCHANGE_RATE_CACHE_MODE:redis}
+      ttl: ${EXCHANGE_RATE_CACHE_TTL:24h}
     kis-realtime:
       enabled: ${KIS_REALTIME_ENABLED:false}
       stock-codes: ${KIS_REALTIME_STOCK_CODES:}

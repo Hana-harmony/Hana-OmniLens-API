@@ -10,7 +10,8 @@ import org.springframework.context.annotation.Configuration;
         AlertDedupeProperties.class,
         AlertCollectionSchedulerProperties.class,
         KisRealtimeProperties.class,
-        ExchangeRateRefreshProperties.class
+        ExchangeRateRefreshProperties.class,
+        ExchangeRateCacheProperties.class
 })
 public class ExternalProviderConfiguration {
 }

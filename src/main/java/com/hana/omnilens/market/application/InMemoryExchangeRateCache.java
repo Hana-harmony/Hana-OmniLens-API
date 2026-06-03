@@ -6,10 +6,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.springframework.stereotype.Component;
-
-@Component
 public class InMemoryExchangeRateCache implements ExchangeRateCache {
 
     private final Map<String, ExchangeRateSnapshot> snapshots = new ConcurrentHashMap<>();

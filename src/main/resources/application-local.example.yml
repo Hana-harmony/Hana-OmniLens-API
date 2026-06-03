@@ -41,6 +41,9 @@ omnilens:
     hannah:
       base-url: http://localhost:8000
   market:
+    exchange-rate-cache:
+      mode: redis
+      ttl: 24h
     kis-realtime:
       enabled: false
       stock-codes:
