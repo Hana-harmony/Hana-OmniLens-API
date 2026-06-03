@@ -22,6 +22,7 @@ docker compose -f compose.local.yml up -d
 - 수집된 뉴스·공시의 AI 분석 후 WebSocket 알림 발행
 - provider 수집 결과의 중복 URL 재발행 방지
 - Redis TTL dedupe와 Redis 장애 시 in-memory fallback
+- 협력사 watchlist 주기 수집 스케줄러 disabled/성공/실패 격리
 
 ## 추가 예정
 - WebSocket subscription 계약 테스트

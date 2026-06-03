@@ -27,6 +27,12 @@ omnilens:
       mode: ${ALERT_DEDUPE_MODE:redis}
       ttl: ${ALERT_DEDUPE_TTL:24h}
       max-in-memory-entries: ${ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES:10000}
+    scheduler:
+      enabled: ${ALERT_SCHEDULER_ENABLED:false}
+      fixed-delay-ms: ${ALERT_SCHEDULER_FIXED_DELAY_MS:300000}
+      news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:10}
+      disclosure-lookback-days: ${ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS:7}
+      watchlists: []
 
 spring:
   datasource:

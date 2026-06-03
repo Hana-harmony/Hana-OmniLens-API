@@ -42,6 +42,18 @@ docker compose -f compose.local.yml up -d
 - `ALERT_DEDUPE_MODE`: 알림 중복 방지 저장소 모드. 기본값은 `redis`이다.
 - `ALERT_DEDUPE_TTL`: Redis dedupe key 보존 시간. 기본값은 `24h`이다.
 - `ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES`: Redis 장애 fallback용 in-memory 최대 key 수. 기본값은 `10000`이다.
+- `ALERT_SCHEDULER_ENABLED`: 협력사 watchlist 주기 수집 활성화 여부. 기본값은 `false`이다.
+- `ALERT_SCHEDULER_FIXED_DELAY_MS`: 주기 수집 간격. 기본값은 `300000`이다.
+- `ALERT_SCHEDULER_NEWS_DISPLAY`: 종목별 뉴스 수집 개수. 기본값은 `10`이다.
+- `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`: 공시 조회 기간. 기본값은 `7`이다.
+
+watchlist는 Spring indexed env로 주입할 수 있다.
+
+```text
+OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_PARTNER_ID=partner-a
+OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_0=005930
+OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_1=000660
+```
 
 ## 원격 서버 준비
 원격 서버에는 아래 런타임이 미리 설치되어 있어야 한다.

@@ -26,6 +26,19 @@ docker compose -f compose.local.yml down
 - 원격 서버는 GHCR에서 이미지를 pull하고 `compose.prod.yml`로 컨테이너를 실행한다.
 - `deploy-prod.env`는 GHCR pull용 값과 배포할 이미지 태그만 담고 앱 컨테이너에는 주입하지 않는다.
 
+## 알림 주기 수집
+- 기본값은 `omnilens.alert.scheduler.enabled=false`이다.
+- 스케줄러를 켜면 설정된 협력사 watchlist마다 Naver 뉴스와 OpenDART 공시를 수집하고 Hannah-Montana-AI 분석 후 WebSocket으로 발행한다.
+- 주기는 `ALERT_SCHEDULER_FIXED_DELAY_MS`로 조정한다. 기본값은 `300000`이다.
+- 수집 범위는 `ALERT_SCHEDULER_NEWS_DISPLAY`, `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`로 조정한다.
+- watchlist는 Spring indexed env 또는 `SPRING_APPLICATION_JSON`으로 주입한다.
+
+```text
+OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_PARTNER_ID=partner-a
+OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_0=005930
+OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_1=000660
+```
+
 ## 헬스체크
 - `GET /actuator/health`
 - `GET /actuator/info`

@@ -29,6 +29,16 @@ omnilens:
       mode: redis
       ttl: 24h
       max-in-memory-entries: 10000
+    scheduler:
+      enabled: false
+      fixed-delay-ms: 300000
+      news-display: 10
+      disclosure-lookback-days: 7
+      watchlists:
+        - partner-id: partner-local
+          stock-codes:
+            - "005930"
+            - "000660"
 
 spring:
   datasource:
