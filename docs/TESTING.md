@@ -18,6 +18,7 @@ docker compose -f compose.local.yml up -d
 - 공공데이터 주식시세 provider 성공·fallback
 - KRX 외국인보유량 provider 요청·응답 매핑
 - 시장 데이터 quote의 KRX 외국인 보유수량·지분율·한도소진율 반영
+- KRX 외국인보유량 날짜 재시도와 장애 시 전일 캐시 fallback
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
 - Hannah-Montana-AI 분석 클라이언트 계약
@@ -29,5 +30,4 @@ docker compose -f compose.local.yml up -d
 - 협력사 watchlist 주기 수집 스케줄러 disabled/성공/실패 격리
 
 ## 추가 예정
-- KRX provider 장애 재시도와 전일 캐시 테스트
 - Redis integration testcontainer 기반 연결 테스트

@@ -28,6 +28,7 @@
 - 공공데이터 주식시세, KRX 외국인보유량, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
 - `MarketDataService`가 표준 응답 구조와 현지 통화 환산 로직을 제공한다.
 - `MarketDataService`는 KRX 외국인보유량 snapshot이 있으면 전일 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다.
+- KRX 기준일 조회 실패 시 최근 7일 탐색을 계속하고, 전체 실패 시 프로세스 캐시의 전일 확정 snapshot을 사용한다.
 - `AlertStreamingService`가 알림 이벤트를 협력사·종목 topic으로 송신한다.
 - `AlertProviderCollectionService`가 종목별 뉴스·공시를 수집하고 AI 분석 결과를 WebSocket 알림으로 발행한다.
 - 뉴스·공시 중복 재발행 방지는 Redis TTL 기반 dedupe를 기본으로 사용하고, Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.
