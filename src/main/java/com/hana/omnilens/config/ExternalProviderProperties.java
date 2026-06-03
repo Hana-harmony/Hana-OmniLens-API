@@ -10,7 +10,8 @@ public record ExternalProviderProperties(
         PublicData publicData,
         NaverNews naverNews,
         OpenDart openDart,
-        Krx krx
+        Krx krx,
+        Kis kis
 ) {
 
     public ExternalProviderProperties {
@@ -18,6 +19,7 @@ public record ExternalProviderProperties(
         naverNews = naverNews == null ? NaverNews.defaults() : naverNews.withDefaults();
         openDart = openDart == null ? OpenDart.defaults() : openDart.withDefaults();
         krx = krx == null ? Krx.defaults() : krx.withDefaults();
+        kis = kis == null ? Kis.defaults() : kis.withDefaults();
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -86,6 +88,33 @@ public record ExternalProviderProperties(
 
         private Krx withDefaults() {
             return new Krx(baseUrl == null ? defaults().baseUrl() : baseUrl);
+        }
+    }
+
+    public record Kis(URI baseUrl, String appKey, String appSecret, String accessToken) {
+
+        private static Kis defaults() {
+            return new Kis(URI.create("https://openapi.koreainvestment.com:9443"), "", "", "");
+        }
+
+        private Kis withDefaults() {
+            return new Kis(
+                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    appKey == null ? "" : appKey,
+                    appSecret == null ? "" : appSecret,
+                    accessToken == null ? "" : accessToken);
+        }
+
+        public String requiredAppKey() {
+            return requireSecret(appKey, "omnilens.providers.kis.app-key");
+        }
+
+        public String requiredAppSecret() {
+            return requireSecret(appSecret, "omnilens.providers.kis.app-secret");
+        }
+
+        public String requiredAccessToken() {
+            return requireSecret(accessToken, "omnilens.providers.kis.access-token");
         }
     }
 

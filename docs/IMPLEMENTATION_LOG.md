@@ -117,8 +117,18 @@
 - 캐시 사용 시 source는 `KRX_FOREIGN_OWNERSHIP_CACHE` suffix로 표시해 live provider와 구분한다.
 - 단위 테스트로 첫 기준일 장애 후 이전 기준일 재시도, KRX 전체 장애 시 캐시 fallback을 검증했다.
 
+## 2026-06-04 KIS 현재가 REST provider 연결
+- KIS Open API 국내주식 현재가 endpoint `GET /uapi/domestic-stock/v1/quotations/inquire-price` 계약을 `KisCurrentPriceClient`로 격리했다.
+- 요청 header는 `authorization`, `appkey`, `appsecret`, `tr_id=FHKST01010100`으로 고정했다.
+- 요청 query는 `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD={stockCode}`로 고정했다.
+- KIS 응답의 `stck_prpr`, `prdy_ctrt`, `acml_vol`, `hts_kor_isnm`을 `KisCurrentPriceSnapshot`으로 변환한다.
+- `MarketDataService`는 KIS 현재가를 가격 provider 1순위로 사용하고, KIS 미설정·장애·무응답 시 공공데이터 전일 snapshot과 mock fallback 순서로 quote 응답 구조를 유지한다.
+- quote `source`는 `KIS_OPEN_API`, `PUBLIC_DATA_STOCK_SECURITIES`, `MOCK_MARKET_DATA`와 KRX suffix를 조합해 데이터 출처를 표시한다.
+- KIS app key, app secret, access token은 env placeholder로만 관리하고, 테스트 fixture에는 가짜 값만 사용한다.
+- 단위 테스트로 KIS 요청 헤더·쿼리·응답 매핑, MarketDataService의 KIS 우선 사용, 공공데이터 fallback을 검증했다.
+
 ## 현재 구현 로직
-- 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
+- 시장 데이터는 KIS 현재가를 우선 사용하고, 사용할 수 없으면 공공데이터 주식시세 snapshot과 fallback 데이터 순서로 표준 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.
 - 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
 - validation 실패 응답은 `400 Bad Request`와 ProblemDetail body로 통일한다.
@@ -130,12 +140,13 @@
 - provider 수집 기반 알림은 Redis TTL dedupe로 같은 원문 URL의 반복 발행을 줄인다.
 - Naver News 응답의 HTML 태그와 entity를 정규화해 제목과 snippet으로 변환한다.
 - OpenDART 공시검색 응답의 접수번호로 원문 공시 URL을 생성한다.
+- KIS 현재가 응답은 `KisCurrentPriceSnapshot`으로 변환한다.
 - 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
 - API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 
 ## 외부 연동 예정
-- KIS, 한국수출입은행 환율은 현재 포트만 정의된 상태다.
+- KIS 실시간 체결가·호가 WebSocket, 한국수출입은행 환율은 현재 포트만 정의된 상태다.
 - KRX 외국인보유량 provider는 화면 기반 endpoint이므로 운영 전 Redis/DB 전일 캐시와 장애 재시도 정책을 붙인다.
 - 협력사 watchlist를 DB에서 관리하는 저장소를 추가한다.

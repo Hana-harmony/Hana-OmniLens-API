@@ -66,6 +66,7 @@ class PublicDataStockSecuritiesClientTest {
                         "public-data-key"),
                 null,
                 null,
+                null,
                 null);
     }
 }

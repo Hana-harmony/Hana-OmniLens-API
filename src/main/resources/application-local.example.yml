@@ -27,6 +27,11 @@ omnilens:
       api-key: "replace-with-open-dart-api-key"
     krx:
       base-url: https://data.krx.co.kr
+    kis:
+      base-url: https://openapi.koreainvestment.com:9443
+      app-key: "replace-with-kis-app-key"
+      app-secret: "replace-with-kis-app-secret"
+      access-token: "replace-with-kis-access-token"
   ai:
     hannah:
       base-url: http://localhost:8000

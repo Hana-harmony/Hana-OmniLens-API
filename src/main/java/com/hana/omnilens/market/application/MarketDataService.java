@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockSummary;
+import com.hana.omnilens.provider.market.KisCurrentPriceClient;
+import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KrxForeignOwnershipClient;
 import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
@@ -33,6 +35,7 @@ public class MarketDataService {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
+    private final KisCurrentPriceClient kisCurrentPriceClient;
     private final KrxForeignOwnershipClient krxForeignOwnershipClient;
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
@@ -41,11 +44,13 @@ public class MarketDataService {
     @Autowired
     public MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
             KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache) {
         this(
                 publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
                 krxForeignOwnershipClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
@@ -54,11 +59,13 @@ public class MarketDataService {
 
     MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
             KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
+        this.kisCurrentPriceClient = kisCurrentPriceClient;
         this.krxForeignOwnershipClient = krxForeignOwnershipClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
@@ -66,24 +73,23 @@ public class MarketDataService {
     }
 
     public MarketQuote getQuote(String stockCode, String localCurrency, BigDecimal fxRate) {
-        Optional<PublicDataStockPriceSnapshot> snapshot = latestPublicDataSnapshot(stockCode);
+        PriceLookup priceLookup = latestPriceSnapshot(stockCode);
         StockSummary stock = stockMasterRepository.findByCode(stockCode).orElse(DEFAULT_STOCK);
         ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock);
 
-        BigDecimal currentPrice = snapshot
-                .map(PublicDataStockPriceSnapshot::closingPriceKrw)
+        BigDecimal currentPrice = priceLookup.currentPriceKrw()
                 .orElse(new BigDecimal("78500"));
         BigDecimal effectiveFxRate = fxRate == null ? BigDecimal.ONE : fxRate;
         BigDecimal localPrice = currentPrice.multiply(effectiveFxRate).setScale(4, RoundingMode.HALF_UP);
 
         return new MarketQuote(
                 stockCode,
-                snapshot.map(PublicDataStockPriceSnapshot::stockName).orElse(stock.stockName()),
+                priceLookup.stockName().orElse(stock.stockName()),
                 stock.stockNameEn(),
-                snapshot.map(PublicDataStockPriceSnapshot::market).orElse(stock.market()),
+                priceLookup.market().orElse(stock.market()),
                 currentPrice,
-                snapshot.map(PublicDataStockPriceSnapshot::changeRate).orElse(new BigDecimal("1.42")),
-                snapshot.map(PublicDataStockPriceSnapshot::volume).orElse(12193000L),
+                priceLookup.changeRate().orElse(new BigDecimal("1.42")),
+                priceLookup.volume().orElse(12193000L),
                 currentPrice,
                 "KRW",
                 localPrice,
@@ -94,10 +100,10 @@ public class MarketDataService {
                 foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate)
                         .orElse(new BigDecimal("54.19")),
                 foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::baseDate)
-                        .orElse(snapshot.map(PublicDataStockPriceSnapshot::baseDate)
+                        .orElse(priceLookup.baseDate()
                                 .orElse(LocalDate.now(clock).minusDays(1))),
                 Instant.now(clock),
-                source(snapshot.isPresent(), foreignOwnership.source()))
+                source(priceLookup.source(), foreignOwnership.source()))
         ;
     }
 
@@ -116,6 +122,20 @@ public class MarketDataService {
 
     public List<StockSummary> searchStocks(String query) {
         return stockMasterRepository.search(query);
+    }
+
+    private PriceLookup latestPriceSnapshot(String stockCode) {
+        try {
+            Optional<KisCurrentPriceSnapshot> kisSnapshot = kisCurrentPriceClient.findCurrentPrice(stockCode);
+            if (kisSnapshot.isPresent()) {
+                return PriceLookup.kis(kisSnapshot.orElseThrow(), LocalDate.now(clock));
+            }
+        } catch (RuntimeException exception) {
+            // KIS 인증 또는 일시 장애가 있어도 공공데이터 snapshot으로 시세 응답을 유지한다.
+        }
+        return latestPublicDataSnapshot(stockCode)
+                .map(PriceLookup::publicData)
+                .orElseGet(PriceLookup::empty);
     }
 
     private Optional<PublicDataStockPriceSnapshot> latestPublicDataSnapshot(String stockCode) {
@@ -156,14 +176,23 @@ public class MarketDataService {
                 .orElseGet(ForeignOwnershipLookup::empty);
     }
 
-    private String source(boolean priceFromProvider, ForeignOwnershipSource foreignOwnershipSource) {
-        if (priceFromProvider && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
+    private String source(PriceSource priceSource, ForeignOwnershipSource foreignOwnershipSource) {
+        if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
+            return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP";
+        }
+        if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
+            return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE";
+        }
+        if (priceSource == PriceSource.KIS_OPEN_API) {
+            return "KIS_OPEN_API";
+        }
+        if (priceSource == PriceSource.PUBLIC_DATA && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
             return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP";
         }
-        if (priceFromProvider && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
+        if (priceSource == PriceSource.PUBLIC_DATA && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
-        if (priceFromProvider) {
+        if (priceSource == PriceSource.PUBLIC_DATA) {
             return "PUBLIC_DATA_STOCK_SECURITIES";
         }
         if (foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
@@ -173,6 +202,55 @@ public class MarketDataService {
             return "MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
         return "MOCK_MARKET_DATA";
+    }
+
+    private record PriceLookup(
+            Optional<String> stockName,
+            Optional<String> market,
+            Optional<BigDecimal> currentPriceKrw,
+            Optional<BigDecimal> changeRate,
+            Optional<Long> volume,
+            Optional<LocalDate> baseDate,
+            PriceSource source
+    ) {
+        private static PriceLookup kis(KisCurrentPriceSnapshot snapshot, LocalDate baseDate) {
+            return new PriceLookup(
+                    Optional.ofNullable(snapshot.stockName()).filter(name -> !name.isBlank()),
+                    Optional.empty(),
+                    Optional.of(snapshot.currentPriceKrw()),
+                    Optional.of(snapshot.changeRate()),
+                    Optional.of(snapshot.volume()),
+                    Optional.of(baseDate),
+                    PriceSource.KIS_OPEN_API);
+        }
+
+        private static PriceLookup publicData(PublicDataStockPriceSnapshot snapshot) {
+            return new PriceLookup(
+                    Optional.of(snapshot.stockName()),
+                    Optional.of(snapshot.market()),
+                    Optional.of(snapshot.closingPriceKrw()),
+                    Optional.of(snapshot.changeRate()),
+                    Optional.of(snapshot.volume()),
+                    Optional.of(snapshot.baseDate()),
+                    PriceSource.PUBLIC_DATA);
+        }
+
+        private static PriceLookup empty() {
+            return new PriceLookup(
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    PriceSource.NONE);
+        }
+    }
+
+    private enum PriceSource {
+        KIS_OPEN_API,
+        PUBLIC_DATA,
+        NONE
     }
 
     private record ForeignOwnershipLookup(
