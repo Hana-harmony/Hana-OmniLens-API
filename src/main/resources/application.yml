@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: hana-omnilens-api
+  profiles:
+    default: local
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+omnilens:
+  security:
+    api-key-enabled: true
+    api-key-sha256: ""
+    cors-allowed-origins: []

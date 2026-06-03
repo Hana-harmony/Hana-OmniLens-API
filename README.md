@@ -1,1 +1,35 @@
-# Hana-OmniLens-API
+# Hana OmniLens API
+
+해외 협력사 거래소·브로커가 한국 주식 정보 서비스를 쉽게 붙일 수 있도록 제공하는 B2B 정보 API다.
+
+## 범위
+- Real-time Korea Market Data API
+- Watchlist News & Disclosure Alert API
+- 실제 주문, 체결, 정산, 환전, 옴니버스 계좌 처리는 제외
+
+## 빠른 시작
+```bash
+docker compose -f compose.local.yml up -d
+./gradlew test
+./gradlew bootRun
+```
+
+로컬 설정 파일 `src/main/resources/application-local.yml`은 gitignore 대상이다. 운영 설정 파일 `src/main/resources/application-prod.yml`은 실제 파일로 커밋하고, 민감값은 GitHub Secrets로 생성한 원격 서버 env 파일에서 주입한다.
+
+## 주요 엔드포인트
+- `GET /api/v1/market/stocks/{stockCode}/quote`
+- `GET /api/v1/market/stocks/{stockCode}/orderbook`
+- `GET /api/v1/market/stocks/search?query=삼성`
+- `POST /api/v1/alerts/events`
+- `WS /ws/alerts`, topic `/topic/partners/{partnerId}/alerts`
+
+## 문서
+- [기여 가이드](CONTRIBUTING.md)
+- [아키텍처](docs/ARCHITECTURE.md)
+- [운영](docs/OPERATIONS.md)
+- [배포](docs/DEPLOYMENT.md)
+- [보안](docs/SECURITY.md)
+- [테스트](docs/TESTING.md)
+- [구현 기록](docs/IMPLEMENTATION_LOG.md)
+- [로드맵](docs/ROADMAP.md)
+- [깃 전략](docs/GIT_STRATEGY.md)

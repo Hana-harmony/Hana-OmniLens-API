@@ -1,0 +1,20 @@
+services:
+  api:
+    image: ${HANA_OMNILENS_IMAGE}
+    container_name: hana-omnilens-api
+    restart: unless-stopped
+    env_file:
+      - application-prod.env
+    command:
+      - --spring.profiles.active=prod
+      - --spring.config.additional-location=file:/app/config/application-prod.yml
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    volumes:
+      - ./application-prod.yml:/app/config/application-prod.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
