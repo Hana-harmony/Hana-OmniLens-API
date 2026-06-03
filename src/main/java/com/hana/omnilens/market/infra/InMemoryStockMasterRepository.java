@@ -1,0 +1,45 @@
+package com.hana.omnilens.market.infra;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+
+import org.springframework.stereotype.Repository;
+
+import com.hana.omnilens.market.application.StockMasterRepository;
+import com.hana.omnilens.market.domain.StockSummary;
+
+@Repository
+public class InMemoryStockMasterRepository implements StockMasterRepository {
+
+    private static final List<StockSummary> STOCKS = List.of(
+            new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI"),
+            new StockSummary("000660", "SK하이닉스", "SK hynix", "KOSPI"),
+            new StockSummary("035420", "NAVER", "NAVER", "KOSPI"),
+            new StockSummary("005380", "현대차", "Hyundai Motor", "KOSPI"),
+            new StockSummary("035720", "카카오", "Kakao", "KOSPI"),
+            new StockSummary("207940", "삼성바이오로직스", "Samsung Biologics", "KOSPI"));
+
+    @Override
+    public Optional<StockSummary> findByCode(String stockCode) {
+        return STOCKS.stream()
+                .filter(stock -> stock.stockCode().equals(stockCode))
+                .findFirst();
+    }
+
+    @Override
+    public List<StockSummary> search(String query) {
+        String normalizedQuery = query.toLowerCase(Locale.ROOT);
+        return STOCKS.stream()
+                .filter(stock -> matches(stock, normalizedQuery))
+                .sorted(Comparator.comparing(StockSummary::stockCode))
+                .toList();
+    }
+
+    private boolean matches(StockSummary stock, String normalizedQuery) {
+        return stock.stockCode().contains(normalizedQuery)
+                || stock.stockName().toLowerCase(Locale.ROOT).contains(normalizedQuery)
+                || stock.stockNameEn().toLowerCase(Locale.ROOT).contains(normalizedQuery);
+    }
+}
