@@ -64,6 +64,10 @@ jobs:
             "SERVER_PORT=${{ secrets.SERVER_PORT }}" \
             "OMNILENS_API_KEY_SHA256=${{ secrets.OMNILENS_API_KEY_SHA256 }}" \
             "OMNILENS_CORS_ALLOWED_ORIGINS=${{ secrets.OMNILENS_CORS_ALLOWED_ORIGINS }}" \
+            "OMNILENS_SIGNATURE_ENABLED=${{ secrets.OMNILENS_SIGNATURE_ENABLED || 'false' }}" \
+            "OMNILENS_SIGNATURE_SECRET=${{ secrets.OMNILENS_SIGNATURE_SECRET }}" \
+            "OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW=${{ secrets.OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW || '5m' }}" \
+            "OMNILENS_SIGNATURE_MAX_NONCES=${{ secrets.OMNILENS_SIGNATURE_MAX_NONCES || '10000' }}" \
             "DB_URL=${{ secrets.DB_URL }}" \
             "DB_USERNAME=${{ secrets.DB_USERNAME }}" \
             "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" \
@@ -73,6 +77,8 @@ jobs:
             "PUBLIC_DATA_SERVICE_KEY=${{ secrets.PUBLIC_DATA_SERVICE_KEY }}" \
             "NAVER_NEWS_CLIENT_ID=${{ secrets.NAVER_NEWS_CLIENT_ID }}" \
             "NAVER_NEWS_CLIENT_SECRET=${{ secrets.NAVER_NEWS_CLIENT_SECRET }}" \
+            "PAPAGO_TRANSLATION_CLIENT_ID=${{ secrets.PAPAGO_TRANSLATION_CLIENT_ID }}" \
+            "PAPAGO_TRANSLATION_CLIENT_SECRET=${{ secrets.PAPAGO_TRANSLATION_CLIENT_SECRET }}" \
             "OPEN_DART_API_KEY=${{ secrets.OPEN_DART_API_KEY }}" \
             "KOREA_EXIM_AUTH_KEY=${{ secrets.KOREA_EXIM_AUTH_KEY }}" \
             > application-prod.env

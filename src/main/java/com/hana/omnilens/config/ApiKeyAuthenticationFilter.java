@@ -18,6 +18,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.hana.omnilens.security.ApiKeyRateLimiter;
 import com.hana.omnilens.security.ApiKeyRateLimiter.RateLimitDecision;
+import com.hana.omnilens.security.ApiRequestSignatureVerifier;
+import com.hana.omnilens.security.ApiRequestSignatureVerifier.SignatureVerificationResult;
+import com.hana.omnilens.security.CachedBodyHttpServletRequest;
 
 @Component
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
@@ -26,10 +29,15 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private final OmniLensSecurityProperties properties;
     private final ApiKeyRateLimiter apiKeyRateLimiter;
+    private final ApiRequestSignatureVerifier apiRequestSignatureVerifier;
 
-    public ApiKeyAuthenticationFilter(OmniLensSecurityProperties properties, ApiKeyRateLimiter apiKeyRateLimiter) {
+    public ApiKeyAuthenticationFilter(
+            OmniLensSecurityProperties properties,
+            ApiKeyRateLimiter apiKeyRateLimiter,
+            ApiRequestSignatureVerifier apiRequestSignatureVerifier) {
         this.properties = properties;
         this.apiKeyRateLimiter = apiKeyRateLimiter;
+        this.apiRequestSignatureVerifier = apiRequestSignatureVerifier;
     }
 
     @Override
@@ -39,6 +47,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
+
+        CachedBodyHttpServletRequest cachedRequest = new CachedBodyHttpServletRequest(request);
 
         if (!StringUtils.hasText(properties.apiKeySha256())) {
             response.sendError(HttpStatus.SERVICE_UNAVAILABLE.value(), "API key hash is not configured");
@@ -59,7 +69,16 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        filterChain.doFilter(request, response);
+        SignatureVerificationResult signature = apiRequestSignatureVerifier.verify(
+                cachedRequest,
+                providedKeyHash,
+                cachedRequest.body());
+        if (!signature.valid()) {
+            response.sendError(signature.status().value(), signature.message());
+            return;
+        }
+
+        filterChain.doFilter(cachedRequest, response);
     }
 
     private boolean isPublicEndpoint(HttpServletRequest request) {

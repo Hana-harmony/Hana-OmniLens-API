@@ -15,6 +15,9 @@ servers:
     description: Local development
 security:
   - partnerApiKey: []
+    partnerTimestamp: []
+    partnerNonce: []
+    partnerSignature: []
 tags:
   - name: Market Data
     description: Korea stock quote, orderbook, and stock search APIs.
@@ -220,6 +223,21 @@ components:
       type: apiKey
       in: header
       name: X-HANA-OMNILENS-API-KEY
+    partnerTimestamp:
+      type: apiKey
+      in: header
+      name: X-HANA-OMNILENS-TIMESTAMP
+      description: ISO-8601 UTC timestamp used in HMAC request signing when signature verification is enabled.
+    partnerNonce:
+      type: apiKey
+      in: header
+      name: X-HANA-OMNILENS-NONCE
+      description: Per-request nonce used to prevent replay when signature verification is enabled.
+    partnerSignature:
+      type: apiKey
+      in: header
+      name: X-HANA-OMNILENS-SIGNATURE
+      description: Lowercase hex HMAC-SHA256 over method, URI with query, timestamp, nonce, and SHA-256 body hash.
   parameters:
     StockCode:
       name: stockCode

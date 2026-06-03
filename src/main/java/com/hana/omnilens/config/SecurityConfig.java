@@ -16,7 +16,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties({OmniLensSecurityProperties.class, ApiRateLimitProperties.class})
+@EnableConfigurationProperties({OmniLensSecurityProperties.class, ApiRateLimitProperties.class, ApiSignatureProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -37,7 +37,12 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.corsAllowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("X-HANA-OMNILENS-API-KEY", "Content-Type"));
+        configuration.setAllowedHeaders(List.of(
+                "X-HANA-OMNILENS-API-KEY",
+                "X-HANA-OMNILENS-TIMESTAMP",
+                "X-HANA-OMNILENS-NONCE",
+                "X-HANA-OMNILENS-SIGNATURE",
+                "Content-Type"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
 

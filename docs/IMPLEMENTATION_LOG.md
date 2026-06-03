@@ -146,6 +146,15 @@
 - 번역 키 미설정, Papago 장애, 빈 번역 결과는 알림 발행을 막지 않고 원문 제목으로 fallback한다.
 - 단위 테스트로 Papago 요청 계약, 번역 성공, 번역 실패 fallback, 분석 후 발행 payload의 번역 제목 반영을 검증했다.
 
+## 2026-06-04 HMAC 요청 서명 인증
+- `omnilens.security.signature.enabled`가 켜진 경우 보호 API 요청에 HMAC-SHA256 서명을 요구한다.
+- canonical string은 `METHOD`, `URI_WITH_QUERY`, `TIMESTAMP`, `NONCE`, `SHA256_BODY_HEX`를 줄바꿈으로 연결한다.
+- 협력사는 `X-HANA-OMNILENS-TIMESTAMP`, `X-HANA-OMNILENS-NONCE`, `X-HANA-OMNILENS-SIGNATURE` 헤더를 전송한다.
+- timestamp는 기본 5분 clock skew 안에서만 허용하고, nonce는 같은 API key fingerprint에서 재사용할 수 없다.
+- 서명 검증이 켜졌는데 `OMNILENS_SIGNATURE_SECRET`이 비어 있으면 실패 닫힘 방식으로 `503`을 반환한다.
+- POST body도 signature에 포함되도록 request body를 필터에서 캐시한 뒤 컨트롤러로 전달한다.
+- 단위 테스트로 body 변조 감지와 nonce 저장을 검증하고, MockMvc 통합 테스트로 유효 서명, 누락 서명, nonce replay, stale timestamp를 검증했다.
+
 ## 2026-06-04 협력사 입력 환율 캐시
 - `ExchangeRateCache` 포트를 추가해 환율 저장소를 시장 데이터 계산 로직에서 분리했다.
 - 현재 구현은 `InMemoryExchangeRateCache`이며 `KRW -> 현지통화` 표시용 환율과 갱신 시각을 프로세스 캐시에 보관한다.
@@ -236,6 +245,7 @@
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
 - API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
+- 운영 요청 서명은 HMAC-SHA256, timestamp clock skew, nonce replay 방어를 적용할 수 있다.
 
 ## 외부 연동 예정
 - KRX 외국인보유량 provider는 운영 전 Redis/DB 캐시로 승격한다.

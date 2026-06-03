@@ -41,11 +41,17 @@ docker compose -f compose.local.yml up -d
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
 - `KRX_BASE_URL`: KRX 데이터 endpoint 주소. 기본값은 `https://data.krx.co.kr`이다.
 - `KOREA_EXIM_BASE_URL`: 한국수출입은행 환율 endpoint 주소. 기본값은 `https://oapi.koreaexim.go.kr`이다.
+- `PAPAGO_TRANSLATION_CLIENT_ID`: Papago NMT API Client ID. 없으면 번역 실패 시 원문 제목으로 fallback한다.
+- `PAPAGO_TRANSLATION_CLIENT_SECRET`: Papago NMT API Client Secret.
 - `OMNILENS_RATE_LIMIT_ENABLED`: API key fingerprint 단위 rate limit 활성화 여부. 기본값은 `true`이다.
 - `OMNILENS_RATE_LIMIT_CAPACITY`: bucket 최대 요청 수. 기본값은 `120`이다.
 - `OMNILENS_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
 - `OMNILENS_RATE_LIMIT_REFILL_PERIOD`: refill 주기. 기본값은 `1m`이다.
 - `OMNILENS_RATE_LIMIT_MAX_BUCKETS`: 메모리에 보관할 최대 API key bucket 수. 기본값은 `10000`이다.
+- `OMNILENS_SIGNATURE_ENABLED`: HMAC 요청 서명 검증 활성화 여부. 기본값은 `false`이다.
+- `OMNILENS_SIGNATURE_SECRET`: HMAC 요청 서명 검증 secret. 서명 검증 활성화 시 필수다.
+- `OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW`: 서명 timestamp 허용 오차. 기본값은 `5m`이다.
+- `OMNILENS_SIGNATURE_MAX_NONCES`: 인메모리 nonce 저장 최대 개수. 기본값은 `10000`이다.
 - `ALERT_DEDUPE_MODE`: 알림 중복 방지 저장소 모드. 기본값은 `redis`이다.
 - `ALERT_DEDUPE_TTL`: Redis dedupe key 보존 시간. 기본값은 `24h`이다.
 - `ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES`: Redis 장애 fallback용 in-memory 최대 key 수. 기본값은 `10000`이다.

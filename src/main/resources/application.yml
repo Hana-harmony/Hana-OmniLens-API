@@ -29,6 +29,11 @@ omnilens:
       refill-tokens: 120
       refill-period: 1m
       max-buckets: 10000
+    signature:
+      enabled: false
+      secret: ""
+      allowed-clock-skew: 5m
+      max-nonces: 10000
   providers:
     public-data:
       stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService

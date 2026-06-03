@@ -12,6 +12,9 @@ docker compose -f compose.local.yml up -d
 - API key 누락 시 `401`
 - API key 해시 미설정 시 `503`
 - API key rate limit 초과 시 `429`와 `Retry-After`
+- HMAC 요청 서명 성공
+- HMAC 요청 서명 누락, nonce 재사용, stale timestamp 거부
+- 요청 body 변조 시 HMAC 서명 불일치 거부
 - health endpoint 공개
 - OpenAPI 문서 API key 보호와 핵심 REST/WebSocket 계약 포함 여부
 - 시장 데이터 응답 계약
