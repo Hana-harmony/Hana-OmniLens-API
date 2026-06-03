@@ -65,6 +65,7 @@ class PublicDataStockSecuritiesClientTest {
                         URI.create("https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService"),
                         "public-data-key"),
                 null,
+                null,
                 null);
     }
 }

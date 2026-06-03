@@ -14,12 +14,12 @@ import com.hana.omnilens.market.domain.StockSummary;
 public class InMemoryStockMasterRepository implements StockMasterRepository {
 
     private static final List<StockSummary> STOCKS = List.of(
-            new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI", "00126380"),
-            new StockSummary("000660", "SK하이닉스", "SK hynix", "KOSPI", "00164779"),
-            new StockSummary("035420", "NAVER", "NAVER", "KOSPI", "00266961"),
-            new StockSummary("005380", "현대차", "Hyundai Motor", "KOSPI", "00164742"),
-            new StockSummary("035720", "카카오", "Kakao", "KOSPI", "00258801"),
-            new StockSummary("207940", "삼성바이오로직스", "Samsung Biologics", "KOSPI", "00877059"));
+            new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI", "KR7005930003", "00126380"),
+            new StockSummary("000660", "SK하이닉스", "SK hynix", "KOSPI", "KR7000660001", "00164779"),
+            new StockSummary("035420", "NAVER", "NAVER", "KOSPI", "KR7035420009", "00266961"),
+            new StockSummary("005380", "현대차", "Hyundai Motor", "KOSPI", "KR7005380001", "00164742"),
+            new StockSummary("035720", "카카오", "Kakao", "KOSPI", "KR7035720002", "00258801"),
+            new StockSummary("207940", "삼성바이오로직스", "Samsung Biologics", "KOSPI", "KR7207940008", "00877059"));
 
     @Override
     public Optional<StockSummary> findByCode(String stockCode) {

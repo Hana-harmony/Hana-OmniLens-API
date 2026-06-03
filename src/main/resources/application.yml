@@ -34,6 +34,8 @@ omnilens:
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: ""
+    krx:
+      base-url: https://data.krx.co.kr
   ai:
     hannah:
       base-url: http://hannah-montana-ai:8000

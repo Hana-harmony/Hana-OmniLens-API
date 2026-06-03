@@ -26,6 +26,7 @@
 ## 내부 AI 통신
 - Hannah-Montana-AI는 스프링 컨테이너 내부 네트워크에서만 접근 가능하게 배치한다.
 - `HANNAH_AI_BASE_URL`은 주소 설정값이며 secret으로 분류하지 않는다.
+- `KRX_BASE_URL`은 KRX 데이터 endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - 별도 서비스 토큰 헤더는 사용하지 않는다.
 
 ## 향후 강화

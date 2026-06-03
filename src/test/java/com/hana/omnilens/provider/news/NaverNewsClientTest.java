@@ -60,6 +60,7 @@ class NaverNewsClientTest {
                         URI.create("https://openapi.naver.com"),
                         "naver-client",
                         "naver-secret"),
+                null,
                 null);
     }
 }

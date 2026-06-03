@@ -33,6 +33,14 @@
 - 로컬 실제 키가 있어도 테스트가 외부망을 타지 않도록 컨트롤러 테스트에서 provider key를 비움
 - 서비스 단위 테스트로 provider 성공, provider 실패 fallback, 종목 마스터 검색을 검증
 
+## 2026-06-04 KRX 외국인보유량 snapshot 연결
+- KRX 외국인보유량(개별종목) 화면의 `MDCSTAT03702` 데이터 계약을 격리한 `KrxForeignOwnershipClient` 추가
+- 종목 마스터에 ISIN을 추가해 KRX 개별종목 조회에 필요한 `isuCd`를 전달
+- KRX 응답의 외국인 보유수량, 외국인 지분율, 외국인 한도수량, 한도소진율을 `KrxForeignOwnershipSnapshot`으로 변환
+- `MarketDataService`가 KRX snapshot을 우선 사용하고, 호출 실패 또는 미응답 시 기존 fallback 값을 유지
+- source 필드에 가격 provider와 외국인보유 provider 사용 여부를 함께 표시
+- MockRestServiceServer 테스트로 KRX form 요청과 숫자 포맷 파싱을 검증
+
 ## 2026-06-04 Hannah-Montana-AI 분석 클라이언트
 - 내부 FastAPI 서비스 `POST /api/v1/alerts/analyze` 호출용 `HannahAiAnalysisClient` 추가
 - AI 요청·응답 DTO는 Python API 계약에 맞춰 snake_case JSON 필드로 고정
@@ -59,6 +67,7 @@
 
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
+- 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
 - 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
 - 알림 분석 발행 endpoint는 AI 분석 결과를 받아 기존 알림 이벤트 송신 로직을 재사용한다.
@@ -70,5 +79,6 @@
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
 
 ## 외부 연동 예정
-- KIS, KRX 외국인 보유율, 한국수출입은행 환율은 현재 포트만 정의된 상태다.
+- KIS, 한국수출입은행 환율은 현재 포트만 정의된 상태다.
+- KRX 외국인보유량 provider는 화면 기반 endpoint이므로 운영 전 Redis/DB 전일 캐시와 장애 재시도 정책을 붙인다.
 - Redis 또는 DB 기반 저장형 dedupe와 주기 수집 스케줄러를 추가한다.
