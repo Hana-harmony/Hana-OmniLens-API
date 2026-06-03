@@ -17,6 +17,9 @@ omnilens:
     open-dart:
       base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
       api-key: ${OPEN_DART_API_KEY}
+  ai:
+    hannah:
+      base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}
 
 spring:
   datasource:

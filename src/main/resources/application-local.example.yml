@@ -19,6 +19,9 @@ omnilens:
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: "replace-with-open-dart-api-key"
+  ai:
+    hannah:
+      base-url: http://localhost:8000
 
 spring:
   datasource:
