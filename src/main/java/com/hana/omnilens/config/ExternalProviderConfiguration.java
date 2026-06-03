@@ -11,7 +11,8 @@ import org.springframework.context.annotation.Configuration;
         AlertCollectionSchedulerProperties.class,
         KisRealtimeProperties.class,
         ExchangeRateRefreshProperties.class,
-        ExchangeRateCacheProperties.class
+        ExchangeRateCacheProperties.class,
+        ForeignOwnershipCacheProperties.class
 })
 public class ExternalProviderConfiguration {
 }
