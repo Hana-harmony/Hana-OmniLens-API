@@ -47,11 +47,23 @@
 - 번역 어댑터가 붙기 전까지 `translatedTitle`은 원문 제목으로 대체
 - MockMvc 테스트로 AI 분석 결과가 기존 알림 이벤트 payload로 발행되는지 검증
 
+## 2026-06-04 뉴스·공시 provider 수집 후 발행 endpoint
+- `/api/v1/alerts/collect-and-publish` endpoint 추가
+- 협력사가 `partnerId`, `stockCodes`, 뉴스 수집 개수, 공시 조회 기간을 전달하면 종목별 provider 수집을 수행
+- 인메모리 종목 마스터에 OpenDART 고유번호를 추가해 주식코드에서 공시검색 `corp_code`를 찾도록 구성
+- Naver News Search 결과를 `NEWS` 분석 요청으로 변환하고 Hannah-Montana-AI 분석 후 기존 WebSocket 발행 로직을 재사용
+- OpenDART 공시검색 결과를 `DISCLOSURE` 분석 요청으로 변환하고 접수번호 기반 원문 URL을 알림 payload에 포함
+- 같은 partner, source type, original URL 조합은 bounded in-memory dedupe로 중복 재발행을 방지
+- AI가 종목을 매핑하지 못한 건은 발행하지 않고 실패 카운트에 반영
+- MockMvc 테스트로 뉴스·공시 수집, 중복 URL skip, AI 분석, 알림 발행 응답을 검증
+
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
 - 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
 - 알림 분석 발행 endpoint는 AI 분석 결과를 받아 기존 알림 이벤트 송신 로직을 재사용한다.
+- 알림 수집 발행 endpoint는 Naver 뉴스와 OpenDART 공시를 수집한 뒤 AI 분석과 WebSocket 발행을 순차 수행한다.
+- provider 수집 기반 알림은 프로세스 단위 bounded in-memory dedupe로 같은 원문 URL의 반복 발행을 줄인다.
 - Naver News 응답의 HTML 태그와 entity를 정규화해 제목과 snippet으로 변환한다.
 - OpenDART 공시검색 응답의 접수번호로 원문 공시 URL을 생성한다.
 - 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.
@@ -59,4 +71,4 @@
 
 ## 외부 연동 예정
 - KIS, KRX 외국인 보유율, 한국수출입은행 환율은 현재 포트만 정의된 상태다.
-- Hannah-Montana-AI가 뉴스·공시 분석 결과를 제공하면 알림 송신 payload에 연결한다.
+- Redis 또는 DB 기반 저장형 dedupe와 주기 수집 스케줄러를 추가한다.

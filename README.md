@@ -21,6 +21,8 @@ docker compose -f compose.local.yml up -d
 - `GET /api/v1/market/stocks/{stockCode}/orderbook`
 - `GET /api/v1/market/stocks/search?query=삼성`
 - `POST /api/v1/alerts/events`
+- `POST /api/v1/alerts/analyze-and-publish`
+- `POST /api/v1/alerts/collect-and-publish`
 - `WS /ws/alerts`, topic `/topic/partners/{partnerId}/alerts`
 
 ## 문서

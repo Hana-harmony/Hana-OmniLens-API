@@ -13,11 +13,12 @@
 - 환율 캐시
 
 ## M3 뉴스·공시 알림
-- Naver News Search 수집
-- OpenDART 공시 수집
+- Naver News Search 수집 endpoint 연결 완료
+- OpenDART 공시 수집 endpoint 연결 완료
 - 번역 공급자 어댑터
-- Hannah-Montana-AI 분석 API 연동
-- 중복 제거와 재전송 방지
+- Hannah-Montana-AI 분석 API 연동 완료
+- Redis 또는 DB 기반 중복 제거와 재전송 방지
+- 협력사별 watchlist 기반 주기 수집 스케줄러
 
 ## M4 운영 하드닝
 - 협력사별 rate limit
