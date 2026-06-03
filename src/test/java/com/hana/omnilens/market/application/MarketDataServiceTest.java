@@ -1,7 +1,10 @@
 package com.hana.omnilens.market.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -31,7 +34,8 @@ class MarketDataServiceTest {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
-        MarketDataService service = new MarketDataService(client, foreignOwnershipClient, repository, FIXED_CLOCK);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(client, foreignOwnershipClient, repository, cache, FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
                 new StockSummary(
@@ -79,7 +83,8 @@ class MarketDataServiceTest {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
-        MarketDataService service = new MarketDataService(client, foreignOwnershipClient, repository, FIXED_CLOCK);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(client, foreignOwnershipClient, repository, cache, FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
                 new StockSummary(
@@ -102,5 +107,95 @@ class MarketDataServiceTest {
         assertThat(quote.currentPriceKrw()).isEqualByComparingTo("78500");
         assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("56.5200");
         assertThat(quote.source()).isEqualTo("MOCK_MARKET_DATA");
+    }
+
+    @Test
+    void getQuoteRetriesKrxForeignOwnershipAfterDateFailure() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(client, foreignOwnershipClient, repository, cache, FIXED_CLOCK);
+        StockSummary stock = samsungElectronics();
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(foreignOwnershipClient.findForeignOwnership(
+                "005930",
+                "삼성전자",
+                "KR7005930003",
+                LocalDate.of(2025, 6, 3))).thenThrow(new IllegalStateException("krx date is unavailable"));
+        when(foreignOwnershipClient.findForeignOwnership(
+                "005930",
+                "삼성전자",
+                "KR7005930003",
+                LocalDate.of(2025, 6, 2))).thenReturn(Optional.of(new KrxForeignOwnershipSnapshot(
+                        "005930",
+                        3_500_000_000L,
+                        new BigDecimal("52.10"),
+                        6_720_000_000L,
+                        new BigDecimal("52.08"),
+                        LocalDate.of(2025, 6, 2))));
+
+        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
+
+        assertThat(quote.foreignOwnedQuantity()).isEqualTo(3_500_000_000L);
+        assertThat(quote.foreignOwnershipRate()).isEqualByComparingTo("52.10");
+        assertThat(quote.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 2));
+        assertThat(quote.source()).isEqualTo("MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP");
+        assertThat(cache.find("005930")).isPresent();
+        verify(foreignOwnershipClient).findForeignOwnership(
+                "005930",
+                "삼성전자",
+                "KR7005930003",
+                LocalDate.of(2025, 6, 3));
+        verify(foreignOwnershipClient).findForeignOwnership(
+                "005930",
+                "삼성전자",
+                "KR7005930003",
+                LocalDate.of(2025, 6, 2));
+    }
+
+    @Test
+    void getQuoteUsesCachedForeignOwnershipWhenKrxIsUnavailable() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(client, foreignOwnershipClient, repository, cache, FIXED_CLOCK);
+        StockSummary stock = samsungElectronics();
+        cache.put(new KrxForeignOwnershipSnapshot(
+                "005930",
+                3_400_000_000L,
+                new BigDecimal("51.01"),
+                6_720_000_000L,
+                new BigDecimal("50.99"),
+                LocalDate.of(2025, 6, 2)));
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(foreignOwnershipClient.findForeignOwnership(
+                eq("005930"),
+                eq("삼성전자"),
+                eq("KR7005930003"),
+                any(LocalDate.class))).thenThrow(new IllegalStateException("krx is unavailable"));
+
+        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
+
+        assertThat(quote.foreignOwnedQuantity()).isEqualTo(3_400_000_000L);
+        assertThat(quote.foreignOwnershipRate()).isEqualByComparingTo("51.01");
+        assertThat(quote.foreignLimitExhaustionRate()).isEqualByComparingTo("50.99");
+        assertThat(quote.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 2));
+        assertThat(quote.source()).isEqualTo("MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE");
+    }
+
+    private StockSummary samsungElectronics() {
+        return new StockSummary(
+                "005930",
+                "삼성전자",
+                "Samsung Electronics",
+                "KOSPI",
+                "KR7005930003",
+                "00126380");
     }
 }

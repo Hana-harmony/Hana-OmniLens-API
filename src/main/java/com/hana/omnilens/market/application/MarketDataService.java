@@ -35,31 +35,40 @@ public class MarketDataService {
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
     private final KrxForeignOwnershipClient krxForeignOwnershipClient;
     private final StockMasterRepository stockMasterRepository;
+    private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
     private final Clock clock;
 
     @Autowired
     public MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
             KrxForeignOwnershipClient krxForeignOwnershipClient,
-            StockMasterRepository stockMasterRepository) {
-        this(publicDataStockSecuritiesClient, krxForeignOwnershipClient, stockMasterRepository, Clock.system(KOREA_ZONE));
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache) {
+        this(
+                publicDataStockSecuritiesClient,
+                krxForeignOwnershipClient,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                Clock.system(KOREA_ZONE));
     }
 
     MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
             KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.krxForeignOwnershipClient = krxForeignOwnershipClient;
         this.stockMasterRepository = stockMasterRepository;
+        this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
         this.clock = clock;
     }
 
     public MarketQuote getQuote(String stockCode, String localCurrency, BigDecimal fxRate) {
         Optional<PublicDataStockPriceSnapshot> snapshot = latestPublicDataSnapshot(stockCode);
         StockSummary stock = stockMasterRepository.findByCode(stockCode).orElse(DEFAULT_STOCK);
-        Optional<KrxForeignOwnershipSnapshot> foreignOwnership = latestForeignOwnershipSnapshot(stock);
+        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock);
 
         BigDecimal currentPrice = snapshot
                 .map(PublicDataStockPriceSnapshot::closingPriceKrw)
@@ -79,15 +88,16 @@ public class MarketDataService {
                 "KRW",
                 localPrice,
                 localCurrency,
-                foreignOwnership.map(KrxForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(3642091300L),
-                foreignOwnership.map(KrxForeignOwnershipSnapshot::foreignOwnershipRate).orElse(new BigDecimal("54.19")),
-                foreignOwnership.map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate)
+                foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(3642091300L),
+                foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignOwnershipRate)
                         .orElse(new BigDecimal("54.19")),
-                foreignOwnership.map(KrxForeignOwnershipSnapshot::baseDate)
+                foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate)
+                        .orElse(new BigDecimal("54.19")),
+                foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::baseDate)
                         .orElse(snapshot.map(PublicDataStockPriceSnapshot::baseDate)
                                 .orElse(LocalDate.now(clock).minusDays(1))),
                 Instant.now(clock),
-                source(snapshot.isPresent(), foreignOwnership.isPresent()))
+                source(snapshot.isPresent(), foreignOwnership.source()))
         ;
     }
 
@@ -124,7 +134,7 @@ public class MarketDataService {
         return Optional.empty();
     }
 
-    private Optional<KrxForeignOwnershipSnapshot> latestForeignOwnershipSnapshot(StockSummary stock) {
+    private ForeignOwnershipLookup latestForeignOwnershipSnapshot(StockSummary stock) {
         LocalDate baseDate = LocalDate.now(clock).minusDays(1);
         for (int daysBack = 0; daysBack < 7; daysBack++) {
             try {
@@ -134,25 +144,57 @@ public class MarketDataService {
                         stock.isinCode(),
                         baseDate.minusDays(daysBack));
                 if (snapshot.isPresent()) {
-                    return snapshot;
+                    foreignOwnershipSnapshotCache.put(snapshot.orElseThrow());
+                    return ForeignOwnershipLookup.live(snapshot);
                 }
             } catch (RuntimeException exception) {
-                return Optional.empty();
+                continue;
             }
         }
-        return Optional.empty();
+        return foreignOwnershipSnapshotCache.find(stock.stockCode())
+                .map(ForeignOwnershipLookup::cache)
+                .orElseGet(ForeignOwnershipLookup::empty);
     }
 
-    private String source(boolean priceFromProvider, boolean foreignOwnershipFromProvider) {
-        if (priceFromProvider && foreignOwnershipFromProvider) {
+    private String source(boolean priceFromProvider, ForeignOwnershipSource foreignOwnershipSource) {
+        if (priceFromProvider && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
             return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP";
+        }
+        if (priceFromProvider && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
+            return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
         if (priceFromProvider) {
             return "PUBLIC_DATA_STOCK_SECURITIES";
         }
-        if (foreignOwnershipFromProvider) {
+        if (foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
             return "MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP";
         }
+        if (foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
+            return "MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE";
+        }
         return "MOCK_MARKET_DATA";
+    }
+
+    private record ForeignOwnershipLookup(
+            Optional<KrxForeignOwnershipSnapshot> snapshot,
+            ForeignOwnershipSource source
+    ) {
+        private static ForeignOwnershipLookup live(Optional<KrxForeignOwnershipSnapshot> snapshot) {
+            return new ForeignOwnershipLookup(snapshot, ForeignOwnershipSource.LIVE_PROVIDER);
+        }
+
+        private static ForeignOwnershipLookup cache(KrxForeignOwnershipSnapshot snapshot) {
+            return new ForeignOwnershipLookup(Optional.of(snapshot), ForeignOwnershipSource.CACHE);
+        }
+
+        private static ForeignOwnershipLookup empty() {
+            return new ForeignOwnershipLookup(Optional.empty(), ForeignOwnershipSource.NONE);
+        }
+    }
+
+    private enum ForeignOwnershipSource {
+        LIVE_PROVIDER,
+        CACHE,
+        NONE
     }
 }
