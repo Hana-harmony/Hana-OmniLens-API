@@ -5,6 +5,7 @@ public record StockSummary(
         String stockName,
         String stockNameEn,
         String market,
+        String isinCode,
         String dartCorpCode
 ) {
 }

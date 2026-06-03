@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockSummary;
+import com.hana.omnilens.provider.market.KrxForeignOwnershipClient;
+import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockSecuritiesClient;
 
@@ -26,25 +28,30 @@ public class MarketDataService {
             "삼성전자",
             "Samsung Electronics",
             "KOSPI",
+            "KR7005930003",
             "00126380");
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
+    private final KrxForeignOwnershipClient krxForeignOwnershipClient;
     private final StockMasterRepository stockMasterRepository;
     private final Clock clock;
 
     @Autowired
     public MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository) {
-        this(publicDataStockSecuritiesClient, stockMasterRepository, Clock.system(KOREA_ZONE));
+        this(publicDataStockSecuritiesClient, krxForeignOwnershipClient, stockMasterRepository, Clock.system(KOREA_ZONE));
     }
 
     MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
             Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
+        this.krxForeignOwnershipClient = krxForeignOwnershipClient;
         this.stockMasterRepository = stockMasterRepository;
         this.clock = clock;
     }
@@ -52,6 +59,7 @@ public class MarketDataService {
     public MarketQuote getQuote(String stockCode, String localCurrency, BigDecimal fxRate) {
         Optional<PublicDataStockPriceSnapshot> snapshot = latestPublicDataSnapshot(stockCode);
         StockSummary stock = stockMasterRepository.findByCode(stockCode).orElse(DEFAULT_STOCK);
+        Optional<KrxForeignOwnershipSnapshot> foreignOwnership = latestForeignOwnershipSnapshot(stock);
 
         BigDecimal currentPrice = snapshot
                 .map(PublicDataStockPriceSnapshot::closingPriceKrw)
@@ -71,12 +79,15 @@ public class MarketDataService {
                 "KRW",
                 localPrice,
                 localCurrency,
-                3642091300L,
-                new BigDecimal("54.19"),
-                new BigDecimal("54.19"),
-                snapshot.map(PublicDataStockPriceSnapshot::baseDate).orElse(LocalDate.now(clock).minusDays(1)),
+                foreignOwnership.map(KrxForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(3642091300L),
+                foreignOwnership.map(KrxForeignOwnershipSnapshot::foreignOwnershipRate).orElse(new BigDecimal("54.19")),
+                foreignOwnership.map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate)
+                        .orElse(new BigDecimal("54.19")),
+                foreignOwnership.map(KrxForeignOwnershipSnapshot::baseDate)
+                        .orElse(snapshot.map(PublicDataStockPriceSnapshot::baseDate)
+                                .orElse(LocalDate.now(clock).minusDays(1))),
                 Instant.now(clock),
-                snapshot.isPresent() ? "PUBLIC_DATA_STOCK_SECURITIES" : "MOCK_MARKET_DATA")
+                source(snapshot.isPresent(), foreignOwnership.isPresent()))
         ;
     }
 
@@ -111,5 +122,37 @@ public class MarketDataService {
             }
         }
         return Optional.empty();
+    }
+
+    private Optional<KrxForeignOwnershipSnapshot> latestForeignOwnershipSnapshot(StockSummary stock) {
+        LocalDate baseDate = LocalDate.now(clock).minusDays(1);
+        for (int daysBack = 0; daysBack < 7; daysBack++) {
+            try {
+                Optional<KrxForeignOwnershipSnapshot> snapshot = krxForeignOwnershipClient.findForeignOwnership(
+                        stock.stockCode(),
+                        stock.stockName(),
+                        stock.isinCode(),
+                        baseDate.minusDays(daysBack));
+                if (snapshot.isPresent()) {
+                    return snapshot;
+                }
+            } catch (RuntimeException exception) {
+                return Optional.empty();
+            }
+        }
+        return Optional.empty();
+    }
+
+    private String source(boolean priceFromProvider, boolean foreignOwnershipFromProvider) {
+        if (priceFromProvider && foreignOwnershipFromProvider) {
+            return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP";
+        }
+        if (priceFromProvider) {
+            return "PUBLIC_DATA_STOCK_SECURITIES";
+        }
+        if (foreignOwnershipFromProvider) {
+            return "MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP";
+        }
+        return "MOCK_MARKET_DATA";
     }
 }

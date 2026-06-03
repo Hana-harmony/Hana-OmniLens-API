@@ -9,13 +9,15 @@ import org.springframework.util.StringUtils;
 public record ExternalProviderProperties(
         PublicData publicData,
         NaverNews naverNews,
-        OpenDart openDart
+        OpenDart openDart,
+        Krx krx
 ) {
 
     public ExternalProviderProperties {
         publicData = publicData == null ? PublicData.defaults() : publicData.withDefaults();
         naverNews = naverNews == null ? NaverNews.defaults() : naverNews.withDefaults();
         openDart = openDart == null ? OpenDart.defaults() : openDart.withDefaults();
+        krx = krx == null ? Krx.defaults() : krx.withDefaults();
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -73,6 +75,17 @@ public record ExternalProviderProperties(
 
         public String requiredApiKey() {
             return requireSecret(apiKey, "omnilens.providers.open-dart.api-key");
+        }
+    }
+
+    public record Krx(URI baseUrl) {
+
+        private static Krx defaults() {
+            return new Krx(URI.create("https://data.krx.co.kr"));
+        }
+
+        private Krx withDefaults() {
+            return new Krx(baseUrl == null ? defaults().baseUrl() : baseUrl);
         }
     }
 

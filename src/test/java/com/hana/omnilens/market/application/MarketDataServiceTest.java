@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.StockSummary;
+import com.hana.omnilens.provider.market.KrxForeignOwnershipClient;
+import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockSecuritiesClient;
 
@@ -27,11 +29,18 @@ class MarketDataServiceTest {
     @Test
     void getQuoteUsesPublicDataSnapshotWhenAvailable() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
-        MarketDataService service = new MarketDataService(client, repository, FIXED_CLOCK);
+        MarketDataService service = new MarketDataService(client, foreignOwnershipClient, repository, FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
-                new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI", "00126380")));
+                new StockSummary(
+                        "005930",
+                        "삼성전자",
+                        "Samsung Electronics",
+                        "KOSPI",
+                        "KR7005930003",
+                        "00126380")));
         when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.of(
                 new PublicDataStockPriceSnapshot(
                         "005930",
@@ -41,6 +50,17 @@ class MarketDataServiceTest {
                         new BigDecimal("2.11"),
                         9800000L,
                         LocalDate.of(2025, 6, 3))));
+        when(foreignOwnershipClient.findForeignOwnership(
+                "005930",
+                "삼성전자",
+                "KR7005930003",
+                LocalDate.of(2025, 6, 3))).thenReturn(Optional.of(new KrxForeignOwnershipSnapshot(
+                        "005930",
+                        3_642_091_300L,
+                        new BigDecimal("54.19"),
+                        6_720_000_000L,
+                        new BigDecimal("54.21"),
+                        LocalDate.of(2025, 6, 3))));
 
         MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
 
@@ -48,19 +68,34 @@ class MarketDataServiceTest {
         assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("57.6720");
         assertThat(quote.changeRate()).isEqualByComparingTo("2.11");
         assertThat(quote.volume()).isEqualTo(9_800_000L);
-        assertThat(quote.source()).isEqualTo("PUBLIC_DATA_STOCK_SECURITIES");
+        assertThat(quote.foreignOwnedQuantity()).isEqualTo(3_642_091_300L);
+        assertThat(quote.foreignOwnershipRate()).isEqualByComparingTo("54.19");
+        assertThat(quote.foreignLimitExhaustionRate()).isEqualByComparingTo("54.21");
+        assertThat(quote.source()).isEqualTo("PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP");
     }
 
     @Test
     void getQuoteFallsBackWhenProviderIsUnavailable() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
-        MarketDataService service = new MarketDataService(client, repository, FIXED_CLOCK);
+        MarketDataService service = new MarketDataService(client, foreignOwnershipClient, repository, FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
-                new StockSummary("005930", "삼성전자", "Samsung Electronics", "KOSPI", "00126380")));
+                new StockSummary(
+                        "005930",
+                        "삼성전자",
+                        "Samsung Electronics",
+                        "KOSPI",
+                        "KR7005930003",
+                        "00126380")));
         when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
                 .thenThrow(new IllegalStateException("provider is not configured"));
+        when(foreignOwnershipClient.findForeignOwnership(
+                "005930",
+                "삼성전자",
+                "KR7005930003",
+                LocalDate.of(2025, 6, 3))).thenThrow(new IllegalStateException("krx is unavailable"));
 
         MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
 
