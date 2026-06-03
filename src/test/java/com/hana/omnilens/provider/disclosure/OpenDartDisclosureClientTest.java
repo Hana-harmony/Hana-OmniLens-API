@@ -63,6 +63,7 @@ class OpenDartDisclosureClientTest {
                 new ExternalProviderProperties.OpenDart(
                         URI.create("https://opendart.fss.or.kr"),
                         "dart-api-key"),
+                null,
                 null);
     }
 }

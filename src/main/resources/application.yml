@@ -42,6 +42,11 @@ omnilens:
       api-key: ""
     krx:
       base-url: https://data.krx.co.kr
+    kis:
+      base-url: https://openapi.koreainvestment.com:9443
+      app-key: ""
+      app-secret: ""
+      access-token: ""
   ai:
     hannah:
       base-url: http://hannah-montana-ai:8000

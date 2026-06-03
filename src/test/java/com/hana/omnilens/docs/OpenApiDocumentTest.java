@@ -30,6 +30,7 @@ class OpenApiDocumentTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("openapi: 3.1.0")))
                 .andExpect(content().string(containsString("/api/v1/market/stocks/{stockCode}/quote")))
+                .andExpect(content().string(containsString("KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP")))
                 .andExpect(content().string(containsString("/api/v1/alerts/collect-and-publish")))
                 .andExpect(content().string(containsString("/ws/alerts")))
                 .andExpect(content().string(containsString("/topic/partners/{partnerId}/alerts")))

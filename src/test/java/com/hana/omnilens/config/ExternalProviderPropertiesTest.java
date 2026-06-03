@@ -9,7 +9,7 @@ class ExternalProviderPropertiesTest {
 
     @Test
     void defaultsDoNotExposeSecretsAndFailClosedWhenRequired() {
-        ExternalProviderProperties properties = new ExternalProviderProperties(null, null, null, null);
+        ExternalProviderProperties properties = new ExternalProviderProperties(null, null, null, null, null);
 
         assertThat(properties.publicData().stockSecuritiesBaseUrl().toString())
                 .isEqualTo("https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService");

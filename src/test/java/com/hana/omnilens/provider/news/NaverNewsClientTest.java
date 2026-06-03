@@ -61,6 +61,7 @@ class NaverNewsClientTest {
                         "naver-client",
                         "naver-secret"),
                 null,
+                null,
                 null);
     }
 }
