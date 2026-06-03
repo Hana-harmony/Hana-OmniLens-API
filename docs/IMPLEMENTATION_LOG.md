@@ -179,11 +179,20 @@
 - 한 통화의 provider 장애는 warn log로 격리하고 다음 통화 refresh를 계속한다.
 - 단위 테스트로 disabled no-op, 통화코드 정규화, 기준일 offset, 통화별 장애 격리를 검증했다.
 
+## 2026-06-04 Redis 기반 환율 cache
+- `ExchangeRateCacheProperties`를 추가해 환율 cache 저장소를 `redis`와 `in-memory` 모드로 전환할 수 있게 했다.
+- 기본 모드는 Redis이며 `EXCHANGE_RATE_CACHE_TTL`로 저장 TTL을 조정한다.
+- `RedisExchangeRateCache`는 `ExchangeRateSnapshot`을 JSON으로 직렬화해 `omnilens:market:exchange-rate:{currency}` key에 저장한다.
+- Redis 조회·저장 장애 또는 payload 역직렬화 실패 시 `InMemoryExchangeRateCache` fallback을 사용한다.
+- Redis 저장 성공 후에도 fallback cache를 갱신해 일시 장애 시 마지막 성공 값을 같은 프로세스에서 계속 사용할 수 있게 했다.
+- 단위 테스트로 TTL 저장, Redis payload 조회, Redis 장애 fallback, properties 기본값을 검증했다.
+
 ## 현재 구현 로직
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.
 - 현지 통화 환산가는 quote 요청의 `fxRate`, 한국수출입은행 또는 협력사 입력 환율 캐시, `1` fallback 순서로 선택한 환율에 `currentPriceKrw`를 곱해 계산한다.
+- 환율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
 - validation 실패 응답은 `400 Bad Request`와 ProblemDetail body로 통일한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
 - WebSocket endpoint `/ws/alerts` handshake도 운영 API key 검증 대상이다.
@@ -201,5 +210,5 @@
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 
 ## 외부 연동 예정
-- KRX 외국인보유량 provider와 환율 cache는 운영 전 Redis/DB 캐시로 승격한다.
+- KRX 외국인보유량 provider는 운영 전 Redis/DB 캐시로 승격한다.
 - 협력사 watchlist를 DB에서 관리하는 저장소를 추가한다.

@@ -67,13 +67,19 @@ KIS_REALTIME_STOCK_CODES=005930,000660
 - `PUT /api/v1/market/exchange-rates/{currency}`로 `KRW -> 현지통화` 표시용 환율을 저장한다.
 - quote 요청에 `fxRate`가 없으면 저장된 환율을 현지 통화 환산가 계산에 사용한다.
 - quote 요청에 `fxRate`가 있으면 해당 요청값을 우선한다.
-- 현재 캐시는 프로세스 메모리 기반이므로 컨테이너 재시작 시 초기화된다.
+- 기본 캐시는 Redis TTL 기반이며 Redis 장애 시 같은 프로세스의 in-memory fallback을 사용한다.
+- 로컬 테스트에서 Redis 없이 실행해야 하면 `EXCHANGE_RATE_CACHE_MODE=in-memory`로 전환한다.
 
 ```bash
 curl -X PUT http://localhost:8080/api/v1/market/exchange-rates/USD \
   -H "X-HANA-OMNILENS-API-KEY: ${PARTNER_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{"fxRate":0.00072}'
+```
+
+```text
+EXCHANGE_RATE_CACHE_MODE=redis
+EXCHANGE_RATE_CACHE_TTL=24h
 ```
 
 ## 한국수출입은행 환율 provider

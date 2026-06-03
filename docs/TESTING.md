@@ -30,6 +30,7 @@ docker compose -f compose.local.yml up -d
 - 한국수출입은행 환율 provider 요청·응답 매핑과 cache refresh
 - `deal_bas_r`의 `KRW -> 현지통화` 변환 및 `JPY(100)` 단위 처리
 - 환율 refresh scheduler의 disabled no-op, 기준일 offset, 통화별 장애 격리
+- Redis 환율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - quote 요청 `fxRate`가 저장된 환율보다 우선되는 계산 계약
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑

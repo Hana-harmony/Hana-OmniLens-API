@@ -57,6 +57,8 @@ docker compose -f compose.local.yml up -d
 - `EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS`: 환율 갱신 간격. 기본값은 `300000`이다.
 - `EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS`: 환율 조회 기준일 offset. 기본값은 `0`이다.
 - `EXCHANGE_RATE_REFRESH_CURRENCIES`: 갱신할 통화 목록. 예: `USD,JPY`.
+- `EXCHANGE_RATE_CACHE_MODE`: 환율 cache 저장소. 기본값은 `redis`이다.
+- `EXCHANGE_RATE_CACHE_TTL`: Redis 환율 cache TTL. 기본값은 `24h`이다.
 
 watchlist는 Spring indexed env로 주입할 수 있다.
 

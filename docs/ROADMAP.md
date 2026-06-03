@@ -16,7 +16,7 @@
 - 협력사 입력 환율 프로세스 캐시 완료
 - 한국수출입은행 환율 provider adapter와 cache refresh service 완료
 - 한국수출입은행 환율 주기 refresh scheduler 완료
-- 환율 Redis/DB 캐시
+- 환율 Redis TTL cache와 in-memory fallback 완료
 
 ## M3 뉴스·공시 알림
 - Naver News Search 수집 endpoint 연결 완료
