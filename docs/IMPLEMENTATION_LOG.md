@@ -90,6 +90,14 @@
 - STOMP WebSocket endpoint `/ws/alerts`와 topic `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`는 `x-websocket` 확장으로 기록했다.
 - MockMvc 테스트로 API key 보호, 문서 제공, 핵심 path/topic 포함 여부를 검증한다.
 
+## 2026-06-04 API key rate limit
+- 인증된 운영 API 요청에 API key SHA-256 fingerprint 단위 token bucket rate limit을 적용한다.
+- API key 원문은 저장하지 않고 fingerprint만 bucket key로 사용한다.
+- 기본값은 1분에 120개 요청이며 `omnilens.security.rate-limit` 설정으로 조정한다.
+- 초과 요청은 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
+- health/info 공개 endpoint는 rate limit bucket을 소비하지 않는다.
+- 단위 테스트로 bucket refill, disabled 모드, 필터의 `429` 응답, public endpoint skip, properties 기본값을 검증한다.
+
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
@@ -104,6 +112,7 @@
 - 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
 - API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.
+- 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 
 ## 외부 연동 예정
 - KIS, 한국수출입은행 환율은 현재 포트만 정의된 상태다.

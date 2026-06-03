@@ -39,6 +39,11 @@ docker compose -f compose.local.yml up -d
 ## 선택 운영 변수
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
 - `KRX_BASE_URL`: KRX 데이터 endpoint 주소. 기본값은 `https://data.krx.co.kr`이다.
+- `OMNILENS_RATE_LIMIT_ENABLED`: API key fingerprint 단위 rate limit 활성화 여부. 기본값은 `true`이다.
+- `OMNILENS_RATE_LIMIT_CAPACITY`: bucket 최대 요청 수. 기본값은 `120`이다.
+- `OMNILENS_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
+- `OMNILENS_RATE_LIMIT_REFILL_PERIOD`: refill 주기. 기본값은 `1m`이다.
+- `OMNILENS_RATE_LIMIT_MAX_BUCKETS`: 메모리에 보관할 최대 API key bucket 수. 기본값은 `10000`이다.
 - `ALERT_DEDUPE_MODE`: 알림 중복 방지 저장소 모드. 기본값은 `redis`이다.
 - `ALERT_DEDUPE_TTL`: Redis dedupe key 보존 시간. 기본값은 `24h`이다.
 - `ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES`: Redis 장애 fallback용 in-memory 최대 key 수. 기본값은 `10000`이다.

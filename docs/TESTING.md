@@ -11,6 +11,7 @@ docker compose -f compose.local.yml up -d
 - API key 인증 성공
 - API key 누락 시 `401`
 - API key 해시 미설정 시 `503`
+- API key rate limit 초과 시 `429`와 `Retry-After`
 - health endpoint 공개
 - OpenAPI 문서 API key 보호와 핵심 REST/WebSocket 계약 포함 여부
 - 시장 데이터 응답 계약
@@ -28,6 +29,5 @@ docker compose -f compose.local.yml up -d
 ## 추가 예정
 - WebSocket subscription 계약 테스트
 - 입력 validation 실패 케이스
-- rate limit 정책 테스트
 - KRX provider 장애 재시도와 전일 캐시 테스트
 - Redis integration testcontainer 기반 연결 테스트

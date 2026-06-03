@@ -6,6 +6,12 @@ omnilens:
     api-key-enabled: true
     api-key-sha256: ${OMNILENS_API_KEY_SHA256}
     cors-allowed-origins: ${OMNILENS_CORS_ALLOWED_ORIGINS}
+    rate-limit:
+      enabled: ${OMNILENS_RATE_LIMIT_ENABLED:true}
+      capacity: ${OMNILENS_RATE_LIMIT_CAPACITY:120}
+      refill-tokens: ${OMNILENS_RATE_LIMIT_REFILL_TOKENS:120}
+      refill-period: ${OMNILENS_RATE_LIMIT_REFILL_PERIOD:1m}
+      max-buckets: ${OMNILENS_RATE_LIMIT_MAX_BUCKETS:10000}
   providers:
     public-data:
       stock-securities-base-url: ${PUBLIC_DATA_STOCK_SECURITIES_BASE_URL:https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService}

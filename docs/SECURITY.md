@@ -4,6 +4,8 @@
 - 모든 운영 API 요청은 `X-HANA-OMNILENS-API-KEY`를 사용한다.
 - 서버는 API key 원문을 저장하지 않고 `application-prod.yml`의 SHA-256 해시와 상수 시간 비교한다.
 - API key 해시가 없으면 운영 API는 실패 닫힘 방식으로 `503`을 반환한다.
+- 인증된 요청은 API key SHA-256 fingerprint 단위로 rate limit을 적용한다.
+- rate limit 초과 요청은 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
 - CORS는 profile별 설정 파일의 허용 목록만 사용한다.
 - 세션은 stateless로 유지한다.
 
@@ -33,5 +35,5 @@
 - 협력사별 key rotation
 - mTLS 또는 요청 서명
 - WebSocket handshake 인증 강화
-- rate limit과 abuse detection
+- abuse detection
 - 감사 로그 무결성 보장

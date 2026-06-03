@@ -16,7 +16,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties(OmniLensSecurityProperties.class)
+@EnableConfigurationProperties({OmniLensSecurityProperties.class, ApiRateLimitProperties.class})
 public class SecurityConfig {
 
     @Bean

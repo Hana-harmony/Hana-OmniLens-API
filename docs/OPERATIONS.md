@@ -49,8 +49,13 @@ OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_1=000660
 - 문서는 협력사 API key 보호 대상이다.
 - REST endpoint와 STOMP WebSocket endpoint/topic 계약을 함께 확인할 수 있다.
 
+## Rate Limit
+- 기본값은 API key fingerprint당 1분에 120개 요청이다.
+- 초과 시 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
+- 운영 임계값은 `OMNILENS_RATE_LIMIT_CAPACITY`, `OMNILENS_RATE_LIMIT_REFILL_TOKENS`, `OMNILENS_RATE_LIMIT_REFILL_PERIOD`로 조정한다.
+- 임시 비활성화는 `OMNILENS_RATE_LIMIT_ENABLED=false`로 한다.
+
 ## 운영 전 보강
-- 협력사별 rate limit
 - audit log
 - 장애 추적 correlation id
 - 외부 API timeout, retry, circuit breaker

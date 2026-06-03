@@ -16,15 +16,20 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.hana.omnilens.security.ApiKeyRateLimiter;
+import com.hana.omnilens.security.ApiKeyRateLimiter.RateLimitDecision;
+
 @Component
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String HEADER_NAME = "X-HANA-OMNILENS-API-KEY";
 
     private final OmniLensSecurityProperties properties;
+    private final ApiKeyRateLimiter apiKeyRateLimiter;
 
-    public ApiKeyAuthenticationFilter(OmniLensSecurityProperties properties) {
+    public ApiKeyAuthenticationFilter(OmniLensSecurityProperties properties, ApiKeyRateLimiter apiKeyRateLimiter) {
         this.properties = properties;
+        this.apiKeyRateLimiter = apiKeyRateLimiter;
     }
 
     @Override
@@ -41,8 +46,16 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String providedKey = request.getHeader(HEADER_NAME);
-        if (!StringUtils.hasText(providedKey) || !matchesConfiguredHash(providedKey)) {
+        String providedKeyHash = StringUtils.hasText(providedKey) ? sha256Hex(providedKey) : "";
+        if (!StringUtils.hasText(providedKey) || !matchesConfiguredHash(providedKeyHash)) {
             response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid API key");
+            return;
+        }
+
+        RateLimitDecision decision = apiKeyRateLimiter.consume(providedKeyHash);
+        if (!decision.allowed()) {
+            response.setHeader("Retry-After", String.valueOf(decision.retryAfterSeconds()));
+            response.sendError(HttpStatus.TOO_MANY_REQUESTS.value(), "Rate limit exceeded");
             return;
         }
 
@@ -54,9 +67,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         return path.startsWith("/actuator/health") || path.equals("/actuator/info");
     }
 
-    private boolean matchesConfiguredHash(String providedKey) {
+    private boolean matchesConfiguredHash(String providedKeyHash) {
         byte[] expected = properties.apiKeySha256().trim().getBytes(StandardCharsets.UTF_8);
-        byte[] actual = sha256Hex(providedKey).getBytes(StandardCharsets.UTF_8);
+        byte[] actual = providedKeyHash.getBytes(StandardCharsets.UTF_8);
         return MessageDigest.isEqual(actual, expected);
     }
 

@@ -23,6 +23,12 @@ omnilens:
     api-key-enabled: true
     api-key-sha256: ""
     cors-allowed-origins: []
+    rate-limit:
+      enabled: true
+      capacity: 120
+      refill-tokens: 120
+      refill-period: 1m
+      max-buckets: 10000
   providers:
     public-data:
       stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService
