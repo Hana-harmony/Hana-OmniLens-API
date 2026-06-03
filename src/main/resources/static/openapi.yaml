@@ -7,7 +7,8 @@ info:
     Hana OmniLens API provides Korea stock information, foreign ownership
     snapshots, and news/disclosure alert events for overseas exchange and broker
     partners. It does not provide order, execution, settlement, FX trading, or
-    omnibus account processing.
+    omnibus account processing. Every response includes
+    X-HANA-OMNILENS-CORRELATION-ID for support and incident tracing.
 servers:
   - url: https://api.hana-omnilens.example.com
     description: Production placeholder

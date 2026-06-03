@@ -42,7 +42,9 @@ public class SecurityConfig {
                 "X-HANA-OMNILENS-TIMESTAMP",
                 "X-HANA-OMNILENS-NONCE",
                 "X-HANA-OMNILENS-SIGNATURE",
+                "X-HANA-OMNILENS-CORRELATION-ID",
                 "Content-Type"));
+        configuration.setExposedHeaders(List.of("X-HANA-OMNILENS-CORRELATION-ID"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
 

@@ -21,6 +21,7 @@ import com.hana.omnilens.security.ApiKeyRateLimiter.RateLimitDecision;
 import com.hana.omnilens.security.ApiRequestSignatureVerifier;
 import com.hana.omnilens.security.ApiRequestSignatureVerifier.SignatureVerificationResult;
 import com.hana.omnilens.security.CachedBodyHttpServletRequest;
+import com.hana.omnilens.security.SecurityAuditLogger;
 
 @Component
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
@@ -30,14 +31,17 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private final OmniLensSecurityProperties properties;
     private final ApiKeyRateLimiter apiKeyRateLimiter;
     private final ApiRequestSignatureVerifier apiRequestSignatureVerifier;
+    private final SecurityAuditLogger securityAuditLogger;
 
     public ApiKeyAuthenticationFilter(
             OmniLensSecurityProperties properties,
             ApiKeyRateLimiter apiKeyRateLimiter,
-            ApiRequestSignatureVerifier apiRequestSignatureVerifier) {
+            ApiRequestSignatureVerifier apiRequestSignatureVerifier,
+            SecurityAuditLogger securityAuditLogger) {
         this.properties = properties;
         this.apiKeyRateLimiter = apiKeyRateLimiter;
         this.apiRequestSignatureVerifier = apiRequestSignatureVerifier;
+        this.securityAuditLogger = securityAuditLogger;
     }
 
     @Override
@@ -51,6 +55,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         CachedBodyHttpServletRequest cachedRequest = new CachedBodyHttpServletRequest(request);
 
         if (!StringUtils.hasText(properties.apiKeySha256())) {
+            securityAuditLogger.record(cachedRequest, "failure", "", "api_key_hash_missing");
             response.sendError(HttpStatus.SERVICE_UNAVAILABLE.value(), "API key hash is not configured");
             return;
         }
@@ -58,12 +63,14 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         String providedKey = request.getHeader(HEADER_NAME);
         String providedKeyHash = StringUtils.hasText(providedKey) ? sha256Hex(providedKey) : "";
         if (!StringUtils.hasText(providedKey) || !matchesConfiguredHash(providedKeyHash)) {
+            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "invalid_api_key");
             response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid API key");
             return;
         }
 
         RateLimitDecision decision = apiKeyRateLimiter.consume(providedKeyHash);
         if (!decision.allowed()) {
+            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_exceeded");
             response.setHeader("Retry-After", String.valueOf(decision.retryAfterSeconds()));
             response.sendError(HttpStatus.TOO_MANY_REQUESTS.value(), "Rate limit exceeded");
             return;
@@ -74,10 +81,12 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 providedKeyHash,
                 cachedRequest.body());
         if (!signature.valid()) {
+            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "invalid_signature");
             response.sendError(signature.status().value(), signature.message());
             return;
         }
 
+        securityAuditLogger.record(cachedRequest, "success", providedKeyHash, "authenticated");
         filterChain.doFilter(cachedRequest, response);
     }
 
