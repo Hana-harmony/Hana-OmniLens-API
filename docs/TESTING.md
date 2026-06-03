@@ -36,6 +36,7 @@ docker compose -f compose.local.yml up -d
 - OpenDART 공시검색 응답 매핑
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 수집된 뉴스·공시의 AI 분석 후 WebSocket 알림 발행
+- AI 분석 `duplicateKey`, `modelVersion` 추적 메타데이터 전파
 - API key handshake 기반 WebSocket subscription 계약
 - 시장/알림 API 입력 validation 실패와 ProblemDetail 응답 계약
 - provider 수집 결과의 중복 URL 재발행 방지

@@ -104,6 +104,11 @@
 - REST `/api/v1/alerts/events`로 알림을 발행한 뒤 두 topic에서 같은 `alertId`의 `AlertEvent`를 수신하는지 검증한다.
 - Spring Boot `ObjectMapper`를 WebSocket test client에 적용해 운영 JSON 직렬화 계약과 같은 방식으로 payload를 역직렬화한다.
 
+## 2026-06-04 AI 분석 추적 메타데이터 전파
+- Hannah AI 응답의 `duplicate_key`와 `model_version`을 `AlertEvent`의 `duplicateKey`, `modelVersion`으로 전파한다.
+- 직접 알림 발행 API는 협력사 내부 재처리·마이그레이션용으로 두 필드를 선택값으로 허용한다.
+- `analyze-and-publish`, `collect-and-publish`, WebSocket 계약 테스트에서 AI 중복 키와 모델 버전 전파를 검증한다.
+
 ## 2026-06-04 입력 validation 실패 계약
 - `ApiExceptionHandler`를 추가해 path, query, request body validation 실패를 `400 Bad Request` ProblemDetail로 통일했다.
 - validation error type은 `https://hana-omnilens-api/errors/validation`으로 고정했다.

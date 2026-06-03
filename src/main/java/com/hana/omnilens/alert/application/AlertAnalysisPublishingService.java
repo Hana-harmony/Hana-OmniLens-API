@@ -55,7 +55,9 @@ public class AlertAnalysisPublishingService {
                 analysis.importance(),
                 analysis.relatedStocks(),
                 analysis.holderTarget(),
-                analysis.watchlistTarget()));
+                analysis.watchlistTarget(),
+                analysis.duplicateKey(),
+                analysis.modelVersion()));
     }
 
     private List<HannahAiStockCandidate> toStockUniverse(

@@ -449,6 +449,18 @@ components:
           type: boolean
         watchlistTarget:
           type: boolean
+        duplicateKey:
+          type:
+            - string
+            - "null"
+          maxLength: 128
+          description: AI normalized duplicate key for downstream idempotency.
+        modelVersion:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: AI model version that produced this alert analysis.
     AlertAnalysisPublishRequest:
       type: object
       required:

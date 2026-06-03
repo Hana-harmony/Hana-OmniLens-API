@@ -23,6 +23,8 @@ public record AlertPublishRequest(
         @NotBlank @Pattern(regexp = "LOW|MEDIUM|HIGH|CRITICAL") String importance,
         List<String> relatedStocks,
         boolean holderTarget,
-        boolean watchlistTarget
+        boolean watchlistTarget,
+        @Size(max = 128) String duplicateKey,
+        @Size(max = 120) String modelVersion
 ) {
 }
