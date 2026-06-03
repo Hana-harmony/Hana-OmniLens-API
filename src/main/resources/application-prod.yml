@@ -42,6 +42,11 @@ omnilens:
     kis-realtime:
       enabled: ${KIS_REALTIME_ENABLED:false}
       stock-codes: ${KIS_REALTIME_STOCK_CODES:}
+    exchange-rate-refresh:
+      enabled: ${EXCHANGE_RATE_REFRESH_ENABLED:false}
+      fixed-delay-ms: ${EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS:300000}
+      base-date-offset-days: ${EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS:0}
+      currencies: ${EXCHANGE_RATE_REFRESH_CURRENCIES:}
   alert:
     dedupe:
       mode: ${ALERT_DEDUPE_MODE:redis}

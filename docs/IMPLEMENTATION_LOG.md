@@ -172,6 +172,13 @@
 - `KOREA_EXIM_AUTH_KEY`는 env placeholder로만 관리하고, 테스트 fixture에는 가짜 값만 사용한다.
 - 단위 테스트로 요청 query, USD 환산, `JPY(100)` 단위 처리, provider 미응답 시 cache 미변경을 검증했다.
 
+## 2026-06-04 한국수출입은행 환율 refresh scheduler
+- `ExchangeRateRefreshProperties`를 추가해 `enabled`, `fixedDelayMs`, `baseDateOffsetDays`, `currencies`를 설정으로 분리했다.
+- 기본값은 disabled이며 통화 목록이 비어 있으면 외부 provider를 호출하지 않는다.
+- 활성화 시 한국 시간 기준 오늘에서 `baseDateOffsetDays`를 뺀 날짜로 설정 통화를 순회 refresh한다.
+- 한 통화의 provider 장애는 warn log로 격리하고 다음 통화 refresh를 계속한다.
+- 단위 테스트로 disabled no-op, 통화코드 정규화, 기준일 offset, 통화별 장애 격리를 검증했다.
+
 ## 현재 구현 로직
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
@@ -187,6 +194,7 @@
 - Naver News 응답의 HTML 태그와 entity를 정규화해 제목과 snippet으로 변환한다.
 - OpenDART 공시검색 응답의 접수번호로 원문 공시 URL을 생성한다.
 - KIS 현재가 응답은 `KisCurrentPriceSnapshot`으로 변환한다.
+- 한국수출입은행 환율 refresh scheduler는 설정된 통화의 `KRW -> 현지통화` 환율을 `ExchangeRateCache`에 주기 저장한다.
 - 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
 - API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.

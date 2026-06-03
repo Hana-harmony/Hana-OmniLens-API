@@ -80,7 +80,16 @@ curl -X PUT http://localhost:8080/api/v1/market/exchange-rates/USD \
 - provider 응답의 `deal_bas_r`는 외화 기준 원화 환율이므로 내부 캐시에는 `KRW -> 현지통화` 비율로 변환해 저장한다.
 - `JPY(100)`처럼 단위가 붙은 통화는 괄호 안 단위를 분자로 사용한다.
 - 기본 endpoint는 `https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON`이다.
-- 현재 refresh service는 애플리케이션 내부 서비스 포트이며, 주기 refresh endpoint 또는 scheduler는 다음 단계에서 붙인다.
+- 기본 refresh scheduler는 비활성화되어 있다.
+- 활성화하면 `EXCHANGE_RATE_REFRESH_CURRENCIES`에 지정한 통화만 주기적으로 갱신한다.
+- 한국수출입은행 영업일 데이터 지연에 대비해 `EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS`로 조회 기준일을 조정할 수 있다.
+
+```text
+EXCHANGE_RATE_REFRESH_ENABLED=true
+EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS=300000
+EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS=0
+EXCHANGE_RATE_REFRESH_CURRENCIES=USD,JPY
+```
 
 ## Rate Limit
 - 기본값은 API key fingerprint당 1분에 120개 요청이다.

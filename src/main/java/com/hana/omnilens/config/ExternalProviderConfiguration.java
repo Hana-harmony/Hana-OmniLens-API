@@ -9,7 +9,8 @@ import org.springframework.context.annotation.Configuration;
         HannahAiProperties.class,
         AlertDedupeProperties.class,
         AlertCollectionSchedulerProperties.class,
-        KisRealtimeProperties.class
+        KisRealtimeProperties.class,
+        ExchangeRateRefreshProperties.class
 })
 public class ExternalProviderConfiguration {
 }

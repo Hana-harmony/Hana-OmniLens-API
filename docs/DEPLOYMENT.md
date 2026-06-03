@@ -53,6 +53,10 @@ docker compose -f compose.local.yml up -d
 - `ALERT_SCHEDULER_FIXED_DELAY_MS`: 주기 수집 간격. 기본값은 `300000`이다.
 - `ALERT_SCHEDULER_NEWS_DISPLAY`: 종목별 뉴스 수집 개수. 기본값은 `10`이다.
 - `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`: 공시 조회 기간. 기본값은 `7`이다.
+- `EXCHANGE_RATE_REFRESH_ENABLED`: 한국수출입은행 환율 주기 갱신 활성화 여부. 기본값은 `false`이다.
+- `EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS`: 환율 갱신 간격. 기본값은 `300000`이다.
+- `EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS`: 환율 조회 기준일 offset. 기본값은 `0`이다.
+- `EXCHANGE_RATE_REFRESH_CURRENCIES`: 갱신할 통화 목록. 예: `USD,JPY`.
 
 watchlist는 Spring indexed env로 주입할 수 있다.
 
