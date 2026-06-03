@@ -127,10 +127,19 @@
 - KIS app key, app secret, access token은 env placeholder로만 관리하고, 테스트 fixture에는 가짜 값만 사용한다.
 - 단위 테스트로 KIS 요청 헤더·쿼리·응답 매핑, MarketDataService의 KIS 우선 사용, 공공데이터 fallback을 검증했다.
 
+## 2026-06-04 협력사 입력 환율 캐시
+- `ExchangeRateCache` 포트를 추가해 환율 저장소를 시장 데이터 계산 로직에서 분리했다.
+- 현재 구현은 `InMemoryExchangeRateCache`이며 `KRW -> 현지통화` 표시용 환율과 갱신 시각을 프로세스 캐시에 보관한다.
+- `PUT /api/v1/market/exchange-rates/{currency}` endpoint로 협력사가 현지 통화 환율을 입력할 수 있다.
+- quote 요청에 `fxRate`가 있으면 요청값을 우선 사용하고, 없으면 협력사가 저장한 환율 캐시를 사용한다.
+- 저장된 환율도 없으면 기존처럼 `1`을 사용해 KRW 가격을 그대로 유지한다.
+- 이 기능은 표시용 현지 통화 환산가를 위한 것이며 실제 환전, 정산, 주문 처리와 연결하지 않는다.
+- 단위 테스트와 MockMvc 테스트로 환율 저장, quote fallback, 요청 `fxRate` 우선순위, validation 실패를 검증했다.
+
 ## 현재 구현 로직
 - 시장 데이터는 KIS 현재가를 우선 사용하고, 사용할 수 없으면 공공데이터 주식시세 snapshot과 fallback 데이터 순서로 표준 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.
-- 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
+- 현지 통화 환산가는 quote 요청의 `fxRate`, 협력사 입력 환율 캐시, `1` fallback 순서로 선택한 환율에 `currentPriceKrw`를 곱해 계산한다.
 - validation 실패 응답은 `400 Bad Request`와 ProblemDetail body로 통일한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
 - WebSocket endpoint `/ws/alerts` handshake도 운영 API key 검증 대상이다.
@@ -148,5 +157,5 @@
 
 ## 외부 연동 예정
 - KIS 실시간 체결가·호가 WebSocket, 한국수출입은행 환율은 현재 포트만 정의된 상태다.
-- KRX 외국인보유량 provider는 화면 기반 endpoint이므로 운영 전 Redis/DB 전일 캐시와 장애 재시도 정책을 붙인다.
+- KRX 외국인보유량 provider와 협력사 입력 환율은 운영 전 Redis/DB 캐시로 승격한다.
 - 협력사 watchlist를 DB에서 관리하는 저장소를 추가한다.

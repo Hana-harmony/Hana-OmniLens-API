@@ -44,6 +44,7 @@ class MarketDataServiceTest {
                 foreignOwnershipClient,
                 repository,
                 cache,
+                new InMemoryExchangeRateCache(),
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
@@ -89,6 +90,7 @@ class MarketDataServiceTest {
                 foreignOwnershipClient,
                 repository,
                 cache,
+                new InMemoryExchangeRateCache(),
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
@@ -147,6 +149,7 @@ class MarketDataServiceTest {
                 foreignOwnershipClient,
                 repository,
                 cache,
+                new InMemoryExchangeRateCache(),
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
@@ -187,6 +190,7 @@ class MarketDataServiceTest {
                 foreignOwnershipClient,
                 repository,
                 cache,
+                new InMemoryExchangeRateCache(),
                 FIXED_CLOCK);
         StockSummary stock = samsungElectronics();
 
@@ -242,6 +246,7 @@ class MarketDataServiceTest {
                 foreignOwnershipClient,
                 repository,
                 cache,
+                new InMemoryExchangeRateCache(),
                 FIXED_CLOCK);
         StockSummary stock = samsungElectronics();
         cache.put(new KrxForeignOwnershipSnapshot(
@@ -268,6 +273,73 @@ class MarketDataServiceTest {
         assertThat(quote.foreignLimitExhaustionRate()).isEqualByComparingTo("50.99");
         assertThat(quote.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 2));
         assertThat(quote.source()).isEqualTo("MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE");
+    }
+
+    @Test
+    void getQuoteUsesCachedExchangeRateWhenRequestRateIsMissing() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ExchangeRateCache exchangeRateCache = new InMemoryExchangeRateCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                foreignOwnershipClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                exchangeRateCache,
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930"))
+                .thenThrow(new IllegalStateException("kis is not configured"));
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
+                .thenThrow(new IllegalStateException("provider is not configured"));
+        when(foreignOwnershipClient.findForeignOwnership(
+                eq("005930"),
+                eq("삼성전자"),
+                eq("KR7005930003"),
+                any(LocalDate.class))).thenThrow(new IllegalStateException("krx is unavailable"));
+        service.updateExchangeRate("USD", new BigDecimal("0.00072"));
+
+        MarketQuote quote = service.getQuote("005930", "USD", null);
+
+        assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("56.5200");
+        assertThat(exchangeRateCache.find("USD")).isPresent();
+    }
+
+    @Test
+    void getQuoteUsesRequestExchangeRateBeforeCachedRate() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ExchangeRateCache exchangeRateCache = new InMemoryExchangeRateCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                foreignOwnershipClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                exchangeRateCache,
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930"))
+                .thenThrow(new IllegalStateException("kis is not configured"));
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
+                .thenThrow(new IllegalStateException("provider is not configured"));
+        when(foreignOwnershipClient.findForeignOwnership(
+                eq("005930"),
+                eq("삼성전자"),
+                eq("KR7005930003"),
+                any(LocalDate.class))).thenThrow(new IllegalStateException("krx is unavailable"));
+        service.updateExchangeRate("USD", new BigDecimal("0.00072"));
+
+        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00080"));
+
+        assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("62.8000");
     }
 
     private StockSummary samsungElectronics() {

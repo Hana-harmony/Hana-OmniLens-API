@@ -39,6 +39,7 @@ public class MarketDataService {
     private final KrxForeignOwnershipClient krxForeignOwnershipClient;
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
+    private final ExchangeRateCache exchangeRateCache;
     private final Clock clock;
 
     @Autowired
@@ -47,13 +48,15 @@ public class MarketDataService {
             KisCurrentPriceClient kisCurrentPriceClient,
             KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
-            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache) {
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ExchangeRateCache exchangeRateCache) {
         this(
                 publicDataStockSecuritiesClient,
                 kisCurrentPriceClient,
                 krxForeignOwnershipClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
+                exchangeRateCache,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -63,12 +66,14 @@ public class MarketDataService {
             KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ExchangeRateCache exchangeRateCache,
             Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.kisCurrentPriceClient = kisCurrentPriceClient;
         this.krxForeignOwnershipClient = krxForeignOwnershipClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
+        this.exchangeRateCache = exchangeRateCache;
         this.clock = clock;
     }
 
@@ -79,7 +84,7 @@ public class MarketDataService {
 
         BigDecimal currentPrice = priceLookup.currentPriceKrw()
                 .orElse(new BigDecimal("78500"));
-        BigDecimal effectiveFxRate = fxRate == null ? BigDecimal.ONE : fxRate;
+        BigDecimal effectiveFxRate = resolveFxRate(localCurrency, fxRate);
         BigDecimal localPrice = currentPrice.multiply(effectiveFxRate).setScale(4, RoundingMode.HALF_UP);
 
         return new MarketQuote(
@@ -122,6 +127,19 @@ public class MarketDataService {
 
     public List<StockSummary> searchStocks(String query) {
         return stockMasterRepository.search(query);
+    }
+
+    public ExchangeRateSnapshot updateExchangeRate(String localCurrency, BigDecimal fxRate) {
+        return exchangeRateCache.put(localCurrency, fxRate, Instant.now(clock));
+    }
+
+    private BigDecimal resolveFxRate(String localCurrency, BigDecimal requestFxRate) {
+        if (requestFxRate != null) {
+            return requestFxRate;
+        }
+        return exchangeRateCache.find(localCurrency)
+                .map(ExchangeRateSnapshot::fxRate)
+                .orElse(BigDecimal.ONE);
     }
 
     private PriceLookup latestPriceSnapshot(String stockCode) {

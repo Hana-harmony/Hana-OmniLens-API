@@ -62,6 +62,39 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/exchange-rates/{currency}:
+    put:
+      tags:
+        - Market Data
+      operationId: updateExchangeRate
+      summary: Store a partner-provided KRW to local currency conversion rate.
+      parameters:
+        - name: currency
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+          description: Local currency code used by partner users.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeRateUpdateRequest"
+      responses:
+        "200":
+          description: Stored exchange rate snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRateResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/stocks/{stockCode}/orderbook:
     get:
       tags:
@@ -199,9 +232,39 @@ components:
   responses:
     Unauthorized:
       description: Missing or invalid partner API key.
+    ValidationError:
+      description: Request validation failed.
     ServiceUnavailable:
       description: Server security or provider configuration is incomplete.
   schemas:
+    ExchangeRateUpdateRequest:
+      type: object
+      required:
+        - fxRate
+      properties:
+        fxRate:
+          type: number
+          minimum: 0.000001
+          description: KRW to local currency conversion rate.
+    ExchangeRateResponse:
+      type: object
+      required:
+        - baseCurrency
+        - localCurrency
+        - fxRate
+        - updatedAt
+      properties:
+        baseCurrency:
+          type: string
+          example: KRW
+        localCurrency:
+          type: string
+          example: USD
+        fxRate:
+          type: number
+        updatedAt:
+          type: string
+          format: date-time
     MarketQuote:
       type: object
       required:

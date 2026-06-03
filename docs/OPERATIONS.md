@@ -50,6 +50,19 @@ OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_1=000660
 - 문서는 협력사 API key 보호 대상이다.
 - REST endpoint와 STOMP WebSocket endpoint/topic 계약을 함께 확인할 수 있다.
 
+## 협력사 입력 환율
+- `PUT /api/v1/market/exchange-rates/{currency}`로 `KRW -> 현지통화` 표시용 환율을 저장한다.
+- quote 요청에 `fxRate`가 없으면 저장된 환율을 현지 통화 환산가 계산에 사용한다.
+- quote 요청에 `fxRate`가 있으면 해당 요청값을 우선한다.
+- 현재 캐시는 프로세스 메모리 기반이므로 컨테이너 재시작 시 초기화된다.
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/market/exchange-rates/USD \
+  -H "X-HANA-OMNILENS-API-KEY: ${PARTNER_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"fxRate":0.00072}'
+```
+
 ## Rate Limit
 - 기본값은 API key fingerprint당 1분에 120개 요청이다.
 - 초과 시 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.

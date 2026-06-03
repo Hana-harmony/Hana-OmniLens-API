@@ -12,7 +12,8 @@
 - KRX 외국인 보유율 quote 연결 완료
 - 외국인 보유율 프로세스 캐시와 장애 fallback 완료
 - 외국인 보유율 Redis/DB 전일 캐시
-- 환율 캐시
+- 협력사 입력 환율 프로세스 캐시 완료
+- 환율 Redis/DB 캐시
 
 ## M3 뉴스·공시 알림
 - Naver News Search 수집 endpoint 연결 완료

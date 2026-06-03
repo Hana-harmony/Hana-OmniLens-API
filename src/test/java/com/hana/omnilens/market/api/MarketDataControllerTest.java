@@ -2,6 +2,7 @@ package com.hana.omnilens.market.api;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
@@ -58,6 +60,36 @@ class MarketDataControllerTest {
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
                         .param("currency", "usd")
                         .param("fxRate", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
+                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+    }
+
+    @Test
+    void exchangeRateApiStoresPartnerRateForQuoteFallback() throws Exception {
+        mockMvc.perform(put("/api/v1/market/exchange-rates/JPY")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fxRate\":0.11}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.baseCurrency", equalTo("KRW")))
+                .andExpect(jsonPath("$.localCurrency", equalTo("JPY")))
+                .andExpect(jsonPath("$.fxRate", equalTo(0.11)));
+
+        mockMvc.perform(get("/api/v1/market/stocks/005930/quote")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("currency", "JPY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.localCurrency", equalTo("JPY")))
+                .andExpect(jsonPath("$.localCurrencyPrice", equalTo(8635.0)));
+    }
+
+    @Test
+    void exchangeRateApiRejectsInvalidCurrencyAndRate() throws Exception {
+        mockMvc.perform(put("/api/v1/market/exchange-rates/jpy")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fxRate\":0}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
                 .andExpect(jsonPath("$.title", equalTo("Invalid request")));
