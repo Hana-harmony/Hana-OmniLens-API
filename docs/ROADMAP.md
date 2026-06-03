@@ -3,7 +3,7 @@
 ## M1 API 계약 안정화
 - OpenAPI 문서 추가 완료
 - 협력사 인증 정책 확정
-- WebSocket subscription 계약 테스트 추가
+- WebSocket subscription 계약 테스트 완료
 
 ## M2 시장 데이터 어댑터
 - KIS 현재가 REST 연동
