@@ -4,6 +4,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties({ExternalProviderProperties.class, HannahAiProperties.class, AlertDedupeProperties.class})
+@EnableConfigurationProperties({
+        ExternalProviderProperties.class,
+        HannahAiProperties.class,
+        AlertDedupeProperties.class,
+        AlertCollectionSchedulerProperties.class
+})
 public class ExternalProviderConfiguration {
 }
