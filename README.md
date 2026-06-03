@@ -18,6 +18,10 @@ docker compose -f compose.local.yml up -d
 
 알림은 수동 `collect-and-publish` 호출뿐 아니라 설정 기반 협력사 watchlist 스케줄러로도 수집·분석·WebSocket 발행할 수 있다.
 
+## API 계약
+- `GET /openapi.yaml`
+- OpenAPI 문서는 API key 보호 대상이며 REST endpoint와 WebSocket endpoint/topic 계약을 함께 기록한다.
+
 ## 주요 엔드포인트
 - `GET /api/v1/market/stocks/{stockCode}/quote`
 - `GET /api/v1/market/stocks/{stockCode}/orderbook`

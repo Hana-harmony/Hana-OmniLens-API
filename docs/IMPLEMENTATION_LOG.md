@@ -82,6 +82,14 @@
 - 종목명이 없는 잘못된 watchlist 설정은 provider 호출 전에 skip한다.
 - 단위 테스트로 disabled 상태, 정상 요청 생성, 한 파트너 실패 후 다음 파트너 계속 처리, properties 기본값을 검증한다.
 
+## 2026-06-04 OpenAPI 계약 문서
+- `/openapi.yaml` 정적 OpenAPI 3.1 문서를 추가했다.
+- 문서는 API key 보호 대상이며 협력사 API key가 있어야 조회할 수 있다.
+- 시장 데이터 quote, orderbook, stock search REST 계약을 기록했다.
+- 알림 수동 발행, AI 분석 후 발행, provider 수집 후 발행 REST 계약을 기록했다.
+- STOMP WebSocket endpoint `/ws/alerts`와 topic `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`는 `x-websocket` 확장으로 기록했다.
+- MockMvc 테스트로 API key 보호, 문서 제공, 핵심 path/topic 포함 여부를 검증한다.
+
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
@@ -95,6 +103,7 @@
 - OpenDART 공시검색 응답의 접수번호로 원문 공시 URL을 생성한다.
 - 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
+- API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.
 
 ## 외부 연동 예정
 - KIS, 한국수출입은행 환율은 현재 포트만 정의된 상태다.

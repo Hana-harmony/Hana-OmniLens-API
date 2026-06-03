@@ -12,6 +12,7 @@ docker compose -f compose.local.yml up -d
 - API key 누락 시 `401`
 - API key 해시 미설정 시 `503`
 - health endpoint 공개
+- OpenAPI 문서 API key 보호와 핵심 REST/WebSocket 계약 포함 여부
 - 시장 데이터 응답 계약
 - 공공데이터 주식시세 provider 성공·fallback
 - KRX 외국인보유량 provider 요청·응답 매핑

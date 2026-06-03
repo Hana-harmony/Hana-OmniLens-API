@@ -44,6 +44,11 @@ OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_1=000660
 - `GET /actuator/info`
 - 운영 profile에서는 Redis health indicator가 포함되므로 Redis 장애 시 health가 `DOWN`으로 표시된다.
 
+## API 계약 문서
+- `GET /openapi.yaml`
+- 문서는 협력사 API key 보호 대상이다.
+- REST endpoint와 STOMP WebSocket endpoint/topic 계약을 함께 확인할 수 있다.
+
 ## 운영 전 보강
 - 협력사별 rate limit
 - audit log
