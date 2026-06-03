@@ -14,6 +14,8 @@ docker compose -f compose.local.yml up -d
 - health endpoint 공개
 - 시장 데이터 응답 계약
 - 공공데이터 주식시세 provider 성공·fallback
+- KRX 외국인보유량 provider 요청·응답 매핑
+- 시장 데이터 quote의 KRX 외국인 보유수량·지분율·한도소진율 반영
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
 - Hannah-Montana-AI 분석 클라이언트 계약
@@ -24,4 +26,5 @@ docker compose -f compose.local.yml up -d
 - WebSocket subscription 계약 테스트
 - 입력 validation 실패 케이스
 - rate limit 정책 테스트
+- KRX provider 장애 재시도와 전일 캐시 테스트
 - Redis 또는 DB 기반 저장형 dedupe 테스트
