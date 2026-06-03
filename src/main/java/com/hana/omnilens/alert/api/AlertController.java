@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.hana.omnilens.alert.application.AlertAnalysisPublishingService;
 import com.hana.omnilens.alert.application.AlertStreamingService;
 import com.hana.omnilens.alert.domain.AlertEvent;
 
@@ -15,13 +16,22 @@ import com.hana.omnilens.alert.domain.AlertEvent;
 public class AlertController {
 
     private final AlertStreamingService alertStreamingService;
+    private final AlertAnalysisPublishingService alertAnalysisPublishingService;
 
-    public AlertController(AlertStreamingService alertStreamingService) {
+    public AlertController(
+            AlertStreamingService alertStreamingService,
+            AlertAnalysisPublishingService alertAnalysisPublishingService) {
         this.alertStreamingService = alertStreamingService;
+        this.alertAnalysisPublishingService = alertAnalysisPublishingService;
     }
 
     @PostMapping("/events")
     public AlertEvent publish(@Valid @RequestBody AlertPublishRequest request) {
         return alertStreamingService.publish(request);
+    }
+
+    @PostMapping("/analyze-and-publish")
+    public AlertEvent analyzeAndPublish(@Valid @RequestBody AlertAnalysisPublishRequest request) {
+        return alertAnalysisPublishingService.analyzeAndPublish(request);
     }
 }
