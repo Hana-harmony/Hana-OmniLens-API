@@ -110,9 +110,16 @@
 - 시장 API는 잘못된 종목코드, 통화코드, 환율, 빈 검색어를 거부하는 테스트를 추가했다.
 - 알림 API는 잘못된 알림 payload, nested stock universe, 수집 limit과 종목코드를 거부하는 테스트를 추가했다.
 
+## 2026-06-04 KRX 외국인보유량 재시도와 캐시
+- KRX 외국인보유량 조회가 특정 기준일 장애로 실패해도 최근 7일 탐색을 계속하도록 수정했다.
+- KRX snapshot 조회에 성공하면 `ForeignOwnershipSnapshotCache`에 저장한다.
+- KRX provider가 전체 기간에서 장애 또는 무응답이면 캐시된 전일 확정 snapshot을 quote 응답에 사용한다.
+- 캐시 사용 시 source는 `KRX_FOREIGN_OWNERSHIP_CACHE` suffix로 표시해 live provider와 구분한다.
+- 단위 테스트로 첫 기준일 장애 후 이전 기준일 재시도, KRX 전체 장애 시 캐시 fallback을 검증했다.
+
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
-- 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
+- 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.
 - 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
 - validation 실패 응답은 `400 Bad Request`와 ProblemDetail body로 통일한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.

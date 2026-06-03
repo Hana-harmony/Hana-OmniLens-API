@@ -10,6 +10,7 @@
 - KIS 실시간 체결가·호가 WebSocket 연동
 - 종목 마스터 DB 적재
 - KRX 외국인 보유율 quote 연결 완료
+- 외국인 보유율 프로세스 캐시와 장애 fallback 완료
 - 외국인 보유율 Redis/DB 전일 캐시
 - 환율 캐시
 
