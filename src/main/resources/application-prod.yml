@@ -32,6 +32,9 @@ omnilens:
       app-secret: ${KIS_APP_SECRET:}
       access-token: ${KIS_ACCESS_TOKEN:}
       approval-key: ${KIS_APPROVAL_KEY:}
+    korea-exim:
+      base-url: ${KOREA_EXIM_BASE_URL:https://oapi.koreaexim.go.kr}
+      auth-key: ${KOREA_EXIM_AUTH_KEY:}
   ai:
     hannah:
       base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}

@@ -65,6 +65,7 @@ class KrxForeignOwnershipClientTest {
                 null,
                 null,
                 new ExternalProviderProperties.Krx(URI.create("https://data.krx.co.kr")),
+                null,
                 null);
     }
 }

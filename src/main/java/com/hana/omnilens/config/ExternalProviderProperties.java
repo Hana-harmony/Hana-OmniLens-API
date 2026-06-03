@@ -11,7 +11,8 @@ public record ExternalProviderProperties(
         NaverNews naverNews,
         OpenDart openDart,
         Krx krx,
-        Kis kis
+        Kis kis,
+        KoreaExim koreaExim
 ) {
 
     public ExternalProviderProperties {
@@ -20,6 +21,7 @@ public record ExternalProviderProperties(
         openDart = openDart == null ? OpenDart.defaults() : openDart.withDefaults();
         krx = krx == null ? Krx.defaults() : krx.withDefaults();
         kis = kis == null ? Kis.defaults() : kis.withDefaults();
+        koreaExim = koreaExim == null ? KoreaExim.defaults() : koreaExim.withDefaults();
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -134,6 +136,23 @@ public record ExternalProviderProperties(
 
         public String requiredApprovalKey() {
             return requireSecret(approvalKey, "omnilens.providers.kis.approval-key");
+        }
+    }
+
+    public record KoreaExim(URI baseUrl, String authKey) {
+
+        private static KoreaExim defaults() {
+            return new KoreaExim(URI.create("https://oapi.koreaexim.go.kr"), "");
+        }
+
+        private KoreaExim withDefaults() {
+            return new KoreaExim(
+                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    authKey == null ? "" : authKey);
+        }
+
+        public String requiredAuthKey() {
+            return requireSecret(authKey, "omnilens.providers.korea-exim.auth-key");
         }
     }
 

@@ -74,6 +74,7 @@ jobs:
             "NAVER_NEWS_CLIENT_ID=${{ secrets.NAVER_NEWS_CLIENT_ID }}" \
             "NAVER_NEWS_CLIENT_SECRET=${{ secrets.NAVER_NEWS_CLIENT_SECRET }}" \
             "OPEN_DART_API_KEY=${{ secrets.OPEN_DART_API_KEY }}" \
+            "KOREA_EXIM_AUTH_KEY=${{ secrets.KOREA_EXIM_AUTH_KEY }}" \
             > application-prod.env
           printf '%s\n' \
             "HANA_OMNILENS_IMAGE=${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" \

@@ -49,6 +49,9 @@ omnilens:
       app-secret: ""
       access-token: ""
       approval-key: ""
+    korea-exim:
+      base-url: https://oapi.koreaexim.go.kr
+      auth-key: ""
   ai:
     hannah:
       base-url: http://hannah-montana-ai:8000

@@ -34,6 +34,9 @@ omnilens:
       app-secret: "replace-with-kis-app-secret"
       access-token: "replace-with-kis-access-token"
       approval-key: "replace-with-kis-websocket-approval-key"
+    korea-exim:
+      base-url: https://oapi.koreaexim.go.kr
+      auth-key: "replace-with-korea-exim-auth-key"
   ai:
     hannah:
       base-url: http://localhost:8000
