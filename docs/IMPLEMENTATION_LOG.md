@@ -98,11 +98,18 @@
 - health/info 공개 endpoint는 rate limit bucket을 소비하지 않는다.
 - 단위 테스트로 bucket refill, disabled 모드, 필터의 `429` 응답, public endpoint skip, properties 기본값을 검증한다.
 
+## 2026-06-04 WebSocket subscription 계약 테스트
+- 실제 STOMP client가 `/ws/alerts`에 API key handshake header를 포함해 연결하는 계약 테스트를 추가했다.
+- 테스트는 `/topic/partners/{partnerId}/alerts`와 `/topic/stocks/{stockCode}/alerts`를 동시에 구독한다.
+- REST `/api/v1/alerts/events`로 알림을 발행한 뒤 두 topic에서 같은 `alertId`의 `AlertEvent`를 수신하는지 검증한다.
+- Spring Boot `ObjectMapper`를 WebSocket test client에 적용해 운영 JSON 직렬화 계약과 같은 방식으로 payload를 역직렬화한다.
+
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
 - 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
+- WebSocket endpoint `/ws/alerts` handshake도 운영 API key 검증 대상이다.
 - 알림 분석 발행 endpoint는 AI 분석 결과를 받아 기존 알림 이벤트 송신 로직을 재사용한다.
 - 알림 수집 발행 endpoint는 Naver 뉴스와 OpenDART 공시를 수집한 뒤 AI 분석과 WebSocket 발행을 순차 수행한다.
 - 알림 스케줄러는 설정된 협력사 watchlist별로 수집 발행 흐름을 주기 실행한다.

@@ -7,6 +7,7 @@
 - 인증된 요청은 API key SHA-256 fingerprint 단위로 rate limit을 적용한다.
 - rate limit 초과 요청은 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
 - CORS는 profile별 설정 파일의 허용 목록만 사용한다.
+- WebSocket `/ws/alerts` handshake도 API key 검증 대상이다.
 - 세션은 stateless로 유지한다.
 
 ## 시크릿 관리
@@ -34,6 +35,6 @@
 ## 향후 강화
 - 협력사별 key rotation
 - mTLS 또는 요청 서명
-- WebSocket handshake 인증 강화
+- WebSocket topic authorization 세분화
 - abuse detection
 - 감사 로그 무결성 보장
