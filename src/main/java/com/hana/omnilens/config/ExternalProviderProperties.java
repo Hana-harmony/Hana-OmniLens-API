@@ -12,7 +12,8 @@ public record ExternalProviderProperties(
         OpenDart openDart,
         Krx krx,
         Kis kis,
-        KoreaExim koreaExim
+        KoreaExim koreaExim,
+        PapagoTranslation papagoTranslation
 ) {
 
     public ExternalProviderProperties {
@@ -22,6 +23,7 @@ public record ExternalProviderProperties(
         krx = krx == null ? Krx.defaults() : krx.withDefaults();
         kis = kis == null ? Kis.defaults() : kis.withDefaults();
         koreaExim = koreaExim == null ? KoreaExim.defaults() : koreaExim.withDefaults();
+        papagoTranslation = papagoTranslation == null ? PapagoTranslation.defaults() : papagoTranslation.withDefaults();
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -153,6 +155,28 @@ public record ExternalProviderProperties(
 
         public String requiredAuthKey() {
             return requireSecret(authKey, "omnilens.providers.korea-exim.auth-key");
+        }
+    }
+
+    public record PapagoTranslation(URI baseUrl, String clientId, String clientSecret) {
+
+        private static PapagoTranslation defaults() {
+            return new PapagoTranslation(URI.create("https://openapi.naver.com"), "", "");
+        }
+
+        private PapagoTranslation withDefaults() {
+            return new PapagoTranslation(
+                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    clientId == null ? "" : clientId,
+                    clientSecret == null ? "" : clientSecret);
+        }
+
+        public String requiredClientId() {
+            return requireSecret(clientId, "omnilens.providers.papago-translation.client-id");
+        }
+
+        public String requiredClientSecret() {
+            return requireSecret(clientSecret, "omnilens.providers.papago-translation.client-secret");
         }
     }
 

@@ -20,6 +20,10 @@ omnilens:
       base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
       client-id: ${NAVER_NEWS_CLIENT_ID}
       client-secret: ${NAVER_NEWS_CLIENT_SECRET}
+    papago-translation:
+      base-url: ${PAPAGO_TRANSLATION_BASE_URL:https://openapi.naver.com}
+      client-id: ${PAPAGO_TRANSLATION_CLIENT_ID:}
+      client-secret: ${PAPAGO_TRANSLATION_CLIENT_SECRET:}
     open-dart:
       base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
       api-key: ${OPEN_DART_API_KEY}

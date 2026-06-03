@@ -95,6 +95,7 @@ class KoreaEximExchangeRateClientTest {
                 null,
                 new ExternalProviderProperties.KoreaExim(
                         URI.create("https://oapi.koreaexim.go.kr"),
-                        "exim-key"));
+                        "exim-key"),
+                null);
     }
 }

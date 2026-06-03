@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.hana.omnilens.alert.application.AlertTitleTranslationService;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
@@ -48,6 +49,9 @@ class AlertControllerTest {
     @MockitoBean
     private OpenDartDisclosureClient openDartDisclosureClient;
 
+    @MockitoBean
+    private AlertTitleTranslationService alertTitleTranslationService;
+
     @Test
     void analyzeAndPublishReturnsAnalyzedAlertEvent() throws Exception {
         when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
@@ -64,6 +68,8 @@ class AlertControllerTest {
                 true,
                 "duplicate-key",
                 "financial-keyword-baseline-2026-06-04"));
+        when(alertTitleTranslationService.translateTitle("삼성전자 실적 개선"))
+                .thenReturn("Samsung Electronics earnings improve");
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -89,6 +95,7 @@ class AlertControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
                 .andExpect(jsonPath("$.stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.translatedTitle", equalTo("Samsung Electronics earnings improve")))
                 .andExpect(jsonPath("$.summary", equalTo("반도체 회복으로 실적 개선 기대")))
                 .andExpect(jsonPath("$.importance", equalTo("HIGH")))
                 .andExpect(jsonPath("$.holderTarget", equalTo(true)))
@@ -142,6 +149,8 @@ class AlertControllerTest {
                     "duplicate-key",
                     "financial-ml-tfidf-logreg-test");
         });
+        when(alertTitleTranslationService.translateTitle(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
