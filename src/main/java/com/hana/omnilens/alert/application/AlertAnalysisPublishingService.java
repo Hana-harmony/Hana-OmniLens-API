@@ -20,12 +20,15 @@ public class AlertAnalysisPublishingService {
 
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertStreamingService alertStreamingService;
+    private final AlertTitleTranslationService alertTitleTranslationService;
 
     public AlertAnalysisPublishingService(
             HannahAiAnalysisClient hannahAiAnalysisClient,
-            AlertStreamingService alertStreamingService) {
+            AlertStreamingService alertStreamingService,
+            AlertTitleTranslationService alertTitleTranslationService) {
         this.hannahAiAnalysisClient = hannahAiAnalysisClient;
         this.alertStreamingService = alertStreamingService;
+        this.alertTitleTranslationService = alertTitleTranslationService;
     }
 
     public AlertEvent analyzeAndPublish(AlertAnalysisPublishRequest request) {
@@ -50,7 +53,7 @@ public class AlertAnalysisPublishingService {
                 analysis.stockName(),
                 analysis.sourceType(),
                 analysis.originalTitle(),
-                analysis.originalTitle(),
+                alertTitleTranslationService.translateTitle(analysis.originalTitle()),
                 analysis.summary(),
                 request.originalUrl(),
                 request.publishedAt(),

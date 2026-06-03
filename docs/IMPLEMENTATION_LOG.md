@@ -138,6 +138,14 @@
 - KIS app key, app secret, access token은 env placeholder로만 관리하고, 테스트 fixture에는 가짜 값만 사용한다.
 - 단위 테스트로 KIS 요청 헤더·쿼리·응답 매핑, MarketDataService의 KIS 우선 사용, 공공데이터 fallback을 검증했다.
 
+## 2026-06-04 Papago NMT 알림 제목 번역
+- Papago NMT `POST /v1/papago/n2mt` 계약을 `PapagoTranslationClient`로 격리했다.
+- 요청 header는 `X-Naver-Client-Id`, `X-Naver-Client-Secret`으로 고정하고, 요청 body는 `source=ko`, `target=en`, `text={원문 제목}` form payload로 전송한다.
+- 운영 설정은 `PAPAGO_TRANSLATION_CLIENT_ID`, `PAPAGO_TRANSLATION_CLIENT_SECRET` 환경변수 슬롯만 추가하고, 실제 값은 커밋하지 않는다.
+- `AlertAnalysisPublishingService`가 Hannah-Montana-AI 분석 결과의 원문 제목을 번역해 `translatedTitle`에 넣도록 연결했다.
+- 번역 키 미설정, Papago 장애, 빈 번역 결과는 알림 발행을 막지 않고 원문 제목으로 fallback한다.
+- 단위 테스트로 Papago 요청 계약, 번역 성공, 번역 실패 fallback, 분석 후 발행 payload의 번역 제목 반영을 검증했다.
+
 ## 2026-06-04 협력사 입력 환율 캐시
 - `ExchangeRateCache` 포트를 추가해 환율 저장소를 시장 데이터 계산 로직에서 분리했다.
 - 현재 구현은 `InMemoryExchangeRateCache`이며 `KRW -> 현지통화` 표시용 환율과 갱신 시각을 프로세스 캐시에 보관한다.

@@ -35,6 +35,8 @@ docker compose -f compose.local.yml up -d
 - quote 요청 `fxRate`가 저장된 환율보다 우선되는 계산 계약
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
+- Papago NMT 번역 요청 계약과 응답 매핑
+- 알림 제목 번역 성공과 번역 장애 시 원문 fallback
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 수집된 뉴스·공시의 AI 분석 후 WebSocket 알림 발행
 - AI 분석 `duplicateKey`, `modelVersion` 추적 메타데이터 전파

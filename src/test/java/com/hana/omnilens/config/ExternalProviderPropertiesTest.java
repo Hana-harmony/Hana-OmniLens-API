@@ -9,7 +9,7 @@ class ExternalProviderPropertiesTest {
 
     @Test
     void defaultsDoNotExposeSecretsAndFailClosedWhenRequired() {
-        ExternalProviderProperties properties = new ExternalProviderProperties(null, null, null, null, null, null);
+        ExternalProviderProperties properties = new ExternalProviderProperties(null, null, null, null, null, null, null);
 
         assertThat(properties.publicData().stockSecuritiesBaseUrl().toString())
                 .isEqualTo("https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService");
@@ -19,6 +19,7 @@ class ExternalProviderPropertiesTest {
         assertThat(properties.kis().websocketUrl().toString())
                 .isEqualTo("wss://openapi.koreainvestment.com:9443/tryitout");
         assertThat(properties.koreaExim().baseUrl().toString()).isEqualTo("https://oapi.koreaexim.go.kr");
+        assertThat(properties.papagoTranslation().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
 
         assertThatThrownBy(() -> properties.naverNews().requiredClientSecret())
                 .isInstanceOf(IllegalStateException.class)
@@ -29,5 +30,8 @@ class ExternalProviderPropertiesTest {
         assertThatThrownBy(() -> properties.koreaExim().requiredAuthKey())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.korea-exim.auth-key");
+        assertThatThrownBy(() -> properties.papagoTranslation().requiredClientSecret())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("omnilens.providers.papago-translation.client-secret");
     }
 }

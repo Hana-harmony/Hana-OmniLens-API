@@ -63,6 +63,7 @@ class NaverNewsClientTest {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 }
