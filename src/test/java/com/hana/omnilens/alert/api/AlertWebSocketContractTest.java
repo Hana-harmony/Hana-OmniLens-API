@@ -94,6 +94,8 @@ class AlertWebSocketContractTest {
         assertThat(partnerEvent.partnerId()).isEqualTo("partner-a");
         assertThat(partnerEvent.stockCode()).isEqualTo("005930");
         assertThat(partnerEvent.eventTags()).containsExactly("EARNINGS");
+        assertThat(partnerEvent.duplicateKey()).isEqualTo("manual-duplicate");
+        assertThat(partnerEvent.modelVersion()).isEqualTo("manual-publisher");
         assertThat(stockEvent.alertId()).isEqualTo(partnerEvent.alertId());
 
         session.disconnect();
@@ -130,6 +132,8 @@ class AlertWebSocketContractTest {
         payload.put("relatedStocks", List.of("005930"));
         payload.put("holderTarget", true);
         payload.put("watchlistTarget", true);
+        payload.put("duplicateKey", "manual-duplicate");
+        payload.put("modelVersion", "manual-publisher");
         return payload;
     }
 }

@@ -92,7 +92,9 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.summary", equalTo("반도체 회복으로 실적 개선 기대")))
                 .andExpect(jsonPath("$.importance", equalTo("HIGH")))
                 .andExpect(jsonPath("$.holderTarget", equalTo(true)))
-                .andExpect(jsonPath("$.watchlistTarget", equalTo(true)));
+                .andExpect(jsonPath("$.watchlistTarget", equalTo(true)))
+                .andExpect(jsonPath("$.duplicateKey", equalTo("duplicate-key")))
+                .andExpect(jsonPath("$.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")));
     }
 
     @Test
@@ -155,6 +157,8 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.skippedDuplicateCount", equalTo(1)))
                 .andExpect(jsonPath("$.failedAnalysisCount", equalTo(0)))
                 .andExpect(jsonPath("$.events[0].sourceType", equalTo("NEWS")))
+                .andExpect(jsonPath("$.events[0].duplicateKey", equalTo("duplicate-key")))
+                .andExpect(jsonPath("$.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
                 .andExpect(jsonPath("$.events[1].sourceType", equalTo("DISCLOSURE")));
     }
 
@@ -179,7 +183,9 @@ class AlertControllerTest {
                                   "importance": "URGENT",
                                   "relatedStocks": ["005930"],
                                   "holderTarget": true,
-                                  "watchlistTarget": true
+                                  "watchlistTarget": true,
+                                  "duplicateKey": "manual-duplicate",
+                                  "modelVersion": "manual-publisher"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
