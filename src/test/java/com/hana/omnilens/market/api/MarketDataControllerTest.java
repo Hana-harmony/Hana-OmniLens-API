@@ -42,4 +42,32 @@ class MarketDataControllerTest {
         mockMvc.perform(get("/api/v1/market/stocks/005930/quote"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void quoteApiRejectsInvalidStockCode() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/ABCDEF/quote")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
+                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+    }
+
+    @Test
+    void quoteApiRejectsInvalidCurrencyAndFxRate() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/005930/quote")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("currency", "usd")
+                        .param("fxRate", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
+                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+    }
+
+    @Test
+    void stockSearchRejectsEmptyQuery() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/search")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("query", ""))
+                .andExpect(status().isBadRequest());
+    }
 }

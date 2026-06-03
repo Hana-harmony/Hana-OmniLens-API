@@ -157,4 +157,77 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.events[0].sourceType", equalTo("NEWS")))
                 .andExpect(jsonPath("$.events[1].sourceType", equalTo("DISCLOSURE")));
     }
+
+    @Test
+    void publishRejectsInvalidAlertPayload() throws Exception {
+        mockMvc.perform(post("/api/v1/alerts/events")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerId": "",
+                                  "stockCode": "ABCDEF",
+                                  "stockName": "삼성전자",
+                                  "sourceType": "BLOG",
+                                  "originalTitle": "삼성전자 실적 개선",
+                                  "translatedTitle": "Samsung Electronics earnings improve",
+                                  "summary": "반도체 회복으로 실적 개선 기대",
+                                  "originalUrl": "https://example.com/news/1",
+                                  "publishedAt": "2026-06-04T00:00:00Z",
+                                  "eventTags": ["EARNINGS"],
+                                  "sentiment": "BULLISH",
+                                  "importance": "URGENT",
+                                  "relatedStocks": ["005930"],
+                                  "holderTarget": true,
+                                  "watchlistTarget": true
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
+                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+    }
+
+    @Test
+    void analyzeAndPublishRejectsInvalidNestedStockUniverse() throws Exception {
+        mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerId": "partner-a",
+                                  "sourceType": "NEWS",
+                                  "title": "삼성전자 실적 개선",
+                                  "snippet": "반도체 회복으로 실적 개선 기대",
+                                  "originalUrl": "https://example.com/news/1",
+                                  "publishedAt": "2026-06-04T00:00:00Z",
+                                  "stockUniverse": [
+                                    {
+                                      "stockCode": "INVALID",
+                                      "stockName": "",
+                                      "stockNameEn": "Samsung Electronics",
+                                      "aliases": ["Samsung Elec"]
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
+                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+    }
+
+    @Test
+    void collectAndPublishRejectsInvalidStockCodesAndLimits() throws Exception {
+        mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerId": "partner-a",
+                                  "stockCodes": ["005930", "INVALID"],
+                                  "newsDisplay": 0,
+                                  "disclosureLookbackDays": 31
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
 }
