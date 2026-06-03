@@ -12,7 +12,7 @@
 - 종목 마스터 DB 적재
 - KRX 외국인 보유율 quote 연결 완료
 - 외국인 보유율 프로세스 캐시와 장애 fallback 완료
-- 외국인 보유율 Redis/DB 전일 캐시
+- 외국인 보유율 Redis TTL cache와 in-memory fallback 완료
 - 협력사 입력 환율 프로세스 캐시 완료
 - 한국수출입은행 환율 provider adapter와 cache refresh service 완료
 - 한국수출입은행 환율 주기 refresh scheduler 완료

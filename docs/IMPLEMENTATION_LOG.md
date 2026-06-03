@@ -198,10 +198,19 @@
 - Redis 저장 성공 후에도 fallback cache를 갱신해 일시 장애 시 마지막 성공 값을 같은 프로세스에서 계속 사용할 수 있게 했다.
 - 단위 테스트로 TTL 저장, Redis payload 조회, Redis 장애 fallback, properties 기본값을 검증했다.
 
+## 2026-06-04 Redis 기반 외국인 보유율 cache
+- `ForeignOwnershipSnapshotCache` 구현을 설정 기반 bean으로 전환했다.
+- 기본 모드는 Redis이며 `FOREIGN_OWNERSHIP_CACHE_MODE`, `FOREIGN_OWNERSHIP_CACHE_TTL`로 조정한다.
+- `RedisForeignOwnershipSnapshotCache`는 `omnilens:market:foreign-ownership:{stockCode}` key에 KRX snapshot JSON을 TTL 저장한다.
+- Redis 조회·저장 장애 또는 payload 역직렬화 실패 시 `InMemoryForeignOwnershipSnapshotCache` fallback을 사용한다.
+- Redis 저장 성공 후에도 fallback cache를 갱신해 KRX/Redis 일시 장애 시 마지막 성공 snapshot을 같은 프로세스에서 계속 사용할 수 있게 했다.
+- 단위 테스트로 TTL 저장, Redis payload 조회, Redis 장애 fallback, properties 기본값을 검증했다.
+
 ## 현재 구현 로직
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.
+- 외국인 보유율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
 - 현지 통화 환산가는 quote 요청의 `fxRate`, 한국수출입은행 또는 협력사 입력 환율 캐시, `1` fallback 순서로 선택한 환율에 `currentPriceKrw`를 곱해 계산한다.
 - 환율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
 - validation 실패 응답은 `400 Bad Request`와 ProblemDetail body로 통일한다.

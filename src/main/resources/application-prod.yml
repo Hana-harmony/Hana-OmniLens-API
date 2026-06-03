@@ -42,6 +42,9 @@ omnilens:
     exchange-rate-cache:
       mode: ${EXCHANGE_RATE_CACHE_MODE:redis}
       ttl: ${EXCHANGE_RATE_CACHE_TTL:24h}
+    foreign-ownership-cache:
+      mode: ${FOREIGN_OWNERSHIP_CACHE_MODE:redis}
+      ttl: ${FOREIGN_OWNERSHIP_CACHE_TTL:24h}
     kis-realtime:
       enabled: ${KIS_REALTIME_ENABLED:false}
       stock-codes: ${KIS_REALTIME_STOCK_CODES:}
