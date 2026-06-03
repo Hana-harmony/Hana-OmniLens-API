@@ -104,10 +104,17 @@
 - REST `/api/v1/alerts/events`로 알림을 발행한 뒤 두 topic에서 같은 `alertId`의 `AlertEvent`를 수신하는지 검증한다.
 - Spring Boot `ObjectMapper`를 WebSocket test client에 적용해 운영 JSON 직렬화 계약과 같은 방식으로 payload를 역직렬화한다.
 
+## 2026-06-04 입력 validation 실패 계약
+- `ApiExceptionHandler`를 추가해 path, query, request body validation 실패를 `400 Bad Request` ProblemDetail로 통일했다.
+- validation error type은 `https://hana-omnilens-api/errors/validation`으로 고정했다.
+- 시장 API는 잘못된 종목코드, 통화코드, 환율, 빈 검색어를 거부하는 테스트를 추가했다.
+- 알림 API는 잘못된 알림 payload, nested stock universe, 수집 limit과 종목코드를 거부하는 테스트를 추가했다.
+
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
 - 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
+- validation 실패 응답은 `400 Bad Request`와 ProblemDetail body로 통일한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
 - WebSocket endpoint `/ws/alerts` handshake도 운영 API key 검증 대상이다.
 - 알림 분석 발행 endpoint는 AI 분석 결과를 받아 기존 알림 이벤트 송신 로직을 재사용한다.
