@@ -6,6 +6,17 @@ omnilens:
     api-key-enabled: true
     api-key-sha256: ${OMNILENS_API_KEY_SHA256}
     cors-allowed-origins: ${OMNILENS_CORS_ALLOWED_ORIGINS}
+  providers:
+    public-data:
+      stock-securities-base-url: ${PUBLIC_DATA_STOCK_SECURITIES_BASE_URL:https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService}
+      service-key: ${PUBLIC_DATA_SERVICE_KEY}
+    naver-news:
+      base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
+      client-id: ${NAVER_NEWS_CLIENT_ID}
+      client-secret: ${NAVER_NEWS_CLIENT_SECRET}
+    open-dart:
+      base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
+      api-key: ${OPEN_DART_API_KEY}
 
 spring:
   datasource:

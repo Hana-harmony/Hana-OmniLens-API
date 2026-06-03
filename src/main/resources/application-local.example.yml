@@ -8,6 +8,17 @@ omnilens:
     cors-allowed-origins:
       - http://localhost:3000
       - http://localhost:5173
+  providers:
+    public-data:
+      stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService
+      service-key: "replace-with-public-data-service-key"
+    naver-news:
+      base-url: https://openapi.naver.com
+      client-id: "replace-with-naver-news-client-id"
+      client-secret: "replace-with-naver-news-client-secret"
+    open-dart:
+      base-url: https://opendart.fss.or.kr
+      api-key: "replace-with-open-dart-api-key"
 
 spring:
   datasource:
