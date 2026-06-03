@@ -26,8 +26,15 @@
 - 제공자별 `RestClient` 어댑터를 추가하고 테스트에서는 `MockRestServiceServer`로 네트워크 없이 요청 헤더, 쿼리, 응답 매핑을 검증
 - 키가 비어 있으면 호출 시점에 예외를 발생시켜 외부 API를 잘못 호출하지 않도록 처리
 
+## 2026-06-04 시장 데이터 제공자 어댑터 연결
+- `MarketDataService`가 공공데이터 주식시세 snapshot을 우선 사용하도록 변경
+- 최근 7일 범위에서 전일 기준 가격 데이터를 탐색하고, 미설정·장애·무응답 시 목 시세로 fallback
+- 종목 검색과 quote의 종목명 보강을 위해 인메모리 종목 마스터 저장소 추가
+- 로컬 실제 키가 있어도 테스트가 외부망을 타지 않도록 컨트롤러 테스트에서 provider key를 비움
+- 서비스 단위 테스트로 provider 성공, provider 실패 fallback, 종목 마스터 검색을 검증
+
 ## 현재 구현 로직
-- 시장 데이터는 `MarketDataService`의 목 데이터로 표준 응답 구조를 검증한다.
+- 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
 - 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
 - Naver News 응답의 HTML 태그와 entity를 정규화해 제목과 snippet으로 변환한다.
