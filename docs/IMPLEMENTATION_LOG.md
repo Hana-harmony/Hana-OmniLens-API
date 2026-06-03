@@ -65,6 +65,15 @@
 - AI가 종목을 매핑하지 못한 건은 발행하지 않고 실패 카운트에 반영
 - MockMvc 테스트로 뉴스·공시 수집, 중복 URL skip, AI 분석, 알림 발행 응답을 검증
 
+## 2026-06-04 Redis 기반 알림 dedupe
+- `AlertDedupeStore` 인터페이스를 추가해 알림 중복 방지 저장소를 서비스 로직에서 분리
+- 기본 dedupe 모드를 Redis TTL 기반으로 설정하고 `omnilens.alert.dedupe.ttl`로 보존 시간을 조정 가능하게 구성
+- Redis `SETNX` 의미의 `setIfAbsent`를 사용해 같은 partner, source type, original URL 조합의 재발행을 차단
+- Redis 장애 시 bounded in-memory fallback으로 같은 프로세스 내 중복 발행을 계속 제한
+- AI 분석 실패로 발행되지 않은 원문은 dedupe key를 제거해 다음 수집에서 재시도 가능하게 유지
+- 테스트 profile에서는 외부 Redis 없이 `in-memory` 모드로 전환하고 Redis health indicator를 비활성화
+- Redis store, in-memory store, fallback 동작을 단위 테스트로 검증
+
 ## 현재 구현 로직
 - 시장 데이터는 공공데이터 주식시세 snapshot을 우선 사용하고, 사용할 수 없으면 fallback 데이터로 표준 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
@@ -72,7 +81,7 @@
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
 - 알림 분석 발행 endpoint는 AI 분석 결과를 받아 기존 알림 이벤트 송신 로직을 재사용한다.
 - 알림 수집 발행 endpoint는 Naver 뉴스와 OpenDART 공시를 수집한 뒤 AI 분석과 WebSocket 발행을 순차 수행한다.
-- provider 수집 기반 알림은 프로세스 단위 bounded in-memory dedupe로 같은 원문 URL의 반복 발행을 줄인다.
+- provider 수집 기반 알림은 Redis TTL dedupe로 같은 원문 URL의 반복 발행을 줄인다.
 - Naver News 응답의 HTML 태그와 entity를 정규화해 제목과 snippet으로 변환한다.
 - OpenDART 공시검색 응답의 접수번호로 원문 공시 URL을 생성한다.
 - 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.

@@ -21,10 +21,11 @@ docker compose -f compose.local.yml up -d
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 수집된 뉴스·공시의 AI 분석 후 WebSocket 알림 발행
 - provider 수집 결과의 중복 URL 재발행 방지
+- Redis TTL dedupe와 Redis 장애 시 in-memory fallback
 
 ## 추가 예정
 - WebSocket subscription 계약 테스트
 - 입력 validation 실패 케이스
 - rate limit 정책 테스트
 - KRX provider 장애 재시도와 전일 캐시 테스트
-- Redis 또는 DB 기반 저장형 dedupe 테스트
+- Redis integration testcontainer 기반 연결 테스트

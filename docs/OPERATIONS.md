@@ -29,6 +29,7 @@ docker compose -f compose.local.yml down
 ## 헬스체크
 - `GET /actuator/health`
 - `GET /actuator/info`
+- 운영 profile에서는 Redis health indicator가 포함되므로 Redis 장애 시 health가 `DOWN`으로 표시된다.
 
 ## 운영 전 보강
 - 협력사별 rate limit

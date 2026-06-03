@@ -18,7 +18,7 @@
 - OpenDART 공시 수집 endpoint 연결 완료
 - 번역 공급자 어댑터
 - Hannah-Montana-AI 분석 API 연동 완료
-- Redis 또는 DB 기반 중복 제거와 재전송 방지
+- Redis TTL 기반 중복 제거 완료
 - 협력사별 watchlist 기반 주기 수집 스케줄러
 
 ## M4 운영 하드닝
