@@ -22,6 +22,8 @@ docker compose -f compose.local.yml down
 - `src/main/resources/application-prod.yml`은 커밋되는 실제 운영 profile 설정 파일이다.
 - 민감값은 `${...}` 환경변수 placeholder로만 작성한다.
 - KIS 현재가 provider를 사용하려면 `KIS_APP_KEY`, `KIS_APP_SECRET`, `KIS_ACCESS_TOKEN`을 GitHub Secrets에 등록한다.
+- KIS WebSocket provider를 사용하려면 `KIS_WEBSOCKET_URL`, `KIS_APPROVAL_KEY`를 GitHub Secrets에 등록한다.
+- `KIS_APPROVAL_KEY`는 WebSocket 접속키이며 REST `KIS_ACCESS_TOKEN`과 혼용하지 않는다.
 - `main` push 시 GitHub Secrets로 원격 서버의 `application-prod.env`를 생성한다.
 - `main` push 시 Docker 이미지를 GHCR에 push한다.
 - 원격 서버는 GHCR에서 이미지를 pull하고 `compose.prod.yml`로 컨테이너를 실행한다.

@@ -16,6 +16,9 @@ docker compose -f compose.local.yml up -d
 - OpenAPI 문서 API key 보호와 핵심 REST/WebSocket 계약 포함 여부
 - 시장 데이터 응답 계약
 - KIS Open API 현재가 provider 요청 헤더·쿼리·응답 매핑
+- KIS WebSocket 체결·호가 구독 frame JSON 계약
+- KIS WebSocket `H0STCNT0`, `H0STASP0` 실시간 payload 파싱
+- 시장 데이터 quote/orderbook의 KIS 실시간 cache 우선 사용
 - 시장 데이터 quote의 KIS 현재가 우선 사용과 공공데이터 fallback
 - 공공데이터 주식시세 provider 성공·fallback
 - KRX 외국인보유량 provider 요청·응답 매핑
