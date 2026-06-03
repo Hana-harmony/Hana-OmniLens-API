@@ -31,6 +31,10 @@ docker compose -f compose.local.yml up -d
 - `REDIS_HOST`: 운영 Redis 호스트
 - `REDIS_PORT`: 운영 Redis 포트
 - `REDIS_PASSWORD`: 운영 Redis 비밀번호
+- `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 API 인증키
+- `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
+- `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
+- `OPEN_DART_API_KEY`: OpenDART API 인증키
 
 ## 원격 서버 준비
 원격 서버에는 아래 런타임이 미리 설치되어 있어야 한다.

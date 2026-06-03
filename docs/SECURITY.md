@@ -16,6 +16,13 @@
 - GHCR pull token은 원격 서버의 `deploy-prod.env`에만 생성하고 앱 컨테이너에는 주입하지 않는다.
 - `deploy-prod.env`는 커밋하지 않는다.
 
+## 외부 API 시크릿
+- `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 주식시세 계열 API 인증키
+- `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
+- `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
+- `OPEN_DART_API_KEY`: OpenDART 공시검색 API 인증키
+- 외부 API 키는 로그, 예외 메시지, 테스트 fixture, 커밋 파일에 남기지 않는다.
+
 ## 향후 강화
 - 협력사별 key rotation
 - mTLS 또는 요청 서명
