@@ -6,7 +6,7 @@
 - WebSocket subscription 계약 테스트 완료
 
 ## M2 시장 데이터 어댑터
-- KIS 현재가 REST 연동
+- KIS 현재가 REST 연동 완료
 - KIS 실시간 체결가·호가 WebSocket 연동
 - 종목 마스터 DB 적재
 - KRX 외국인 보유율 quote 연결 완료
