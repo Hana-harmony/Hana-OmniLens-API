@@ -109,6 +109,11 @@ class AlertControllerTest {
                         "삼성전자 실적 개선",
                         "중복 기사",
                         "https://news.example.com/1",
+                        Instant.parse("2026-06-04T00:01:00Z")),
+                new NaverNewsArticle(
+                        "특징주 삼성전자 실적 개선",
+                        "제목 포장만 다른 중복 기사",
+                        "https://news.example.com/2",
                         Instant.parse("2026-06-04T00:01:00Z"))));
         when(openDartDisclosureClient.search(
                 eq("00126380"),
@@ -151,10 +156,10 @@ class AlertControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
-                .andExpect(jsonPath("$.collectedNewsCount", equalTo(2)))
+                .andExpect(jsonPath("$.collectedNewsCount", equalTo(3)))
                 .andExpect(jsonPath("$.collectedDisclosureCount", equalTo(1)))
                 .andExpect(jsonPath("$.publishedCount", equalTo(2)))
-                .andExpect(jsonPath("$.skippedDuplicateCount", equalTo(1)))
+                .andExpect(jsonPath("$.skippedDuplicateCount", equalTo(2)))
                 .andExpect(jsonPath("$.failedAnalysisCount", equalTo(0)))
                 .andExpect(jsonPath("$.events[0].sourceType", equalTo("NEWS")))
                 .andExpect(jsonPath("$.events[0].duplicateKey", equalTo("duplicate-key")))

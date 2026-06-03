@@ -12,11 +12,13 @@ import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.hana.omnilens.alert.api.AlertAnalysisPublishRequest;
 import com.hana.omnilens.alert.api.AlertCollectPublishRequest;
 import com.hana.omnilens.alert.api.AlertCollectPublishResponse;
+import com.hana.omnilens.alert.api.AlertPublishRequest;
 import com.hana.omnilens.alert.domain.AlertEvent;
 import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.market.domain.StockSummary;
@@ -171,7 +173,7 @@ public class AlertProviderCollectionService {
         }
 
         try {
-            events.add(alertAnalysisPublishingService.analyzeAndPublish(new AlertAnalysisPublishRequest(
+            AlertPublishRequest analyzedAlert = alertAnalysisPublishingService.analyze(new AlertAnalysisPublishRequest(
                     partnerId,
                     sourceType,
                     title,
@@ -182,11 +184,24 @@ public class AlertProviderCollectionService {
                             stock.stockCode(),
                             stock.stockName(),
                             stock.stockNameEn(),
-                            List.of(stock.stockNameEn()))))));
+                            List.of(stock.stockNameEn())))));
+            String aiDuplicateKey = aiDuplicateKey(partnerId, analyzedAlert);
+            if (aiDuplicateKey != null && !alertDedupeStore.markIfFirst(aiDuplicateKey)) {
+                counters.skippedDuplicateCount++;
+                return;
+            }
+            events.add(alertAnalysisPublishingService.publishAnalyzed(analyzedAlert));
         } catch (ResponseStatusException exception) {
             alertDedupeStore.remove(sourceKey);
             counters.failedAnalysisCount++;
         }
+    }
+
+    private static String aiDuplicateKey(String partnerId, AlertPublishRequest request) {
+        if (!StringUtils.hasText(request.duplicateKey())) {
+            return null;
+        }
+        return partnerId + ":AI:" + request.sourceType() + ":" + request.duplicateKey();
     }
 
     private static class CollectionCounters {

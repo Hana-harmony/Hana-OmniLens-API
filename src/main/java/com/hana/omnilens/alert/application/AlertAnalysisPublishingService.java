@@ -29,6 +29,10 @@ public class AlertAnalysisPublishingService {
     }
 
     public AlertEvent analyzeAndPublish(AlertAnalysisPublishRequest request) {
+        return publishAnalyzed(analyze(request));
+    }
+
+    public AlertPublishRequest analyze(AlertAnalysisPublishRequest request) {
         HannahAiAnalysisResponse analysis = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
                 request.sourceType(),
                 request.title(),
@@ -40,7 +44,7 @@ public class AlertAnalysisPublishingService {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "AI analysis did not match a stock");
         }
 
-        return alertStreamingService.publish(new AlertPublishRequest(
+        return new AlertPublishRequest(
                 request.partnerId(),
                 analysis.stockCode(),
                 analysis.stockName(),
@@ -57,7 +61,11 @@ public class AlertAnalysisPublishingService {
                 analysis.holderTarget(),
                 analysis.watchlistTarget(),
                 analysis.duplicateKey(),
-                analysis.modelVersion()));
+                analysis.modelVersion());
+    }
+
+    public AlertEvent publishAnalyzed(AlertPublishRequest request) {
+        return alertStreamingService.publish(request);
     }
 
     private List<HannahAiStockCandidate> toStockUniverse(
