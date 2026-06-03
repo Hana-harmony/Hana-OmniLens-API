@@ -33,6 +33,7 @@
 - KRX 기준일 조회 실패 시 최근 7일 탐색을 계속하고, 전체 실패 시 프로세스 캐시의 전일 확정 snapshot을 사용한다.
 - 협력사 입력 환율은 `ExchangeRateCache`에 `KRW -> 현지통화` 표시용 환율로 저장하고, quote 요청에 `fxRate`가 없을 때 현지 통화 환산가 계산에 사용한다.
 - 한국수출입은행 환율 provider는 `deal_bas_r`를 `KRW -> 현지통화` 비율로 변환한 뒤 같은 `ExchangeRateCache`에 저장한다.
+- 환율 refresh scheduler는 기본 disabled이며, 설정된 통화 목록만 한국수출입은행 provider로 주기 갱신한다.
 - `AlertStreamingService`가 알림 이벤트를 협력사·종목 topic으로 송신한다.
 - `AlertProviderCollectionService`가 종목별 뉴스·공시를 수집하고 AI 분석 결과를 WebSocket 알림으로 발행한다.
 - 뉴스·공시 중복 재발행 방지는 Redis TTL 기반 dedupe를 기본으로 사용하고, Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.
