@@ -91,18 +91,33 @@ public record ExternalProviderProperties(
         }
     }
 
-    public record Kis(URI baseUrl, String appKey, String appSecret, String accessToken) {
+    public record Kis(
+            URI baseUrl,
+            URI websocketUrl,
+            String appKey,
+            String appSecret,
+            String accessToken,
+            String approvalKey) {
 
         private static Kis defaults() {
-            return new Kis(URI.create("https://openapi.koreainvestment.com:9443"), "", "", "");
+            return new Kis(
+                    URI.create("https://openapi.koreainvestment.com:9443"),
+                    URI.create("wss://openapi.koreainvestment.com:9443/tryitout"),
+                    "",
+                    "",
+                    "",
+                    "");
         }
 
         private Kis withDefaults() {
+            Kis defaults = defaults();
             return new Kis(
-                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    baseUrl == null ? defaults.baseUrl() : baseUrl,
+                    websocketUrl == null ? defaults.websocketUrl() : websocketUrl,
                     appKey == null ? "" : appKey,
                     appSecret == null ? "" : appSecret,
-                    accessToken == null ? "" : accessToken);
+                    accessToken == null ? "" : accessToken,
+                    approvalKey == null ? "" : approvalKey);
         }
 
         public String requiredAppKey() {
@@ -115,6 +130,10 @@ public record ExternalProviderProperties(
 
         public String requiredAccessToken() {
             return requireSecret(accessToken, "omnilens.providers.kis.access-token");
+        }
+
+        public String requiredApprovalKey() {
+            return requireSecret(approvalKey, "omnilens.providers.kis.approval-key");
         }
     }
 

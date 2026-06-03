@@ -16,9 +16,14 @@ class ExternalProviderPropertiesTest {
         assertThat(properties.naverNews().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
         assertThat(properties.openDart().baseUrl().toString()).isEqualTo("https://opendart.fss.or.kr");
         assertThat(properties.krx().baseUrl().toString()).isEqualTo("https://data.krx.co.kr");
+        assertThat(properties.kis().websocketUrl().toString())
+                .isEqualTo("wss://openapi.koreainvestment.com:9443/tryitout");
 
         assertThatThrownBy(() -> properties.naverNews().requiredClientSecret())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.naver-news.client-secret");
+        assertThatThrownBy(() -> properties.kis().requiredApprovalKey())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("omnilens.providers.kis.approval-key");
     }
 }

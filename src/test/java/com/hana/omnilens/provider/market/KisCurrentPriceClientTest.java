@@ -63,8 +63,10 @@ class KisCurrentPriceClientTest {
                 null,
                 new ExternalProviderProperties.Kis(
                         URI.create("https://openapi.koreainvestment.com:9443"),
+                        URI.create("wss://openapi.koreainvestment.com:9443/tryitout"),
                         "kis-app-key",
                         "kis-app-secret",
-                        "kis-access-token"));
+                        "kis-access-token",
+                        "kis-approval-key"));
     }
 }

@@ -23,6 +23,7 @@
 - `KIS_APP_KEY`: KIS Open API app key
 - `KIS_APP_SECRET`: KIS Open API app secret
 - `KIS_ACCESS_TOKEN`: KIS Open API access token
+- `KIS_APPROVAL_KEY`: KIS WebSocket approval key
 - `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 주식시세 계열 API 인증키
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
@@ -34,6 +35,7 @@
 - `HANNAH_AI_BASE_URL`은 주소 설정값이며 secret으로 분류하지 않는다.
 - `KRX_BASE_URL`은 KRX 데이터 endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - `KIS_BASE_URL`은 KIS endpoint 주소 설정값이며 secret으로 분류하지 않는다.
+- `KIS_WEBSOCKET_URL`은 KIS WebSocket endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - 별도 서비스 토큰 헤더는 사용하지 않는다.
 
 ## 향후 강화

@@ -29,9 +29,11 @@ omnilens:
       base-url: https://data.krx.co.kr
     kis:
       base-url: https://openapi.koreainvestment.com:9443
+      websocket-url: wss://openapi.koreainvestment.com:9443/tryitout
       app-key: "replace-with-kis-app-key"
       app-secret: "replace-with-kis-app-secret"
       access-token: "replace-with-kis-access-token"
+      approval-key: "replace-with-kis-websocket-approval-key"
   ai:
     hannah:
       base-url: http://localhost:8000

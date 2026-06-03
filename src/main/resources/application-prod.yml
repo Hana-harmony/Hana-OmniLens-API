@@ -27,9 +27,11 @@ omnilens:
       base-url: ${KRX_BASE_URL:https://data.krx.co.kr}
     kis:
       base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
+      websocket-url: ${KIS_WEBSOCKET_URL:wss://openapi.koreainvestment.com:9443/tryitout}
       app-key: ${KIS_APP_KEY:}
       app-secret: ${KIS_APP_SECRET:}
       access-token: ${KIS_ACCESS_TOKEN:}
+      approval-key: ${KIS_APPROVAL_KEY:}
   ai:
     hannah:
       base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}

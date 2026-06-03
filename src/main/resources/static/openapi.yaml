@@ -328,7 +328,7 @@ components:
           format: date-time
         source:
           type: string
-          description: Data source chain, for example KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP or PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE.
+          description: Data source chain, for example KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP, KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP, or PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE.
     OrderBook:
       type: object
       required:
@@ -354,6 +354,7 @@ components:
           format: date-time
         source:
           type: string
+          description: Data source, for example KIS_WEBSOCKET_ORDERBOOK or MOCK_KIS_WEBSOCKET.
     OrderBookLevel:
       type: object
       required:

@@ -12,14 +12,18 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
 import com.hana.omnilens.market.domain.MarketQuote;
+import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
+import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
+import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
 import com.hana.omnilens.provider.market.KrxForeignOwnershipClient;
 import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
@@ -45,6 +49,7 @@ class MarketDataServiceTest {
                 repository,
                 cache,
                 new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
@@ -91,6 +96,7 @@ class MarketDataServiceTest {
                 repository,
                 cache,
                 new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
@@ -150,6 +156,7 @@ class MarketDataServiceTest {
                 repository,
                 cache,
                 new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(
@@ -191,6 +198,7 @@ class MarketDataServiceTest {
                 repository,
                 cache,
                 new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
                 FIXED_CLOCK);
         StockSummary stock = samsungElectronics();
 
@@ -247,6 +255,7 @@ class MarketDataServiceTest {
                 repository,
                 cache,
                 new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
                 FIXED_CLOCK);
         StockSummary stock = samsungElectronics();
         cache.put(new KrxForeignOwnershipSnapshot(
@@ -289,6 +298,7 @@ class MarketDataServiceTest {
                 repository,
                 new InMemoryForeignOwnershipSnapshotCache(),
                 exchangeRateCache,
+                new InMemoryRealtimeMarketDataCache(),
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
@@ -323,6 +333,7 @@ class MarketDataServiceTest {
                 repository,
                 new InMemoryForeignOwnershipSnapshotCache(),
                 exchangeRateCache,
+                new InMemoryRealtimeMarketDataCache(),
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
@@ -340,6 +351,79 @@ class MarketDataServiceTest {
         MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00080"));
 
         assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("62.8000");
+    }
+
+    @Test
+    void getQuoteUsesRealtimeTradeCacheBeforeKisRest() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        RealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                foreignOwnershipClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                realtimeCache,
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(foreignOwnershipClient.findForeignOwnership(
+                eq("005930"),
+                eq("삼성전자"),
+                eq("KR7005930003"),
+                any(LocalDate.class))).thenThrow(new IllegalStateException("krx is unavailable"));
+        realtimeCache.putTrade(new KisRealtimeTradeTick(
+                "005930",
+                "093000",
+                new BigDecimal("81500"),
+                new BigDecimal("1.92"),
+                new BigDecimal("81600"),
+                new BigDecimal("81400"),
+                1200L,
+                16_200_000L,
+                LocalDate.of(2025, 6, 4)));
+
+        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
+
+        assertThat(quote.currentPriceKrw()).isEqualByComparingTo("81500");
+        assertThat(quote.changeRate()).isEqualByComparingTo("1.92");
+        assertThat(quote.volume()).isEqualTo(16_200_000L);
+        assertThat(quote.source()).isEqualTo("KIS_WEBSOCKET_TRADE");
+    }
+
+    @Test
+    void getOrderBookUsesRealtimeOrderBookCache() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        KrxForeignOwnershipClient foreignOwnershipClient = mock(KrxForeignOwnershipClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        RealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                foreignOwnershipClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                realtimeCache,
+                FIXED_CLOCK);
+        realtimeCache.putOrderBook(new KisRealtimeOrderBookSnapshot(
+                "005930",
+                "093000",
+                List.of(new KisRealtimeOrderBookSnapshot.Level(new BigDecimal("81600"), 1200L)),
+                List.of(new KisRealtimeOrderBookSnapshot.Level(new BigDecimal("81400"), 1800L)),
+                16_200_000L));
+
+        OrderBook orderBook = service.getOrderBook("005930");
+
+        assertThat(orderBook.asks()).hasSize(1);
+        assertThat(orderBook.asks().get(0).priceKrw()).isEqualByComparingTo("81600");
+        assertThat(orderBook.bids().get(0).quantity()).isEqualTo(1800L);
+        assertThat(orderBook.source()).isEqualTo("KIS_WEBSOCKET_ORDERBOOK");
     }
 
     private StockSummary samsungElectronics() {

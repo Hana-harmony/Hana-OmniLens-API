@@ -17,6 +17,8 @@ import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
+import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
+import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
 import com.hana.omnilens.provider.market.KrxForeignOwnershipClient;
 import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
@@ -40,6 +42,7 @@ public class MarketDataService {
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
     private final ExchangeRateCache exchangeRateCache;
+    private final RealtimeMarketDataCache realtimeMarketDataCache;
     private final Clock clock;
 
     @Autowired
@@ -49,7 +52,8 @@ public class MarketDataService {
             KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
-            ExchangeRateCache exchangeRateCache) {
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache) {
         this(
                 publicDataStockSecuritiesClient,
                 kisCurrentPriceClient,
@@ -57,6 +61,7 @@ public class MarketDataService {
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 exchangeRateCache,
+                realtimeMarketDataCache,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -67,6 +72,7 @@ public class MarketDataService {
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
             Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.kisCurrentPriceClient = kisCurrentPriceClient;
@@ -74,6 +80,7 @@ public class MarketDataService {
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
         this.exchangeRateCache = exchangeRateCache;
+        this.realtimeMarketDataCache = realtimeMarketDataCache;
         this.clock = clock;
     }
 
@@ -113,6 +120,21 @@ public class MarketDataService {
     }
 
     public OrderBook getOrderBook(String stockCode) {
+        Optional<KisRealtimeOrderBookSnapshot> realtimeOrderBook =
+                realtimeMarketDataCache.latestOrderBook(stockCode);
+        if (realtimeOrderBook.isPresent()) {
+            KisRealtimeOrderBookSnapshot snapshot = realtimeOrderBook.orElseThrow();
+            return new OrderBook(
+                    stockCode,
+                    snapshot.asks().stream()
+                            .map(level -> new OrderBook.OrderBookLevel(level.priceKrw(), level.quantity()))
+                            .toList(),
+                    snapshot.bids().stream()
+                            .map(level -> new OrderBook.OrderBookLevel(level.priceKrw(), level.quantity()))
+                            .toList(),
+                    Instant.now(clock),
+                    "KIS_WEBSOCKET_ORDERBOOK");
+        }
         return new OrderBook(
                 stockCode,
                 List.of(
@@ -143,6 +165,10 @@ public class MarketDataService {
     }
 
     private PriceLookup latestPriceSnapshot(String stockCode) {
+        Optional<KisRealtimeTradeTick> realtimeTrade = realtimeMarketDataCache.latestTrade(stockCode);
+        if (realtimeTrade.isPresent()) {
+            return PriceLookup.realtime(realtimeTrade.orElseThrow());
+        }
         try {
             Optional<KisCurrentPriceSnapshot> kisSnapshot = kisCurrentPriceClient.findCurrentPrice(stockCode);
             if (kisSnapshot.isPresent()) {
@@ -198,6 +224,16 @@ public class MarketDataService {
         if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
             return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP";
         }
+        if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE
+                && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
+            return "KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP";
+        }
+        if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
+            return "KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP_CACHE";
+        }
+        if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE) {
+            return "KIS_WEBSOCKET_TRADE";
+        }
         if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
@@ -231,6 +267,17 @@ public class MarketDataService {
             Optional<LocalDate> baseDate,
             PriceSource source
     ) {
+        private static PriceLookup realtime(KisRealtimeTradeTick tick) {
+            return new PriceLookup(
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(tick.currentPriceKrw()),
+                    Optional.of(tick.changeRate()),
+                    Optional.of(tick.accumulatedVolume()),
+                    Optional.of(tick.businessDate()),
+                    PriceSource.KIS_WEBSOCKET_TRADE);
+        }
+
         private static PriceLookup kis(KisCurrentPriceSnapshot snapshot, LocalDate baseDate) {
             return new PriceLookup(
                     Optional.ofNullable(snapshot.stockName()).filter(name -> !name.isBlank()),
@@ -266,6 +313,7 @@ public class MarketDataService {
     }
 
     private enum PriceSource {
+        KIS_WEBSOCKET_TRADE,
         KIS_OPEN_API,
         PUBLIC_DATA,
         NONE
