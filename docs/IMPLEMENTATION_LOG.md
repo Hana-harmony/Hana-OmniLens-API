@@ -19,11 +19,21 @@
 - GHCR pull용 `deploy-prod.env`와 앱 런타임용 `application-prod.env` 분리
 - CI/CD가 원격 서버에 `deploy.sh`까지 전송하고 Docker Compose로 재시작하도록 변경
 
+## 2026-06-04 외부 제공자 클라이언트 하네스
+- 공공데이터 주식시세, Naver News Search, OpenDART 공시검색 설정을 profile 기반으로 분리
+- 운영 설정은 `PUBLIC_DATA_SERVICE_KEY`, `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`, `OPEN_DART_API_KEY` 환경변수로만 주입
+- 로컬 실제 키는 gitignore된 `application-local.yml`에만 저장
+- 제공자별 `RestClient` 어댑터를 추가하고 테스트에서는 `MockRestServiceServer`로 네트워크 없이 요청 헤더, 쿼리, 응답 매핑을 검증
+- 키가 비어 있으면 호출 시점에 예외를 발생시켜 외부 API를 잘못 호출하지 않도록 처리
+
 ## 현재 구현 로직
 - 시장 데이터는 `MarketDataService`의 목 데이터로 표준 응답 구조를 검증한다.
 - 현지 통화 환산가는 `currentPriceKrw * fxRate`로 계산한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
+- Naver News 응답의 HTML 태그와 entity를 정규화해 제목과 snippet으로 변환한다.
+- OpenDART 공시검색 응답의 접수번호로 원문 공시 URL을 생성한다.
+- 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.
 
 ## 외부 연동 예정
-- KIS, KRX, 한국수출입은행, Naver News, OpenDART는 현재 포트만 정의된 상태다.
+- KIS, KRX 외국인 보유율, 한국수출입은행 환율은 현재 포트만 정의된 상태다.
 - Hannah-Montana-AI가 뉴스·공시 분석 결과를 제공하면 알림 송신 payload에 연결한다.

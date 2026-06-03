@@ -23,3 +23,14 @@ omnilens:
     api-key-enabled: true
     api-key-sha256: ""
     cors-allowed-origins: []
+  providers:
+    public-data:
+      stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService
+      service-key: ""
+    naver-news:
+      base-url: https://openapi.naver.com
+      client-id: ""
+      client-secret: ""
+    open-dart:
+      base-url: https://opendart.fss.or.kr
+      api-key: ""

@@ -70,6 +70,10 @@ jobs:
             "REDIS_HOST=${{ secrets.REDIS_HOST }}" \
             "REDIS_PORT=${{ secrets.REDIS_PORT }}" \
             "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" \
+            "PUBLIC_DATA_SERVICE_KEY=${{ secrets.PUBLIC_DATA_SERVICE_KEY }}" \
+            "NAVER_NEWS_CLIENT_ID=${{ secrets.NAVER_NEWS_CLIENT_ID }}" \
+            "NAVER_NEWS_CLIENT_SECRET=${{ secrets.NAVER_NEWS_CLIENT_SECRET }}" \
+            "OPEN_DART_API_KEY=${{ secrets.OPEN_DART_API_KEY }}" \
             > application-prod.env
           printf '%s\n' \
             "HANA_OMNILENS_IMAGE=${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" \
