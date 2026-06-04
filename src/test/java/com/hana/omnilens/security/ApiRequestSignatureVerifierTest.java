@@ -64,7 +64,12 @@ class ApiRequestSignatureVerifierTest {
 
     private ApiRequestSignatureVerifier verifier() {
         ApiSignatureProperties properties =
-                new ApiSignatureProperties(true, SECRET, Duration.ofMinutes(5), 10_000);
+                new ApiSignatureProperties(
+                        true,
+                        SECRET,
+                        Duration.ofMinutes(5),
+                        ApiSignatureProperties.NonceStoreMode.IN_MEMORY,
+                        10_000);
         return new ApiRequestSignatureVerifier(
                 properties,
                 new InMemoryApiSignatureNonceStore(properties, Clock.fixed(NOW, ZoneOffset.UTC)),

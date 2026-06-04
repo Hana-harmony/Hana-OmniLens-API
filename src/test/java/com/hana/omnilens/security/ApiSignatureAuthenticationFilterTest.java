@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "omnilens.security.signature.enabled=true",
         "omnilens.security.signature.secret=test-signature-secret",
         "omnilens.security.signature.allowed-clock-skew=5m",
+        "omnilens.security.signature.nonce-store-mode=in-memory",
         "omnilens.alert.dedupe.mode=in-memory",
         "management.health.redis.enabled=false"
 })

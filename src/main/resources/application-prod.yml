@@ -16,6 +16,7 @@ omnilens:
       enabled: ${OMNILENS_SIGNATURE_ENABLED:false}
       secret: ${OMNILENS_SIGNATURE_SECRET:}
       allowed-clock-skew: ${OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW:5m}
+      nonce-store-mode: ${OMNILENS_SIGNATURE_NONCE_STORE_MODE:redis}
       max-nonces: ${OMNILENS_SIGNATURE_MAX_NONCES:10000}
   providers:
     public-data:

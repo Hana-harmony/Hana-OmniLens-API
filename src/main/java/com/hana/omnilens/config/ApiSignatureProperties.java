@@ -10,12 +10,14 @@ public record ApiSignatureProperties(
         boolean enabled,
         String secret,
         Duration allowedClockSkew,
+        NonceStoreMode nonceStoreMode,
         int maxNonces
 ) {
 
     public ApiSignatureProperties {
         secret = secret == null ? "" : secret;
         allowedClockSkew = allowedClockSkew == null ? Duration.ofMinutes(5) : allowedClockSkew;
+        nonceStoreMode = nonceStoreMode == null ? NonceStoreMode.REDIS : nonceStoreMode;
         maxNonces = maxNonces <= 0 ? 10_000 : maxNonces;
     }
 
@@ -24,5 +26,10 @@ public record ApiSignatureProperties(
             throw new IllegalStateException("omnilens.security.signature.secret is not configured");
         }
         return secret;
+    }
+
+    public enum NonceStoreMode {
+        REDIS,
+        IN_MEMORY
     }
 }

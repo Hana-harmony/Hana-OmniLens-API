@@ -6,19 +6,14 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import com.hana.omnilens.config.ApiSignatureProperties;
 
-@Component
 public class InMemoryApiSignatureNonceStore implements ApiSignatureNonceStore {
 
     private final Clock clock;
     private final ApiSignatureProperties properties;
     private final ConcurrentHashMap<String, Instant> nonces = new ConcurrentHashMap<>();
 
-    @Autowired
     public InMemoryApiSignatureNonceStore(ApiSignatureProperties properties) {
         this(properties, Clock.systemUTC());
     }

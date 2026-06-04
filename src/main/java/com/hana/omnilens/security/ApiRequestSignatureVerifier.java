@@ -86,7 +86,13 @@ public class ApiRequestSignatureVerifier {
         if (!constantTimeEquals(providedSignature, expectedSignature)) {
             return SignatureVerificationResult.unauthorized("Invalid request signature");
         }
-        if (!nonceStore.remember(apiKeyFingerprint, nonce, timestamp.plus(properties.allowedClockSkew()))) {
+        boolean storedNonce;
+        try {
+            storedNonce = nonceStore.remember(apiKeyFingerprint, nonce, timestamp.plus(properties.allowedClockSkew()));
+        } catch (RuntimeException exception) {
+            return SignatureVerificationResult.serviceUnavailable("Request signature nonce store is unavailable");
+        }
+        if (!storedNonce) {
             return SignatureVerificationResult.unauthorized("Request signature nonce was already used");
         }
         return SignatureVerificationResult.ok();
