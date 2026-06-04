@@ -5,12 +5,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-import org.springframework.stereotype.Repository;
-
 import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.market.domain.StockSummary;
 
-@Repository
 public class InMemoryStockMasterRepository implements StockMasterRepository {
 
     private static final List<StockSummary> STOCKS = List.of(
