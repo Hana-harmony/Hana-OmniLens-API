@@ -73,6 +73,8 @@ KIS_REALTIME_STOCK_CODES=005930,000660
 - `GET /openapi.yaml`
 - 문서는 협력사 API key 보호 대상이다.
 - REST endpoint와 STOMP WebSocket endpoint/topic 계약을 함께 확인할 수 있다.
+- DB credential을 사용하는 협력사는 `/topic/partners/{partnerId}/alerts` 또는 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`를 구독한다.
+- `/topic/stocks/{stockCode}/alerts`는 bootstrap 전역 키 호환용 topic으로 유지한다.
 
 ## 협력사 입력 환율
 - `PUT /api/v1/market/exchange-rates/{currency}`로 `KRW -> 현지통화` 표시용 환율을 저장한다.

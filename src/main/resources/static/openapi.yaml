@@ -30,7 +30,11 @@ x-websocket:
   protocol: STOMP
   subscribeTopics:
     partnerAlerts: /topic/partners/{partnerId}/alerts
+    partnerStockAlerts: /topic/partners/{partnerId}/stocks/{stockCode}/alerts
     stockAlerts: /topic/stocks/{stockCode}/alerts
+  authorization: >
+    DB-bound partner credentials may subscribe only to their own partner topics.
+    The global stock topic is retained for bootstrap/global-key compatibility.
   payloadSchema: AlertEvent
 paths:
   /api/v1/market/stocks/{stockCode}:

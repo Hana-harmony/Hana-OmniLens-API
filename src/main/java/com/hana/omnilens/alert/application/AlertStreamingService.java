@@ -41,6 +41,9 @@ public class AlertStreamingService {
                 Instant.now());
 
         messagingTemplate.convertAndSend("/topic/partners/" + request.partnerId() + "/alerts", event);
+        messagingTemplate.convertAndSend(
+                "/topic/partners/" + request.partnerId() + "/stocks/" + request.stockCode() + "/alerts",
+                event);
         messagingTemplate.convertAndSend("/topic/stocks/" + request.stockCode() + "/alerts", event);
         return event;
     }

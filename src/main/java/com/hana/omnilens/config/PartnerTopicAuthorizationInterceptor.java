@@ -1,0 +1,77 @@
+package com.hana.omnilens.config;
+
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.simp.stomp.StompCommand;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import com.hana.omnilens.security.PartnerAuthentication;
+
+@Component
+public class PartnerTopicAuthorizationInterceptor implements ChannelInterceptor {
+
+    private static final Pattern PARTNER_TOPIC_PATTERN =
+            Pattern.compile("^/topic/partners/([A-Za-z0-9._:-]+)/alerts$");
+    private static final Pattern PARTNER_STOCK_TOPIC_PATTERN =
+            Pattern.compile("^/topic/partners/([A-Za-z0-9._:-]+)/stocks/\\d{6}/alerts$");
+    private static final Pattern GLOBAL_STOCK_TOPIC_PATTERN =
+            Pattern.compile("^/topic/stocks/\\d{6}/alerts$");
+
+    @Override
+    public Message<?> preSend(Message<?> message, MessageChannel channel) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        if (accessor.getCommand() != StompCommand.SUBSCRIBE) {
+            return message;
+        }
+
+        String authenticatedPartnerId = authenticatedPartnerId(accessor);
+        String destination = accessor.getDestination();
+        if (!StringUtils.hasText(authenticatedPartnerId) || !StringUtils.hasText(destination)) {
+            return message;
+        }
+
+        assertPartnerTopicAccess(authenticatedPartnerId, destination);
+        return message;
+    }
+
+    private void assertPartnerTopicAccess(String authenticatedPartnerId, String destination) {
+        Matcher partnerTopic = PARTNER_TOPIC_PATTERN.matcher(destination);
+        if (partnerTopic.matches()) {
+            assertPartnerId(authenticatedPartnerId, partnerTopic.group(1));
+            return;
+        }
+
+        Matcher partnerStockTopic = PARTNER_STOCK_TOPIC_PATTERN.matcher(destination);
+        if (partnerStockTopic.matches()) {
+            assertPartnerId(authenticatedPartnerId, partnerStockTopic.group(1));
+            return;
+        }
+
+        if (GLOBAL_STOCK_TOPIC_PATTERN.matcher(destination).matches()) {
+            throw new AccessDeniedException("Partner credential cannot subscribe to global stock topic");
+        }
+    }
+
+    private void assertPartnerId(String authenticatedPartnerId, String requestedPartnerId) {
+        if (!authenticatedPartnerId.equals(requestedPartnerId)) {
+            throw new AccessDeniedException("Partner credential cannot subscribe to another partner topic");
+        }
+    }
+
+    private String authenticatedPartnerId(StompHeaderAccessor accessor) {
+        Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+        if (sessionAttributes == null) {
+            return "";
+        }
+        Object partnerId = sessionAttributes.get(PartnerAuthentication.PARTNER_ID_ATTRIBUTE);
+        return partnerId instanceof String value ? value : "";
+    }
+}
