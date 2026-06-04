@@ -151,6 +151,11 @@ public class MarketDataService {
         return stockMasterRepository.search(query);
     }
 
+    public StockSummary getStock(String stockCode) {
+        return stockMasterRepository.findByCode(stockCode)
+                .orElseThrow(() -> new StockMasterNotFoundException(stockCode));
+    }
+
     public ExchangeRateSnapshot updateExchangeRate(String localCurrency, BigDecimal fxRate) {
         return exchangeRateCache.put(localCurrency, fxRate, Instant.now(clock));
     }

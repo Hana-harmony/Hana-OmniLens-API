@@ -25,6 +25,7 @@ docker compose -f compose.local.yml up -d
 - Flyway `stock_master` schema 생성
 - 종목 마스터 seed loader의 초기 적재와 중복 실행 방지
 - JDBC 종목 마스터 저장소의 코드, 한글명, 영문명 검색
+- 시장 데이터 종목 단건 조회 API의 DB seed 데이터 반환과 미지원 종목 404 ProblemDetail
 - 시장 데이터 종목 검색 API의 DB seed 데이터 반환
 - KIS Open API 현재가 provider 요청 헤더·쿼리·응답 매핑
 - KIS WebSocket 체결·호가 구독 frame JSON 계약

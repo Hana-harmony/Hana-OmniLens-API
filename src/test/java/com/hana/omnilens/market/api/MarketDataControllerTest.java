@@ -27,6 +27,37 @@ class MarketDataControllerTest {
     private MockMvc mockMvc;
 
     @Test
+    void stockDetailReturnsSeededStockMasterRow() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/086790")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stockCode", equalTo("086790")))
+                .andExpect(jsonPath("$.stockName", equalTo("하나금융지주")))
+                .andExpect(jsonPath("$.stockNameEn", equalTo("Hana Financial Group")))
+                .andExpect(jsonPath("$.market", equalTo("KOSPI")))
+                .andExpect(jsonPath("$.isinCode", equalTo("KR7086790003")));
+    }
+
+    @Test
+    void stockDetailReturnsNotFoundForUnsupportedStockCode() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/999999")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/stock-not-found")))
+                .andExpect(jsonPath("$.title", equalTo("Stock not found")))
+                .andExpect(jsonPath("$.stockCode", equalTo("999999")));
+    }
+
+    @Test
+    void stockDetailRejectsInvalidStockCode() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/ABCDEF")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
+                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+    }
+
+    @Test
     void quoteApiReturnsStandardMarketPayload() throws Exception {
         mockMvc.perform(get("/api/v1/market/stocks/005930/quote")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")

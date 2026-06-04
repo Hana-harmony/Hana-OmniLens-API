@@ -259,6 +259,13 @@
 - 운영 설정은 `STOCK_MASTER_SEED_ENABLED`, `STOCK_MASTER_SEED_LOCATION` placeholder로 분리하고, 로컬 실제 설정은 gitignore된 `application-local.yml`에서 관리한다.
 - H2 PostgreSQL mode와 Flyway를 사용하는 통합 테스트로 schema 생성, seed 적재, 중복 실행 방지, 코드·한글명·영문명 검색, 검색 API 응답을 검증했다.
 
+## 2026-06-04 종목 마스터 단건 조회 API
+- `GET /api/v1/market/stocks/{stockCode}` endpoint를 추가해 협력사 백엔드가 watchlist·보유 종목 동기화에 필요한 종목 메타데이터를 코드로 직접 조회할 수 있게 했다.
+- 응답은 quote, orderbook, 뉴스·공시 수집에서 쓰는 `StockSummary` 계약과 동일하게 종목코드, 한글명, 영문명, 시장구분, ISIN, OpenDART 고유번호를 반환한다.
+- 미지원 종목코드는 `404 Not Found`와 `https://hana-omnilens-api/errors/stock-not-found` ProblemDetail로 반환해 validation 오류와 구분한다.
+- OpenAPI 문서에 단건 조회 path와 404 응답을 추가했다.
+- MockMvc 테스트로 정상 조회, 미지원 종목 404, 잘못된 종목코드 validation 실패를 검증했다.
+
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.

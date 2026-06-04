@@ -33,6 +33,11 @@ public class MarketDataController {
         this.marketDataService = marketDataService;
     }
 
+    @GetMapping("/stocks/{stockCode}")
+    public StockSummary getStock(@PathVariable @Pattern(regexp = "\\d{6}") String stockCode) {
+        return marketDataService.getStock(stockCode);
+    }
+
     @GetMapping("/stocks/{stockCode}/quote")
     public MarketQuote getQuote(
             @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,

@@ -32,6 +32,28 @@ x-websocket:
     stockAlerts: /topic/stocks/{stockCode}/alerts
   payloadSchema: AlertEvent
 paths:
+  /api/v1/market/stocks/{stockCode}:
+    get:
+      tags:
+        - Market Data
+      operationId: getStockMaster
+      summary: Get one supported Korea stock master row.
+      description: Returns the stock metadata used by quote, orderbook, and alert collection APIs.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+      responses:
+        "200":
+          description: Supported stock metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/stocks/{stockCode}/quote:
     get:
       tags:
@@ -253,6 +275,8 @@ components:
       description: Missing or invalid partner API key.
     ValidationError:
       description: Request validation failed.
+    StockNotFound:
+      description: Supported stock master row was not found.
     ServiceUnavailable:
       description: Server security or provider configuration is incomplete.
   schemas:
