@@ -16,6 +16,7 @@ docker compose -f compose.local.yml up -d
 - CI는 Docker 이미지를 빌드해 GHCR에 push한다.
 - 원격 서버에는 `application-prod.yml`, `application-prod.env`, `deploy-prod.env`, `compose.prod.yml`, `deploy.sh`를 전송한다.
 - 원격 서버의 `deploy.sh`가 GHCR에서 이미지를 pull하고 Docker Compose로 `prod` profile 컨테이너를 재시작한다.
+- 배포 환경 분리 guardrail 테스트가 로컬 설정 gitignore, 운영 placeholder, prod compose profile, GHCR 배포 흐름을 검증한다.
 
 ## 필요한 GitHub Secrets
 - `PROD_HOST`: 운영 서버 호스트

@@ -36,4 +36,4 @@
 - mTLS client certificate gate 완료
 - 감사 로그와 장애 추적 correlation id 완료
 - 외부 provider timeout, retry, circuit breaker 완료
-- 배포 환경 분리
+- 배포 환경 분리 완료

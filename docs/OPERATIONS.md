@@ -174,4 +174,4 @@ PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION=30s
 ```
 
 ## 운영 전 보강
-- 배포 환경별 Secret Manager 연동
+- 협력사별 key rotation 자동화

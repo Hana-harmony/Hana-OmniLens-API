@@ -8,6 +8,11 @@ docker compose -f compose.local.yml up -d
 ```
 
 ## 현재 테스트 범위
+- 배포 환경 분리 guardrail
+  - `application-local.yml` gitignore 유지
+  - `application-prod.yml` 필수 secret placeholder 유지
+  - `compose.prod.yml` prod profile과 외부 env file 사용
+  - GitHub Actions main push GHCR 배포 흐름
 - API key 인증 성공
 - API key 누락 시 `401`
 - API key 해시 미설정 시 `503`

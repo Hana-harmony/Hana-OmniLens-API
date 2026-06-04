@@ -304,6 +304,14 @@
 - OpenAPI에 `mutualTLS` security scheme을 추가했다.
 - MockMvc 테스트로 인증서 없음, 정상 인증서, 만료 인증서, health endpoint 예외를 검증했다.
 
+## 2026-06-04 배포 환경 분리 guardrail
+- `DeploymentProfileGuardrailTest`를 추가해 로컬·운영 profile 분리 계약을 CI에서 검증한다.
+- `application-local.yml`은 gitignore 대상으로 유지하고, `application-local.example.yml`만 커밋한다.
+- `application-prod.yml`은 실제 운영 profile 파일로 커밋하되 필수 secret은 기본값 없는 환경변수 placeholder로만 둔다.
+- `compose.prod.yml`은 `prod` profile, 외부 `application-prod.env`, read-only `application-prod.yml` mount만 사용하도록 고정한다.
+- GitHub Actions 배포 job은 `main` push, production environment, GHCR image push/pull 흐름을 유지하도록 검증한다.
+- 배포 script는 원격 서버의 `application-prod.env`, `deploy-prod.env`, `compose.prod.yml`만 사용하고 local profile 파일을 참조하지 않는다.
+
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
