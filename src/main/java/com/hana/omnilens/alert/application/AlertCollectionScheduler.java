@@ -1,6 +1,11 @@
 package com.hana.omnilens.alert.application;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +15,6 @@ import org.springframework.util.StringUtils;
 
 import com.hana.omnilens.alert.api.AlertCollectPublishRequest;
 import com.hana.omnilens.config.AlertCollectionSchedulerProperties;
-import com.hana.omnilens.config.AlertCollectionSchedulerProperties.PartnerWatchlist;
 
 @Component
 public class AlertCollectionScheduler {
@@ -19,23 +23,50 @@ public class AlertCollectionScheduler {
 
     private final AlertProviderCollectionService alertProviderCollectionService;
     private final AlertCollectionSchedulerProperties properties;
+    private final PartnerWatchlistRepository partnerWatchlistRepository;
 
     public AlertCollectionScheduler(
             AlertProviderCollectionService alertProviderCollectionService,
-            AlertCollectionSchedulerProperties properties) {
+            AlertCollectionSchedulerProperties properties,
+            PartnerWatchlistRepository partnerWatchlistRepository) {
         this.alertProviderCollectionService = alertProviderCollectionService;
         this.properties = properties;
+        this.partnerWatchlistRepository = partnerWatchlistRepository;
     }
 
     @Scheduled(fixedDelayString = "${omnilens.alert.scheduler.fixed-delay-ms:300000}")
     public void collectConfiguredWatchlists() {
-        if (!properties.enabled() || properties.watchlists().isEmpty()) {
+        if (!properties.enabled()) {
             return;
         }
 
-        for (PartnerWatchlist watchlist : properties.watchlists()) {
+        for (PartnerWatchlist watchlist : mergedWatchlists()) {
             collectWatchlist(watchlist);
         }
+    }
+
+    private List<PartnerWatchlist> mergedWatchlists() {
+        Map<String, Set<String>> stockCodesByPartner = new LinkedHashMap<>();
+        for (AlertCollectionSchedulerProperties.PartnerWatchlist watchlist : properties.watchlists()) {
+            addWatchlist(stockCodesByPartner, new PartnerWatchlist(watchlist.partnerId(), watchlist.stockCodes()));
+        }
+        for (PartnerWatchlist watchlist : partnerWatchlistRepository.findAll()) {
+            addWatchlist(stockCodesByPartner, watchlist);
+        }
+        List<PartnerWatchlist> watchlists = new ArrayList<>();
+        for (Map.Entry<String, Set<String>> entry : stockCodesByPartner.entrySet()) {
+            watchlists.add(new PartnerWatchlist(entry.getKey(), List.copyOf(entry.getValue())));
+        }
+        return watchlists;
+    }
+
+    private static void addWatchlist(Map<String, Set<String>> stockCodesByPartner, PartnerWatchlist watchlist) {
+        if (!StringUtils.hasText(watchlist.partnerId())) {
+            return;
+        }
+        stockCodesByPartner
+                .computeIfAbsent(watchlist.partnerId(), ignored -> new LinkedHashSet<>())
+                .addAll(watchlist.stockCodes());
     }
 
     private void collectWatchlist(PartnerWatchlist watchlist) {

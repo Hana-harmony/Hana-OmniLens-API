@@ -26,6 +26,7 @@
 - Hannah-Montana-AI 분석 API 연동 완료
 - Redis TTL 기반 중복 제거 완료
 - 협력사별 watchlist 기반 주기 수집 스케줄러 완료
+- 협력사별 watchlist DB 관리 API 완료
 
 ## M4 운영 하드닝
 - 협력사별 rate limit 완료

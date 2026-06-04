@@ -21,6 +21,7 @@ import com.hana.omnilens.config.AlertCollectionSchedulerProperties.PartnerWatchl
 class AlertCollectionSchedulerTest {
 
     private final AlertProviderCollectionService collectionService = mock(AlertProviderCollectionService.class);
+    private final PartnerWatchlistRepository watchlistRepository = mock(PartnerWatchlistRepository.class);
 
     @Test
     void skipsCollectionWhenSchedulerIsDisabled() {
@@ -31,15 +32,18 @@ class AlertCollectionSchedulerTest {
                         60_000L,
                         5,
                         3,
-                        List.of(new PartnerWatchlist("partner-a", List.of("005930")))));
+                        List.of(new PartnerWatchlist("partner-a", List.of("005930")))),
+                watchlistRepository);
 
         scheduler.collectConfiguredWatchlists();
 
         verify(collectionService, never()).collectAnalyzeAndPublish(any());
+        verify(watchlistRepository, never()).findAll();
     }
 
     @Test
     void collectsConfiguredPartnerWatchlists() {
+        when(watchlistRepository.findAll()).thenReturn(List.of());
         when(collectionService.collectAnalyzeAndPublish(any()))
                 .thenReturn(new AlertCollectPublishResponse(
                         "partner-a",
@@ -57,7 +61,8 @@ class AlertCollectionSchedulerTest {
                         60_000L,
                         7,
                         5,
-                        List.of(new PartnerWatchlist("partner-a", List.of("005930", "000660")))));
+                        List.of(new PartnerWatchlist("partner-a", List.of("005930", "000660")))),
+                watchlistRepository);
 
         scheduler.collectConfiguredWatchlists();
 
@@ -72,7 +77,51 @@ class AlertCollectionSchedulerTest {
     }
 
     @Test
+    void mergesConfiguredAndStoredPartnerWatchlists() {
+        when(watchlistRepository.findAll()).thenReturn(List.of(
+                new com.hana.omnilens.alert.application.PartnerWatchlist(
+                        "partner-a",
+                        List.of("000660", "035420")),
+                new com.hana.omnilens.alert.application.PartnerWatchlist(
+                        "partner-b",
+                        List.of("005380"))));
+        when(collectionService.collectAnalyzeAndPublish(any()))
+                .thenReturn(new AlertCollectPublishResponse(
+                        "partner-a",
+                        List.of("005930", "000660", "035420"),
+                        3,
+                        0,
+                        3,
+                        0,
+                        0,
+                        List.of()));
+        AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
+                collectionService,
+                new AlertCollectionSchedulerProperties(
+                        true,
+                        60_000L,
+                        10,
+                        7,
+                        List.of(new PartnerWatchlist("partner-a", List.of("005930", "000660")))),
+                watchlistRepository);
+
+        scheduler.collectConfiguredWatchlists();
+
+        ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
+                ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
+        verify(collectionService, times(2)).collectAnalyzeAndPublish(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues())
+                .extracting(AlertCollectPublishRequest::partnerId)
+                .containsExactly("partner-a", "partner-b");
+        assertThat(requestCaptor.getAllValues().get(0).stockCodes())
+                .containsExactly("005930", "000660", "035420");
+        assertThat(requestCaptor.getAllValues().get(1).stockCodes())
+                .containsExactly("005380");
+    }
+
+    @Test
     void continuesAfterPartnerCollectionFailure() {
+        when(watchlistRepository.findAll()).thenReturn(List.of());
         when(collectionService.collectAnalyzeAndPublish(any()))
                 .thenThrow(new IllegalStateException("provider unavailable"))
                 .thenReturn(new AlertCollectPublishResponse(
@@ -93,7 +142,8 @@ class AlertCollectionSchedulerTest {
                         7,
                         List.of(
                                 new PartnerWatchlist("partner-a", List.of("005930")),
-                                new PartnerWatchlist("partner-b", List.of("000660")))));
+                                new PartnerWatchlist("partner-b", List.of("000660")))),
+                watchlistRepository);
 
         scheduler.collectConfiguredWatchlists();
 

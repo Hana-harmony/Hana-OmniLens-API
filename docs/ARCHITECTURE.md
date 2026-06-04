@@ -29,6 +29,8 @@
 - `MarketDataService`가 표준 응답 구조와 현지 통화 환산 로직을 제공한다.
 - 종목 마스터는 Flyway가 생성한 `stock_master` 테이블과 JDBC 저장소를 사용한다.
 - 초기 종목 universe는 `stock-master-seed.csv`에서 애플리케이션 시작 시 한 번 적재하며, 이미 데이터가 있으면 중복 적재하지 않는다.
+- 협력사 watchlist는 Flyway가 생성한 `partner_watchlist_subscription` 테이블과 JDBC 저장소를 사용한다.
+- watchlist 종목은 `stock_master` FK로 제한하며, REST API 저장 시 미지원 종목은 404로 거부한다.
 - `MarketDataService`는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 전일 snapshot, mock fallback 순서로 quote 응답 구조를 유지한다.
 - `MarketDataService`는 KIS 실시간 호가 cache가 있으면 orderbook 응답에 우선 반영한다.
 - `MarketDataService`는 KRX 외국인보유량 snapshot이 있으면 전일 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다.
@@ -39,5 +41,6 @@
 - 환율 refresh scheduler는 기본 disabled이며, 설정된 통화 목록만 한국수출입은행 provider로 주기 갱신한다.
 - `AlertStreamingService`가 알림 이벤트를 협력사·종목 topic으로 송신한다.
 - `AlertProviderCollectionService`가 종목별 뉴스·공시를 수집하고 AI 분석 결과를 WebSocket 알림으로 발행한다.
+- 알림 스케줄러는 설정 파일 watchlist와 DB watchlist를 협력사별로 병합해 같은 수집·분석·발행 경로를 재사용한다.
 - 뉴스·공시 중복 재발행 방지는 Redis TTL 기반 dedupe를 기본으로 사용하고, Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.
 - WebSocket subscription 계약 테스트가 실제 STOMP client로 두 topic 수신을 검증한다.

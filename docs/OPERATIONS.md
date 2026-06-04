@@ -32,15 +32,26 @@ docker compose -f compose.local.yml down
 
 ## 알림 주기 수집
 - 기본값은 `omnilens.alert.scheduler.enabled=false`이다.
-- 스케줄러를 켜면 설정된 협력사 watchlist마다 Naver 뉴스와 OpenDART 공시를 수집하고 Hannah-Montana-AI 분석 후 WebSocket으로 발행한다.
+- 스케줄러를 켜면 설정 또는 DB에 저장된 협력사 watchlist마다 Naver 뉴스와 OpenDART 공시를 수집하고 Hannah-Montana-AI 분석 후 WebSocket으로 발행한다.
 - 주기는 `ALERT_SCHEDULER_FIXED_DELAY_MS`로 조정한다. 기본값은 `300000`이다.
 - 수집 범위는 `ALERT_SCHEDULER_NEWS_DISPLAY`, `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`로 조정한다.
-- watchlist는 Spring indexed env 또는 `SPRING_APPLICATION_JSON`으로 주입한다.
+- 운영 중 watchlist는 `PUT /api/v1/alerts/watchlists/{partnerId}`로 DB에 저장한다.
+- 설정 파일 watchlist는 부트스트랩 또는 비상 운영용으로 유지하며, DB watchlist와 협력사별로 병합된다.
 
 ```text
 OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_PARTNER_ID=partner-a
 OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_0=005930
 OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_1=000660
+```
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/alerts/watchlists/partner-a \
+  -H "X-HANA-OMNILENS-API-KEY: ${PARTNER_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"stockCodes":["005930","000660"]}'
+
+curl http://localhost:8080/api/v1/alerts/watchlists/partner-a \
+  -H "X-HANA-OMNILENS-API-KEY: ${PARTNER_API_KEY}"
 ```
 
 ## KIS 실시간 시세 수신

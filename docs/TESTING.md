@@ -61,6 +61,9 @@ docker compose -f compose.local.yml up -d
 - AI `duplicateKey` 기반 수집 알림 재발행 방지
 - Redis TTL dedupe와 Redis 장애 시 in-memory fallback
 - 협력사 watchlist 주기 수집 스케줄러 disabled/성공/실패 격리
+- 협력사 watchlist DB 교체 저장, 조회, 순서 보존, 빈 목록 삭제
+- 협력사 watchlist REST API의 중복 제거, validation, 미지원 종목 404
+- 설정 기반 watchlist와 DB watchlist의 스케줄러 병합
 
 ## 추가 예정
 - Redis integration testcontainer 기반 연결 테스트

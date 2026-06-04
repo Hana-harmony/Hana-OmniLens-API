@@ -168,6 +168,59 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/alerts/watchlists/{partnerId}:
+    get:
+      tags:
+        - Alerts
+      operationId: getPartnerWatchlist
+      summary: Get a partner watchlist used by scheduled alert collection.
+      parameters:
+        - $ref: "#/components/parameters/PartnerId"
+      responses:
+        "200":
+          description: Stored partner watchlist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerWatchlistResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+    put:
+      tags:
+        - Alerts
+      operationId: replacePartnerWatchlist
+      summary: Replace a partner watchlist used by scheduled alert collection.
+      description: >
+        Replaces the full list for one partner. Duplicate stock codes are
+        removed while preserving request order. Empty lists clear the partner
+        watchlist.
+      parameters:
+        - $ref: "#/components/parameters/PartnerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerWatchlistUpdateRequest"
+      responses:
+        "200":
+          description: Stored partner watchlist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerWatchlistResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/alerts/events:
     post:
       tags:
@@ -274,6 +327,16 @@ components:
         type: string
         pattern: "^\\d{6}$"
       description: Six digit Korea stock code.
+    PartnerId:
+      name: partnerId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 80
+        pattern: "^[A-Za-z0-9._:-]+$"
+      description: Partner identifier issued to an overseas exchange or broker.
   responses:
     Unauthorized:
       description: Missing or invalid partner API key.
@@ -585,6 +648,31 @@ components:
           minimum: 1
           maximum: 30
           default: 7
+    PartnerWatchlistUpdateRequest:
+      type: object
+      required:
+        - stockCodes
+      properties:
+        stockCodes:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            pattern: "^\\d{6}$"
+    PartnerWatchlistResponse:
+      type: object
+      required:
+        - partnerId
+        - stockCodes
+      properties:
+        partnerId:
+          type: string
+          maxLength: 80
+        stockCodes:
+          type: array
+          items:
+            type: string
+            pattern: "^\\d{6}$"
     AlertCollectPublishResponse:
       type: object
       required:

@@ -82,6 +82,16 @@
 - 종목명이 없는 잘못된 watchlist 설정은 provider 호출 전에 skip한다.
 - 단위 테스트로 disabled 상태, 정상 요청 생성, 한 파트너 실패 후 다음 파트너 계속 처리, properties 기본값을 검증한다.
 
+## 2026-06-04 협력사 watchlist DB 관리 API
+- Flyway가 `partner_watchlist_subscription` 테이블을 생성하고 `stock_master` FK로 지원 종목만 저장되게 구성했다.
+- `PUT /api/v1/alerts/watchlists/{partnerId}`는 협력사 watchlist 전체를 교체 저장한다.
+- 요청 종목코드는 중복 제거 후 저장하며, 최초 요청 순서를 `sort_order`로 보존한다.
+- 빈 `stockCodes`는 해당 협력사 watchlist 삭제로 처리해 운영자가 수집 대상을 즉시 비울 수 있게 했다.
+- `GET /api/v1/alerts/watchlists/{partnerId}`는 현재 저장된 watchlist를 반환한다.
+- 미지원 종목코드는 `StockMasterNotFoundException`을 통해 `404 Stock not found` ProblemDetail로 응답한다.
+- 스케줄러는 설정 기반 watchlist와 DB watchlist를 협력사별로 병합해 주기 수집 대상으로 사용한다.
+- 테스트로 JDBC 저장소의 교체 저장, 순서 보존, 전체 조회 grouping, HTTP validation, 미지원 종목 404, 스케줄러 병합을 검증했다.
+
 ## 2026-06-04 OpenAPI 계약 문서
 - `/openapi.yaml` 정적 OpenAPI 3.1 문서를 추가했다.
 - 문서는 API key 보호 대상이며 협력사 API key가 있어야 조회할 수 있다.

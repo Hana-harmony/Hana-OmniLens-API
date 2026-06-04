@@ -29,6 +29,7 @@ docker compose -f compose.local.yml up -d
 - `POST /api/v1/alerts/events`
 - `POST /api/v1/alerts/analyze-and-publish`
 - `POST /api/v1/alerts/collect-and-publish`
+- `GET/PUT /api/v1/alerts/watchlists/{partnerId}`
 - `WS /ws/alerts`, topic `/topic/partners/{partnerId}/alerts`
 
 ## 문서

@@ -5,7 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +53,58 @@ class AlertControllerTest {
 
     @MockitoBean
     private AlertTitleTranslationService alertTitleTranslationService;
+
+    @Test
+    void replaceAndGetPartnerWatchlist() throws Exception {
+        mockMvc.perform(put("/api/v1/alerts/watchlists/partner-api")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stockCodes": ["005930", "000660", "005930"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.partnerId", equalTo("partner-api")))
+                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")))
+                .andExpect(jsonPath("$.stockCodes[1]", equalTo("000660")));
+
+        mockMvc.perform(get("/api/v1/alerts/watchlists/partner-api")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.partnerId", equalTo("partner-api")))
+                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")))
+                .andExpect(jsonPath("$.stockCodes[1]", equalTo("000660")));
+    }
+
+    @Test
+    void replacePartnerWatchlistRejectsUnsupportedStockCode() throws Exception {
+        mockMvc.perform(put("/api/v1/alerts/watchlists/partner-unknown-stock")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stockCodes": ["999999"]
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/stock-not-found")))
+                .andExpect(jsonPath("$.stockCode", equalTo("999999")));
+    }
+
+    @Test
+    void replacePartnerWatchlistRejectsInvalidStockCode() throws Exception {
+        mockMvc.perform(put("/api/v1/alerts/watchlists/partner-invalid-stock")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stockCodes": ["005930", "INVALID"]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")));
+    }
 
     @Test
     void analyzeAndPublishReturnsAnalyzedAlertEvent() throws Exception {
