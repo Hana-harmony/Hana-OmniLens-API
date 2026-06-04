@@ -13,9 +13,11 @@
 - REST: `/api/v1/market/**`, `/api/v1/alerts/**`
 - WebSocket: `/ws/alerts`
 - 협력사 topic: `/topic/partners/{partnerId}/alerts`
-- 종목 topic: `/topic/stocks/{stockCode}/alerts`
+- 협력사 종목 topic: `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`
+- 전역 종목 topic: `/topic/stocks/{stockCode}/alerts`
 - REST와 WebSocket handshake는 모두 협력사 API key 보호 대상이다.
 - 협력사별 DB credential로 인증된 알림 API 요청은 요청 `partnerId`와 인증 `partnerId`가 일치해야 한다.
+- 협력사별 DB credential로 연결한 WebSocket 세션은 자기 협력사 topic만 구독할 수 있다.
 
 ## 외부 시스템
 - KIS Open API: 현재가, 실시간 체결가, 실시간 호가
@@ -45,4 +47,4 @@
 - `AlertProviderCollectionService`가 종목별 뉴스·공시를 수집하고 AI 분석 결과를 WebSocket 알림으로 발행한다.
 - 알림 스케줄러는 설정 파일 watchlist와 DB watchlist를 협력사별로 병합해 같은 수집·분석·발행 경로를 재사용한다.
 - 뉴스·공시 중복 재발행 방지는 Redis TTL 기반 dedupe를 기본으로 사용하고, Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.
-- WebSocket subscription 계약 테스트가 실제 STOMP client로 두 topic 수신을 검증한다.
+- WebSocket subscription 계약 테스트가 실제 STOMP client로 topic 수신과 협력사 topic 권한을 검증한다.

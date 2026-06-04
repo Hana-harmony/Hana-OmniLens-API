@@ -102,6 +102,15 @@
 - CORS 허용 method에 `PUT`을 추가해 환율 저장과 watchlist 저장 API를 브라우저 기반 협력사 백엔드에서도 호출할 수 있게 했다.
 - 테스트로 DB credential 조회, inactive credential 거부, 전역 해시 미설정 시 DB credential 인증, partner mismatch 403을 검증했다.
 
+## 2026-06-04 WebSocket topic authorization
+- WebSocket handshake interceptor가 REST API key 필터에서 인증한 `partnerId`와 API key fingerprint를 STOMP session attribute로 복사한다.
+- STOMP inbound channel interceptor가 `SUBSCRIBE` destination을 검사한다.
+- DB credential 세션은 `/topic/partners/{partnerId}/alerts`와 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`에서 자기 `partnerId`만 구독할 수 있다.
+- DB credential 세션은 partner 구분이 없는 `/topic/stocks/{stockCode}/alerts` 구독을 거부한다.
+- `AlertStreamingService`는 기존 partner topic, 기존 global stock topic에 더해 partner-scoped stock topic으로도 이벤트를 발행한다.
+- 기존 global stock topic은 bootstrap 전역 키와 기존 계약 호환을 위해 유지한다.
+- 실제 STOMP client 통합 테스트로 전역 키 기존 topic 수신, DB credential의 partner-scoped topic 수신, global stock topic 차단을 검증했다.
+
 ## 2026-06-04 OpenAPI 계약 문서
 - `/openapi.yaml` 정적 OpenAPI 3.1 문서를 추가했다.
 - 문서는 API key 보호 대상이며 협력사 API key가 있어야 조회할 수 있다.

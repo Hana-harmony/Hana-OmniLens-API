@@ -21,6 +21,8 @@
 - mTLS 실패 감사 로그는 `client_certificate_missing`, `client_certificate_invalid` 사유를 사용한다.
 - CORS는 profile별 설정 파일의 허용 목록만 사용한다.
 - WebSocket `/ws/alerts` handshake도 API key 검증 대상이다.
+- DB credential로 인증된 WebSocket 세션은 `/topic/partners/{partnerId}/alerts`와 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`에서 자기 `partnerId`만 구독할 수 있다.
+- DB credential 세션은 전역 `/topic/stocks/{stockCode}/alerts` 구독을 사용할 수 없다.
 - 세션은 stateless로 유지한다.
 
 ## 협력사 API key 운영
@@ -68,6 +70,5 @@
 
 ## 향후 강화
 - 협력사별 key rotation 자동화
-- WebSocket topic authorization 세분화
 - abuse detection
 - 감사 로그 무결성 보장

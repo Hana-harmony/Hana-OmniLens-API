@@ -59,6 +59,7 @@ docker compose -f compose.local.yml up -d
 - 수집된 뉴스·공시의 AI 분석 후 WebSocket 알림 발행
 - AI 분석 `duplicateKey`, `modelVersion` 추적 메타데이터 전파
 - API key handshake 기반 WebSocket subscription 계약
+- DB credential WebSocket 세션의 partner-scoped topic 수신과 global stock topic 차단
 - 시장/알림 API 입력 validation 실패와 ProblemDetail 응답 계약
 - provider 수집 결과의 중복 URL 재발행 방지
 - AI `duplicateKey` 기반 수집 알림 재발행 방지

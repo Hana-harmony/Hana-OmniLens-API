@@ -35,6 +35,7 @@ class OpenApiDocumentTest {
                 .andExpect(content().string(containsString("/api/v1/alerts/collect-and-publish")))
                 .andExpect(content().string(containsString("/ws/alerts")))
                 .andExpect(content().string(containsString("/topic/partners/{partnerId}/alerts")))
+                .andExpect(content().string(containsString("/topic/partners/{partnerId}/stocks/{stockCode}/alerts")))
                 .andExpect(content().string(containsString("type: mutualTLS")))
                 .andExpect(content().string(containsString("X-HANA-OMNILENS-API-KEY")));
     }
