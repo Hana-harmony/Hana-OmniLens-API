@@ -45,7 +45,7 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource(OmniLensSecurityProperties properties) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.corsAllowedOrigins());
-        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
                 "X-HANA-OMNILENS-API-KEY",
                 "X-HANA-OMNILENS-TIMESTAMP",

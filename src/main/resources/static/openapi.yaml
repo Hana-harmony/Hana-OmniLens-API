@@ -87,6 +87,8 @@ paths:
                 $ref: "#/components/schemas/MarketQuote"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/exchange-rates/{currency}:
@@ -217,6 +219,8 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
         "404":
           $ref: "#/components/responses/StockNotFound"
         "503":
@@ -242,6 +246,8 @@ paths:
                 $ref: "#/components/schemas/AlertEvent"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/alerts/analyze-and-publish:
@@ -265,6 +271,8 @@ paths:
                 $ref: "#/components/schemas/AlertEvent"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
         "422":
           description: Hannah-Montana-AI did not match the item to a supported stock.
         "503":
@@ -290,6 +298,8 @@ paths:
                 $ref: "#/components/schemas/AlertCollectPublishResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
         "404":
           description: None of the requested stock codes are supported.
         "503":
@@ -303,6 +313,7 @@ components:
       type: apiKey
       in: header
       name: X-HANA-OMNILENS-API-KEY
+      description: Partner API key. The server stores only SHA-256 hashes and can bind keys to partner IDs.
     partnerTimestamp:
       type: apiKey
       in: header
@@ -344,6 +355,8 @@ components:
       description: Request validation failed.
     StockNotFound:
       description: Supported stock master row was not found.
+    PartnerAccessDenied:
+      description: Authenticated partner cannot access another partner's alert resource.
     ServiceUnavailable:
       description: Server security or provider configuration is incomplete.
   schemas:

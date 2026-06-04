@@ -2,8 +2,11 @@
 
 ## 현재 기준
 - 모든 운영 API 요청은 `X-HANA-OMNILENS-API-KEY`를 사용한다.
-- 서버는 API key 원문을 저장하지 않고 `application-prod.yml`의 SHA-256 해시와 상수 시간 비교한다.
-- API key 해시가 없으면 운영 API는 실패 닫힘 방식으로 `503`을 반환한다.
+- 서버는 API key 원문을 저장하지 않고 SHA-256 해시만 비교한다.
+- 단일 운영 bootstrap 키는 `application-prod.yml`의 `${OMNILENS_API_KEY_SHA256}` placeholder로 주입한다.
+- 협력사별 운영 키는 `partner_api_credential` 테이블에 SHA-256 해시와 `partner_id`로 저장한다.
+- API key 해시가 설정 파일과 DB 어디에도 없으면 운영 API는 실패 닫힘 방식으로 `503`을 반환한다.
+- DB credential로 인증된 요청은 알림 API의 요청 `partnerId`가 인증 `partnerId`와 다르면 `403`으로 거부한다.
 - 인증된 요청은 API key SHA-256 fingerprint 단위로 rate limit을 적용한다.
 - rate limit 초과 요청은 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
 - 운영에서 `OMNILENS_SIGNATURE_ENABLED=true`인 경우 모든 보호 API 요청은 HMAC-SHA256 요청 서명을 함께 검증한다.
@@ -19,6 +22,12 @@
 - CORS는 profile별 설정 파일의 허용 목록만 사용한다.
 - WebSocket `/ws/alerts` handshake도 API key 검증 대상이다.
 - 세션은 stateless로 유지한다.
+
+## 협력사 API key 운영
+- 원문 API key는 발급 직후 협력사에게 한 번만 전달한다.
+- 서버 DB에는 `SHA-256(apiKey)` 결과만 `partner_api_credential.api_key_sha256`에 저장한다.
+- 키 폐기는 row 삭제보다 `active=false` 전환을 우선 사용해 감사 추적을 남긴다.
+- bootstrap 전역 키는 운영 초기 credential 등록과 비상 복구용으로만 사용하고 상시 협력사 호출은 DB credential을 사용한다.
 
 ## 시크릿 관리
 - `application-local.yml`은 커밋하지 않는다.
@@ -58,7 +67,7 @@
 - 별도 서비스 토큰 헤더는 사용하지 않는다.
 
 ## 향후 강화
-- 협력사별 key rotation
+- 협력사별 key rotation 자동화
 - WebSocket topic authorization 세분화
 - abuse detection
 - 감사 로그 무결성 보장

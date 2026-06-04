@@ -11,6 +11,9 @@ docker compose -f compose.local.yml up -d
 - API key 인증 성공
 - API key 누락 시 `401`
 - API key 해시 미설정 시 `503`
+- DB active partner credential 인증 성공
+- inactive partner credential 거부
+- 인증 partner와 요청 partner 불일치 시 알림 API `403`
 - API key rate limit 초과 시 `429`와 `Retry-After`
 - HMAC 요청 서명 성공
 - HMAC 요청 서명 누락, nonce 재사용, stale timestamp 거부

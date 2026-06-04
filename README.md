@@ -17,6 +17,7 @@ docker compose -f compose.local.yml up -d
 로컬 설정 파일 `src/main/resources/application-local.yml`은 gitignore 대상이다. 운영 설정 파일 `src/main/resources/application-prod.yml`은 실제 파일로 커밋하고, 민감값은 GitHub Secrets로 생성한 원격 서버 env 파일에서 주입한다.
 
 알림은 수동 `collect-and-publish` 호출뿐 아니라 설정 기반 협력사 watchlist 스케줄러로도 수집·분석·WebSocket 발행할 수 있다.
+협력사별 API key는 원문을 저장하지 않고 DB에 SHA-256 해시와 `partnerId`로 묶어 관리한다.
 
 ## API 계약
 - `GET /openapi.yaml`
