@@ -266,6 +266,15 @@
 - OpenAPI 문서에 단건 조회 path와 404 응답을 추가했다.
 - MockMvc 테스트로 정상 조회, 미지원 종목 404, 잘못된 종목코드 validation 실패를 검증했다.
 
+## 2026-06-04 mTLS client certificate gate
+- `omnilens.security.mtls.enabled` 설정을 추가해 운영에서 보호 API 요청의 client certificate 존재를 앱 레벨에서 검증할 수 있게 했다.
+- mTLS가 활성화되면 `/actuator/health`, `/actuator/info`를 제외한 요청은 `jakarta.servlet.request.X509Certificate` 속성이 없을 경우 `401 Unauthorized`로 거부한다.
+- client certificate가 있더라도 유효 기간이 지났거나 아직 유효하지 않으면 `401 Unauthorized`로 거부한다.
+- TLS 직접 종료용 `server.ssl.*` 운영 placeholder와 keystore/truststore base64 GitHub Secrets 배포 흐름을 추가했다.
+- 운영 healthcheck를 위해 `SERVER_SSL_CLIENT_AUTH=want`, `OMNILENS_MTLS_ENABLED=true`, `HEALTHCHECK_SCHEME=https` 조합을 문서화했다.
+- OpenAPI에 `mutualTLS` security scheme을 추가했다.
+- MockMvc 테스트로 인증서 없음, 정상 인증서, 만료 인증서, health endpoint 예외를 검증했다.
+
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
@@ -292,6 +301,7 @@
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 - 운영 요청 서명은 HMAC-SHA256, timestamp clock skew, nonce replay 방어를 적용할 수 있다.
 - 운영 요청 서명 nonce는 Redis에 공유 저장해 다중 인스턴스에서도 replay를 방지한다.
+- mTLS 검증을 켜면 health/info를 제외한 보호 API 요청에 client certificate가 있어야 한다.
 - 모든 요청은 correlation id로 추적 가능하고, 보안 인증 이벤트는 API key 원문 없이 감사 로그로 기록한다.
 
 ## 외부 연동 예정

@@ -35,6 +35,8 @@ omnilens:
       allowed-clock-skew: 5m
       nonce-store-mode: redis
       max-nonces: 10000
+    mtls:
+      enabled: false
   providers:
     public-data:
       stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService

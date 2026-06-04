@@ -1,5 +1,14 @@
 server:
   port: ${SERVER_PORT:8080}
+  ssl:
+    enabled: ${SERVER_SSL_ENABLED:false}
+    client-auth: ${SERVER_SSL_CLIENT_AUTH:none}
+    key-store: ${SERVER_SSL_KEY_STORE:}
+    key-store-password: ${SERVER_SSL_KEY_STORE_PASSWORD:}
+    key-store-type: ${SERVER_SSL_KEY_STORE_TYPE:PKCS12}
+    trust-store: ${SERVER_SSL_TRUST_STORE:}
+    trust-store-password: ${SERVER_SSL_TRUST_STORE_PASSWORD:}
+    trust-store-type: ${SERVER_SSL_TRUST_STORE_TYPE:PKCS12}
 
 omnilens:
   security:
@@ -18,6 +27,8 @@ omnilens:
       allowed-clock-skew: ${OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW:5m}
       nonce-store-mode: ${OMNILENS_SIGNATURE_NONCE_STORE_MODE:redis}
       max-nonces: ${OMNILENS_SIGNATURE_MAX_NONCES:10000}
+    mtls:
+      enabled: ${OMNILENS_MTLS_ENABLED:false}
   providers:
     public-data:
       stock-securities-base-url: ${PUBLIC_DATA_STOCK_SECURITIES_BASE_URL:https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService}

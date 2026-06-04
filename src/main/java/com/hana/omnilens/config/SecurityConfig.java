@@ -16,11 +16,19 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties({OmniLensSecurityProperties.class, ApiRateLimitProperties.class, ApiSignatureProperties.class})
+@EnableConfigurationProperties({
+        OmniLensSecurityProperties.class,
+        ApiRateLimitProperties.class,
+        ApiSignatureProperties.class,
+        MtlsProperties.class
+})
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiKeyAuthenticationFilter apiKeyFilter) throws Exception {
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            MtlsClientCertificateFilter mtlsClientCertificateFilter,
+            ApiKeyAuthenticationFilter apiKeyFilter) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -28,7 +36,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .anyRequest().permitAll())
-                .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(mtlsClientCertificateFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(apiKeyFilter, MtlsClientCertificateFilter.class)
                 .build();
     }
 

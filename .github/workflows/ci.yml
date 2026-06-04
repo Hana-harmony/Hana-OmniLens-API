@@ -62,6 +62,15 @@ jobs:
         run: |
           printf '%s\n' \
             "SERVER_PORT=${{ secrets.SERVER_PORT }}" \
+            "SERVER_SSL_ENABLED=${{ secrets.SERVER_SSL_ENABLED || 'false' }}" \
+            "SERVER_SSL_CLIENT_AUTH=${{ secrets.SERVER_SSL_CLIENT_AUTH || 'none' }}" \
+            "SERVER_SSL_KEY_STORE=${{ secrets.SERVER_SSL_KEY_STORE || '/app/config/tls/server-keystore.p12' }}" \
+            "SERVER_SSL_KEY_STORE_PASSWORD=${{ secrets.SERVER_SSL_KEY_STORE_PASSWORD }}" \
+            "SERVER_SSL_KEY_STORE_TYPE=${{ secrets.SERVER_SSL_KEY_STORE_TYPE || 'PKCS12' }}" \
+            "SERVER_SSL_TRUST_STORE=${{ secrets.SERVER_SSL_TRUST_STORE || '/app/config/tls/client-truststore.p12' }}" \
+            "SERVER_SSL_TRUST_STORE_PASSWORD=${{ secrets.SERVER_SSL_TRUST_STORE_PASSWORD }}" \
+            "SERVER_SSL_TRUST_STORE_TYPE=${{ secrets.SERVER_SSL_TRUST_STORE_TYPE || 'PKCS12' }}" \
+            "HEALTHCHECK_SCHEME=${{ secrets.HEALTHCHECK_SCHEME || 'http' }}" \
             "OMNILENS_API_KEY_SHA256=${{ secrets.OMNILENS_API_KEY_SHA256 }}" \
             "OMNILENS_CORS_ALLOWED_ORIGINS=${{ secrets.OMNILENS_CORS_ALLOWED_ORIGINS }}" \
             "OMNILENS_SIGNATURE_ENABLED=${{ secrets.OMNILENS_SIGNATURE_ENABLED || 'false' }}" \
@@ -69,6 +78,7 @@ jobs:
             "OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW=${{ secrets.OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW || '5m' }}" \
             "OMNILENS_SIGNATURE_NONCE_STORE_MODE=${{ secrets.OMNILENS_SIGNATURE_NONCE_STORE_MODE || 'redis' }}" \
             "OMNILENS_SIGNATURE_MAX_NONCES=${{ secrets.OMNILENS_SIGNATURE_MAX_NONCES || '10000' }}" \
+            "OMNILENS_MTLS_ENABLED=${{ secrets.OMNILENS_MTLS_ENABLED || 'false' }}" \
             "DB_URL=${{ secrets.DB_URL }}" \
             "DB_USERNAME=${{ secrets.DB_USERNAME }}" \
             "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" \
@@ -97,14 +107,24 @@ jobs:
             "HANA_OMNILENS_IMAGE=${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" \
             "GHCR_TOKEN=${{ secrets.GHCR_TOKEN }}" \
             > deploy-prod.env
+          mkdir -p tls
+          if [ -n "${{ secrets.SERVER_SSL_KEY_STORE_BASE64 }}" ]; then
+            printf '%s' "${{ secrets.SERVER_SSL_KEY_STORE_BASE64 }}" | base64 -d > tls/server-keystore.p12
+          fi
+          if [ -n "${{ secrets.SERVER_SSL_TRUST_STORE_BASE64 }}" ]; then
+            printf '%s' "${{ secrets.SERVER_SSL_TRUST_STORE_BASE64 }}" | base64 -d > tls/client-truststore.p12
+          fi
       - name: 운영 서버로 배포
         run: |
           ssh -i ~/.ssh/prod_key "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
-            "mkdir -p '${PROD_APP_DIR}'"
+            "mkdir -p '${PROD_APP_DIR}/tls'"
           scp -i ~/.ssh/prod_key src/main/resources/application-prod.yml "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:${PROD_APP_DIR}/application-prod.yml"
           scp -i ~/.ssh/prod_key application-prod.env "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:${PROD_APP_DIR}/application-prod.env"
           scp -i ~/.ssh/prod_key deploy-prod.env "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:${PROD_APP_DIR}/deploy-prod.env"
           scp -i ~/.ssh/prod_key compose.prod.yml "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:${PROD_APP_DIR}/compose.prod.yml"
           scp -i ~/.ssh/prod_key scripts/deploy-prod.sh "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:${PROD_APP_DIR}/deploy.sh"
+          if find tls -maxdepth 1 -type f | grep -q .; then
+            scp -i ~/.ssh/prod_key tls/* "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:${PROD_APP_DIR}/tls/"
+          fi
           ssh -i ~/.ssh/prod_key "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
             "cd '${PROD_APP_DIR}' && chmod 700 ./deploy.sh && ./deploy.sh"

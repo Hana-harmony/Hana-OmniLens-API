@@ -11,8 +11,11 @@
 - 서명 헤더는 `X-HANA-OMNILENS-TIMESTAMP`, `X-HANA-OMNILENS-NONCE`, `X-HANA-OMNILENS-SIGNATURE`를 사용한다.
 - timestamp는 허용 clock skew 안에 있어야 하고, nonce는 같은 API key fingerprint에서 한 번만 사용할 수 있다.
 - 운영 기본 nonce 저장소는 Redis이며, Redis nonce store가 없거나 장애가 발생하면 서명 검증 요청은 실패 닫힘 방식으로 `503`을 반환한다.
+- 운영에서 `OMNILENS_MTLS_ENABLED=true`인 경우 health/info를 제외한 보호 API 요청은 client certificate가 없으면 `401`로 거부한다.
+- mTLS 직접 종료는 Spring Boot `server.ssl` 설정을 사용하고, 운영 healthcheck를 위해 `SERVER_SSL_CLIENT_AUTH=want`와 앱 필터 강제를 함께 사용한다.
 - 모든 응답에는 `X-HANA-OMNILENS-CORRELATION-ID`를 포함하고, 같은 값은 로그 MDC `correlationId`에 저장한다.
 - 보안 감사 로그는 인증 결과, method, path, API key hash prefix, 실패 사유만 기록한다.
+- mTLS 실패 감사 로그는 `client_certificate_missing`, `client_certificate_invalid` 사유를 사용한다.
 - CORS는 profile별 설정 파일의 허용 목록만 사용한다.
 - WebSocket `/ws/alerts` handshake도 API key 검증 대상이다.
 - 세션은 stateless로 유지한다.
@@ -39,6 +42,8 @@
 - `PAPAGO_TRANSLATION_CLIENT_ID`: Papago NMT API Client ID
 - `PAPAGO_TRANSLATION_CLIENT_SECRET`: Papago NMT API Client Secret
 - `OMNILENS_SIGNATURE_SECRET`: 협력사 요청 서명 검증용 HMAC secret
+- `SERVER_SSL_KEY_STORE_PASSWORD`: 서버 TLS keystore 비밀번호
+- `SERVER_SSL_TRUST_STORE_PASSWORD`: 협력사 client certificate CA truststore 비밀번호
 - 외부 API 키는 로그, 예외 메시지, 테스트 fixture, 커밋 파일에 남기지 않는다.
 
 ## 내부 AI 통신
@@ -54,7 +59,6 @@
 
 ## 향후 강화
 - 협력사별 key rotation
-- mTLS
 - WebSocket topic authorization 세분화
 - abuse detection
 - 감사 로그 무결성 보장

@@ -38,6 +38,17 @@ docker compose -f compose.local.yml up -d
 - `KOREA_EXIM_AUTH_KEY`: 한국수출입은행 환율 API 인증키
 
 ## 선택 운영 변수
+- `SERVER_SSL_ENABLED`: Spring Boot TLS 활성화 여부. mTLS 사용 시 `true`로 설정한다.
+- `SERVER_SSL_CLIENT_AUTH`: client certificate 요청 모드. healthcheck 유지를 위해 mTLS 사용 시 `want`를 권장한다.
+- `SERVER_SSL_KEY_STORE`: 컨테이너 내부 서버 TLS keystore 경로. 기본값은 `/app/config/tls/server-keystore.p12`이다.
+- `SERVER_SSL_KEY_STORE_PASSWORD`: 서버 TLS keystore 비밀번호.
+- `SERVER_SSL_KEY_STORE_TYPE`: 서버 TLS keystore 타입. 기본값은 `PKCS12`이다.
+- `SERVER_SSL_TRUST_STORE`: 컨테이너 내부 client CA truststore 경로. 기본값은 `/app/config/tls/client-truststore.p12`이다.
+- `SERVER_SSL_TRUST_STORE_PASSWORD`: client CA truststore 비밀번호.
+- `SERVER_SSL_TRUST_STORE_TYPE`: client CA truststore 타입. 기본값은 `PKCS12`이다.
+- `SERVER_SSL_KEY_STORE_BASE64`: 서버 TLS keystore 파일을 base64 인코딩한 값. CI/CD가 원격 서버 `tls/` 디렉터리에 자동 생성한다.
+- `SERVER_SSL_TRUST_STORE_BASE64`: 협력사 client certificate CA truststore 파일을 base64 인코딩한 값. CI/CD가 원격 서버 `tls/` 디렉터리에 자동 생성한다.
+- `HEALTHCHECK_SCHEME`: 컨테이너 healthcheck scheme. TLS 활성화 시 `https`로 설정한다.
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
 - `KRX_BASE_URL`: KRX 데이터 endpoint 주소. 기본값은 `https://data.krx.co.kr`이다.
 - `KOREA_EXIM_BASE_URL`: 한국수출입은행 환율 endpoint 주소. 기본값은 `https://oapi.koreaexim.go.kr`이다.
@@ -53,6 +64,7 @@ docker compose -f compose.local.yml up -d
 - `OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW`: 서명 timestamp 허용 오차. 기본값은 `5m`이다.
 - `OMNILENS_SIGNATURE_NONCE_STORE_MODE`: 서명 nonce 저장소. 운영 기본값은 `redis`, 로컬 테스트는 `in-memory`를 사용할 수 있다.
 - `OMNILENS_SIGNATURE_MAX_NONCES`: 인메모리 nonce 저장 최대 개수. 기본값은 `10000`이다.
+- `OMNILENS_MTLS_ENABLED`: 보호 API client certificate 필수 검증 활성화 여부. 기본값은 `false`이다.
 - `ALERT_DEDUPE_MODE`: 알림 중복 방지 저장소 모드. 기본값은 `redis`이다.
 - `ALERT_DEDUPE_TTL`: Redis dedupe key 보존 시간. 기본값은 `24h`이다.
 - `ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES`: Redis 장애 fallback용 in-memory 최대 key 수. 기본값은 `10000`이다.
@@ -84,6 +96,17 @@ OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_PARTNER_ID=partner-a
 OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_0=005930
 OMNILENS_ALERT_SCHEDULER_WATCHLISTS_0_STOCK_CODES_1=000660
 ```
+
+mTLS를 사용할 때는 아래 조합을 권장한다.
+
+```text
+SERVER_SSL_ENABLED=true
+SERVER_SSL_CLIENT_AUTH=want
+OMNILENS_MTLS_ENABLED=true
+HEALTHCHECK_SCHEME=https
+```
+
+`SERVER_SSL_CLIENT_AUTH=want`는 healthcheck가 client certificate 없이 통과할 수 있게 두고, 보호 API는 앱 필터가 client certificate 존재와 유효 기간을 다시 검증한다.
 
 ## 원격 서버 준비
 원격 서버에는 아래 런타임이 미리 설치되어 있어야 한다.

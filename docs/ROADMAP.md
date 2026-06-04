@@ -30,7 +30,7 @@
 ## M4 운영 하드닝
 - 협력사별 rate limit 완료
 - 서명 기반 인증과 Redis nonce replay 방어 완료
-- mTLS
+- mTLS client certificate gate 완료
 - 감사 로그와 장애 추적 correlation id 완료
 - 외부 provider timeout, retry, circuit breaker 완료
 - 배포 환경 분리
