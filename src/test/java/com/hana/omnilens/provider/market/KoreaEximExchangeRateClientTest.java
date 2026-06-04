@@ -15,6 +15,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ProviderTestResilience;
 
 class KoreaEximExchangeRateClientTest {
 
@@ -22,7 +23,10 @@ class KoreaEximExchangeRateClientTest {
     void findKrwToLocalRateMapsDealBasisRateToKrwConversionRate() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        KoreaEximExchangeRateClient client = new KoreaEximExchangeRateClient(builder, properties());
+        KoreaEximExchangeRateClient client = new KoreaEximExchangeRateClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo(containsString("/site/program/financial/exchangeJSON")))
                 .andExpect(requestTo(containsString("authkey=exim-key")))
@@ -49,7 +53,10 @@ class KoreaEximExchangeRateClientTest {
     void findKrwToLocalRateSupportsCurrencyUnitMultiplier() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        KoreaEximExchangeRateClient client = new KoreaEximExchangeRateClient(builder, properties());
+        KoreaEximExchangeRateClient client = new KoreaEximExchangeRateClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo(containsString("/site/program/financial/exchangeJSON")))
                 .andRespond(withSuccess("""
@@ -70,7 +77,10 @@ class KoreaEximExchangeRateClientTest {
     void findKrwToLocalRateReturnsEmptyWhenCurrencyIsMissing() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        KoreaEximExchangeRateClient client = new KoreaEximExchangeRateClient(builder, properties());
+        KoreaEximExchangeRateClient client = new KoreaEximExchangeRateClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo(containsString("/site/program/financial/exchangeJSON")))
                 .andRespond(withSuccess("""

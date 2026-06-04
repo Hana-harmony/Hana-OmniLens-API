@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
 @Component
 public class KisCurrentPriceClient {
@@ -17,28 +18,36 @@ public class KisCurrentPriceClient {
 
     private final RestClient restClient;
     private final ExternalProviderProperties.Kis kisProperties;
+    private final ExternalProviderResiliencePolicy resiliencePolicy;
 
-    public KisCurrentPriceClient(RestClient.Builder restClientBuilder, ExternalProviderProperties properties) {
+    public KisCurrentPriceClient(
+            RestClient.Builder restClientBuilder,
+            ExternalProviderProperties properties,
+            ExternalProviderResiliencePolicy resiliencePolicy) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.kis().baseUrl().toString())
                 .build();
         this.kisProperties = properties.kis();
+        this.resiliencePolicy = resiliencePolicy;
     }
 
     public Optional<KisCurrentPriceSnapshot> findCurrentPrice(String stockCode) {
-        JsonNode root = restClient.get()
+        String accessToken = kisProperties.requiredAccessToken();
+        String appKey = kisProperties.requiredAppKey();
+        String appSecret = kisProperties.requiredAppSecret();
+        JsonNode root = resiliencePolicy.execute("kis-current-price", () -> restClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/uapi/domestic-stock/v1/quotations/inquire-price")
                         .queryParam("FID_COND_MRKT_DIV_CODE", "J")
                         .queryParam("FID_INPUT_ISCD", stockCode)
                         .build())
                 .header("Content-Type", "application/json; charset=utf-8")
-                .header("authorization", "Bearer " + kisProperties.requiredAccessToken())
-                .header("appkey", kisProperties.requiredAppKey())
-                .header("appsecret", kisProperties.requiredAppSecret())
+                .header("authorization", "Bearer " + accessToken)
+                .header("appkey", appKey)
+                .header("appsecret", appSecret)
                 .header("tr_id", DOMESTIC_STOCK_CURRENT_PRICE_TR_ID)
                 .retrieve()
-                .body(JsonNode.class);
+                .body(JsonNode.class));
 
         JsonNode output = root == null ? null : root.path("output");
         if (output == null || output.isMissingNode() || output.isNull()) {

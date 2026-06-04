@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
 @Component
 public class KoreaEximExchangeRateClient {
@@ -25,25 +26,31 @@ public class KoreaEximExchangeRateClient {
 
     private final RestClient restClient;
     private final ExternalProviderProperties.KoreaExim koreaEximProperties;
+    private final ExternalProviderResiliencePolicy resiliencePolicy;
 
-    public KoreaEximExchangeRateClient(RestClient.Builder restClientBuilder, ExternalProviderProperties properties) {
+    public KoreaEximExchangeRateClient(
+            RestClient.Builder restClientBuilder,
+            ExternalProviderProperties properties,
+            ExternalProviderResiliencePolicy resiliencePolicy) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.koreaExim().baseUrl().toString())
                 .build();
         this.koreaEximProperties = properties.koreaExim();
+        this.resiliencePolicy = resiliencePolicy;
     }
 
     public Optional<KoreaEximExchangeRateSnapshot> findKrwToLocalRate(String localCurrency, LocalDate baseDate) {
         String normalizedCurrency = localCurrency.toUpperCase(Locale.ROOT);
-        JsonNode root = restClient.get()
+        String authKey = koreaEximProperties.requiredAuthKey();
+        JsonNode root = resiliencePolicy.execute("korea-exim-exchange-rate", () -> restClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/site/program/financial/exchangeJSON")
-                        .queryParam("authkey", koreaEximProperties.requiredAuthKey())
+                        .queryParam("authkey", authKey)
                         .queryParam("searchdate", baseDate.format(SEARCH_DATE_FORMATTER))
                         .queryParam("data", "AP01")
                         .build())
                 .retrieve()
-                .body(JsonNode.class);
+                .body(JsonNode.class));
 
         if (root == null || !root.isArray()) {
             return Optional.empty();

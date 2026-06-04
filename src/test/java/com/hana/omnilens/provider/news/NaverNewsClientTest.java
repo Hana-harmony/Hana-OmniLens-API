@@ -16,6 +16,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ProviderTestResilience;
 
 class NaverNewsClientTest {
 
@@ -23,7 +24,7 @@ class NaverNewsClientTest {
     void searchMapsSanitizedNewsItems() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        NaverNewsClient client = new NaverNewsClient(builder, properties());
+        NaverNewsClient client = new NaverNewsClient(builder, properties(), ProviderTestResilience.disabled());
 
         server.expect(requestTo(containsString("/v1/search/news.json")))
                 .andExpect(requestTo(containsString("query=Samsung")))

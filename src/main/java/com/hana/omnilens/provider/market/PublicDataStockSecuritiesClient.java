@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
 @Component
 public class PublicDataStockSecuritiesClient {
@@ -20,19 +21,25 @@ public class PublicDataStockSecuritiesClient {
 
     private final RestClient restClient;
     private final ExternalProviderProperties.PublicData properties;
+    private final ExternalProviderResiliencePolicy resiliencePolicy;
 
-    public PublicDataStockSecuritiesClient(RestClient.Builder restClientBuilder, ExternalProviderProperties properties) {
+    public PublicDataStockSecuritiesClient(
+            RestClient.Builder restClientBuilder,
+            ExternalProviderProperties properties,
+            ExternalProviderResiliencePolicy resiliencePolicy) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.publicData().stockSecuritiesBaseUrl().toString())
                 .build();
         this.properties = properties.publicData();
+        this.resiliencePolicy = resiliencePolicy;
     }
 
     public Optional<PublicDataStockPriceSnapshot> findPrice(String stockCode, LocalDate baseDate) {
-        JsonNode root = restClient.get()
+        String serviceKey = properties.requiredServiceKey();
+        JsonNode root = resiliencePolicy.execute("public-data-stock-securities", () -> restClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/getStockPriceInfo")
-                        .queryParam("serviceKey", properties.requiredServiceKey())
+                        .queryParam("serviceKey", serviceKey)
                         .queryParam("resultType", "json")
                         .queryParam("numOfRows", 1)
                         .queryParam("pageNo", 1)
@@ -40,7 +47,7 @@ public class PublicDataStockSecuritiesClient {
                         .queryParam("basDt", PUBLIC_DATA_DATE.format(baseDate))
                         .build())
                 .retrieve()
-                .body(JsonNode.class);
+                .body(JsonNode.class));
 
         JsonNode items = root == null ? null : root.path("response").path("body").path("items").path("item");
         if (items == null || !items.isArray()) {

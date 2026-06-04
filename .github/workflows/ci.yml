@@ -82,6 +82,14 @@ jobs:
             "PAPAGO_TRANSLATION_CLIENT_SECRET=${{ secrets.PAPAGO_TRANSLATION_CLIENT_SECRET }}" \
             "OPEN_DART_API_KEY=${{ secrets.OPEN_DART_API_KEY }}" \
             "KOREA_EXIM_AUTH_KEY=${{ secrets.KOREA_EXIM_AUTH_KEY }}" \
+            "PROVIDER_CONNECT_TIMEOUT=${{ secrets.PROVIDER_CONNECT_TIMEOUT || '2s' }}" \
+            "PROVIDER_READ_TIMEOUT=${{ secrets.PROVIDER_READ_TIMEOUT || '5s' }}" \
+            "PROVIDER_RETRY_ENABLED=${{ secrets.PROVIDER_RETRY_ENABLED || 'true' }}" \
+            "PROVIDER_RETRY_MAX_ATTEMPTS=${{ secrets.PROVIDER_RETRY_MAX_ATTEMPTS || '2' }}" \
+            "PROVIDER_RETRY_BACKOFF=${{ secrets.PROVIDER_RETRY_BACKOFF || '150ms' }}" \
+            "PROVIDER_CIRCUIT_BREAKER_ENABLED=${{ secrets.PROVIDER_CIRCUIT_BREAKER_ENABLED || 'true' }}" \
+            "PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD=${{ secrets.PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD || '5' }}" \
+            "PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION=${{ secrets.PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION || '30s' }}" \
             > application-prod.env
           printf '%s\n' \
             "HANA_OMNILENS_IMAGE=${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" \

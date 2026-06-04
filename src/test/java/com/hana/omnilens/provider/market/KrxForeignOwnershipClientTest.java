@@ -17,6 +17,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ProviderTestResilience;
 
 class KrxForeignOwnershipClientTest {
 
@@ -24,7 +25,10 @@ class KrxForeignOwnershipClientTest {
     void findForeignOwnershipMapsKrxOutput() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        KrxForeignOwnershipClient client = new KrxForeignOwnershipClient(builder, properties());
+        KrxForeignOwnershipClient client = new KrxForeignOwnershipClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo(containsString("/comm/bldAttendant/getJsonData.cmd")))
                 .andExpect(header("X-Requested-With", "XMLHttpRequest"))

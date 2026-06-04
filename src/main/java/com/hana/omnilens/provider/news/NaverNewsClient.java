@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.HtmlUtils;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
 @Component
 public class NaverNewsClient {
@@ -22,26 +23,33 @@ public class NaverNewsClient {
 
     private final RestClient restClient;
     private final ExternalProviderProperties.NaverNews properties;
+    private final ExternalProviderResiliencePolicy resiliencePolicy;
 
-    public NaverNewsClient(RestClient.Builder restClientBuilder, ExternalProviderProperties properties) {
+    public NaverNewsClient(
+            RestClient.Builder restClientBuilder,
+            ExternalProviderProperties properties,
+            ExternalProviderResiliencePolicy resiliencePolicy) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.naverNews().baseUrl().toString())
                 .build();
         this.properties = properties.naverNews();
+        this.resiliencePolicy = resiliencePolicy;
     }
 
     public List<NaverNewsArticle> search(String query, int display) {
-        NaverNewsResponse response = restClient.get()
+        String clientId = properties.requiredClientId();
+        String clientSecret = properties.requiredClientSecret();
+        NaverNewsResponse response = resiliencePolicy.execute("naver-news", () -> restClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/v1/search/news.json")
                         .queryParam("query", query)
                         .queryParam("display", display)
                         .queryParam("sort", "date")
                         .build())
-                .header("X-Naver-Client-Id", properties.requiredClientId())
-                .header("X-Naver-Client-Secret", properties.requiredClientSecret())
+                .header("X-Naver-Client-Id", clientId)
+                .header("X-Naver-Client-Secret", clientSecret)
                 .retrieve()
-                .body(NaverNewsResponse.class);
+                .body(NaverNewsResponse.class));
 
         if (response == null || response.items() == null) {
             return List.of();

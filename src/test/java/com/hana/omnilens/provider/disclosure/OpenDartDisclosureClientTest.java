@@ -15,6 +15,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ProviderTestResilience;
 
 class OpenDartDisclosureClientTest {
 
@@ -22,7 +23,10 @@ class OpenDartDisclosureClientTest {
     void searchMapsDisclosureList() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        OpenDartDisclosureClient client = new OpenDartDisclosureClient(builder, properties());
+        OpenDartDisclosureClient client = new OpenDartDisclosureClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo(containsString("/api/list.json")))
                 .andExpect(requestTo(containsString("corp_code=00126380")))

@@ -47,6 +47,17 @@ omnilens:
     korea-exim:
       base-url: https://oapi.koreaexim.go.kr
       auth-key: "replace-with-korea-exim-auth-key"
+    resilience:
+      connect-timeout: 2s
+      read-timeout: 5s
+      retry:
+        enabled: true
+        max-attempts: 2
+        backoff: 150ms
+      circuit-breaker:
+        enabled: true
+        failure-threshold: 5
+        open-duration: 30s
   ai:
     hannah:
       base-url: http://localhost:8000

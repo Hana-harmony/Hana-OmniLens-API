@@ -10,18 +10,24 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
 @Component
 public class PapagoTranslationClient {
 
     private final RestClient restClient;
     private final ExternalProviderProperties.PapagoTranslation properties;
+    private final ExternalProviderResiliencePolicy resiliencePolicy;
 
-    public PapagoTranslationClient(RestClient.Builder restClientBuilder, ExternalProviderProperties properties) {
+    public PapagoTranslationClient(
+            RestClient.Builder restClientBuilder,
+            ExternalProviderProperties properties,
+            ExternalProviderResiliencePolicy resiliencePolicy) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.papagoTranslation().baseUrl().toString())
                 .build();
         this.properties = properties.papagoTranslation();
+        this.resiliencePolicy = resiliencePolicy;
     }
 
     public String translateKoToEn(String text) {
@@ -29,14 +35,16 @@ public class PapagoTranslationClient {
             return "";
         }
 
-        PapagoTranslationResponse response = restClient.post()
+        String clientId = properties.requiredClientId();
+        String clientSecret = properties.requiredClientSecret();
+        PapagoTranslationResponse response = resiliencePolicy.execute("papago-translation", () -> restClient.post()
                 .uri("/v1/papago/n2mt")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .header("X-Naver-Client-Id", properties.requiredClientId())
-                .header("X-Naver-Client-Secret", properties.requiredClientSecret())
+                .header("X-Naver-Client-Id", clientId)
+                .header("X-Naver-Client-Secret", clientSecret)
                 .body(form(text))
                 .retrieve()
-                .body(PapagoTranslationResponse.class);
+                .body(PapagoTranslationResponse.class));
 
         return response == null ? "" : response.translatedText();
     }

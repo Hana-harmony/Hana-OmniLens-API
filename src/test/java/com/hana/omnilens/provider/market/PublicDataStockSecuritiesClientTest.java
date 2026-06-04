@@ -15,6 +15,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ProviderTestResilience;
 
 class PublicDataStockSecuritiesClientTest {
 
@@ -22,7 +23,10 @@ class PublicDataStockSecuritiesClientTest {
     void findPriceMapsFirstStockPriceItem() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        PublicDataStockSecuritiesClient client = new PublicDataStockSecuritiesClient(builder, properties());
+        PublicDataStockSecuritiesClient client = new PublicDataStockSecuritiesClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo(containsString("/getStockPriceInfo")))
                 .andExpect(requestTo(containsString("likeSrtnCd=005930")))

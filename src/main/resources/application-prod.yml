@@ -45,6 +45,17 @@ omnilens:
     korea-exim:
       base-url: ${KOREA_EXIM_BASE_URL:https://oapi.koreaexim.go.kr}
       auth-key: ${KOREA_EXIM_AUTH_KEY:}
+    resilience:
+      connect-timeout: ${PROVIDER_CONNECT_TIMEOUT:2s}
+      read-timeout: ${PROVIDER_READ_TIMEOUT:5s}
+      retry:
+        enabled: ${PROVIDER_RETRY_ENABLED:true}
+        max-attempts: ${PROVIDER_RETRY_MAX_ATTEMPTS:2}
+        backoff: ${PROVIDER_RETRY_BACKOFF:150ms}
+      circuit-breaker:
+        enabled: ${PROVIDER_CIRCUIT_BREAKER_ENABLED:true}
+        failure-threshold: ${PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD:5}
+        open-duration: ${PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION:30s}
   ai:
     hannah:
       base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}

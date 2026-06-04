@@ -16,6 +16,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.HannahAiProperties;
+import com.hana.omnilens.provider.ProviderTestResilience;
 
 class HannahAiAnalysisClientTest {
 
@@ -25,7 +26,8 @@ class HannahAiAnalysisClientTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         HannahAiAnalysisClient client = new HannahAiAnalysisClient(
                 builder,
-                new HannahAiProperties(URI.create("http://localhost:8000")));
+                new HannahAiProperties(URI.create("http://localhost:8000")),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo("http://localhost:8000/api/v1/alerts/analyze"))
                 .andExpect(headerDoesNotExist("X-HANNAH-AI-SERVICE-TOKEN"))

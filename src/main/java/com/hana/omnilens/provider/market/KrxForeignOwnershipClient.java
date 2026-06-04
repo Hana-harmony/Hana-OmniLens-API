@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
 @Component
 public class KrxForeignOwnershipClient {
@@ -23,11 +24,16 @@ public class KrxForeignOwnershipClient {
     private static final String FOREIGN_OWNERSHIP_BLD = "dbms/MDC/STAT/standard/MDCSTAT03702";
 
     private final RestClient restClient;
+    private final ExternalProviderResiliencePolicy resiliencePolicy;
 
-    public KrxForeignOwnershipClient(RestClient.Builder restClientBuilder, ExternalProviderProperties properties) {
+    public KrxForeignOwnershipClient(
+            RestClient.Builder restClientBuilder,
+            ExternalProviderProperties properties,
+            ExternalProviderResiliencePolicy resiliencePolicy) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.krx().baseUrl().toString())
                 .build();
+        this.resiliencePolicy = resiliencePolicy;
     }
 
     public Optional<KrxForeignOwnershipSnapshot> findForeignOwnership(
@@ -35,14 +41,14 @@ public class KrxForeignOwnershipClient {
             String stockName,
             String isinCode,
             LocalDate baseDate) {
-        JsonNode root = restClient.post()
+        JsonNode root = resiliencePolicy.execute("krx-foreign-ownership", () -> restClient.post()
                 .uri("/comm/bldAttendant/getJsonData.cmd")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .header("Referer", "https://data.krx.co.kr/contents/MDC/STAT/standard/MDCSTAT037.jsp")
                 .header("X-Requested-With", "XMLHttpRequest")
                 .body(KrxForeignOwnershipForm.of(stockCode, stockName, isinCode, baseDate))
                 .retrieve()
-                .body(JsonNode.class);
+                .body(JsonNode.class));
 
         JsonNode output = root == null ? null : root.path("output");
         if (output == null || !output.isArray()) {

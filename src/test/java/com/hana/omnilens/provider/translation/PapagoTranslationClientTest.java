@@ -17,6 +17,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ProviderTestResilience;
 
 class PapagoTranslationClientTest {
 
@@ -24,7 +25,10 @@ class PapagoTranslationClientTest {
     void translateKoToEnSendsPapagoNmtRequestAndMapsTranslatedText() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        PapagoTranslationClient client = new PapagoTranslationClient(builder, properties());
+        PapagoTranslationClient client = new PapagoTranslationClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo("https://openapi.naver.com/v1/papago/n2mt"))
                 .andExpect(method(HttpMethod.POST))

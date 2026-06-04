@@ -15,6 +15,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ProviderTestResilience;
 
 class KisCurrentPriceClientTest {
 
@@ -22,7 +23,10 @@ class KisCurrentPriceClientTest {
     void findCurrentPriceUsesKisDomesticStockQuoteContract() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        KisCurrentPriceClient client = new KisCurrentPriceClient(builder, properties());
+        KisCurrentPriceClient client = new KisCurrentPriceClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
 
         server.expect(requestTo(containsString("/uapi/domestic-stock/v1/quotations/inquire-price")))
                 .andExpect(requestTo(containsString("FID_COND_MRKT_DIV_CODE=J")))

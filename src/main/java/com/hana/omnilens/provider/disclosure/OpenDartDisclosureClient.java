@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
 @Component
 public class OpenDartDisclosureClient {
@@ -19,19 +20,25 @@ public class OpenDartDisclosureClient {
 
     private final RestClient restClient;
     private final ExternalProviderProperties.OpenDart properties;
+    private final ExternalProviderResiliencePolicy resiliencePolicy;
 
-    public OpenDartDisclosureClient(RestClient.Builder restClientBuilder, ExternalProviderProperties properties) {
+    public OpenDartDisclosureClient(
+            RestClient.Builder restClientBuilder,
+            ExternalProviderProperties properties,
+            ExternalProviderResiliencePolicy resiliencePolicy) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.openDart().baseUrl().toString())
                 .build();
         this.properties = properties.openDart();
+        this.resiliencePolicy = resiliencePolicy;
     }
 
     public List<OpenDartDisclosure> search(String corpCode, LocalDate beginDate, LocalDate endDate) {
-        JsonNode root = restClient.get()
+        String apiKey = properties.requiredApiKey();
+        JsonNode root = resiliencePolicy.execute("open-dart", () -> restClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/list.json")
-                        .queryParam("crtfc_key", properties.requiredApiKey())
+                        .queryParam("crtfc_key", apiKey)
                         .queryParam("corp_code", corpCode)
                         .queryParam("bgn_de", DART_DATE.format(beginDate))
                         .queryParam("end_de", DART_DATE.format(endDate))
@@ -39,7 +46,7 @@ public class OpenDartDisclosureClient {
                         .queryParam("page_count", 100)
                         .build())
                 .retrieve()
-                .body(JsonNode.class);
+                .body(JsonNode.class));
 
         JsonNode list = root == null ? null : root.path("list");
         if (list == null || !list.isArray()) {
