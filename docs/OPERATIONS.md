@@ -116,6 +116,23 @@ EXCHANGE_RATE_REFRESH_CURRENCIES=USD,JPY
 - Redis nonce store가 없거나 장애가 있으면 replay 방어를 보장할 수 없으므로 보호 API 요청은 `503`으로 실패 닫힘 처리된다.
 - 로컬 테스트에서 Redis 없이 서명 검증을 실험해야 할 때만 `OMNILENS_SIGNATURE_NONCE_STORE_MODE=in-memory`를 사용한다.
 
+## 외부 Provider Resilience
+- 모든 `RestClient` 기반 외부 provider는 공통 connect/read timeout을 사용한다.
+- 기본 timeout은 connect `2s`, read `5s`이다.
+- `RestClientException` 계열 네트워크 장애는 기본 2회까지 재시도한다.
+- 같은 provider의 연속 실패가 기본 5회에 도달하면 circuit breaker가 30초 동안 호출을 차단한다.
+- Spring 컨테이너 내부 Hannah-Montana-AI 호출도 토큰 없이 같은 resilience 정책만 적용한다.
+
+```text
+PROVIDER_CONNECT_TIMEOUT=2s
+PROVIDER_READ_TIMEOUT=5s
+PROVIDER_RETRY_ENABLED=true
+PROVIDER_RETRY_MAX_ATTEMPTS=2
+PROVIDER_RETRY_BACKOFF=150ms
+PROVIDER_CIRCUIT_BREAKER_ENABLED=true
+PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
+PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION=30s
+```
+
 ## 운영 전 보강
-- 외부 API timeout, retry, circuit breaker
 - 배포 환경별 Secret Manager 연동

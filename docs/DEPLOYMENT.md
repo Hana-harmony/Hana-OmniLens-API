@@ -66,6 +66,14 @@ docker compose -f compose.local.yml up -d
 - `EXCHANGE_RATE_REFRESH_CURRENCIES`: 갱신할 통화 목록. 예: `USD,JPY`.
 - `EXCHANGE_RATE_CACHE_MODE`: 환율 cache 저장소. 기본값은 `redis`이다.
 - `EXCHANGE_RATE_CACHE_TTL`: Redis 환율 cache TTL. 기본값은 `24h`이다.
+- `PROVIDER_CONNECT_TIMEOUT`: 외부 provider connect timeout. 기본값은 `2s`이다.
+- `PROVIDER_READ_TIMEOUT`: 외부 provider read timeout. 기본값은 `5s`이다.
+- `PROVIDER_RETRY_ENABLED`: 외부 provider 네트워크 재시도 활성화 여부. 기본값은 `true`이다.
+- `PROVIDER_RETRY_MAX_ATTEMPTS`: 외부 provider 최대 시도 횟수. 기본값은 `2`이다.
+- `PROVIDER_RETRY_BACKOFF`: 외부 provider 재시도 대기 시간. 기본값은 `150ms`이다.
+- `PROVIDER_CIRCUIT_BREAKER_ENABLED`: 외부 provider circuit breaker 활성화 여부. 기본값은 `true`이다.
+- `PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD`: circuit open 전 연속 실패 임계값. 기본값은 `5`이다.
+- `PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION`: circuit open 유지 시간. 기본값은 `30s`이다.
 
 watchlist는 Spring indexed env로 주입할 수 있다.
 

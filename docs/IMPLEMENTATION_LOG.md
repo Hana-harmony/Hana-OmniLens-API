@@ -239,6 +239,17 @@
 - Redis 저장 성공 후에도 fallback cache를 갱신해 KRX/Redis 일시 장애 시 마지막 성공 snapshot을 같은 프로세스에서 계속 사용할 수 있게 했다.
 - 단위 테스트로 TTL 저장, Redis payload 조회, Redis 장애 fallback, properties 기본값을 검증했다.
 
+## 2026-06-04 외부 provider resilience policy
+- `ExternalProviderResilienceProperties`를 추가해 provider connect timeout, read timeout, retry, circuit breaker를 공통 설정으로 분리했다.
+- 모든 `RestClient` builder는 `SimpleClientHttpRequestFactory` 기반 timeout을 사용한다.
+- `ExternalProviderResiliencePolicy`는 provider 이름별 circuit state를 관리하고 `RestClientException` 계열 장애만 재시도한다.
+- 재시도 기본값은 2회, backoff 기본값은 150ms다.
+- circuit breaker 기본값은 연속 실패 5회 후 30초 open이다.
+- Naver News, OpenDART, Papago, KIS 현재가, 공공데이터 주식시세, KRX 외국인보유량, 한국수출입은행 환율, Hannah-Montana-AI 내부 분석 호출에 정책을 적용했다.
+- Hannah-Montana-AI 호출에는 별도 서비스 토큰을 추가하지 않고 내부 네트워크 호출 모델을 유지했다.
+- `application-prod.yml`은 `PROVIDER_*` placeholder를 사용하고, CI/CD가 기본값 포함 `application-prod.env`를 자동 생성한다.
+- 단위 테스트로 retry 성공, circuit open, 비네트워크 예외 no-retry, properties 기본값을 검증했다.
+
 ## 현재 구현 로직
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
@@ -259,6 +270,7 @@
 - 한국수출입은행 환율 refresh scheduler는 설정된 통화의 `KRW -> 현지통화` 환율을 `ExchangeRateCache`에 주기 저장한다.
 - 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
+- 외부 provider 호출은 공통 timeout, retry, circuit breaker 정책을 통과한다.
 - API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 - 운영 요청 서명은 HMAC-SHA256, timestamp clock skew, nonce replay 방어를 적용할 수 있다.
@@ -266,5 +278,4 @@
 - 모든 요청은 correlation id로 추적 가능하고, 보안 인증 이벤트는 API key 원문 없이 감사 로그로 기록한다.
 
 ## 외부 연동 예정
-- KRX 외국인보유량 provider는 운영 전 Redis/DB 캐시로 승격한다.
 - 협력사 watchlist를 DB에서 관리하는 저장소를 추가한다.

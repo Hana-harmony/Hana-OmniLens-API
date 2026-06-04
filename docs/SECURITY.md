@@ -48,6 +48,7 @@
 - `KIS_BASE_URL`은 KIS endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - `KIS_WEBSOCKET_URL`은 KIS WebSocket endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - `KOREA_EXIM_BASE_URL`은 한국수출입은행 endpoint 주소 설정값이며 secret으로 분류하지 않는다.
+- `PROVIDER_*TIMEOUT`, `PROVIDER_RETRY_*`, `PROVIDER_CIRCUIT_BREAKER_*`는 장애 대응 튜닝값이며 secret으로 분류하지 않는다.
 - 별도 서비스 토큰 헤더는 사용하지 않는다.
 
 ## 향후 강화
