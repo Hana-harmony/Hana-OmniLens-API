@@ -62,6 +62,10 @@ omnilens:
     hannah:
       base-url: http://localhost:8000
   market:
+    stock-master:
+      seed:
+        enabled: true
+        location: classpath:data/stock-master-seed.csv
     exchange-rate-cache:
       mode: redis
       ttl: 24h

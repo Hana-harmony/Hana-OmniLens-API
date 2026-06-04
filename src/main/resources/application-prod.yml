@@ -60,6 +60,10 @@ omnilens:
     hannah:
       base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}
   market:
+    stock-master:
+      seed:
+        enabled: ${STOCK_MASTER_SEED_ENABLED:true}
+        location: ${STOCK_MASTER_SEED_LOCATION:classpath:data/stock-master-seed.csv}
     exchange-rate-cache:
       mode: ${EXCHANGE_RATE_CACHE_MODE:redis}
       ttl: ${EXCHANGE_RATE_CACHE_TTL:24h}

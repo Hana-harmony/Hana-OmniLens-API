@@ -66,6 +66,8 @@ docker compose -f compose.local.yml up -d
 - `EXCHANGE_RATE_REFRESH_CURRENCIES`: 갱신할 통화 목록. 예: `USD,JPY`.
 - `EXCHANGE_RATE_CACHE_MODE`: 환율 cache 저장소. 기본값은 `redis`이다.
 - `EXCHANGE_RATE_CACHE_TTL`: Redis 환율 cache TTL. 기본값은 `24h`이다.
+- `STOCK_MASTER_SEED_ENABLED`: 종목 마스터 초기 적재 활성화 여부. 기본값은 `true`이다.
+- `STOCK_MASTER_SEED_LOCATION`: 종목 마스터 seed CSV 위치. 기본값은 `classpath:data/stock-master-seed.csv`이다.
 - `PROVIDER_CONNECT_TIMEOUT`: 외부 provider connect timeout. 기본값은 `2s`이다.
 - `PROVIDER_READ_TIMEOUT`: 외부 provider read timeout. 기본값은 `5s`이다.
 - `PROVIDER_RETRY_ENABLED`: 외부 provider 네트워크 재시도 활성화 여부. 기본값은 `true`이다.

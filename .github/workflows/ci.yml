@@ -90,6 +90,8 @@ jobs:
             "PROVIDER_CIRCUIT_BREAKER_ENABLED=${{ secrets.PROVIDER_CIRCUIT_BREAKER_ENABLED || 'true' }}" \
             "PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD=${{ secrets.PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD || '5' }}" \
             "PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION=${{ secrets.PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION || '30s' }}" \
+            "STOCK_MASTER_SEED_ENABLED=${{ secrets.STOCK_MASTER_SEED_ENABLED || 'true' }}" \
+            "STOCK_MASTER_SEED_LOCATION=${{ secrets.STOCK_MASTER_SEED_LOCATION || 'classpath:data/stock-master-seed.csv' }}" \
             > application-prod.env
           printf '%s\n' \
             "HANA_OMNILENS_IMAGE=${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" \

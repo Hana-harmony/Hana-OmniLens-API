@@ -250,7 +250,17 @@
 - `application-prod.yml`은 `PROVIDER_*` placeholder를 사용하고, CI/CD가 기본값 포함 `application-prod.env`를 자동 생성한다.
 - 단위 테스트로 retry 성공, circuit open, 비네트워크 예외 no-retry, properties 기본값을 검증했다.
 
+## 2026-06-04 종목 마스터 DB 적재
+- Flyway migration으로 `stock_master` 테이블과 종목코드, 종목명, 시장구분, ISIN, OpenDART 고유번호 조회 인덱스를 생성했다.
+- 기존 인메모리 종목 마스터 bean을 JDBC 저장소로 교체해 검색 API, quote 보강, 뉴스·공시 수집의 종목 universe가 같은 DB 데이터를 사용하게 했다.
+- `stock-master-seed.csv`에 KOSPI/KOSDAQ 주요 종목 seed를 추가하고, 애플리케이션 시작 시 테이블이 비어 있을 때만 적재하도록 구성했다.
+- seed loader는 header, 컬럼 수, 종목코드, ISIN, OpenDART 고유번호 형식을 검증해 깨진 CSV가 운영 DB에 들어가지 않게 한다.
+- OpenDART 고유번호가 아직 확정되지 않은 종목은 빈 값으로 허용하되, 확정된 종목은 수집 단계에서 공시검색 `corp_code`로 사용한다.
+- 운영 설정은 `STOCK_MASTER_SEED_ENABLED`, `STOCK_MASTER_SEED_LOCATION` placeholder로 분리하고, 로컬 실제 설정은 gitignore된 `application-local.yml`에서 관리한다.
+- H2 PostgreSQL mode와 Flyway를 사용하는 통합 테스트로 schema 생성, seed 적재, 중복 실행 방지, 코드·한글명·영문명 검색, 검색 API 응답을 검증했다.
+
 ## 현재 구현 로직
+- 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.

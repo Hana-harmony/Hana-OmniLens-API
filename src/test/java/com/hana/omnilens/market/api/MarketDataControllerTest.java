@@ -102,4 +102,15 @@ class MarketDataControllerTest {
                         .param("query", ""))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void stockSearchReturnsSeededStockMasterRows() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/search")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("query", "하나금융"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].stockCode", equalTo("086790")))
+                .andExpect(jsonPath("$[0].stockName", equalTo("하나금융지주")))
+                .andExpect(jsonPath("$[0].market", equalTo("KOSPI")));
+    }
 }
