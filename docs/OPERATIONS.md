@@ -82,6 +82,20 @@ EXCHANGE_RATE_CACHE_MODE=redis
 EXCHANGE_RATE_CACHE_TTL=24h
 ```
 
+## 종목 마스터 DB
+- Flyway가 `stock_master` 테이블을 생성한다.
+- 기본 seed 파일은 `classpath:data/stock-master-seed.csv`이다.
+- seed loader는 테이블이 비어 있을 때만 실행되며, 이미 적재된 데이터가 있으면 건너뛴다.
+- 운영에서 seed 위치를 바꿀 때는 `STOCK_MASTER_SEED_LOCATION`을 사용한다.
+- seed 적재를 끄려면 `STOCK_MASTER_SEED_ENABLED=false`로 설정한다.
+- seed 파일은 종목코드, 한글명, 영문명, 시장구분, ISIN, OpenDART 고유번호 순서로 관리한다.
+- OpenDART 고유번호가 아직 확정되지 않은 종목은 빈 값으로 둘 수 있다.
+
+```text
+STOCK_MASTER_SEED_ENABLED=true
+STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
+```
+
 ## 한국수출입은행 환율 provider
 - provider 응답의 `deal_bas_r`는 외화 기준 원화 환율이므로 내부 캐시에는 `KRW -> 현지통화` 비율로 변환해 저장한다.
 - `JPY(100)`처럼 단위가 붙은 통화는 괄호 안 단위를 분자로 사용한다.

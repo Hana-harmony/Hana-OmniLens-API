@@ -9,7 +9,7 @@
 - KIS 현재가 REST 연동 완료
 - KIS 실시간 체결가·호가 WebSocket 계약·파서·캐시 하네스 완료
 - KIS 실시간 체결가·호가 WebSocket session runner 완료
-- 종목 마스터 DB 적재
+- 종목 마스터 DB 적재 완료
 - KRX 외국인 보유율 quote 연결 완료
 - 외국인 보유율 프로세스 캐시와 장애 fallback 완료
 - 외국인 보유율 Redis TTL cache와 in-memory fallback 완료
