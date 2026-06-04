@@ -15,6 +15,7 @@
 - 협력사 topic: `/topic/partners/{partnerId}/alerts`
 - 종목 topic: `/topic/stocks/{stockCode}/alerts`
 - REST와 WebSocket handshake는 모두 협력사 API key 보호 대상이다.
+- 협력사별 DB credential로 인증된 알림 API 요청은 요청 `partnerId`와 인증 `partnerId`가 일치해야 한다.
 
 ## 외부 시스템
 - KIS Open API: 현재가, 실시간 체결가, 실시간 호가
@@ -31,6 +32,7 @@
 - 초기 종목 universe는 `stock-master-seed.csv`에서 애플리케이션 시작 시 한 번 적재하며, 이미 데이터가 있으면 중복 적재하지 않는다.
 - 협력사 watchlist는 Flyway가 생성한 `partner_watchlist_subscription` 테이블과 JDBC 저장소를 사용한다.
 - watchlist 종목은 `stock_master` FK로 제한하며, REST API 저장 시 미지원 종목은 404로 거부한다.
+- 협력사 API key는 Flyway가 생성한 `partner_api_credential` 테이블에 SHA-256 해시와 `partner_id`로 저장한다.
 - `MarketDataService`는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 전일 snapshot, mock fallback 순서로 quote 응답 구조를 유지한다.
 - `MarketDataService`는 KIS 실시간 호가 cache가 있으면 orderbook 응답에 우선 반영한다.
 - `MarketDataService`는 KRX 외국인보유량 snapshot이 있으면 전일 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다.

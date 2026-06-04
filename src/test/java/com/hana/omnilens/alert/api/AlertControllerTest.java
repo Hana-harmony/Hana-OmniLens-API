@@ -11,13 +11,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -42,6 +47,9 @@ class AlertControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockitoBean
     private HannahAiAnalysisClient hannahAiAnalysisClient;
 
@@ -53,6 +61,11 @@ class AlertControllerTest {
 
     @MockitoBean
     private AlertTitleTranslationService alertTitleTranslationService;
+
+    @BeforeEach
+    void deletePartnerCredentials() {
+        jdbcTemplate.update("DELETE FROM partner_api_credential");
+    }
 
     @Test
     void replaceAndGetPartnerWatchlist() throws Exception {
@@ -104,6 +117,40 @@ class AlertControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")));
+    }
+
+    @Test
+    void partnerCredentialCannotAccessDifferentPartnerWatchlist() throws Exception {
+        insertPartnerCredential("partner-a", "partner-a-api-key");
+
+        mockMvc.perform(put("/api/v1/alerts/watchlists/partner-b")
+                        .header("X-HANA-OMNILENS-API-KEY", "partner-a-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stockCodes": ["005930"]
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/partner-access-denied")))
+                .andExpect(jsonPath("$.requestedPartnerId", equalTo("partner-b")));
+    }
+
+    @Test
+    void partnerCredentialCanAccessOwnWatchlist() throws Exception {
+        insertPartnerCredential("partner-a", "partner-a-api-key");
+
+        mockMvc.perform(put("/api/v1/alerts/watchlists/partner-a")
+                        .header("X-HANA-OMNILENS-API-KEY", "partner-a-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stockCodes": ["005930"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
+                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")));
     }
 
     @Test
@@ -303,5 +350,20 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    private void insertPartnerCredential(String partnerId, String apiKey) throws Exception {
+        jdbcTemplate.update(
+                """
+                INSERT INTO partner_api_credential (api_key_sha256, partner_id, active)
+                VALUES (?, ?, TRUE)
+                """,
+                sha256Hex(apiKey),
+                partnerId);
+    }
+
+    private String sha256Hex(String rawValue) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(digest.digest(rawValue.getBytes(StandardCharsets.UTF_8)));
     }
 }

@@ -128,6 +128,18 @@ EXCHANGE_RATE_REFRESH_CURRENCIES=USD,JPY
 - 운영 임계값은 `OMNILENS_RATE_LIMIT_CAPACITY`, `OMNILENS_RATE_LIMIT_REFILL_TOKENS`, `OMNILENS_RATE_LIMIT_REFILL_PERIOD`로 조정한다.
 - 임시 비활성화는 `OMNILENS_RATE_LIMIT_ENABLED=false`로 한다.
 
+## 협력사 API key registry
+- Flyway가 `partner_api_credential` 테이블을 생성한다.
+- 협력사별 API key는 원문을 저장하지 않고 SHA-256 해시만 저장한다.
+- `active=false` credential은 인증에 사용할 수 없다.
+- DB credential로 인증된 요청은 알림 API의 `partnerId`와 인증된 `partner_id`가 일치해야 한다.
+- `OMNILENS_API_KEY_SHA256` bootstrap 키는 초기 운영과 비상 복구용 fallback으로 유지한다.
+
+```sql
+INSERT INTO partner_api_credential (api_key_sha256, partner_id, active)
+VALUES ('{sha256_hex_of_raw_api_key}', 'partner-a', TRUE);
+```
+
 ## Audit Log & Correlation ID
 - 모든 요청은 `X-HANA-OMNILENS-CORRELATION-ID` 응답 헤더를 받는다.
 - 협력사가 같은 헤더를 보내면 안전한 형식의 값만 그대로 사용하고, 없거나 안전하지 않으면 서버가 UUID를 생성한다.

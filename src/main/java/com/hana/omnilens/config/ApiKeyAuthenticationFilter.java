@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.Optional;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,6 +22,9 @@ import com.hana.omnilens.security.ApiKeyRateLimiter.RateLimitDecision;
 import com.hana.omnilens.security.ApiRequestSignatureVerifier;
 import com.hana.omnilens.security.ApiRequestSignatureVerifier.SignatureVerificationResult;
 import com.hana.omnilens.security.CachedBodyHttpServletRequest;
+import com.hana.omnilens.security.PartnerAuthentication;
+import com.hana.omnilens.security.PartnerCredential;
+import com.hana.omnilens.security.PartnerCredentialRepository;
 import com.hana.omnilens.security.SecurityAuditLogger;
 
 @Component
@@ -32,16 +36,19 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private final ApiKeyRateLimiter apiKeyRateLimiter;
     private final ApiRequestSignatureVerifier apiRequestSignatureVerifier;
     private final SecurityAuditLogger securityAuditLogger;
+    private final PartnerCredentialRepository partnerCredentialRepository;
 
     public ApiKeyAuthenticationFilter(
             OmniLensSecurityProperties properties,
             ApiKeyRateLimiter apiKeyRateLimiter,
             ApiRequestSignatureVerifier apiRequestSignatureVerifier,
-            SecurityAuditLogger securityAuditLogger) {
+            SecurityAuditLogger securityAuditLogger,
+            PartnerCredentialRepository partnerCredentialRepository) {
         this.properties = properties;
         this.apiKeyRateLimiter = apiKeyRateLimiter;
         this.apiRequestSignatureVerifier = apiRequestSignatureVerifier;
         this.securityAuditLogger = securityAuditLogger;
+        this.partnerCredentialRepository = partnerCredentialRepository;
     }
 
     @Override
@@ -54,15 +61,29 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         CachedBodyHttpServletRequest cachedRequest = new CachedBodyHttpServletRequest(request);
 
-        if (!StringUtils.hasText(properties.apiKeySha256())) {
-            securityAuditLogger.record(cachedRequest, "failure", "", "api_key_hash_missing");
-            response.sendError(HttpStatus.SERVICE_UNAVAILABLE.value(), "API key hash is not configured");
+        String providedKey = request.getHeader(HEADER_NAME);
+        String providedKeyHash = StringUtils.hasText(providedKey) ? sha256Hex(providedKey) : "";
+        if (!StringUtils.hasText(providedKey)) {
+            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "invalid_api_key");
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid API key");
             return;
         }
 
-        String providedKey = request.getHeader(HEADER_NAME);
-        String providedKeyHash = StringUtils.hasText(providedKey) ? sha256Hex(providedKey) : "";
-        if (!StringUtils.hasText(providedKey) || !matchesConfiguredHash(providedKeyHash)) {
+        ApiKeyAuthentication authentication;
+        try {
+            authentication = authenticate(providedKeyHash);
+        } catch (CredentialStoreUnavailableException exception) {
+            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "credential_store_unavailable");
+            response.sendError(HttpStatus.SERVICE_UNAVAILABLE.value(), "API credential store is unavailable");
+            return;
+        }
+
+        if (!authentication.configured()) {
+            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "api_key_hash_missing");
+            response.sendError(HttpStatus.SERVICE_UNAVAILABLE.value(), "API key hash is not configured");
+            return;
+        }
+        if (!authentication.authenticated()) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "invalid_api_key");
             response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid API key");
             return;
@@ -87,6 +108,11 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         }
 
         securityAuditLogger.record(cachedRequest, "success", providedKeyHash, "authenticated");
+        cachedRequest.setAttribute(PartnerAuthentication.API_KEY_FINGERPRINT_ATTRIBUTE, providedKeyHash);
+        authentication.partnerId()
+                .ifPresent(partnerId -> cachedRequest.setAttribute(
+                        PartnerAuthentication.PARTNER_ID_ATTRIBUTE,
+                        partnerId));
         filterChain.doFilter(cachedRequest, response);
     }
 
@@ -96,9 +122,35 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean matchesConfiguredHash(String providedKeyHash) {
+        if (!StringUtils.hasText(properties.apiKeySha256())) {
+            return false;
+        }
         byte[] expected = properties.apiKeySha256().trim().getBytes(StandardCharsets.UTF_8);
         byte[] actual = providedKeyHash.getBytes(StandardCharsets.UTF_8);
         return MessageDigest.isEqual(actual, expected);
+    }
+
+    private ApiKeyAuthentication authenticate(String providedKeyHash) {
+        if (matchesConfiguredHash(providedKeyHash)) {
+            return ApiKeyAuthentication.globalFallback();
+        }
+
+        Optional<PartnerCredential> partnerCredential;
+        boolean hasActiveCredential;
+        try {
+            partnerCredential = partnerCredentialRepository.findActiveByApiKeySha256(providedKeyHash);
+            hasActiveCredential = partnerCredential.isPresent() || partnerCredentialRepository.existsAnyActive();
+        } catch (RuntimeException exception) {
+            throw new CredentialStoreUnavailableException(exception);
+        }
+
+        if (partnerCredential.isPresent()) {
+            return ApiKeyAuthentication.partner(partnerCredential.get().partnerId());
+        }
+        if (!StringUtils.hasText(properties.apiKeySha256()) && !hasActiveCredential) {
+            return ApiKeyAuthentication.notConfigured();
+        }
+        return ApiKeyAuthentication.invalid();
     }
 
     private String sha256Hex(String rawValue) {
@@ -108,6 +160,36 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return HexFormat.of().formatHex(hashed);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
+        }
+    }
+
+    private record ApiKeyAuthentication(
+            boolean configured,
+            boolean authenticated,
+            Optional<String> partnerId
+    ) {
+
+        private static ApiKeyAuthentication globalFallback() {
+            return new ApiKeyAuthentication(true, true, Optional.empty());
+        }
+
+        private static ApiKeyAuthentication partner(String partnerId) {
+            return new ApiKeyAuthentication(true, true, Optional.of(partnerId));
+        }
+
+        private static ApiKeyAuthentication invalid() {
+            return new ApiKeyAuthentication(true, false, Optional.empty());
+        }
+
+        private static ApiKeyAuthentication notConfigured() {
+            return new ApiKeyAuthentication(false, false, Optional.empty());
+        }
+    }
+
+    private static class CredentialStoreUnavailableException extends RuntimeException {
+
+        CredentialStoreUnavailableException(RuntimeException cause) {
+            super(cause);
         }
     }
 }

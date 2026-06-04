@@ -18,6 +18,7 @@ import com.hana.omnilens.alert.application.AlertProviderCollectionService;
 import com.hana.omnilens.alert.application.AlertStreamingService;
 import com.hana.omnilens.alert.application.PartnerWatchlistService;
 import com.hana.omnilens.alert.domain.AlertEvent;
+import com.hana.omnilens.security.PartnerAuthorizationService;
 
 @Validated
 @RestController
@@ -28,21 +29,25 @@ public class AlertController {
     private final AlertAnalysisPublishingService alertAnalysisPublishingService;
     private final AlertProviderCollectionService alertProviderCollectionService;
     private final PartnerWatchlistService partnerWatchlistService;
+    private final PartnerAuthorizationService partnerAuthorizationService;
 
     public AlertController(
             AlertStreamingService alertStreamingService,
             AlertAnalysisPublishingService alertAnalysisPublishingService,
             AlertProviderCollectionService alertProviderCollectionService,
-            PartnerWatchlistService partnerWatchlistService) {
+            PartnerWatchlistService partnerWatchlistService,
+            PartnerAuthorizationService partnerAuthorizationService) {
         this.alertStreamingService = alertStreamingService;
         this.alertAnalysisPublishingService = alertAnalysisPublishingService;
         this.alertProviderCollectionService = alertProviderCollectionService;
         this.partnerWatchlistService = partnerWatchlistService;
+        this.partnerAuthorizationService = partnerAuthorizationService;
     }
 
     @GetMapping("/watchlists/{partnerId}")
     public PartnerWatchlistResponse getPartnerWatchlist(
             @PathVariable @Size(min = 1, max = 80) @Pattern(regexp = "[A-Za-z0-9._:-]+") String partnerId) {
+        partnerAuthorizationService.assertPartnerAccess(partnerId);
         return partnerWatchlistService.get(partnerId);
     }
 
@@ -50,21 +55,25 @@ public class AlertController {
     public PartnerWatchlistResponse replacePartnerWatchlist(
             @PathVariable @Size(min = 1, max = 80) @Pattern(regexp = "[A-Za-z0-9._:-]+") String partnerId,
             @Valid @RequestBody PartnerWatchlistUpdateRequest request) {
+        partnerAuthorizationService.assertPartnerAccess(partnerId);
         return partnerWatchlistService.replace(partnerId, request.stockCodes());
     }
 
     @PostMapping("/events")
     public AlertEvent publish(@Valid @RequestBody AlertPublishRequest request) {
+        partnerAuthorizationService.assertPartnerAccess(request.partnerId());
         return alertStreamingService.publish(request);
     }
 
     @PostMapping("/analyze-and-publish")
     public AlertEvent analyzeAndPublish(@Valid @RequestBody AlertAnalysisPublishRequest request) {
+        partnerAuthorizationService.assertPartnerAccess(request.partnerId());
         return alertAnalysisPublishingService.analyzeAndPublish(request);
     }
 
     @PostMapping("/collect-and-publish")
     public AlertCollectPublishResponse collectAndPublish(@Valid @RequestBody AlertCollectPublishRequest request) {
+        partnerAuthorizationService.assertPartnerAccess(request.partnerId());
         return alertProviderCollectionService.collectAnalyzeAndPublish(request);
     }
 }

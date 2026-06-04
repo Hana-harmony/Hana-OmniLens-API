@@ -92,6 +92,16 @@
 - 스케줄러는 설정 기반 watchlist와 DB watchlist를 협력사별로 병합해 주기 수집 대상으로 사용한다.
 - 테스트로 JDBC 저장소의 교체 저장, 순서 보존, 전체 조회 grouping, HTTP validation, 미지원 종목 404, 스케줄러 병합을 검증했다.
 
+## 2026-06-04 협력사별 API key registry
+- Flyway가 `partner_api_credential` 테이블을 생성하고 API key SHA-256 해시, `partner_id`, active 상태를 저장하게 했다.
+- `ApiKeyAuthenticationFilter`는 전역 bootstrap 해시를 먼저 상수 시간 비교하고, 일치하지 않으면 DB active credential을 조회한다.
+- 전역 해시와 DB active credential이 모두 없으면 실패 닫힘 방식으로 `503`을 반환한다.
+- DB credential 인증 성공 시 request attribute에 인증 `partnerId`와 API key fingerprint를 기록한다.
+- 알림 API는 인증 `partnerId`가 있으면 요청 path/body의 `partnerId`와 일치하는지 검증하고, 불일치 시 `403 Partner access denied` ProblemDetail을 반환한다.
+- 전역 bootstrap 키는 기존 테스트와 비상 운영 호환을 위해 partner 제한 없이 유지했다.
+- CORS 허용 method에 `PUT`을 추가해 환율 저장과 watchlist 저장 API를 브라우저 기반 협력사 백엔드에서도 호출할 수 있게 했다.
+- 테스트로 DB credential 조회, inactive credential 거부, 전역 해시 미설정 시 DB credential 인증, partner mismatch 403을 검증했다.
+
 ## 2026-06-04 OpenAPI 계약 문서
 - `/openapi.yaml` 정적 OpenAPI 3.1 문서를 추가했다.
 - 문서는 API key 보호 대상이며 협력사 API key가 있어야 조회할 수 있다.
