@@ -155,6 +155,37 @@ class MarketDataControllerTest {
     }
 
     @Test
+    void orderabilityApiReturnsPartnerMockOrderBoundary() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/005930/orderability")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("side", "BUY")
+                        .param("quantity", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data.market", equalTo("KOSPI")))
+                .andExpect(jsonPath("$.data.side", equalTo("BUY")))
+                .andExpect(jsonPath("$.data.quantity", equalTo(1)))
+                .andExpect(jsonPath("$.data.orderable", equalTo(true)))
+                .andExpect(jsonPath("$.data.foreignLimitExceeded", equalTo(false)))
+                .andExpect(jsonPath("$.data.viActive", equalTo(false)))
+                .andExpect(jsonPath("$.data.priceLimitState", equalTo("NORMAL")))
+                .andExpect(jsonPath("$.data.tradingHalted", equalTo(false)));
+    }
+
+    @Test
+    void orderabilityApiRejectsInvalidSideAndQuantity() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/005930/orderability")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("side", "buy")
+                        .param("quantity", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
+    }
+
+    @Test
     void exchangeRateApiStoresPartnerRateForQuoteFallback() throws Exception {
         mockMvc.perform(put("/api/v1/market/exchange-rates/JPY")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")

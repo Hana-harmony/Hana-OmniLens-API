@@ -80,6 +80,13 @@ MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS=86400000
 MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 ```
 
+## 주문 가능 여부 boundary
+- `GET /api/v1/market/stocks/{stockCode}/orderability?side=BUY&quantity=1`를 사용한다.
+- 이 API는 현지 거래소의 자체 mock ledger 주문 전 확인용이며 실제 주문, 체결, 정산, KIS 모의투자 주문을 수행하지 않는다.
+- BUY 요청은 KRX 외국인보유량 cache의 한도소진율과 요청 수량을 이용해 예상 한도소진율을 계산하고, 100% 이상이면 `FOREIGN_LIMIT_EXCEEDED`로 차단한다.
+- SELL 요청은 외국인 한도소진율이 100% 이상이어도 한도 초과 사유로 차단하지 않는다.
+- 현재 VI, 상·하한가, 거래정지 상태는 별도 KIS 실시간 상태 파싱이 붙기 전까지 `viActive=false`, `priceLimitState=NORMAL`, `tradingHalted=false`로 응답하며 `source`에서 사용한 데이터 경계를 확인한다.
+
 ## 헬스체크
 - `GET /actuator/health`
 - `GET /actuator/info`

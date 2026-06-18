@@ -178,6 +178,50 @@ paths:
           $ref: "#/components/responses/PartnerAccessDenied"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/{stockCode}/orderability:
+    get:
+      tags:
+        - Market Data
+      operationId: getOrderability
+      summary: Check partner mock-order boundary for a Korea stock.
+      description: >
+        Returns the market boundary that overseas exchange backends must check
+        before writing their own mock ledger. Hana-OmniLens-API does not place
+        a real order or call a KIS mock-trading order endpoint.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+        - name: side
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - BUY
+              - SELL
+        - name: quantity
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: Orderability boundary response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Orderability"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/stocks/{stockCode}/history:
     get:
       tags:
@@ -705,6 +749,71 @@ components:
         source:
           type: string
           description: Data source chain, for example KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP, KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP, or PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE.
+    Orderability:
+      type: object
+      required:
+        - stockCode
+        - market
+        - side
+        - quantity
+        - orderable
+        - foreignLimitExceeded
+        - currentForeignLimitExhaustionRate
+        - predictedForeignLimitExhaustionRate
+        - viActive
+        - priceLimitState
+        - tradingHalted
+        - checkedAt
+        - source
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        market:
+          type: string
+          example: KOSPI
+        side:
+          type: string
+          enum:
+            - BUY
+            - SELL
+        quantity:
+          type: integer
+          format: int64
+        orderable:
+          type: boolean
+        orderBlockedReason:
+          type:
+            - string
+            - "null"
+          example: FOREIGN_LIMIT_EXCEEDED
+        foreignLimitExceeded:
+          type: boolean
+        currentForeignLimitExhaustionRate:
+          type: number
+        predictedForeignLimitExhaustionRate:
+          type: number
+        foreignOwnershipBaseDate:
+          type:
+            - string
+            - "null"
+          format: date
+        viActive:
+          type: boolean
+        priceLimitState:
+          type: string
+          enum:
+            - NORMAL
+            - UPPER_LIMIT
+            - LOWER_LIMIT
+        tradingHalted:
+          type: boolean
+        checkedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: Source chain used to compute the boundary.
     OrderBook:
       type: object
       required:

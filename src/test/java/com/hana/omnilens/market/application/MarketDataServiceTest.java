@@ -15,6 +15,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 import com.hana.omnilens.market.domain.MarketQuote;
+import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
@@ -401,6 +402,79 @@ class MarketDataServiceTest {
         assertThat(orderBook.asks().get(0).priceKrw()).isEqualByComparingTo("81600");
         assertThat(orderBook.bids().get(0).quantity()).isEqualTo(1800L);
         assertThat(orderBook.source()).isEqualTo("KIS_WEBSOCKET_ORDERBOOK");
+    }
+
+    @Test
+    void getOrderabilityBlocksBuyWhenPredictedForeignLimitIsExceeded() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                cache,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+        cache.put(new KrxForeignOwnershipSnapshot(
+                "005930",
+                990L,
+                new BigDecimal("49.50"),
+                1_000L,
+                new BigDecimal("99.0000"),
+                LocalDate.of(2025, 6, 3)));
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+
+        Orderability orderability = service.getOrderability("005930", "BUY", 20);
+
+        assertThat(orderability.orderable()).isFalse();
+        assertThat(orderability.orderBlockedReason()).isEqualTo("FOREIGN_LIMIT_EXCEEDED");
+        assertThat(orderability.foreignLimitExceeded()).isTrue();
+        assertThat(orderability.currentForeignLimitExhaustionRate()).isEqualByComparingTo("99.0000");
+        assertThat(orderability.predictedForeignLimitExhaustionRate()).isEqualByComparingTo("101.000000");
+        assertThat(orderability.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 3));
+        assertThat(orderability.priceLimitState()).isEqualTo("NORMAL");
+        assertThat(orderability.viActive()).isFalse();
+        assertThat(orderability.source()).isEqualTo("ORDERABILITY_MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE");
+    }
+
+    @Test
+    void getOrderabilityAllowsSellEvenWhenForeignLimitIsExhausted() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                cache,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+        cache.put(new KrxForeignOwnershipSnapshot(
+                "005930",
+                1_000L,
+                new BigDecimal("50.00"),
+                1_000L,
+                new BigDecimal("100.0000"),
+                LocalDate.of(2025, 6, 3)));
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+
+        Orderability orderability = service.getOrderability("005930", "SELL", 10);
+
+        assertThat(orderability.orderable()).isTrue();
+        assertThat(orderability.orderBlockedReason()).isNull();
+        assertThat(orderability.foreignLimitExceeded()).isFalse();
+        assertThat(orderability.predictedForeignLimitExhaustionRate()).isEqualByComparingTo("100.0000");
     }
 
     private StockSummary samsungElectronics() {

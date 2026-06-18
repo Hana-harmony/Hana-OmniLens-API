@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.hana.omnilens.market.domain.MarketQuote;
+import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
@@ -35,6 +36,7 @@ public class MarketDataService {
             "KOSPI",
             "KR7005930003",
             "00126380");
+    private static final BigDecimal FOREIGN_LIMIT_BLOCK_RATE = new BigDecimal("100.0000");
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
@@ -167,6 +169,43 @@ public class MarketDataService {
                 "MOCK_KIS_WEBSOCKET");
     }
 
+    public Orderability getOrderability(String stockCode, String side, long quantity) {
+        StockSummary stock = getStock(stockCode);
+        PriceLookup priceLookup = latestPriceSnapshot(stockCode);
+        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock);
+        Optional<KrxForeignOwnershipSnapshot> snapshot = foreignOwnership.snapshot();
+        BigDecimal currentForeignLimitExhaustionRate = snapshot
+                .map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate)
+                .orElse(BigDecimal.ZERO);
+        BigDecimal predictedForeignLimitExhaustionRate = predictedForeignLimitExhaustionRate(
+                side,
+                quantity,
+                snapshot);
+        boolean foreignLimitExceeded = "BUY".equals(side)
+                && predictedForeignLimitExhaustionRate.compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
+        boolean tradingHalted = false;
+        boolean viActive = false;
+        String priceLimitState = "NORMAL";
+        String blockedReason = blockedReason(foreignLimitExceeded, tradingHalted);
+
+        return new Orderability(
+                stock.stockCode(),
+                stock.market(),
+                side,
+                quantity,
+                blockedReason == null,
+                blockedReason,
+                foreignLimitExceeded,
+                currentForeignLimitExhaustionRate,
+                predictedForeignLimitExhaustionRate,
+                snapshot.map(KrxForeignOwnershipSnapshot::baseDate).orElse(null),
+                viActive,
+                priceLimitState,
+                tradingHalted,
+                Instant.now(clock),
+                "ORDERABILITY_" + source(priceLookup.source(), foreignOwnership.source()));
+    }
+
     public List<StockSummary> searchStocks(String query) {
         return stockMasterRepository.search(query);
     }
@@ -247,6 +286,32 @@ public class MarketDataService {
         return foreignOwnershipSnapshotCache.find(stock.stockCode())
                 .map(ForeignOwnershipLookup::cache)
                 .orElseGet(ForeignOwnershipLookup::empty);
+    }
+
+    private BigDecimal predictedForeignLimitExhaustionRate(
+            String side,
+            long quantity,
+            Optional<KrxForeignOwnershipSnapshot> snapshot) {
+        if (!"BUY".equals(side) || snapshot.isEmpty() || snapshot.orElseThrow().foreignLimitQuantity() <= 0) {
+            return snapshot.map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(BigDecimal.ZERO);
+        }
+        KrxForeignOwnershipSnapshot ownership = snapshot.orElseThrow();
+        BigDecimal quantityRate = BigDecimal.valueOf(quantity)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(ownership.foreignLimitQuantity()), 6, RoundingMode.HALF_UP);
+        return ownership.foreignLimitExhaustionRate()
+                .add(quantityRate)
+                .setScale(6, RoundingMode.HALF_UP);
+    }
+
+    private String blockedReason(boolean foreignLimitExceeded, boolean tradingHalted) {
+        if (tradingHalted) {
+            return "TRADING_HALTED";
+        }
+        if (foreignLimitExceeded) {
+            return "FOREIGN_LIMIT_EXCEEDED";
+        }
+        return null;
     }
 
     private String source(PriceSource priceSource, ForeignOwnershipSource foreignOwnershipSource) {
