@@ -183,10 +183,8 @@ public class MarketDataService {
                 snapshot);
         boolean foreignLimitExceeded = "BUY".equals(side)
                 && predictedForeignLimitExhaustionRate.compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
-        boolean tradingHalted = false;
-        boolean viActive = false;
-        String priceLimitState = "NORMAL";
-        String blockedReason = blockedReason(foreignLimitExceeded, tradingHalted);
+        MarketStatus marketStatus = latestMarketStatus(stockCode);
+        String blockedReason = blockedReason(foreignLimitExceeded, marketStatus.tradingHalted());
 
         return new Orderability(
                 stock.stockCode(),
@@ -199,11 +197,12 @@ public class MarketDataService {
                 currentForeignLimitExhaustionRate,
                 predictedForeignLimitExhaustionRate,
                 snapshot.map(KrxForeignOwnershipSnapshot::baseDate).orElse(null),
-                viActive,
-                priceLimitState,
-                tradingHalted,
+                marketStatus.viActive(),
+                marketStatus.priceLimitState(),
+                marketStatus.tradingHalted(),
                 Instant.now(clock),
-                "ORDERABILITY_" + source(priceLookup.source(), foreignOwnership.source()));
+                "ORDERABILITY_" + source(priceLookup.source(), foreignOwnership.source())
+                        + "+" + marketStatus.source());
     }
 
     public List<StockSummary> searchStocks(String query) {
@@ -312,6 +311,25 @@ public class MarketDataService {
             return "FOREIGN_LIMIT_EXCEEDED";
         }
         return null;
+    }
+
+    private MarketStatus latestMarketStatus(String stockCode) {
+        return realtimeMarketDataCache.latestTrade(stockCode)
+                .map(tick -> new MarketStatus(false, priceLimitState(tick), false, "KIS_WEBSOCKET_TRADE_STATUS"))
+                .orElse(MarketStatus.normalFallback());
+    }
+
+    private String priceLimitState(KisRealtimeTradeTick tick) {
+        if (tick.currentPriceKrw().signum() <= 0) {
+            return "NORMAL";
+        }
+        if (tick.askPrice1Krw().signum() == 0 && tick.bidPrice1Krw().signum() > 0) {
+            return "UPPER_LIMIT";
+        }
+        if (tick.bidPrice1Krw().signum() == 0 && tick.askPrice1Krw().signum() > 0) {
+            return "LOWER_LIMIT";
+        }
+        return "NORMAL";
     }
 
     private String source(PriceSource priceSource, ForeignOwnershipSource foreignOwnershipSource) {
@@ -424,5 +442,16 @@ public class MarketDataService {
             String fxRateSource,
             boolean stale
     ) {
+    }
+
+    private record MarketStatus(
+            boolean viActive,
+            String priceLimitState,
+            boolean tradingHalted,
+            String source
+    ) {
+        private static MarketStatus normalFallback() {
+            return new MarketStatus(false, "NORMAL", false, "MARKET_STATUS_FALLBACK");
+        }
     }
 }

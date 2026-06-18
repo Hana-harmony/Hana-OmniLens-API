@@ -813,7 +813,7 @@ components:
           format: date-time
         source:
           type: string
-          description: Source chain used to compute the boundary.
+          description: Source chain used to compute the boundary, including KIS realtime status when price-limit state was derived from tick data.
     OrderBook:
       type: object
       required:

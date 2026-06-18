@@ -440,7 +440,8 @@ class MarketDataServiceTest {
         assertThat(orderability.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 3));
         assertThat(orderability.priceLimitState()).isEqualTo("NORMAL");
         assertThat(orderability.viActive()).isFalse();
-        assertThat(orderability.source()).isEqualTo("ORDERABILITY_MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE");
+        assertThat(orderability.source())
+                .isEqualTo("ORDERABILITY_MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE+MARKET_STATUS_FALLBACK");
     }
 
     @Test
@@ -475,6 +476,76 @@ class MarketDataServiceTest {
         assertThat(orderability.orderBlockedReason()).isNull();
         assertThat(orderability.foreignLimitExceeded()).isFalse();
         assertThat(orderability.predictedForeignLimitExhaustionRate()).isEqualByComparingTo("100.0000");
+    }
+
+    @Test
+    void getOrderabilityDetectsUpperLimitFromRealtimeTradeQuoteGap() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        RealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                realtimeCache,
+                FIXED_CLOCK);
+        realtimeCache.putTrade(new KisRealtimeTradeTick(
+                "005930",
+                "093000",
+                new BigDecimal("81500"),
+                new BigDecimal("29.95"),
+                BigDecimal.ZERO,
+                new BigDecimal("81500"),
+                1200L,
+                16_200_000L,
+                LocalDate.of(2025, 6, 4)));
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+
+        Orderability orderability = service.getOrderability("005930", "BUY", 1);
+
+        assertThat(orderability.orderable()).isTrue();
+        assertThat(orderability.priceLimitState()).isEqualTo("UPPER_LIMIT");
+        assertThat(orderability.viActive()).isFalse();
+        assertThat(orderability.tradingHalted()).isFalse();
+        assertThat(orderability.source()).isEqualTo("ORDERABILITY_KIS_WEBSOCKET_TRADE+KIS_WEBSOCKET_TRADE_STATUS");
+    }
+
+    @Test
+    void getOrderabilityDetectsLowerLimitFromRealtimeTradeQuoteGap() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        RealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                realtimeCache,
+                FIXED_CLOCK);
+        realtimeCache.putTrade(new KisRealtimeTradeTick(
+                "005930",
+                "093000",
+                new BigDecimal("81500"),
+                new BigDecimal("-29.95"),
+                new BigDecimal("81500"),
+                BigDecimal.ZERO,
+                1200L,
+                16_200_000L,
+                LocalDate.of(2025, 6, 4)));
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+
+        Orderability orderability = service.getOrderability("005930", "SELL", 1);
+
+        assertThat(orderability.orderable()).isTrue();
+        assertThat(orderability.priceLimitState()).isEqualTo("LOWER_LIMIT");
+        assertThat(orderability.source()).isEqualTo("ORDERABILITY_KIS_WEBSOCKET_TRADE+KIS_WEBSOCKET_TRADE_STATUS");
     }
 
     private StockSummary samsungElectronics() {
