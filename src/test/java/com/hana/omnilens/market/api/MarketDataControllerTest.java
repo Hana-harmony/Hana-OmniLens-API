@@ -70,7 +70,49 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
                 .andExpect(jsonPath("$.data.baseCurrency", equalTo("KRW")))
                 .andExpect(jsonPath("$.data.localCurrency", equalTo("USD")))
+                .andExpect(jsonPath("$.data.fxRate", equalTo(7.2E-4)))
+                .andExpect(jsonPath("$.data.fxRateSource", equalTo("PARTNER_REQUEST")))
+                .andExpect(jsonPath("$.data.fxStale", equalTo(false)))
                 .andExpect(jsonPath("$.data.source", equalTo("MOCK_MARKET_DATA")));
+    }
+
+    @Test
+    void bulkQuoteApiReturnsRequestedStocksInCommonEnvelope() throws Exception {
+        mockMvc.perform(get("/api/v1/market/quotes")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("currency", "USD")
+                        .param("fxRate", "0.00072")
+                        .param("stockCodes", "005930", "000660"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data[0].stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data[0].localCurrency", equalTo("USD")))
+                .andExpect(jsonPath("$.data[0].fxRateSource", equalTo("PARTNER_REQUEST")))
+                .andExpect(jsonPath("$.data[1].stockCode", equalTo("000660")));
+    }
+
+    @Test
+    void allQuoteApiReturnsSeededStocksWithMarketFilter() throws Exception {
+        mockMvc.perform(get("/api/v1/market/quotes")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("currency", "USD")
+                        .param("fxRate", "0.00072")
+                        .param("market", "KOSPI")
+                        .param("limit", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", equalTo(3)))
+                .andExpect(jsonPath("$.data[0].market", equalTo("KOSPI")));
+    }
+
+    @Test
+    void bulkQuoteApiRejectsInvalidStockCodeAndLimit() throws Exception {
+        mockMvc.perform(get("/api/v1/market/quotes")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("stockCodes", "ABCDEF")
+                        .param("limit", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test

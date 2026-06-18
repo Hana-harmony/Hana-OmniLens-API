@@ -9,5 +9,7 @@ public interface StockMasterRepository {
 
     Optional<StockSummary> findByCode(String stockCode);
 
+    List<StockSummary> findAll(int limit);
+
     List<StockSummary> search(String query);
 }

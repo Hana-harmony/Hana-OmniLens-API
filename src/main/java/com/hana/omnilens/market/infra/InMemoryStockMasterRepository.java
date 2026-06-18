@@ -26,6 +26,14 @@ public class InMemoryStockMasterRepository implements StockMasterRepository {
     }
 
     @Override
+    public List<StockSummary> findAll(int limit) {
+        return STOCKS.stream()
+                .sorted(Comparator.comparing(StockSummary::stockCode))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public List<StockSummary> search(String query) {
         String normalizedQuery = query.toLowerCase(Locale.ROOT);
         return STOCKS.stream()
