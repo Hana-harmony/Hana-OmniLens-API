@@ -7,18 +7,22 @@ import org.springframework.stereotype.Service;
 import com.hana.omnilens.provider.market.KisRealtimeMessageParser;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
+import com.hana.omnilens.market.stream.MarketQuoteStreamingService;
 
 @Service
 public class RealtimeMarketDataIngestionService {
 
     private final KisRealtimeMessageParser kisRealtimeMessageParser;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
+    private final MarketQuoteStreamingService marketQuoteStreamingService;
 
     public RealtimeMarketDataIngestionService(
             KisRealtimeMessageParser kisRealtimeMessageParser,
-            RealtimeMarketDataCache realtimeMarketDataCache) {
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketQuoteStreamingService marketQuoteStreamingService) {
         this.kisRealtimeMessageParser = kisRealtimeMessageParser;
         this.realtimeMarketDataCache = realtimeMarketDataCache;
+        this.marketQuoteStreamingService = marketQuoteStreamingService;
     }
 
     public RealtimeMarketDataIngestionResult ingestKisMessage(String rawMessage) {
@@ -26,6 +30,7 @@ public class RealtimeMarketDataIngestionService {
         if (tradeTick.isPresent()) {
             KisRealtimeTradeTick tick = tradeTick.orElseThrow();
             realtimeMarketDataCache.putTrade(tick);
+            marketQuoteStreamingService.publishTick(tick.stockCode(), "USD");
             return RealtimeMarketDataIngestionResult.trade(tick.stockCode());
         }
 
