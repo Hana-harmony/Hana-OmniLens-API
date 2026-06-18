@@ -19,7 +19,6 @@ import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
-import com.hana.omnilens.provider.market.KrxForeignOwnershipClient;
 import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockSecuritiesClient;
@@ -38,7 +37,6 @@ public class MarketDataService {
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
     private final KisCurrentPriceClient kisCurrentPriceClient;
-    private final KrxForeignOwnershipClient krxForeignOwnershipClient;
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
     private final ExchangeRateCache exchangeRateCache;
@@ -49,7 +47,6 @@ public class MarketDataService {
     public MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
             KisCurrentPriceClient kisCurrentPriceClient,
-            KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             ExchangeRateCache exchangeRateCache,
@@ -57,7 +54,6 @@ public class MarketDataService {
         this(
                 publicDataStockSecuritiesClient,
                 kisCurrentPriceClient,
-                krxForeignOwnershipClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 exchangeRateCache,
@@ -68,7 +64,6 @@ public class MarketDataService {
     MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
             KisCurrentPriceClient kisCurrentPriceClient,
-            KrxForeignOwnershipClient krxForeignOwnershipClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             ExchangeRateCache exchangeRateCache,
@@ -76,7 +71,6 @@ public class MarketDataService {
             Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.kisCurrentPriceClient = kisCurrentPriceClient;
-        this.krxForeignOwnershipClient = krxForeignOwnershipClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
         this.exchangeRateCache = exchangeRateCache;
@@ -204,35 +198,12 @@ public class MarketDataService {
     }
 
     private ForeignOwnershipLookup latestForeignOwnershipSnapshot(StockSummary stock) {
-        LocalDate baseDate = LocalDate.now(clock).minusDays(1);
-        for (int daysBack = 0; daysBack < 7; daysBack++) {
-            try {
-                Optional<KrxForeignOwnershipSnapshot> snapshot = krxForeignOwnershipClient.findForeignOwnership(
-                        stock.stockCode(),
-                        stock.stockName(),
-                        stock.isinCode(),
-                        baseDate.minusDays(daysBack));
-                if (snapshot.isPresent()) {
-                    foreignOwnershipSnapshotCache.put(snapshot.orElseThrow());
-                    return ForeignOwnershipLookup.live(snapshot);
-                }
-            } catch (RuntimeException exception) {
-                continue;
-            }
-        }
         return foreignOwnershipSnapshotCache.find(stock.stockCode())
                 .map(ForeignOwnershipLookup::cache)
                 .orElseGet(ForeignOwnershipLookup::empty);
     }
 
     private String source(PriceSource priceSource, ForeignOwnershipSource foreignOwnershipSource) {
-        if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
-            return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP";
-        }
-        if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE
-                && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
-            return "KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP";
-        }
         if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
@@ -245,17 +216,11 @@ public class MarketDataService {
         if (priceSource == PriceSource.KIS_OPEN_API) {
             return "KIS_OPEN_API";
         }
-        if (priceSource == PriceSource.PUBLIC_DATA && foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
-            return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP";
-        }
         if (priceSource == PriceSource.PUBLIC_DATA && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
         if (priceSource == PriceSource.PUBLIC_DATA) {
             return "PUBLIC_DATA_STOCK_SECURITIES";
-        }
-        if (foreignOwnershipSource == ForeignOwnershipSource.LIVE_PROVIDER) {
-            return "MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP";
         }
         if (foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE";
@@ -328,10 +293,6 @@ public class MarketDataService {
             Optional<KrxForeignOwnershipSnapshot> snapshot,
             ForeignOwnershipSource source
     ) {
-        private static ForeignOwnershipLookup live(Optional<KrxForeignOwnershipSnapshot> snapshot) {
-            return new ForeignOwnershipLookup(snapshot, ForeignOwnershipSource.LIVE_PROVIDER);
-        }
-
         private static ForeignOwnershipLookup cache(KrxForeignOwnershipSnapshot snapshot) {
             return new ForeignOwnershipLookup(Optional.of(snapshot), ForeignOwnershipSource.CACHE);
         }
@@ -342,7 +303,6 @@ public class MarketDataService {
     }
 
     private enum ForeignOwnershipSource {
-        LIVE_PROVIDER,
         CACHE,
         NONE
     }

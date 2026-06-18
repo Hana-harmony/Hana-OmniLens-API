@@ -10,9 +10,7 @@ public record ExternalProviderProperties(
         PublicData publicData,
         NaverNews naverNews,
         OpenDart openDart,
-        Krx krx,
         Kis kis,
-        KoreaExim koreaExim,
         PapagoTranslation papagoTranslation
 ) {
 
@@ -20,9 +18,7 @@ public record ExternalProviderProperties(
         publicData = publicData == null ? PublicData.defaults() : publicData.withDefaults();
         naverNews = naverNews == null ? NaverNews.defaults() : naverNews.withDefaults();
         openDart = openDart == null ? OpenDart.defaults() : openDart.withDefaults();
-        krx = krx == null ? Krx.defaults() : krx.withDefaults();
         kis = kis == null ? Kis.defaults() : kis.withDefaults();
-        koreaExim = koreaExim == null ? KoreaExim.defaults() : koreaExim.withDefaults();
         papagoTranslation = papagoTranslation == null ? PapagoTranslation.defaults() : papagoTranslation.withDefaults();
     }
 
@@ -84,17 +80,6 @@ public record ExternalProviderProperties(
         }
     }
 
-    public record Krx(URI baseUrl) {
-
-        private static Krx defaults() {
-            return new Krx(URI.create("https://data.krx.co.kr"));
-        }
-
-        private Krx withDefaults() {
-            return new Krx(baseUrl == null ? defaults().baseUrl() : baseUrl);
-        }
-    }
-
     public record Kis(
             URI baseUrl,
             URI websocketUrl,
@@ -105,8 +90,8 @@ public record ExternalProviderProperties(
 
         private static Kis defaults() {
             return new Kis(
-                    URI.create("https://openapi.koreainvestment.com:9443"),
-                    URI.create("wss://openapi.koreainvestment.com:9443/tryitout"),
+                    URI.create("https://openapivts.koreainvestment.com:29443"),
+                    URI.create("ws://ops.koreainvestment.com:31000"),
                     "",
                     "",
                     "",
@@ -138,23 +123,6 @@ public record ExternalProviderProperties(
 
         public String requiredApprovalKey() {
             return requireSecret(approvalKey, "omnilens.providers.kis.approval-key");
-        }
-    }
-
-    public record KoreaExim(URI baseUrl, String authKey) {
-
-        private static KoreaExim defaults() {
-            return new KoreaExim(URI.create("https://oapi.koreaexim.go.kr"), "");
-        }
-
-        private KoreaExim withDefaults() {
-            return new KoreaExim(
-                    baseUrl == null ? defaults().baseUrl() : baseUrl,
-                    authKey == null ? "" : authKey);
-        }
-
-        public String requiredAuthKey() {
-            return requireSecret(authKey, "omnilens.providers.korea-exim.auth-key");
         }
     }
 

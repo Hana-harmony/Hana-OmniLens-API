@@ -71,8 +71,6 @@ class PublicDataStockSecuritiesClientTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 null);
     }
 }

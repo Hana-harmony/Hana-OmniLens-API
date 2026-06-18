@@ -22,13 +22,14 @@
 ## 외부 시스템
 - KIS Open API: 현재가, 실시간 체결가, 실시간 호가
 - KRX: 전일 외국인 보유율과 한도소진율
-- 한국수출입은행: 환율
+- FX provider: 실시간/준실시간 환율
+- 한국수출입은행: 고시 환율 fallback
 - Naver News Search: 뉴스 제목, snippet, 원문 링크
 - OpenDART: 공시 제목, 유형, 제출시각, 원문 링크
 - Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석
 
 ## 현재 구현 상태
-- KIS 현재가 REST, KIS 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX 외국인보유량, 한국수출입은행 환율, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
+- KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX 외국인보유량, FX 환율, 한국수출입은행 고시 환율 fallback, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
 - `MarketDataService`가 표준 응답 구조와 현지 통화 환산 로직을 제공한다.
 - 종목 마스터는 Flyway가 생성한 `stock_master` 테이블과 JDBC 저장소를 사용한다.
 - 초기 종목 universe는 `stock-master-seed.csv`에서 애플리케이션 시작 시 한 번 적재하며, 이미 데이터가 있으면 중복 적재하지 않는다.
@@ -41,8 +42,8 @@
 - KRX 기준일 조회 실패 시 최근 7일 탐색을 계속하고, 전체 실패 시 프로세스 캐시의 전일 확정 snapshot을 사용한다.
 - 협력사 입력 환율은 `ExchangeRateCache`에 `KRW -> 현지통화` 표시용 환율로 저장하고, quote 요청에 `fxRate`가 없을 때 현지 통화 환산가 계산에 사용한다.
 - `ExchangeRateCache`는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.
-- 한국수출입은행 환율 provider는 `deal_bas_r`를 `KRW -> 현지통화` 비율로 변환한 뒤 같은 `ExchangeRateCache`에 저장한다.
-- 환율 refresh scheduler는 기본 disabled이며, 설정된 통화 목록만 한국수출입은행 provider로 주기 갱신한다.
+- FX 환율 provider는 최신 `KRW -> 현지통화` 비율을 같은 `ExchangeRateCache`에 저장한다.
+- 환율 refresh scheduler는 기본 disabled이며, 설정된 통화 목록만 FX provider로 주기 갱신한다.
 - `AlertStreamingService`가 알림 이벤트를 협력사·종목 topic으로 송신한다.
 - `AlertProviderCollectionService`가 종목별 뉴스·공시를 수집하고 AI 분석 결과를 WebSocket 알림으로 발행한다.
 - 알림 스케줄러는 설정 파일 watchlist와 DB watchlist를 협력사별로 병합해 같은 수집·분석·발행 경로를 재사용한다.

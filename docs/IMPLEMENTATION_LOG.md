@@ -34,12 +34,8 @@
 - 서비스 단위 테스트로 provider 성공, provider 실패 fallback, 종목 마스터 검색을 검증
 
 ## 2026-06-04 KRX 외국인보유량 snapshot 연결
-- KRX 외국인보유량(개별종목) 화면의 `MDCSTAT03702` 데이터 계약을 격리한 `KrxForeignOwnershipClient` 추가
-- 종목 마스터에 ISIN을 추가해 KRX 개별종목 조회에 필요한 `isuCd`를 전달
-- KRX 응답의 외국인 보유수량, 외국인 지분율, 외국인 한도수량, 한도소진율을 `KrxForeignOwnershipSnapshot`으로 변환
-- `MarketDataService`가 KRX snapshot을 우선 사용하고, 호출 실패 또는 미응답 시 기존 fallback 값을 유지
-- source 필드에 가격 provider와 외국인보유 provider 사용 여부를 함께 표시
-- MockRestServiceServer 테스트로 KRX form 요청과 숫자 포맷 파싱을 검증
+- KRX 화면 데이터 API 의존성은 제거하고, KRX 인증키 기반 Open API client만 유지한다.
+- 외국인보유량은 live 화면 데이터 호출 없이 cache 또는 기본 fallback 값만 사용한다.
 
 ## 2026-06-04 Hannah-Montana-AI 분석 클라이언트
 - 내부 FastAPI 서비스 `POST /api/v1/alerts/analyze` 호출용 `HannahAiAnalysisClient` 추가
@@ -235,15 +231,12 @@
 - 빈 종목코드 설정은 `KisRealtimeProperties`에서 제거해 env placeholder 기본값이 구독 요청으로 전파되지 않게 했다.
 - 단위 테스트로 disabled no-op, 종목별 구독 frame 생성, 수신 메시지 cache 반영, 빈 종목코드 제거를 검증했다.
 
-## 2026-06-04 한국수출입은행 환율 provider 연결
-- 한국수출입은행 현재환율 endpoint `GET /site/program/financial/exchangeJSON` 계약을 `KoreaEximExchangeRateClient`로 격리했다.
-- 한국수출입은행 신규 OpenAPI domain `https://oapi.koreaexim.go.kr`을 기본값으로 사용한다.
-- 요청 query는 `authkey`, `searchdate=yyyyMMdd`, `data=AP01`로 고정했다.
-- 응답의 `cur_unit`, `deal_bas_r`를 읽고 내부 계산용 `KRW -> 현지통화` 환율로 변환한다.
-- `deal_bas_r`는 외화 1단위 또는 `JPY(100)` 같은 묶음 단위당 원화 기준율이므로 `통화단위 / deal_bas_r`로 환산한다.
+## 2026-06-04 Frankfurter 환율 provider 연결
+- Frankfurter `GET /v2/rates` 계약을 `FrankfurterExchangeRateClient`로 격리했다.
+- 요청 query는 `base=KRW`, `quotes={통화}`로 고정했다.
+- Frankfurter는 별도 API key를 사용하지 않으므로 환율 provider secret을 두지 않는다.
 - `ExchangeRateProviderRefreshService`가 provider snapshot을 `ExchangeRateCache`에 저장해 기존 quote 환산 fallback 흐름과 같은 캐시를 사용하게 했다.
-- `KOREA_EXIM_AUTH_KEY`는 env placeholder로만 관리하고, 테스트 fixture에는 가짜 값만 사용한다.
-- 단위 테스트로 요청 query, USD 환산, `JPY(100)` 단위 처리, provider 미응답 시 cache 미변경을 검증했다.
+- 단위 테스트로 요청 query, 응답 매핑, provider 미응답 시 cache 미변경을 검증했다.
 
 ## 2026-06-04 한국수출입은행 환율 refresh scheduler
 - `ExchangeRateRefreshProperties`를 추가해 `enabled`, `fixedDelayMs`, `baseDateOffsetDays`, `currencies`를 설정으로 분리했다.

@@ -1,7 +1,6 @@
 package com.hana.omnilens.market.application;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Optional;
@@ -9,44 +8,44 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.hana.omnilens.provider.market.KoreaEximExchangeRateClient;
-import com.hana.omnilens.provider.market.KoreaEximExchangeRateSnapshot;
+import com.hana.omnilens.provider.market.ExchangeRateProviderClient;
+import com.hana.omnilens.provider.market.ProviderExchangeRateSnapshot;
 
 @Service
 public class ExchangeRateProviderRefreshService {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
-    private final KoreaEximExchangeRateClient koreaEximExchangeRateClient;
+    private final ExchangeRateProviderClient exchangeRateProviderClient;
     private final ExchangeRateCache exchangeRateCache;
     private final Clock clock;
 
     @Autowired
     public ExchangeRateProviderRefreshService(
-            KoreaEximExchangeRateClient koreaEximExchangeRateClient,
+            ExchangeRateProviderClient exchangeRateProviderClient,
             ExchangeRateCache exchangeRateCache) {
-        this(koreaEximExchangeRateClient, exchangeRateCache, Clock.system(KOREA_ZONE));
+        this(exchangeRateProviderClient, exchangeRateCache, Clock.system(KOREA_ZONE));
     }
 
     ExchangeRateProviderRefreshService(
-            KoreaEximExchangeRateClient koreaEximExchangeRateClient,
+            ExchangeRateProviderClient exchangeRateProviderClient,
             ExchangeRateCache exchangeRateCache,
             Clock clock) {
-        this.koreaEximExchangeRateClient = koreaEximExchangeRateClient;
+        this.exchangeRateProviderClient = exchangeRateProviderClient;
         this.exchangeRateCache = exchangeRateCache;
         this.clock = clock;
     }
 
     public Optional<ExchangeRateSnapshot> refresh(String localCurrency, LocalDate baseDate) {
-        Optional<KoreaEximExchangeRateSnapshot> providerSnapshot =
-                koreaEximExchangeRateClient.findKrwToLocalRate(localCurrency, baseDate);
+        Optional<ProviderExchangeRateSnapshot> providerSnapshot =
+                exchangeRateProviderClient.findKrwToLocalRate(localCurrency, baseDate);
         if (providerSnapshot.isEmpty()) {
             return Optional.empty();
         }
-        KoreaEximExchangeRateSnapshot snapshot = providerSnapshot.orElseThrow();
+        ProviderExchangeRateSnapshot snapshot = providerSnapshot.orElseThrow();
         return Optional.of(exchangeRateCache.put(
                 snapshot.localCurrency(),
                 snapshot.krwToLocalRate(),
-                Instant.now(clock)));
+                snapshot.providerTimestamp() == null ? clock.instant() : snapshot.providerTimestamp()));
     }
 }

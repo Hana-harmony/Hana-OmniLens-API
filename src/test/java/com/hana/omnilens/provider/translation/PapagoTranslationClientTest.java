@@ -59,8 +59,6 @@ class PapagoTranslationClientTest {
                 null,
                 null,
                 null,
-                null,
-                null,
                 new ExternalProviderProperties.PapagoTranslation(
                         URI.create("https://openapi.naver.com"),
                         "papago-client",

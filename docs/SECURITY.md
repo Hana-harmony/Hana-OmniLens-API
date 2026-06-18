@@ -37,7 +37,7 @@
 - `application-local.yml`은 커밋하지 않는다.
 - `application-prod.yml`은 커밋하되 `${...}` 환경변수 placeholder만 사용한다.
 - 로컬 시크릿은 `application-local.yml`에만 둔다.
-- 외부 데이터 수집 credential인 `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`, `OPEN_DART_API_KEY`, `KRX_SERVICE_KEY`는 Hana-OmniLens-API에서만 사용한다.
+- 외부 데이터 수집 credential인 `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`, `OPEN_DART_API_KEY`는 Hana-OmniLens-API에서만 사용한다.
 - Hannah-Montana-AI와 Stock-exchange-* 레포에는 Naver/OpenDART/KRX credential을 두지 않는다.
 - 운영 시크릿은 GitHub Secrets로 주입하고 원격 서버의 `application-prod.env`에만 생성한다.
 - `application-prod.env`는 커밋하지 않는다.
@@ -47,13 +47,13 @@
 ## 외부/운영 시크릿
 - `KIS_APP_KEY`: KIS Open API app key
 - `KIS_APP_SECRET`: KIS Open API app secret
-- `KIS_ACCESS_TOKEN`: KIS Open API access token
-- `KIS_APPROVAL_KEY`: KIS WebSocket approval key
+- `KIS_ACCESS_TOKEN`: KIS Open API access token. 비워두면 앱이 자동 발급한다.
+- `KIS_APPROVAL_KEY`: KIS WebSocket approval key. 비워두면 앱이 자동 발급한다.
 - `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 주식시세 계열 API 인증키
+- `KRX_OPEN_API_AUTH_KEY`: KRX Open API 호출 시 `AUTH_KEY` 헤더로 전달하는 인증키
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART 공시검색 API 인증키
-- `KOREA_EXIM_AUTH_KEY`: 한국수출입은행 환율 API 인증키
 - `PAPAGO_TRANSLATION_CLIENT_ID`: Papago NMT API Client ID
 - `PAPAGO_TRANSLATION_CLIENT_SECRET`: Papago NMT API Client Secret
 - `OMNILENS_SIGNATURE_SECRET`: 협력사 요청 서명 검증용 HMAC secret
@@ -64,10 +64,10 @@
 ## 내부 AI 통신
 - Hannah-Montana-AI는 스프링 컨테이너 내부 네트워크에서만 접근 가능하게 배치한다.
 - `HANNAH_AI_BASE_URL`은 주소 설정값이며 secret으로 분류하지 않는다.
-- `KRX_BASE_URL`은 KRX 데이터 endpoint 주소 설정값이며 secret으로 분류하지 않는다.
+- `KRX_OPEN_API_BASE_URL`은 KRX Open API 실제 호출 endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - `KIS_BASE_URL`은 KIS endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - `KIS_WEBSOCKET_URL`은 KIS WebSocket endpoint 주소 설정값이며 secret으로 분류하지 않는다.
-- `KOREA_EXIM_BASE_URL`은 한국수출입은행 endpoint 주소 설정값이며 secret으로 분류하지 않는다.
+- `FRANKFURTER_BASE_URL`은 Frankfurter 환율 endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - `STOCK_MASTER_SEED_ENABLED`, `STOCK_MASTER_SEED_LOCATION`은 seed 동작 설정값이며 secret으로 분류하지 않는다.
 - `PROVIDER_*TIMEOUT`, `PROVIDER_RETRY_*`, `PROVIDER_CIRCUIT_BREAKER_*`는 장애 대응 튜닝값이며 secret으로 분류하지 않는다.
 - 별도 서비스 토큰 헤더는 사용하지 않는다.
