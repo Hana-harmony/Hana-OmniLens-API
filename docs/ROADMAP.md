@@ -12,7 +12,7 @@
 - KIS 실시간 체결가·호가 WebSocket 계약·파서·캐시 하네스 완료
 - KIS 실시간 체결가·호가 WebSocket session runner 완료
 - 단건 quote snapshot API 구현 완료
-- 전체/다건 quote snapshot API 예정
+- 전체/다건 quote snapshot API 구현 완료
 - 협력사용 market quote WebSocket stream 예정
 - 종목 마스터 DB 적재 완료
 - 종목 마스터 단건 조회 REST 계약 완료

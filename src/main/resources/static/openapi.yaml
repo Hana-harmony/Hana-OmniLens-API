@@ -95,6 +95,76 @@ paths:
           $ref: "#/components/responses/PartnerAccessDenied"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/quotes:
+    get:
+      tags:
+        - Market Data
+      operationId: getMarketQuotes
+      summary: Get all or requested Korea stock quotes with local currency prices.
+      description: >
+        If stockCodes are omitted, returns the stock master universe up to
+        limit. If stockCodes are present, returns deduplicated requested quotes
+        in request order. Each quote includes KRW price, local currency price,
+        FX metadata, foreign ownership, and source metadata.
+      parameters:
+        - name: stockCodes
+          in: query
+          required: false
+          schema:
+            type: array
+            maxItems: 200
+            items:
+              type: string
+              pattern: "^\\d{6}$"
+          style: form
+          explode: true
+        - name: market
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - KOSPI
+              - KOSDAQ
+              - KONEX
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+            default: USD
+        - name: fxRate
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0.000001
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2000
+            default: 500
+      responses:
+        "200":
+          description: Quote array response.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketQuote"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/exchange-rates/{currency}:
     put:
       tags:
@@ -406,6 +476,10 @@ components:
         - baseCurrency
         - localCurrencyPrice
         - localCurrency
+        - fxRate
+        - fxRateTime
+        - fxRateSource
+        - fxStale
         - foreignOwnedQuantity
         - foreignOwnershipRate
         - foreignLimitExhaustionRate
@@ -440,6 +514,19 @@ components:
         localCurrency:
           type: string
           example: USD
+        fxRate:
+          type: number
+          description: KRW to local currency conversion rate applied to the quote.
+        fxRateTime:
+          type: string
+          format: date-time
+          description: Time when the applied FX rate was supplied or cached.
+        fxRateSource:
+          type: string
+          description: PARTNER_REQUEST, EXCHANGE_RATE_CACHE, or FX_FALLBACK.
+        fxStale:
+          type: boolean
+          description: true when the quote used fallback FX metadata.
         foreignOwnedQuantity:
           type: integer
           format: int64

@@ -40,6 +40,19 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
     }
 
     @Override
+    public List<StockSummary> findAll(int limit) {
+        return jdbcTemplate.query(
+                """
+                SELECT stock_code, stock_name, stock_name_en, market, isin_code, dart_corp_code
+                FROM stock_master
+                ORDER BY stock_code
+                LIMIT ?
+                """,
+                STOCK_ROW_MAPPER,
+                limit);
+    }
+
+    @Override
     public List<StockSummary> search(String query) {
         String likeQuery = "%" + query.toLowerCase(Locale.ROOT) + "%";
         return jdbcTemplate.query(

@@ -28,6 +28,7 @@ class OpenApiDocumentationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title", equalTo("Hana OmniLens API")))
                 .andExpect(jsonPath("$.paths['/api/v1/market/stocks/{stockCode}/quote']", notNullValue()))
+                .andExpect(jsonPath("$.paths['/api/v1/market/quotes']", notNullValue()))
                 .andExpect(jsonPath("$.components.securitySchemes.hanaApiKey", notNullValue()));
     }
 }

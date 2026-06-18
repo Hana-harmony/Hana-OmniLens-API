@@ -5,6 +5,8 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -50,6 +52,17 @@ public class MarketDataController {
             @RequestParam(defaultValue = "USD") @Pattern(regexp = "[A-Z]{3}") String currency,
             @RequestParam(required = false) @DecimalMin("0.000001") BigDecimal fxRate) {
         return ApiResponse.success(marketDataService.getQuote(stockCode, currency, fxRate));
+    }
+
+    @GetMapping("/quotes")
+    @Operation(summary = "Get all or requested Korean stock quotes with KRW and local currency prices")
+    public ApiResponse<List<MarketQuote>> getQuotes(
+            @RequestParam(required = false) @Size(max = 200) List<@Pattern(regexp = "\\d{6}") String> stockCodes,
+            @RequestParam(required = false) @Pattern(regexp = "KOSPI|KOSDAQ|KONEX") String market,
+            @RequestParam(defaultValue = "USD") @Pattern(regexp = "[A-Z]{3}") String currency,
+            @RequestParam(required = false) @DecimalMin("0.000001") BigDecimal fxRate,
+            @RequestParam(defaultValue = "500") @Min(1) @Max(2000) int limit) {
+        return ApiResponse.success(marketDataService.getQuotes(stockCodes, market, currency, fxRate, limit));
     }
 
     @GetMapping("/stocks/{stockCode}/orderbook")

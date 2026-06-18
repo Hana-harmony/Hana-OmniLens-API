@@ -35,9 +35,10 @@ curl http://localhost:8080/actuator/health
 
 ## 주요 엔드포인트
 - `GET /api/v1/market/stocks/{stockCode}/quote`
+- `GET /api/v1/market/quotes`
 - `GET /api/v1/market/stocks/{stockCode}/orderbook`
 - `GET /api/v1/market/stocks/search?query=삼성`
-- Planned: `GET /api/v1/market/quotes`, `GET /api/v1/market/stocks/{stockCode}/history`, 협력사용 market quote WebSocket stream
+- Planned: `GET /api/v1/market/stocks/{stockCode}/history`, 협력사용 market quote WebSocket stream
 - `POST /api/v1/alerts/events`
 - `POST /api/v1/alerts/analyze-and-publish`
 - `POST /api/v1/alerts/collect-and-publish`

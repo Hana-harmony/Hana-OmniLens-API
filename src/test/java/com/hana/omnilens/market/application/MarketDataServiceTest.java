@@ -239,6 +239,107 @@ class MarketDataServiceTest {
     }
 
     @Test
+    void getQuoteIncludesFxMetadataForCachedExchangeRate() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ExchangeRateCache exchangeRateCache = new InMemoryExchangeRateCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                exchangeRateCache,
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        service.updateExchangeRate("USD", new BigDecimal("0.00072"));
+
+        MarketQuote quote = service.getQuote("005930", "USD", null);
+
+        assertThat(quote.fxRate()).isEqualByComparingTo("0.00072");
+        assertThat(quote.fxRateTime()).isEqualTo(Instant.parse("2025-06-04T00:00:00Z"));
+        assertThat(quote.fxRateSource()).isEqualTo("EXCHANGE_RATE_CACHE");
+        assertThat(quote.fxStale()).isFalse();
+    }
+
+    @Test
+    void getQuotesReturnsAllSeededStocksWhenStockCodesAreMissing() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+        StockSummary skHynix = new StockSummary(
+                "000660",
+                "SK하이닉스",
+                "SK hynix",
+                "KOSPI",
+                "KR7000660001",
+                "00164779");
+
+        when(repository.findAll(10)).thenReturn(List.of(skHynix, samsungElectronics()));
+        when(repository.findByCode("000660")).thenReturn(Optional.of(skHynix));
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("000660")).thenReturn(Optional.empty());
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(client.findPrice("000660", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+
+        List<MarketQuote> quotes = service.getQuotes(List.of(), "KOSPI", "USD", new BigDecimal("0.00072"), 10);
+
+        assertThat(quotes).extracting(MarketQuote::stockCode).containsExactly("000660", "005930");
+        assertThat(quotes).extracting(MarketQuote::fxRateSource).containsOnly("PARTNER_REQUEST");
+    }
+
+    @Test
+    void getQuotesDeduplicatesRequestedStockCodesAndPreservesOrder() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+        StockSummary skHynix = new StockSummary(
+                "000660",
+                "SK하이닉스",
+                "SK hynix",
+                "KOSPI",
+                "KR7000660001",
+                "00164779");
+
+        when(repository.findByCode("000660")).thenReturn(Optional.of(skHynix));
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("000660")).thenReturn(Optional.empty());
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(client.findPrice("000660", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+
+        List<MarketQuote> quotes = service.getQuotes(
+                List.of("000660", "005930", "000660"),
+                null,
+                "USD",
+                new BigDecimal("0.00072"),
+                10);
+
+        assertThat(quotes).extracting(MarketQuote::stockCode).containsExactly("000660", "005930");
+    }
+
+    @Test
     void getQuoteUsesRealtimeTradeCacheBeforeKisRest() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);

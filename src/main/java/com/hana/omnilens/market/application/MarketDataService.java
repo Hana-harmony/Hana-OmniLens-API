@@ -6,7 +6,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,8 +87,8 @@ public class MarketDataService {
 
         BigDecimal currentPrice = priceLookup.currentPriceKrw()
                 .orElse(new BigDecimal("78500"));
-        BigDecimal effectiveFxRate = resolveFxRate(localCurrency, fxRate);
-        BigDecimal localPrice = currentPrice.multiply(effectiveFxRate).setScale(4, RoundingMode.HALF_UP);
+        FxLookup fxLookup = resolveFxRate(localCurrency, fxRate);
+        BigDecimal localPrice = currentPrice.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
 
         return new MarketQuote(
                 stockCode,
@@ -100,6 +102,10 @@ public class MarketDataService {
                 "KRW",
                 localPrice,
                 localCurrency,
+                fxLookup.fxRate(),
+                fxLookup.fxRateTime(),
+                fxLookup.fxRateSource(),
+                fxLookup.stale(),
                 foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(3642091300L),
                 foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignOwnershipRate)
                         .orElse(new BigDecimal("54.19")),
@@ -111,6 +117,26 @@ public class MarketDataService {
                 Instant.now(clock),
                 source(priceLookup.source(), foreignOwnership.source()))
         ;
+    }
+
+    public List<MarketQuote> getQuotes(
+            List<String> stockCodes,
+            String market,
+            String localCurrency,
+            BigDecimal fxRate,
+            int limit) {
+        List<String> resolvedStockCodes = resolveStockCodes(stockCodes);
+        String normalizedMarket = normalizeMarket(market);
+        if (resolvedStockCodes.isEmpty()) {
+            return stockMasterRepository.findAll(limit).stream()
+                    .filter(stock -> normalizedMarket == null || normalizedMarket.equals(stock.market()))
+                    .map(stock -> getQuote(stock.stockCode(), localCurrency, fxRate))
+                    .toList();
+        }
+        return resolvedStockCodes.stream()
+                .map(stockCode -> getQuote(stockCode, localCurrency, fxRate))
+                .filter(quote -> normalizedMarket == null || normalizedMarket.equals(quote.market()))
+                .toList();
     }
 
     public OrderBook getOrderBook(String stockCode) {
@@ -154,13 +180,33 @@ public class MarketDataService {
         return exchangeRateCache.put(localCurrency, fxRate, Instant.now(clock));
     }
 
-    private BigDecimal resolveFxRate(String localCurrency, BigDecimal requestFxRate) {
+    private FxLookup resolveFxRate(String localCurrency, BigDecimal requestFxRate) {
         if (requestFxRate != null) {
-            return requestFxRate;
+            return new FxLookup(requestFxRate, Instant.now(clock), "PARTNER_REQUEST", false);
         }
         return exchangeRateCache.find(localCurrency)
-                .map(ExchangeRateSnapshot::fxRate)
-                .orElse(BigDecimal.ONE);
+                .map(snapshot -> new FxLookup(
+                        snapshot.fxRate(),
+                        snapshot.updatedAt(),
+                        "EXCHANGE_RATE_CACHE",
+                        false))
+                .orElseGet(() -> new FxLookup(BigDecimal.ONE, Instant.now(clock), "FX_FALLBACK", true));
+    }
+
+    private List<String> resolveStockCodes(List<String> stockCodes) {
+        if (stockCodes == null || stockCodes.isEmpty()) {
+            return List.of();
+        }
+        return new LinkedHashSet<>(stockCodes).stream()
+                .filter(stockCode -> stockCode != null && !stockCode.isBlank())
+                .toList();
+    }
+
+    private String normalizeMarket(String market) {
+        if (market == null || market.isBlank()) {
+            return null;
+        }
+        return market.toUpperCase(Locale.ROOT);
     }
 
     private PriceLookup latestPriceSnapshot(String stockCode) {
@@ -305,5 +351,13 @@ public class MarketDataService {
     private enum ForeignOwnershipSource {
         CACHE,
         NONE
+    }
+
+    private record FxLookup(
+            BigDecimal fxRate,
+            Instant fxRateTime,
+            String fxRateSource,
+            boolean stale
+    ) {
     }
 }
