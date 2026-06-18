@@ -26,6 +26,7 @@ import com.hana.omnilens.market.application.MarketDataService;
 import com.hana.omnilens.market.application.MarketHistoryService;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.market.domain.MarketQuote;
+import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockSummary;
 
@@ -75,6 +76,15 @@ public class MarketDataController {
     @Operation(summary = "Get Korean stock order book")
     public ApiResponse<OrderBook> getOrderBook(@PathVariable @Pattern(regexp = "\\d{6}") String stockCode) {
         return ApiResponse.success(marketDataService.getOrderBook(stockCode));
+    }
+
+    @GetMapping("/stocks/{stockCode}/orderability")
+    @Operation(summary = "Check foreign ownership, VI, and price-limit boundary for partner mock orders")
+    public ApiResponse<Orderability> getOrderability(
+            @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
+            @RequestParam @Pattern(regexp = "BUY|SELL") String side,
+            @RequestParam @Min(1) long quantity) {
+        return ApiResponse.success(marketDataService.getOrderability(stockCode, side, quantity));
     }
 
     @GetMapping("/stocks/{stockCode}/history")
