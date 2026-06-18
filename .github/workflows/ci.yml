@@ -33,18 +33,53 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+      - name: 운영 배포 설정 확인
+        id: deploy-config
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          OMNILENS_API_KEY_SHA256: ${{ secrets.OMNILENS_API_KEY_SHA256 }}
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+        run: |
+          missing=()
+          for name in \
+            PROD_HOST PROD_USER PROD_SSH_KEY GHCR_TOKEN SERVER_PORT \
+            OMNILENS_API_KEY_SHA256 DB_URL DB_USERNAME DB_PASSWORD \
+            REDIS_HOST REDIS_PORT
+          do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'configured=false\n' >> "$GITHUB_OUTPUT"
+            printf '운영 배포 secret 미설정으로 deploy-prod를 건너뜁니다: %s\n' "${missing[*]}"
+          else
+            printf 'configured=true\n' >> "$GITHUB_OUTPUT"
+          fi
       - name: 이미지 이름 설정
+        if: steps.deploy-config.outputs.configured == 'true'
         run: |
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
-      - uses: docker/setup-buildx-action@v3
+      - if: steps.deploy-config.outputs.configured == 'true'
+        uses: docker/setup-buildx-action@v3
       - name: GHCR 로그인
+        if: steps.deploy-config.outputs.configured == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: 운영 이미지 빌드 및 푸시
+        if: steps.deploy-config.outputs.configured == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -53,12 +88,14 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_NAME }}:latest
       - name: SSH 키 설정
+        if: steps.deploy-config.outputs.configured == 'true'
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/prod_key
           chmod 600 ~/.ssh/prod_key
           ssh-keyscan -H "${{ secrets.PROD_HOST }}" >> ~/.ssh/known_hosts
       - name: 운영 환경 변수 파일 생성
+        if: steps.deploy-config.outputs.configured == 'true'
         run: |
           printf '%s\n' \
             "SERVER_PORT=${{ secrets.SERVER_PORT }}" \
@@ -115,6 +152,7 @@ jobs:
             printf '%s' "${{ secrets.SERVER_SSL_TRUST_STORE_BASE64 }}" | base64 -d > tls/client-truststore.p12
           fi
       - name: 운영 서버로 배포
+        if: steps.deploy-config.outputs.configured == 'true'
         run: |
           ssh -i ~/.ssh/prod_key "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
             "mkdir -p '${PROD_APP_DIR}/tls'"
