@@ -13,7 +13,7 @@
 - KIS 실시간 체결가·호가 WebSocket session runner 완료
 - 단건 quote snapshot API 구현 완료
 - 전체/다건 quote snapshot API 구현 완료
-- 협력사용 market quote WebSocket stream 예정
+- 협력사용 market quote WebSocket stream 구현 완료
 - 종목 마스터 DB 적재 완료
 - 종목 마스터 단건 조회 REST 계약 완료
 - KRX 외국인 보유율 quote 연결 완료

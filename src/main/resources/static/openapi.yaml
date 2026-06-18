@@ -26,16 +26,29 @@ tags:
   - name: Alerts
     description: News and disclosure alert publish, analysis, and collection APIs.
 x-websocket:
-  endpoint: /ws/alerts
-  protocol: STOMP
-  subscribeTopics:
-    partnerAlerts: /topic/partners/{partnerId}/alerts
-    partnerStockAlerts: /topic/partners/{partnerId}/stocks/{stockCode}/alerts
-    stockAlerts: /topic/stocks/{stockCode}/alerts
-  authorization: >
-    DB-bound partner credentials may subscribe only to their own partner topics.
-    The global stock topic is retained for bootstrap/global-key compatibility.
-  payloadSchema: AlertEvent
+  alertStream:
+    endpoint: /ws/alerts
+    protocol: STOMP
+    subscribeTopics:
+      partnerAlerts: /topic/partners/{partnerId}/alerts
+      partnerStockAlerts: /topic/partners/{partnerId}/stocks/{stockCode}/alerts
+      stockAlerts: /topic/stocks/{stockCode}/alerts
+    authorization: >
+      DB-bound partner credentials may subscribe only to their own partner topics.
+      The global stock topic is retained for bootstrap/global-key compatibility.
+    payloadSchema: AlertEvent
+  marketQuoteStream:
+    endpoint: /ws/market/quotes
+    protocol: raw WebSocket JSON
+    payloadSchema: MarketQuote
+    replayRequest:
+      type: QUOTE_STREAM_REPLAY
+      currency: USD
+      after: 2026-06-18T06:00:00Z
+    description: >
+      Authenticated partners receive one MarketQuote JSON message per KIS
+      realtime trade tick. Sending QUOTE_STREAM_REPLAY replays the current
+      quote snapshot in the requested local currency.
 paths:
   /api/v1/market/stocks/{stockCode}:
     get:

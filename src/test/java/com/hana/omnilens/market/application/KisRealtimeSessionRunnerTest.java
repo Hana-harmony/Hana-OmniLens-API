@@ -20,6 +20,7 @@ import com.hana.omnilens.provider.market.KisRealtimeSubscriptionFrame;
 import com.hana.omnilens.provider.market.KisRealtimeSubscriptionFrameFactory;
 import com.hana.omnilens.provider.market.KisRealtimeTransaction;
 import com.hana.omnilens.provider.market.KisRealtimeWebSocketConnection;
+import com.hana.omnilens.market.stream.MarketQuoteStreamingService;
 
 class KisRealtimeSessionRunnerTest {
 
@@ -46,7 +47,8 @@ class KisRealtimeSessionRunnerTest {
                 connection,
                 new RealtimeMarketDataIngestionService(
                         new KisRealtimeMessageParser(),
-                        new InMemoryRealtimeMarketDataCache()),
+                        new InMemoryRealtimeMarketDataCache(),
+                        mock(MarketQuoteStreamingService.class)),
                 approvalKeyProvider());
 
         runner.start();
@@ -98,7 +100,10 @@ class KisRealtimeSessionRunnerTest {
                 externalProviderProperties(),
                 new KisRealtimeSubscriptionFrameFactory(),
                 connection,
-                new RealtimeMarketDataIngestionService(new KisRealtimeMessageParser(), cache),
+                new RealtimeMarketDataIngestionService(
+                        new KisRealtimeMessageParser(),
+                        cache,
+                        mock(MarketQuoteStreamingService.class)),
                 approvalKeyProvider());
     }
 

@@ -5,14 +5,14 @@
 - 실제 주문, 체결, 정산, 환전, 옴니버스 계좌 처리는 이 레포 범위에서 제외한다.
 
 ## 서비스 구성
-- `market`: 한국 주식 현재가, 호가, 종목 검색 API, 전체/다건 quote snapshot API
-- Planned `market`: 협력사용 market quote WebSocket stream, KRX 과거 시세 수집·정규화·DB 저장·history API
+- `market`: 한국 주식 현재가, 호가, 종목 검색 API, 전체/다건 quote snapshot API, 협력사용 market quote WebSocket stream
+- Planned `market`: KRX 과거 시세 수집·정규화·DB 저장·history API
 - `alert`: 뉴스·공시 분석 결과를 협력사와 종목 topic으로 송신하는 API
 - `config`: API key 검증, CORS, WebSocket 설정
 
 ## API 경계
 - REST: `/api/v1/market/**`, `/api/v1/alerts/**`
-- WebSocket: `/ws/alerts`
+- WebSocket: `/ws/alerts`, `/ws/market/quotes`
 - 협력사 topic: `/topic/partners/{partnerId}/alerts`
 - 협력사 종목 topic: `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`
 - 전역 종목 topic: `/topic/stocks/{stockCode}/alerts`
@@ -40,6 +40,8 @@
 - 협력사 API key는 Flyway가 생성한 `partner_api_credential` 테이블에 SHA-256 해시와 `partner_id`로 저장한다.
 - `MarketDataService`는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 전일 snapshot, mock fallback 순서로 quote 응답 구조를 유지한다.
 - `MarketDataService`는 KIS 실시간 호가 cache가 있으면 orderbook 응답에 우선 반영한다.
+- `MarketQuoteWebSocketHandler`는 raw WebSocket `/ws/market/quotes`에서 인증된 협력사 연결을 관리하고, `RealtimeMarketDataIngestionService`가 KIS 체결 tick을 수신하면 KRW/현지통화/FX metadata가 포함된 `MarketQuote` JSON을 송신한다.
+- 협력사가 `QUOTE_STREAM_REPLAY` 메시지를 보내면 현재 quote snapshot을 요청 통화 기준으로 재송신한다.
 - `MarketDataService`는 KRX 외국인보유량 snapshot이 있으면 전일 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다.
 - KRX 기준일 조회 실패 시 최근 7일 탐색을 계속하고, 전체 실패 시 프로세스 캐시의 전일 확정 snapshot을 사용한다.
 - 협력사 입력 환율은 `ExchangeRateCache`에 `KRW -> 현지통화` 표시용 환율로 저장하고, quote 요청에 `fxRate`가 없을 때 현지 통화 환산가 계산에 사용한다.

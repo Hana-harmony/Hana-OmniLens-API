@@ -59,6 +59,8 @@ curl http://localhost:8080/api/v1/alerts/watchlists/partner-a \
 - 기본값은 `KIS_REALTIME_ENABLED=false`이다.
 - 활성화하면 `KIS_REALTIME_STOCK_CODES`의 종목마다 KIS 실시간 체결과 호가를 구독한다.
 - 수신 메시지는 실시간 cache에 저장되고 quote/orderbook 응답에서 우선 사용된다.
+- KIS 체결 tick 수신 시 `/ws/market/quotes` raw WebSocket 연결에도 `MarketQuote` JSON을 송신한다.
+- 협력사는 `{"type":"QUOTE_STREAM_REPLAY","currency":"USD","after":"..."}` 메시지로 현재 quote snapshot replay를 요청할 수 있다.
 
 ```text
 KIS_REALTIME_ENABLED=true
@@ -73,7 +75,7 @@ KIS_REALTIME_STOCK_CODES=005930,000660
 ## API 계약 문서
 - `GET /openapi.yaml`
 - 문서는 협력사 API key 보호 대상이다.
-- REST endpoint와 STOMP WebSocket endpoint/topic 계약을 함께 확인할 수 있다.
+- REST endpoint, STOMP alert WebSocket topic, raw market quote WebSocket 계약을 함께 확인할 수 있다.
 - DB credential을 사용하는 협력사는 `/topic/partners/{partnerId}/alerts` 또는 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`를 구독한다.
 - `/topic/stocks/{stockCode}/alerts`는 bootstrap 전역 키 호환용 topic으로 유지한다.
 
