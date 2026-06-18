@@ -78,16 +78,20 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-api")))
-                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")))
-                .andExpect(jsonPath("$.stockCodes[1]", equalTo("000660")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-api")))
+                .andExpect(jsonPath("$.data.stockCodes[0]", equalTo("005930")))
+                .andExpect(jsonPath("$.data.stockCodes[1]", equalTo("000660")));
 
         mockMvc.perform(get("/api/v1/alerts/watchlists/partner-api")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-api")))
-                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")))
-                .andExpect(jsonPath("$.stockCodes[1]", equalTo("000660")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-api")))
+                .andExpect(jsonPath("$.data.stockCodes[0]", equalTo("005930")))
+                .andExpect(jsonPath("$.data.stockCodes[1]", equalTo("000660")));
     }
 
     @Test
@@ -151,8 +155,9 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
-                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
+                .andExpect(jsonPath("$.data.stockCodes[0]", equalTo("005930")));
     }
 
     @Test
@@ -196,15 +201,18 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
-                .andExpect(jsonPath("$.stockCode", equalTo("005930")))
-                .andExpect(jsonPath("$.translatedTitle", equalTo("Samsung Electronics earnings improve")))
-                .andExpect(jsonPath("$.summary", equalTo("반도체 회복으로 실적 개선 기대")))
-                .andExpect(jsonPath("$.importance", equalTo("HIGH")))
-                .andExpect(jsonPath("$.holderTarget", equalTo(true)))
-                .andExpect(jsonPath("$.watchlistTarget", equalTo(true)))
-                .andExpect(jsonPath("$.duplicateKey", equalTo("duplicate-key")))
-                .andExpect(jsonPath("$.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
+                .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data.translatedTitle", equalTo("Samsung Electronics earnings improve")))
+                .andExpect(jsonPath("$.data.summary", equalTo("반도체 회복으로 실적 개선 기대")))
+                .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
+                .andExpect(jsonPath("$.data.holderTarget", equalTo(true)))
+                .andExpect(jsonPath("$.data.watchlistTarget", equalTo(true)))
+                .andExpect(jsonPath("$.data.duplicateKey", equalTo("duplicate-key")))
+                .andExpect(jsonPath("$.data.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")));
     }
 
     @Test
@@ -267,16 +275,19 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
-                .andExpect(jsonPath("$.collectedNewsCount", equalTo(3)))
-                .andExpect(jsonPath("$.collectedDisclosureCount", equalTo(1)))
-                .andExpect(jsonPath("$.publishedCount", equalTo(2)))
-                .andExpect(jsonPath("$.skippedDuplicateCount", equalTo(2)))
-                .andExpect(jsonPath("$.failedAnalysisCount", equalTo(0)))
-                .andExpect(jsonPath("$.events[0].sourceType", equalTo("NEWS")))
-                .andExpect(jsonPath("$.events[0].duplicateKey", equalTo("duplicate-key")))
-                .andExpect(jsonPath("$.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
-                .andExpect(jsonPath("$.events[1].sourceType", equalTo("DISCLOSURE")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
+                .andExpect(jsonPath("$.data.collectedNewsCount", equalTo(3)))
+                .andExpect(jsonPath("$.data.collectedDisclosureCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.publishedCount", equalTo(2)))
+                .andExpect(jsonPath("$.data.skippedDuplicateCount", equalTo(2)))
+                .andExpect(jsonPath("$.data.failedAnalysisCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.events[0].sourceType", equalTo("NEWS")))
+                .andExpect(jsonPath("$.data.events[0].duplicateKey", equalTo("duplicate-key")))
+                .andExpect(jsonPath("$.data.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
+                .andExpect(jsonPath("$.data.events[1].sourceType", equalTo("DISCLOSURE")));
     }
 
     @Test

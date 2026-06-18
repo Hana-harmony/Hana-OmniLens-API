@@ -88,6 +88,11 @@
 - 스케줄러는 설정 기반 watchlist와 DB watchlist를 협력사별로 병합해 주기 수집 대상으로 사용한다.
 - 테스트로 JDBC 저장소의 교체 저장, 순서 보존, 전체 조회 grouping, HTTP validation, 미지원 종목 404, 스케줄러 병합을 검증했다.
 
+## 2026-06-19 Alert REST 공동 응답 정합화
+- `GET/PUT /api/v1/alerts/watchlists/{partnerId}`, `POST /api/v1/alerts/analyze-and-publish`, `POST /api/v1/alerts/collect-and-publish` 응답을 `ApiResponse` envelope으로 통일했다.
+- `/api/v1/alerts/events`를 포함한 alert REST 200 응답 schema를 static OpenAPI에서 `PartnerWatchlistApiResponse`, `AlertEventApiResponse`, `AlertCollectPublishApiResponse`로 명시했다.
+- MockMvc 테스트가 alert REST의 `success`, `status`, `code`, `data` envelope을 검증하도록 갱신했다.
+
 ## 2026-06-04 협력사별 API key registry
 - Flyway가 `partner_api_credential` 테이블을 생성하고 API key SHA-256 해시, `partner_id`, active 상태를 저장하게 했다.
 - `ApiKeyAuthenticationFilter`는 전역 bootstrap 해시를 먼저 상수 시간 비교하고, 일치하지 않으면 DB active credential을 조회한다.
