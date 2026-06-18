@@ -6,6 +6,7 @@
 
 ## 서비스 구성
 - `market`: 한국 주식 현재가, 호가, 종목 검색 API
+- Planned `market`: 전체/다건 quote snapshot, 협력사용 market quote WebSocket stream, KRX 과거 시세 수집·정규화·DB 저장·history API
 - `alert`: 뉴스·공시 분석 결과를 협력사와 종목 topic으로 송신하는 API
 - `config`: API key 검증, CORS, WebSocket 설정
 

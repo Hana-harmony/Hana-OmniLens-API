@@ -11,6 +11,9 @@
 - KIS 현재가 REST 연동 완료
 - KIS 실시간 체결가·호가 WebSocket 계약·파서·캐시 하네스 완료
 - KIS 실시간 체결가·호가 WebSocket session runner 완료
+- 단건 quote snapshot API 구현 완료
+- 전체/다건 quote snapshot API 예정
+- 협력사용 market quote WebSocket stream 예정
 - 종목 마스터 DB 적재 완료
 - 종목 마스터 단건 조회 REST 계약 완료
 - KRX 외국인 보유율 quote 연결 완료
@@ -20,11 +23,13 @@
 - 한국수출입은행 환율 provider adapter와 cache refresh service 완료
 - 한국수출입은행 환율 주기 refresh scheduler 완료
 - 환율 Redis TTL cache와 in-memory fallback 완료
+- KRX 모든 국내 주식 과거 시세 수집·정규화·DB 저장·history API 예정
 
 ## M3 뉴스·공시 알림
 - Naver News Search 수집 endpoint 연결 완료
 - OpenDART 공시 수집 endpoint 연결 완료
 - Papago NMT 번역 공급자 어댑터 완료
+- DeepL 번역 공급자 어댑터 예정
 - Hannah-Montana-AI 분석 API 연동 완료
 - Redis TTL 기반 중복 제거 완료
 - 협력사별 watchlist 기반 주기 수집 스케줄러 완료
