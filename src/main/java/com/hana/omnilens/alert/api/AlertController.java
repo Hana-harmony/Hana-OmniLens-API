@@ -49,18 +49,18 @@ public class AlertController {
     }
 
     @GetMapping("/watchlists/{partnerId}")
-    public PartnerWatchlistResponse getPartnerWatchlist(
+    public ApiResponse<PartnerWatchlistResponse> getPartnerWatchlist(
             @PathVariable @Size(min = 1, max = 80) @Pattern(regexp = "[A-Za-z0-9._:-]+") String partnerId) {
         partnerAuthorizationService.assertPartnerAccess(partnerId);
-        return partnerWatchlistService.get(partnerId);
+        return ApiResponse.success(partnerWatchlistService.get(partnerId));
     }
 
     @PutMapping("/watchlists/{partnerId}")
-    public PartnerWatchlistResponse replacePartnerWatchlist(
+    public ApiResponse<PartnerWatchlistResponse> replacePartnerWatchlist(
             @PathVariable @Size(min = 1, max = 80) @Pattern(regexp = "[A-Za-z0-9._:-]+") String partnerId,
             @Valid @RequestBody PartnerWatchlistUpdateRequest request) {
         partnerAuthorizationService.assertPartnerAccess(partnerId);
-        return partnerWatchlistService.replace(partnerId, request.stockCodes());
+        return ApiResponse.success(partnerWatchlistService.replace(partnerId, request.stockCodes()));
     }
 
     @PostMapping("/events")
@@ -71,14 +71,15 @@ public class AlertController {
     }
 
     @PostMapping("/analyze-and-publish")
-    public AlertEvent analyzeAndPublish(@Valid @RequestBody AlertAnalysisPublishRequest request) {
+    public ApiResponse<AlertEvent> analyzeAndPublish(@Valid @RequestBody AlertAnalysisPublishRequest request) {
         partnerAuthorizationService.assertPartnerAccess(request.partnerId());
-        return alertAnalysisPublishingService.analyzeAndPublish(request);
+        return ApiResponse.success(alertAnalysisPublishingService.analyzeAndPublish(request));
     }
 
     @PostMapping("/collect-and-publish")
-    public AlertCollectPublishResponse collectAndPublish(@Valid @RequestBody AlertCollectPublishRequest request) {
+    public ApiResponse<AlertCollectPublishResponse> collectAndPublish(
+            @Valid @RequestBody AlertCollectPublishRequest request) {
         partnerAuthorizationService.assertPartnerAccess(request.partnerId());
-        return alertProviderCollectionService.collectAnalyzeAndPublish(request);
+        return ApiResponse.success(alertProviderCollectionService.collectAnalyzeAndPublish(request));
     }
 }

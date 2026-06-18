@@ -40,6 +40,7 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 | Papago 전문 번역 어댑터 | Hana-OmniLens-API | Done |
 | DeepL 전문 번역 어댑터 | Hana-OmniLens-API | Planned |
 | 분석·번역 완료 이벤트 WebSocket 송신 | Hana-OmniLens-API | Done |
+| Alert REST API 공동 응답 envelope | Hana-OmniLens-API | Done |
 | 이벤트 수신, 저장, 보유/관심종목 대상자 매칭, 푸시 발송 | Stock-exchange-BE | Done |
 | 종목별 K-News 피드, 통합 알림함, 원문 링크 UI | Stock-exchange-FE | Planned |
 

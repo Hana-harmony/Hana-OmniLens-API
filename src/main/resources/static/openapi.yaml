@@ -388,7 +388,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PartnerWatchlistResponse"
+                $ref: "#/components/schemas/PartnerWatchlistApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -418,7 +418,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PartnerWatchlistResponse"
+                $ref: "#/components/schemas/PartnerWatchlistApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -447,7 +447,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AlertEvent"
+                $ref: "#/components/schemas/AlertEventApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -472,7 +472,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AlertEvent"
+                $ref: "#/components/schemas/AlertEventApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -499,7 +499,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AlertCollectPublishResponse"
+                $ref: "#/components/schemas/AlertCollectPublishApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -679,6 +679,33 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/ExchangeRateResponse"
+    PartnerWatchlistApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/PartnerWatchlistResponse"
+    AlertEventApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/AlertEvent"
+    AlertCollectPublishApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/AlertCollectPublishResponse"
     ExchangeRateUpdateRequest:
       type: object
       required:
