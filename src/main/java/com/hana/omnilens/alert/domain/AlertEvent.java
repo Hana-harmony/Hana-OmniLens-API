@@ -20,6 +20,8 @@ public record AlertEvent(
         List<String> relatedStocks,
         boolean holderTarget,
         boolean watchlistTarget,
+        String duplicateKey,
+        String modelVersion,
         Instant createdAt
 ) {
 }

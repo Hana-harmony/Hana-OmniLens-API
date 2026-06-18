@@ -1,0 +1,11 @@
+.gradle
+.gradle-home
+build
+out
+.idea
+.git
+.gitignore
+
+src/main/resources/application-local.yml
+**/secrets.local.env
+**/*.local.env

@@ -8,6 +8,106 @@ omnilens:
     cors-allowed-origins:
       - http://localhost:3000
       - http://localhost:5173
+    rate-limit:
+      enabled: false
+      capacity: 120
+      refill-tokens: 120
+      refill-period: 1m
+      max-buckets: 10000
+    signature:
+      enabled: false
+      secret: "replace-with-local-hmac-secret"
+      allowed-clock-skew: 5m
+      nonce-store-mode: in-memory
+      max-nonces: 10000
+    mtls:
+      enabled: false
+  providers:
+    public-data:
+      stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService
+      service-key: "replace-with-public-data-service-key"
+    naver-news:
+      base-url: https://openapi.naver.com
+      client-id: "replace-with-naver-news-client-id"
+      client-secret: "replace-with-naver-news-client-secret"
+    papago-translation:
+      base-url: https://openapi.naver.com
+      client-id: "replace-with-papago-translation-client-id"
+      client-secret: "replace-with-papago-translation-client-secret"
+    open-dart:
+      base-url: https://opendart.fss.or.kr
+      api-key: "replace-with-open-dart-api-key"
+    krx:
+      base-url: https://data.krx.co.kr
+    kis:
+      base-url: https://openapi.koreainvestment.com:9443
+      websocket-url: wss://openapi.koreainvestment.com:9443/tryitout
+      app-key: "replace-with-kis-app-key"
+      app-secret: "replace-with-kis-app-secret"
+      access-token: "replace-with-kis-access-token"
+      approval-key: "replace-with-kis-websocket-approval-key"
+    korea-exim:
+      base-url: https://oapi.koreaexim.go.kr
+      auth-key: "replace-with-korea-exim-auth-key"
+    resilience:
+      connect-timeout: 2s
+      read-timeout: 5s
+      retry:
+        enabled: true
+        max-attempts: 2
+        backoff: 150ms
+      circuit-breaker:
+        enabled: true
+        failure-threshold: 5
+        open-duration: 30s
+  ai:
+    hannah:
+      base-url: http://localhost:8000
+  market:
+    stock-master:
+      seed:
+        enabled: true
+        location: classpath:data/stock-master-seed.csv
+    exchange-rate-cache:
+      mode: redis
+      ttl: 24h
+    foreign-ownership-cache:
+      mode: redis
+      ttl: 24h
+    kis-realtime:
+      enabled: false
+      stock-codes:
+        - "005930"
+        - "000660"
+    exchange-rate-refresh:
+      enabled: false
+      fixed-delay-ms: 300000
+      base-date-offset-days: 0
+      currencies:
+        - "USD"
+        - "JPY"
+  alert:
+    dedupe:
+      mode: redis
+      ttl: 24h
+      max-in-memory-entries: 10000
+    scheduler:
+      enabled: false
+      fixed-delay-ms: 300000
+      news-display: 10
+      disclosure-lookback-days: 7
+      watchlists:
+        - partner-id: partner-local
+          stock-codes:
+            - "005930"
+            - "000660"
+
+providers:
+  kis:
+    base-url: https://openapi.koreainvestment.com:9443
+    account-number: ""
+    app-key: ""
+    app-secret: ""
 
 spring:
   datasource:

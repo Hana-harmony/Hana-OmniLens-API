@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:omnilens-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  flyway:
+    enabled: true
+
+management:
+  health:
+    redis:
+      enabled: false
+
+omnilens:
+  market:
+    stock-master:
+      seed:
+        enabled: true
+        location: classpath:data/stock-master-seed.csv

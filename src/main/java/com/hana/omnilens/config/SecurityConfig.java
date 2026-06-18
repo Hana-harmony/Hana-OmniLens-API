@@ -16,11 +16,19 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
-@EnableConfigurationProperties(OmniLensSecurityProperties.class)
+@EnableConfigurationProperties({
+        OmniLensSecurityProperties.class,
+        ApiRateLimitProperties.class,
+        ApiSignatureProperties.class,
+        MtlsProperties.class
+})
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiKeyAuthenticationFilter apiKeyFilter) throws Exception {
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            MtlsClientCertificateFilter mtlsClientCertificateFilter,
+            ApiKeyAuthenticationFilter apiKeyFilter) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -28,7 +36,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .anyRequest().permitAll())
-                .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(mtlsClientCertificateFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(apiKeyFilter, MtlsClientCertificateFilter.class)
                 .build();
     }
 
@@ -36,8 +45,15 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource(OmniLensSecurityProperties properties) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.corsAllowedOrigins());
-        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("X-HANA-OMNILENS-API-KEY", "Content-Type"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of(
+                "X-HANA-OMNILENS-API-KEY",
+                "X-HANA-OMNILENS-TIMESTAMP",
+                "X-HANA-OMNILENS-NONCE",
+                "X-HANA-OMNILENS-SIGNATURE",
+                "X-HANA-OMNILENS-CORRELATION-ID",
+                "Content-Type"));
+        configuration.setExposedHeaders(List.of("X-HANA-OMNILENS-CORRELATION-ID"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
 

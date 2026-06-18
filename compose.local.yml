@@ -1,4 +1,30 @@
 services:
+  api:
+    build:
+      context: .
+    container_name: hana-omnilens-api
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      OMNILENS_SECURITY_API_KEY_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/omnilens
+      SPRING_DATASOURCE_USERNAME: omnilens
+      SPRING_DATASOURCE_PASSWORD: omnilens-local-password
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      PROVIDERS_AI_HANNAH_BASE_URL: http://host.docker.internal:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
   postgres:
     image: postgres:17-alpine
     container_name: hana-omnilens-postgres
