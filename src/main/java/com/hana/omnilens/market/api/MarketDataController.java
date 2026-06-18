@@ -48,8 +48,8 @@ public class MarketDataController {
     }
 
     @GetMapping("/stocks/{stockCode}")
-    public StockSummary getStock(@PathVariable @Pattern(regexp = "\\d{6}") String stockCode) {
-        return marketDataService.getStock(stockCode);
+    public ApiResponse<StockSummary> getStock(@PathVariable @Pattern(regexp = "\\d{6}") String stockCode) {
+        return ApiResponse.success(marketDataService.getStock(stockCode));
     }
 
     @GetMapping("/stocks/{stockCode}/quote")
@@ -112,9 +112,9 @@ public class MarketDataController {
     }
 
     @PutMapping("/exchange-rates/{currency}")
-    public ExchangeRateResponse updateExchangeRate(
+    public ApiResponse<ExchangeRateResponse> updateExchangeRate(
             @PathVariable @Pattern(regexp = "[A-Z]{3}") String currency,
             @Valid @RequestBody ExchangeRateUpdateRequest request) {
-        return ExchangeRateResponse.from(marketDataService.updateExchangeRate(currency, request.fxRate()));
+        return ApiResponse.success(ExchangeRateResponse.from(marketDataService.updateExchangeRate(currency, request.fxRate())));
     }
 }

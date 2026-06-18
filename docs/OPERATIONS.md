@@ -101,6 +101,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 
 ## 협력사 입력 환율
 - `PUT /api/v1/market/exchange-rates/{currency}`로 `KRW -> 현지통화` 표시용 환율을 저장한다.
+- 응답은 `data.baseCurrency`, `data.localCurrency`, `data.fxRate`, `data.updatedAt`를 담은 공동 응답 envelope이다.
 - quote 요청에 `fxRate`가 없으면 저장된 환율을 현지 통화 환산가 계산에 사용한다.
 - quote 요청에 `fxRate`가 있으면 해당 요청값을 우선한다.
 - 기본 캐시는 Redis TTL 기반이며 Redis 장애 시 같은 프로세스의 in-memory fallback을 사용한다.
@@ -120,6 +121,7 @@ EXCHANGE_RATE_CACHE_TTL=24h
 
 ## 종목 마스터 DB
 - Flyway가 `stock_master` 테이블을 생성한다.
+- 단건 조회 `GET /api/v1/market/stocks/{stockCode}`는 `StockSummary`를 `data`에 담은 공동 응답 envelope으로 반환한다.
 - 기본 seed 파일은 `classpath:data/stock-master-seed.csv`이다.
 - seed loader는 테이블이 비어 있을 때만 실행되며, 이미 적재된 데이터가 있으면 건너뛴다.
 - 운영에서 seed 위치를 바꿀 때는 `STOCK_MASTER_SEED_LOCATION`을 사용한다.

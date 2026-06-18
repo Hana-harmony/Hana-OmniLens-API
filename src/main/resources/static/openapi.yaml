@@ -65,7 +65,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StockSummary"
+                $ref: "#/components/schemas/StockSummaryApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -101,7 +101,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MarketQuote"
+                $ref: "#/components/schemas/MarketQuoteApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -167,9 +167,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/MarketQuote"
+                $ref: "#/components/schemas/MarketQuoteListApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -211,7 +209,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Orderability"
+                $ref: "#/components/schemas/OrderabilityApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -260,9 +258,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/MarketDailyPrice"
+                $ref: "#/components/schemas/MarketDailyPriceListApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -294,7 +290,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MarketHistoryCollectionResponse"
+                $ref: "#/components/schemas/MarketHistoryCollectionApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -327,7 +323,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExchangeRateResponse"
+                $ref: "#/components/schemas/ExchangeRateApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -348,7 +344,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OrderBook"
+                $ref: "#/components/schemas/OrderBookApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "503":
@@ -373,9 +369,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/StockSummary"
+                $ref: "#/components/schemas/StockSummaryListApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "503":
@@ -570,6 +564,121 @@ components:
     ServiceUnavailable:
       description: Server security or provider configuration is incomplete.
   schemas:
+    ApiResponseBase:
+      type: object
+      required:
+        - success
+        - status
+        - code
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        status:
+          type: integer
+        code:
+          type: string
+          example: COMMON_000
+        message:
+          type: string
+          example: OK
+        errors:
+          type:
+            - array
+            - "null"
+          items:
+            type: object
+        timestamp:
+          type: string
+          format: date-time
+    StockSummaryApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/StockSummary"
+    StockSummaryListApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/StockSummary"
+    MarketQuoteApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/MarketQuote"
+    MarketQuoteListApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/MarketQuote"
+    OrderBookApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/OrderBook"
+    OrderabilityApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/Orderability"
+    MarketDailyPriceListApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/MarketDailyPrice"
+    MarketHistoryCollectionApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/MarketHistoryCollectionResponse"
+    ExchangeRateApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/ExchangeRateResponse"
     ExchangeRateUpdateRequest:
       type: object
       required:

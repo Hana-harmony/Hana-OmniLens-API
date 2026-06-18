@@ -283,10 +283,15 @@
 
 ## 2026-06-04 종목 마스터 단건 조회 API
 - `GET /api/v1/market/stocks/{stockCode}` endpoint를 추가해 협력사 백엔드가 watchlist·보유 종목 동기화에 필요한 종목 메타데이터를 코드로 직접 조회할 수 있게 했다.
-- 응답은 quote, orderbook, 뉴스·공시 수집에서 쓰는 `StockSummary` 계약과 동일하게 종목코드, 한글명, 영문명, 시장구분, ISIN, OpenDART 고유번호를 반환한다.
+- 응답은 quote, orderbook, 뉴스·공시 수집에서 쓰는 `StockSummary` 계약을 `data`에 담은 공동 응답 envelope으로 반환하며, 종목코드, 한글명, 영문명, 시장구분, ISIN, OpenDART 고유번호를 포함한다.
 - 미지원 종목코드는 `404 Not Found`와 `https://hana-omnilens-api/errors/stock-not-found` ProblemDetail로 반환해 validation 오류와 구분한다.
 - OpenAPI 문서에 단건 조회 path와 404 응답을 추가했다.
 - MockMvc 테스트로 정상 조회, 미지원 종목 404, 잘못된 종목코드 validation 실패를 검증했다.
+
+## 2026-06-19 Market REST 공동 응답 정합화
+- `GET /api/v1/market/stocks/{stockCode}`와 `PUT /api/v1/market/exchange-rates/{currency}`가 `ApiResponse` envelope을 반환하도록 정리했다.
+- static OpenAPI의 market quote, bulk quote, orderbook, orderability, history, history collect, stock search, stock detail, exchange-rate schema를 typed `ApiResponse*`로 맞춰 Swagger에서 본문-only 계약으로 보이지 않게 했다.
+- MockMvc 테스트로 종목 단건 조회와 환율 갱신의 `success`, `status`, `code`, `data` envelope을 검증한다.
 
 ## 2026-06-04 mTLS client certificate gate
 - `omnilens.security.mtls.enabled` 설정을 추가해 운영에서 보호 API 요청의 client certificate 존재를 앱 레벨에서 검증할 수 있게 했다.
