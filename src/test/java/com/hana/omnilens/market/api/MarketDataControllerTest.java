@@ -42,11 +42,14 @@ class MarketDataControllerTest {
         mockMvc.perform(get("/api/v1/market/stocks/086790")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.stockCode", equalTo("086790")))
-                .andExpect(jsonPath("$.stockName", equalTo("하나금융지주")))
-                .andExpect(jsonPath("$.stockNameEn", equalTo("Hana Financial Group")))
-                .andExpect(jsonPath("$.market", equalTo("KOSPI")))
-                .andExpect(jsonPath("$.isinCode", equalTo("KR7086790003")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.stockCode", equalTo("086790")))
+                .andExpect(jsonPath("$.data.stockName", equalTo("하나금융지주")))
+                .andExpect(jsonPath("$.data.stockNameEn", equalTo("Hana Financial Group")))
+                .andExpect(jsonPath("$.data.market", equalTo("KOSPI")))
+                .andExpect(jsonPath("$.data.isinCode", equalTo("KR7086790003")));
     }
 
     @Test
@@ -192,9 +195,12 @@ class MarketDataControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fxRate\":0.11}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.baseCurrency", equalTo("KRW")))
-                .andExpect(jsonPath("$.localCurrency", equalTo("JPY")))
-                .andExpect(jsonPath("$.fxRate", equalTo(0.11)));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.baseCurrency", equalTo("KRW")))
+                .andExpect(jsonPath("$.data.localCurrency", equalTo("JPY")))
+                .andExpect(jsonPath("$.data.fxRate", equalTo(0.11)));
 
         mockMvc.perform(get("/api/v1/market/stocks/005930/quote")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")

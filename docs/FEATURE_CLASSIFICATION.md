@@ -10,6 +10,7 @@ Hana-OmniLens-API는 실제 주문 명령을 받지 않는다. 대신 현지 거
 | KIS 실시간 시세 캐시와 단건 quote snapshot API | Hana-OmniLens-API | Done |
 | 전체/다건 종목 quote snapshot API | Hana-OmniLens-API | Done |
 | 협력사용 market quote WebSocket stream | Hana-OmniLens-API | Done |
+| Market REST API 공동 응답 envelope | Hana-OmniLens-API | Done |
 | 실시간 또는 최신 환율 수집과 환율 캐시 | Hana-OmniLens-API | Done |
 | KRW 가격과 현지통화 환산 가격을 함께 포함한 quote payload | Hana-OmniLens-API | Done |
 | KRX 모든 국내 주식 과거 시세 수집과 DB 저장 | Hana-OmniLens-API | Done |
