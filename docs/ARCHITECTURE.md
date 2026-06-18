@@ -5,8 +5,7 @@
 - 실제 주문, 체결, 정산, 환전, 옴니버스 계좌 처리는 이 레포 범위에서 제외한다.
 
 ## 서비스 구성
-- `market`: 한국 주식 현재가, 호가, 종목 검색 API, 전체/다건 quote snapshot API, 협력사용 market quote WebSocket stream
-- Planned `market`: KRX 과거 시세 수집·정규화·DB 저장·history API
+- `market`: 한국 주식 현재가, 호가, 종목 검색 API, 전체/다건 quote snapshot API, 협력사용 market quote WebSocket stream, KRX 과거 시세 수집·정규화·DB 저장·history API
 - `alert`: 뉴스·공시 분석 결과를 협력사와 종목 topic으로 송신하는 API
 - `config`: API key 검증, CORS, WebSocket 설정
 
@@ -22,7 +21,7 @@
 
 ## 외부 시스템
 - KIS Open API: 현재가, 실시간 체결가, 실시간 호가
-- KRX: 전일 외국인 보유율과 한도소진율
+- KRX: 과거 일별 OHLCV, 거래대금, 전일 외국인 보유율과 한도소진율
 - FX provider: 실시간/준실시간 환율
 - 한국수출입은행: 고시 환율 fallback
 - Naver News Search: 뉴스 제목, snippet, 원문 링크
@@ -30,9 +29,11 @@
 - Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석
 
 ## 현재 구현 상태
-- KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX 외국인보유량, FX 환율, 한국수출입은행 고시 환율 fallback, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
+- KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX 과거 일별매매정보, KRX 외국인보유량, FX 환율, 한국수출입은행 고시 환율 fallback, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
 - `MarketDataService`가 표준 응답 구조와 현지 통화 환산 로직을 제공한다.
 - `GET /api/v1/market/quotes`는 stockCodes가 있으면 요청 순서의 다건 snapshot을, 없으면 종목 마스터 기반 전체 snapshot을 반환한다.
+- `POST /api/v1/market/history/collect`는 KRX KOSPI/KOSDAQ/KONEX 일별매매정보를 수집해 `market_daily_price`에 upsert한다.
+- `GET /api/v1/market/stocks/{stockCode}/history`는 저장된 KRX 기반 OHLCV/거래대금 일봉 데이터를 반환한다.
 - 종목 마스터는 Flyway가 생성한 `stock_master` 테이블과 JDBC 저장소를 사용한다.
 - 초기 종목 universe는 `stock-master-seed.csv`에서 애플리케이션 시작 시 한 번 적재하며, 이미 데이터가 있으면 중복 적재하지 않는다.
 - 협력사 watchlist는 Flyway가 생성한 `partner_watchlist_subscription` 테이블과 JDBC 저장소를 사용한다.

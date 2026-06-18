@@ -32,6 +32,8 @@ class OpenApiDocumentTest {
                 .andExpect(content().string(containsString("/api/v1/market/stocks/{stockCode}")))
                 .andExpect(content().string(containsString("/api/v1/market/stocks/{stockCode}/quote")))
                 .andExpect(content().string(containsString("/api/v1/market/quotes")))
+                .andExpect(content().string(containsString("/api/v1/market/stocks/{stockCode}/history")))
+                .andExpect(content().string(containsString("MarketDailyPrice")))
                 .andExpect(content().string(containsString("fxRateSource")))
                 .andExpect(content().string(containsString("KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP")))
                 .andExpect(content().string(containsString("/api/v1/alerts/collect-and-publish")))

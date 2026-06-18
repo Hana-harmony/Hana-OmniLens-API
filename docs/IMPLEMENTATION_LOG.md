@@ -308,6 +308,8 @@
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
+- KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다.
+- 과거 시세는 `/api/v1/market/stocks/{stockCode}/history`에서 공동 응답 envelope으로 조회하고, 운영 수집은 `/api/v1/market/history/collect` 또는 scheduler로 실행한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.
 - 외국인 보유율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.

@@ -34,10 +34,33 @@ public class KrxOpenApiDailyTradeClient {
         this.resiliencePolicy = resiliencePolicy;
     }
 
+    public List<KrxOpenApiDailyTrade> findAllDailyTrades(LocalDate baseDate) {
+        return List.of(
+                        findDailyTrades("KOSPI", "/svc/apis/sto/stk_bydd_trd", baseDate),
+                        findDailyTrades("KOSDAQ", "/svc/apis/sto/ksq_bydd_trd", baseDate),
+                        findDailyTrades("KONEX", "/svc/apis/sto/knx_bydd_trd", baseDate))
+                .stream()
+                .flatMap(List::stream)
+                .toList();
+    }
+
     public List<KrxOpenApiDailyTrade> findKospiDailyTrades(LocalDate baseDate) {
+        return findDailyTrades("KOSPI", "/svc/apis/sto/stk_bydd_trd", baseDate);
+    }
+
+    public List<KrxOpenApiDailyTrade> findDailyTrades(String market, LocalDate baseDate) {
+        return switch (market) {
+            case "KOSPI" -> findDailyTrades("KOSPI", "/svc/apis/sto/stk_bydd_trd", baseDate);
+            case "KOSDAQ" -> findDailyTrades("KOSDAQ", "/svc/apis/sto/ksq_bydd_trd", baseDate);
+            case "KONEX" -> findDailyTrades("KONEX", "/svc/apis/sto/knx_bydd_trd", baseDate);
+            default -> throw new IllegalArgumentException("Unsupported KRX market: " + market);
+        };
+    }
+
+    private List<KrxOpenApiDailyTrade> findDailyTrades(String market, String path, LocalDate baseDate) {
         JsonNode root = resiliencePolicy.execute("krx-open-api-kospi-daily-trades", () -> restClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/svc/apis/sto/stk_bydd_trd")
+                        .path(path)
                         .queryParam("basDd", KRX_DATE.format(baseDate))
                         .build())
                 .header("AUTH_KEY", properties.requiredAuthKey())
@@ -49,20 +72,24 @@ public class KrxOpenApiDailyTradeClient {
             return List.of();
         }
         return StreamSupport.stream(items.spliterator(), false)
-                .map(this::toDailyTrade)
+                .map(item -> toDailyTrade(item, market))
                 .toList();
     }
 
-    private KrxOpenApiDailyTrade toDailyTrade(JsonNode item) {
+    private KrxOpenApiDailyTrade toDailyTrade(JsonNode item, String fallbackMarket) {
         return new KrxOpenApiDailyTrade(
                 parseDate(item.path("BAS_DD").asText()),
                 item.path("ISU_CD").asText(),
                 item.path("ISU_SRT_CD").asText(),
                 item.path("ISU_NM").asText(),
-                item.path("MKT_NM").asText(),
+                item.path("MKT_NM").asText(fallbackMarket),
+                parseDecimal(item.path("TDD_OPNPRC").asText()),
+                parseDecimal(item.path("TDD_HGPRC").asText()),
+                parseDecimal(item.path("TDD_LWPRC").asText()),
                 parseDecimal(item.path("TDD_CLSPRC").asText()),
                 parseDecimal(item.path("FLUC_RT").asText()),
-                parseLong(item.path("ACC_TRDVOL").asText()));
+                parseLong(item.path("ACC_TRDVOL").asText()),
+                parseDecimal(item.path("ACC_TRDVAL").asText()));
     }
 
     private static LocalDate parseDate(String value) {

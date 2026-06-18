@@ -55,6 +55,9 @@ docker compose -f compose.local.yml up -d
 - 환율 refresh scheduler의 disabled no-op, 기준일 offset, 통화별 장애 격리
 - Redis 환율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - quote 요청 `fxRate`가 저장된 환율보다 우선되는 계산 계약
+- KRX KOSPI/KOSDAQ/KONEX 일별매매정보 provider 요청·응답 매핑
+- KRX 과거 시세 수집 service의 stock master 필터링과 DB 저장 계약
+- 과거 시세 history API의 공동 응답 envelope과 OHLCV/거래대금 payload
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
 - Papago NMT 번역 요청 계약과 응답 매핑

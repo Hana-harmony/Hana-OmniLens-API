@@ -41,7 +41,7 @@
 
 ## 3. Hana-OmniLens-API 구현
 - KIS 현재가 REST와 실시간 체결가·호가 WebSocket adapter를 구현한다.
-- KRX 모든 국내 주식 과거 시세 수집 batch와 정규화 DB schema를 구현한다.
+- KRX 모든 국내 주식 과거 시세 수집 batch와 정규화 DB schema, history REST API를 구현한다.
 - 종목 마스터, 외국인 보유율, 상·하한가, VI 상태, 환율 cache를 구현한다.
 - Hannah-Montana-AI 분석 API를 호출해 뉴스·공시 분석 결과를 저장하고 협력사로 전달한다.
 - 협력사 인증, rate limit, 감사 로그, 장애 추적을 적용한다.

@@ -52,6 +52,9 @@ docker compose -f compose.local.yml up -d
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
 - `KRX_OPEN_API_BASE_URL`: KRX Open API 실제 호출 endpoint 주소. 기본값은 `https://data-dbg.krx.co.kr`이다.
 - `KRX_OPEN_API_AUTH_KEY`: KRX Open API `AUTH_KEY` 헤더로 전달하는 인증키다.
+- `MARKET_HISTORY_COLLECTION_ENABLED`: KRX 과거 일별 시세 수집 scheduler 활성화 여부. 기본값은 `false`이다.
+- `MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS`: KRX 과거 시세 수집 scheduler 주기. 기본값은 `86400000`이다.
+- `MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS`: KRX 과거 시세 수집 기준일 offset. 기본값은 `1`이다.
 - `KIS_BASE_URL`: KIS 모의투자 REST endpoint 주소. 기본값은 `https://openapivts.koreainvestment.com:29443`이다.
 - `KIS_WEBSOCKET_URL`: KIS 모의투자 WebSocket endpoint 주소. 기본값은 `ws://ops.koreainvestment.com:31000`이다.
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.

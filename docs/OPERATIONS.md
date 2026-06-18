@@ -67,6 +67,19 @@ KIS_REALTIME_ENABLED=true
 KIS_REALTIME_STOCK_CODES=005930,000660
 ```
 
+## KRX 과거 시세 수집
+- 기본값은 `MARKET_HISTORY_COLLECTION_ENABLED=false`다.
+- 활성화하면 설정된 주기마다 전일 기준 KOSPI/KOSDAQ/KONEX 일별매매정보를 KRX Open API에서 수집해 DB에 upsert한다.
+- 수동 운영 수집은 `POST /api/v1/market/history/collect?baseDate=YYYY-MM-DD`로 실행한다.
+- 차트 조회는 `GET /api/v1/market/stocks/{stockCode}/history?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=365`를 사용한다.
+- Stock-exchange-BE는 KRX를 직접 호출하지 않고 이 history API를 호출해 앱 차트 응답으로 재가공한다.
+
+```text
+MARKET_HISTORY_COLLECTION_ENABLED=true
+MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS=86400000
+MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
+```
+
 ## 헬스체크
 - `GET /actuator/health`
 - `GET /actuator/info`

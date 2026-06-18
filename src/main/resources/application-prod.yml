@@ -89,6 +89,10 @@ omnilens:
       fixed-delay-ms: ${EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS:300000}
       base-date-offset-days: ${EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS:0}
       currencies: ${EXCHANGE_RATE_REFRESH_CURRENCIES:}
+    history-collection:
+      enabled: ${MARKET_HISTORY_COLLECTION_ENABLED:false}
+      fixed-delay-ms: ${MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS:86400000}
+      base-date-offset-days: ${MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS:1}
   alert:
     dedupe:
       mode: ${ALERT_DEDUPE_MODE:redis}

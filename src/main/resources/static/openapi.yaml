@@ -178,6 +178,85 @@ paths:
           $ref: "#/components/responses/PartnerAccessDenied"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/{stockCode}/history:
+    get:
+      tags:
+        - Market Data
+      operationId: getMarketHistory
+      summary: Get KRX-based Korea stock daily OHLCV history.
+      description: >
+        Returns normalized daily chart data saved by Hana-OmniLens-API from KRX
+        Open API daily trade feeds. Overseas exchange backends use this REST
+        snapshot for chart rendering and do not call KRX directly.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 365
+      responses:
+        "200":
+          description: Daily OHLCV history.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketDailyPrice"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/history/collect:
+    post:
+      tags:
+        - Market Data
+      operationId: collectMarketHistory
+      summary: Collect all Korean stock daily OHLCV history from KRX for one base date.
+      description: >
+        Operational endpoint used by scheduled jobs or administrators to collect
+        KOSPI, KOSDAQ, and KONEX daily trade rows from KRX Open API and upsert
+        them into Hana-OmniLens-API DB.
+      parameters:
+        - name: baseDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Collection result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketHistoryCollectionResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/exchange-rates/{currency}:
     put:
       tags:
@@ -473,6 +552,76 @@ components:
         fxRate:
           type: number
         updatedAt:
+          type: string
+          format: date-time
+    MarketHistoryCollectionResponse:
+      type: object
+      required:
+        - baseDate
+        - requestedCount
+        - savedCount
+        - source
+      properties:
+        baseDate:
+          type: string
+          format: date
+        requestedCount:
+          type: integer
+        savedCount:
+          type: integer
+        source:
+          type: string
+          example: KRX_OPEN_API_DAILY_TRADE
+    MarketDailyPrice:
+      type: object
+      required:
+        - stockCode
+        - tradeDate
+        - market
+        - openPriceKrw
+        - highPriceKrw
+        - lowPriceKrw
+        - closePriceKrw
+        - changeRate
+        - tradingVolume
+        - tradingValueKrw
+        - adjustedClosePriceKrw
+        - source
+        - collectedAt
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        tradeDate:
+          type: string
+          format: date
+        market:
+          type: string
+          enum:
+            - KOSPI
+            - KOSDAQ
+            - KONEX
+        openPriceKrw:
+          type: number
+        highPriceKrw:
+          type: number
+        lowPriceKrw:
+          type: number
+        closePriceKrw:
+          type: number
+        changeRate:
+          type: number
+        tradingVolume:
+          type: integer
+          format: int64
+        tradingValueKrw:
+          type: number
+        adjustedClosePriceKrw:
+          type: number
+        source:
+          type: string
+          example: KRX_OPEN_API_DAILY_TRADE
+        collectedAt:
           type: string
           format: date-time
     MarketQuote:

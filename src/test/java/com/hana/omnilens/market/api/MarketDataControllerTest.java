@@ -6,12 +6,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.hana.omnilens.market.application.MarketDailyPriceRepository;
+import com.hana.omnilens.market.domain.MarketDailyPrice;
 
 @SpringBootTest(properties = {
         "omnilens.security.api-key-enabled=true",
@@ -25,6 +33,9 @@ class MarketDataControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private MarketDailyPriceRepository marketDailyPriceRepository;
 
     @Test
     void stockDetailReturnsSeededStockMasterRow() throws Exception {
@@ -160,6 +171,41 @@ class MarketDataControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.localCurrency", equalTo("JPY")))
                 .andExpect(jsonPath("$.data.localCurrencyPrice", equalTo(8635.0)));
+    }
+
+    @Test
+    void historyApiReturnsStoredKrxDailyPricesInCommonEnvelope() throws Exception {
+        marketDailyPriceRepository.upsertAll(List.of(new MarketDailyPrice(
+                "005930",
+                LocalDate.of(2025, 6, 4),
+                "KOSPI",
+                new BigDecimal("57900"),
+                new BigDecimal("58900"),
+                new BigDecimal("57500"),
+                new BigDecimal("58700"),
+                new BigDecimal("1.91"),
+                19_123_456L,
+                new BigDecimal("1122334455000"),
+                new BigDecimal("58700"),
+                "KRX_OPEN_API_DAILY_TRADE",
+                Instant.parse("2025-06-04T07:00:00Z"))));
+
+        mockMvc.perform(get("/api/v1/market/stocks/005930/history")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("from", "2025-06-01")
+                        .param("to", "2025-06-05")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data[0].stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data[0].tradeDate", equalTo("2025-06-04")))
+                .andExpect(jsonPath("$.data[0].openPriceKrw", equalTo(57900.0)))
+                .andExpect(jsonPath("$.data[0].highPriceKrw", equalTo(58900.0)))
+                .andExpect(jsonPath("$.data[0].lowPriceKrw", equalTo(57500.0)))
+                .andExpect(jsonPath("$.data[0].closePriceKrw", equalTo(58700.0)))
+                .andExpect(jsonPath("$.data[0].tradingVolume", equalTo(19123456)))
+                .andExpect(jsonPath("$.data[0].tradingValueKrw", equalTo(1.122334455E12)))
+                .andExpect(jsonPath("$.data[0].source", equalTo("KRX_OPEN_API_DAILY_TRADE")));
     }
 
     @Test

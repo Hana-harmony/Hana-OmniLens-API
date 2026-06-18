@@ -37,9 +37,10 @@ curl http://localhost:8080/actuator/health
 - `GET /api/v1/market/stocks/{stockCode}/quote`
 - `GET /api/v1/market/quotes`
 - `GET /api/v1/market/stocks/{stockCode}/orderbook`
+- `GET /api/v1/market/stocks/{stockCode}/history`
+- `POST /api/v1/market/history/collect`
 - `GET /api/v1/market/stocks/search?query=삼성`
 - `WS /ws/market/quotes` raw JSON quote stream
-- Planned: `GET /api/v1/market/stocks/{stockCode}/history`
 - `POST /api/v1/alerts/events`
 - `POST /api/v1/alerts/analyze-and-publish`
 - `POST /api/v1/alerts/collect-and-publish`
@@ -49,7 +50,7 @@ curl http://localhost:8080/actuator/health
 - OpenAPI JSON: `/v3/api-docs`
 
 ## 최신 기획 기준
-- 시장 데이터는 KIS 모의투자 현재가, 실시간 체결가·호가 WebSocket, KIS 종목 마스터, KRX 외국인 보유율, 실시간/준실시간 FX 환율을 합성한다.
+- 시장 데이터는 KIS 모의투자 현재가, 실시간 체결가·호가 WebSocket, KIS 종목 마스터, KRX 과거 시세, KRX 외국인 보유율, 실시간/준실시간 FX 환율을 합성한다.
 - 주문 관련 기능은 실제 주문 API가 아니라 외국인 투자 한도, 당일 예측 지분율 boundary, VI 발동, 상·하한가 상태를 현지 MTS 주문/종목 화면에 제공하는 의사결정 지원 API다.
 - 뉴스·공시는 Naver News Search와 OpenDART를 수집하고, Hannah-Montana-AI 분석 결과와 Papago/DeepL 번역 결과를 함께 WebSocket 이벤트로 송신한다.
 - 세무 기능은 최종투자자별 서류/OCR/케이스 판정/환급금 선지급 상태를 현지 거래소 백엔드에 제공하는 연동 계약으로 관리한다.

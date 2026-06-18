@@ -9,8 +9,12 @@ public record KrxOpenApiDailyTrade(
         String stockCode,
         String stockName,
         String market,
+        BigDecimal openingPriceKrw,
+        BigDecimal highPriceKrw,
+        BigDecimal lowPriceKrw,
         BigDecimal closingPriceKrw,
         BigDecimal changeRate,
-        long tradingVolume
+        long tradingVolume,
+        BigDecimal tradingValueKrw
 ) {
 }
