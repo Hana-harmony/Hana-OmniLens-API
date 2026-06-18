@@ -43,9 +43,9 @@ class MarketDataControllerTest {
         mockMvc.perform(get("/api/v1/market/stocks/999999")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/stock-not-found")))
-                .andExpect(jsonPath("$.title", equalTo("Stock not found")))
-                .andExpect(jsonPath("$.stockCode", equalTo("999999")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("MARKET_001")))
+                .andExpect(jsonPath("$.message", equalTo("Stock master row not found: 999999")));
     }
 
     @Test
@@ -53,8 +53,8 @@ class MarketDataControllerTest {
         mockMvc.perform(get("/api/v1/market/stocks/ABCDEF")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
-                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test
@@ -86,8 +86,8 @@ class MarketDataControllerTest {
         mockMvc.perform(get("/api/v1/market/stocks/ABCDEF/quote")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
-                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test
@@ -97,8 +97,8 @@ class MarketDataControllerTest {
                         .param("currency", "usd")
                         .param("fxRate", "0"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
-                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test
@@ -116,8 +116,8 @@ class MarketDataControllerTest {
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
                         .param("currency", "JPY"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.localCurrency", equalTo("JPY")))
-                .andExpect(jsonPath("$.localCurrencyPrice", equalTo(8635.0)));
+                .andExpect(jsonPath("$.data.localCurrency", equalTo("JPY")))
+                .andExpect(jsonPath("$.data.localCurrencyPrice", equalTo(8635.0)));
     }
 
     @Test
@@ -127,8 +127,8 @@ class MarketDataControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fxRate\":0}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
-                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test

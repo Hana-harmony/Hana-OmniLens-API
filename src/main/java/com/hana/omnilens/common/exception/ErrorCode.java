@@ -8,7 +8,9 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "COMMON_003", "Resource not found"),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_999", "Internal server error"),
     INVALID_API_KEY(HttpStatus.UNAUTHORIZED, "AUTH_001", "Invalid API key"),
-    API_KEY_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_002", "API key hash is not configured");
+    API_KEY_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_002", "API key hash is not configured"),
+    STOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "MARKET_001", "Stock not found"),
+    PARTNER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "AUTH_005", "Partner access denied");
 
     private final HttpStatus status;
     private final String code;

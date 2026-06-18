@@ -101,8 +101,9 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/stock-not-found")))
-                .andExpect(jsonPath("$.stockCode", equalTo("999999")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("MARKET_001")))
+                .andExpect(jsonPath("$.message", equalTo("Stock master row not found: 999999")));
     }
 
     @Test
@@ -116,7 +117,8 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test
@@ -132,8 +134,8 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/partner-access-denied")))
-                .andExpect(jsonPath("$.requestedPartnerId", equalTo("partner-b")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("AUTH_005")));
     }
 
     @Test
@@ -304,8 +306,8 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
-                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test
@@ -332,8 +334,8 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
-                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test

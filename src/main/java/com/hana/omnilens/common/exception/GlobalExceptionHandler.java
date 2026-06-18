@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.hana.omnilens.common.api.ApiResponse;
 import com.hana.omnilens.common.api.FieldErrorDetail;
+import com.hana.omnilens.market.application.StockMasterNotFoundException;
+import com.hana.omnilens.security.PartnerAccessDeniedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -18,6 +20,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException exception) {
         ErrorCode errorCode = exception.errorCode();
+        return ResponseEntity
+                .status(errorCode.status())
+                .body(ApiResponse.error(errorCode.status().value(), errorCode.code(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(StockMasterNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleStockMasterNotFound(StockMasterNotFoundException exception) {
+        ErrorCode errorCode = ErrorCode.STOCK_NOT_FOUND;
+        return ResponseEntity
+                .status(errorCode.status())
+                .body(ApiResponse.error(errorCode.status().value(), errorCode.code(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(PartnerAccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePartnerAccessDenied(PartnerAccessDeniedException exception) {
+        ErrorCode errorCode = ErrorCode.PARTNER_ACCESS_DENIED;
         return ResponseEntity
                 .status(errorCode.status())
                 .body(ApiResponse.error(errorCode.status().value(), errorCode.code(), exception.getMessage()));
