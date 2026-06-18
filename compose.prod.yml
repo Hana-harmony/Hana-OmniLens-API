@@ -12,8 +12,9 @@ services:
       - "${SERVER_PORT:-8080}:8080"
     volumes:
       - ./application-prod.yml:/app/config/application-prod.yml:ro
+      - ./tls:/app/config/tls:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -k -fsS ${HEALTHCHECK_SCHEME:-http}://localhost:8080/actuator/health >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5

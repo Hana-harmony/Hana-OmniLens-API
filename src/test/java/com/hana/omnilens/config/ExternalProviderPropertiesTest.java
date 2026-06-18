@@ -1,0 +1,37 @@
+package com.hana.omnilens.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import org.junit.jupiter.api.Test;
+
+class ExternalProviderPropertiesTest {
+
+    @Test
+    void defaultsDoNotExposeSecretsAndFailClosedWhenRequired() {
+        ExternalProviderProperties properties = new ExternalProviderProperties(null, null, null, null, null, null, null);
+
+        assertThat(properties.publicData().stockSecuritiesBaseUrl().toString())
+                .isEqualTo("https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService");
+        assertThat(properties.naverNews().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
+        assertThat(properties.openDart().baseUrl().toString()).isEqualTo("https://opendart.fss.or.kr");
+        assertThat(properties.krx().baseUrl().toString()).isEqualTo("https://data.krx.co.kr");
+        assertThat(properties.kis().websocketUrl().toString())
+                .isEqualTo("wss://openapi.koreainvestment.com:9443/tryitout");
+        assertThat(properties.koreaExim().baseUrl().toString()).isEqualTo("https://oapi.koreaexim.go.kr");
+        assertThat(properties.papagoTranslation().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
+
+        assertThatThrownBy(() -> properties.naverNews().requiredClientSecret())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("omnilens.providers.naver-news.client-secret");
+        assertThatThrownBy(() -> properties.kis().requiredApprovalKey())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("omnilens.providers.kis.approval-key");
+        assertThatThrownBy(() -> properties.koreaExim().requiredAuthKey())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("omnilens.providers.korea-exim.auth-key");
+        assertThatThrownBy(() -> properties.papagoTranslation().requiredClientSecret())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("omnilens.providers.papago-translation.client-secret");
+    }
+}

@@ -36,9 +36,14 @@ public class AlertStreamingService {
                 request.relatedStocks(),
                 request.holderTarget(),
                 request.watchlistTarget(),
+                request.duplicateKey(),
+                request.modelVersion(),
                 Instant.now());
 
         messagingTemplate.convertAndSend("/topic/partners/" + request.partnerId() + "/alerts", event);
+        messagingTemplate.convertAndSend(
+                "/topic/partners/" + request.partnerId() + "/stocks/" + request.stockCode() + "/alerts",
+                event);
         messagingTemplate.convertAndSend("/topic/stocks/" + request.stockCode() + "/alerts", event);
         return event;
     }

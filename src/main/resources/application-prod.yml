@@ -1,11 +1,105 @@
 server:
   port: ${SERVER_PORT:8080}
+  ssl:
+    enabled: ${SERVER_SSL_ENABLED:false}
+    client-auth: ${SERVER_SSL_CLIENT_AUTH:none}
+    key-store: ${SERVER_SSL_KEY_STORE:}
+    key-store-password: ${SERVER_SSL_KEY_STORE_PASSWORD:}
+    key-store-type: ${SERVER_SSL_KEY_STORE_TYPE:PKCS12}
+    trust-store: ${SERVER_SSL_TRUST_STORE:}
+    trust-store-password: ${SERVER_SSL_TRUST_STORE_PASSWORD:}
+    trust-store-type: ${SERVER_SSL_TRUST_STORE_TYPE:PKCS12}
 
 omnilens:
   security:
     api-key-enabled: true
     api-key-sha256: ${OMNILENS_API_KEY_SHA256}
     cors-allowed-origins: ${OMNILENS_CORS_ALLOWED_ORIGINS}
+    rate-limit:
+      enabled: ${OMNILENS_RATE_LIMIT_ENABLED:true}
+      capacity: ${OMNILENS_RATE_LIMIT_CAPACITY:120}
+      refill-tokens: ${OMNILENS_RATE_LIMIT_REFILL_TOKENS:120}
+      refill-period: ${OMNILENS_RATE_LIMIT_REFILL_PERIOD:1m}
+      max-buckets: ${OMNILENS_RATE_LIMIT_MAX_BUCKETS:10000}
+    signature:
+      enabled: ${OMNILENS_SIGNATURE_ENABLED:false}
+      secret: ${OMNILENS_SIGNATURE_SECRET:}
+      allowed-clock-skew: ${OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW:5m}
+      nonce-store-mode: ${OMNILENS_SIGNATURE_NONCE_STORE_MODE:redis}
+      max-nonces: ${OMNILENS_SIGNATURE_MAX_NONCES:10000}
+    mtls:
+      enabled: ${OMNILENS_MTLS_ENABLED:false}
+  providers:
+    public-data:
+      stock-securities-base-url: ${PUBLIC_DATA_STOCK_SECURITIES_BASE_URL:https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService}
+      service-key: ${PUBLIC_DATA_SERVICE_KEY}
+    naver-news:
+      base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
+      client-id: ${NAVER_NEWS_CLIENT_ID}
+      client-secret: ${NAVER_NEWS_CLIENT_SECRET}
+    papago-translation:
+      base-url: ${PAPAGO_TRANSLATION_BASE_URL:https://openapi.naver.com}
+      client-id: ${PAPAGO_TRANSLATION_CLIENT_ID:}
+      client-secret: ${PAPAGO_TRANSLATION_CLIENT_SECRET:}
+    open-dart:
+      base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
+      api-key: ${OPEN_DART_API_KEY}
+    krx:
+      base-url: ${KRX_BASE_URL:https://data.krx.co.kr}
+    kis:
+      base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
+      websocket-url: ${KIS_WEBSOCKET_URL:wss://openapi.koreainvestment.com:9443/tryitout}
+      app-key: ${KIS_APP_KEY:}
+      app-secret: ${KIS_APP_SECRET:}
+      access-token: ${KIS_ACCESS_TOKEN:}
+      approval-key: ${KIS_APPROVAL_KEY:}
+    korea-exim:
+      base-url: ${KOREA_EXIM_BASE_URL:https://oapi.koreaexim.go.kr}
+      auth-key: ${KOREA_EXIM_AUTH_KEY:}
+    resilience:
+      connect-timeout: ${PROVIDER_CONNECT_TIMEOUT:2s}
+      read-timeout: ${PROVIDER_READ_TIMEOUT:5s}
+      retry:
+        enabled: ${PROVIDER_RETRY_ENABLED:true}
+        max-attempts: ${PROVIDER_RETRY_MAX_ATTEMPTS:2}
+        backoff: ${PROVIDER_RETRY_BACKOFF:150ms}
+      circuit-breaker:
+        enabled: ${PROVIDER_CIRCUIT_BREAKER_ENABLED:true}
+        failure-threshold: ${PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD:5}
+        open-duration: ${PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION:30s}
+  ai:
+    hannah:
+      base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}
+  market:
+    stock-master:
+      seed:
+        enabled: ${STOCK_MASTER_SEED_ENABLED:true}
+        location: ${STOCK_MASTER_SEED_LOCATION:classpath:data/stock-master-seed.csv}
+    exchange-rate-cache:
+      mode: ${EXCHANGE_RATE_CACHE_MODE:redis}
+      ttl: ${EXCHANGE_RATE_CACHE_TTL:24h}
+    foreign-ownership-cache:
+      mode: ${FOREIGN_OWNERSHIP_CACHE_MODE:redis}
+      ttl: ${FOREIGN_OWNERSHIP_CACHE_TTL:24h}
+    kis-realtime:
+      enabled: ${KIS_REALTIME_ENABLED:false}
+      stock-codes: ${KIS_REALTIME_STOCK_CODES:}
+    exchange-rate-refresh:
+      enabled: ${EXCHANGE_RATE_REFRESH_ENABLED:false}
+      fixed-delay-ms: ${EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS:300000}
+      base-date-offset-days: ${EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS:0}
+      currencies: ${EXCHANGE_RATE_REFRESH_CURRENCIES:}
+  alert:
+    dedupe:
+      mode: ${ALERT_DEDUPE_MODE:redis}
+      ttl: ${ALERT_DEDUPE_TTL:24h}
+      max-in-memory-entries: ${ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES:10000}
+    scheduler:
+      enabled: ${ALERT_SCHEDULER_ENABLED:false}
+      fixed-delay-ms: ${ALERT_SCHEDULER_FIXED_DELAY_MS:300000}
+      news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:10}
+      disclosure-lookback-days: ${ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS:7}
+      watchlists: []
 
 spring:
   datasource:

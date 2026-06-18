@@ -3,6 +3,7 @@ package com.hana.omnilens.market.api;
 import java.math.BigDecimal;
 import java.util.List;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -10,7 +11,9 @@ import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,6 +38,11 @@ public class MarketDataController {
         this.marketDataService = marketDataService;
     }
 
+    @GetMapping("/stocks/{stockCode}")
+    public StockSummary getStock(@PathVariable @Pattern(regexp = "\\d{6}") String stockCode) {
+        return marketDataService.getStock(stockCode);
+    }
+
     @GetMapping("/stocks/{stockCode}/quote")
     @Operation(summary = "Get Korean stock quote with KRW and requested local currency price")
     public ApiResponse<MarketQuote> getQuote(
@@ -54,5 +62,12 @@ public class MarketDataController {
     @Operation(summary = "Search Korean stocks")
     public ApiResponse<List<StockSummary>> searchStocks(@RequestParam @Size(min = 1, max = 40) String query) {
         return ApiResponse.success(marketDataService.searchStocks(query));
+    }
+
+    @PutMapping("/exchange-rates/{currency}")
+    public ExchangeRateResponse updateExchangeRate(
+            @PathVariable @Pattern(regexp = "[A-Z]{3}") String currency,
+            @Valid @RequestBody ExchangeRateUpdateRequest request) {
+        return ExchangeRateResponse.from(marketDataService.updateExchangeRate(currency, request.fxRate()));
     }
 }

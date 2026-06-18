@@ -1,0 +1,755 @@
+openapi: 3.1.0
+info:
+  title: Hana OmniLens API
+  version: 0.1.0-feature
+  summary: B2B Korea market data and watchlist alert API
+  description: >
+    Hana OmniLens API provides Korea stock information, foreign ownership
+    snapshots, and news/disclosure alert events for overseas exchange and broker
+    partners. It does not provide order, execution, settlement, FX trading, or
+    omnibus account processing. Every response includes
+    X-HANA-OMNILENS-CORRELATION-ID for support and incident tracing.
+servers:
+  - url: https://api.hana-omnilens.example.com
+    description: Production placeholder
+  - url: http://localhost:8080
+    description: Local development
+security:
+  - partnerMtls: []
+    partnerApiKey: []
+    partnerTimestamp: []
+    partnerNonce: []
+    partnerSignature: []
+tags:
+  - name: Market Data
+    description: Korea stock quote, orderbook, and stock search APIs.
+  - name: Alerts
+    description: News and disclosure alert publish, analysis, and collection APIs.
+x-websocket:
+  endpoint: /ws/alerts
+  protocol: STOMP
+  subscribeTopics:
+    partnerAlerts: /topic/partners/{partnerId}/alerts
+    partnerStockAlerts: /topic/partners/{partnerId}/stocks/{stockCode}/alerts
+    stockAlerts: /topic/stocks/{stockCode}/alerts
+  authorization: >
+    DB-bound partner credentials may subscribe only to their own partner topics.
+    The global stock topic is retained for bootstrap/global-key compatibility.
+  payloadSchema: AlertEvent
+paths:
+  /api/v1/market/stocks/{stockCode}:
+    get:
+      tags:
+        - Market Data
+      operationId: getStockMaster
+      summary: Get one supported Korea stock master row.
+      description: Returns the stock metadata used by quote, orderbook, and alert collection APIs.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+      responses:
+        "200":
+          description: Supported stock metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/{stockCode}/quote:
+    get:
+      tags:
+        - Market Data
+      operationId: getMarketQuote
+      summary: Get a Korea stock quote with foreign ownership and local currency price.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+            default: USD
+          description: Local currency code shown to partner users.
+        - name: fxRate
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0.000001
+          description: Partner-provided KRW to local currency conversion rate.
+      responses:
+        "200":
+          description: Quote response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketQuote"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/exchange-rates/{currency}:
+    put:
+      tags:
+        - Market Data
+      operationId: updateExchangeRate
+      summary: Store a partner-provided KRW to local currency conversion rate.
+      parameters:
+        - name: currency
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+          description: Local currency code used by partner users.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeRateUpdateRequest"
+      responses:
+        "200":
+          description: Stored exchange rate snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRateResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/{stockCode}/orderbook:
+    get:
+      tags:
+        - Market Data
+      operationId: getOrderBook
+      summary: Get a Korea stock orderbook snapshot.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+      responses:
+        "200":
+          description: Orderbook response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBook"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/search:
+    get:
+      tags:
+        - Market Data
+      operationId: searchStocks
+      summary: Search supported Korea stocks by code, Korean name, or English name.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+      responses:
+        "200":
+          description: Matching stocks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/alerts/watchlists/{partnerId}:
+    get:
+      tags:
+        - Alerts
+      operationId: getPartnerWatchlist
+      summary: Get a partner watchlist used by scheduled alert collection.
+      parameters:
+        - $ref: "#/components/parameters/PartnerId"
+      responses:
+        "200":
+          description: Stored partner watchlist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerWatchlistResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+    put:
+      tags:
+        - Alerts
+      operationId: replacePartnerWatchlist
+      summary: Replace a partner watchlist used by scheduled alert collection.
+      description: >
+        Replaces the full list for one partner. Duplicate stock codes are
+        removed while preserving request order. Empty lists clear the partner
+        watchlist.
+      parameters:
+        - $ref: "#/components/parameters/PartnerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerWatchlistUpdateRequest"
+      responses:
+        "200":
+          description: Stored partner watchlist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerWatchlistResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/alerts/events:
+    post:
+      tags:
+        - Alerts
+      operationId: publishAlertEvent
+      summary: Publish an already analyzed alert event to partner and stock topics.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertPublishRequest"
+      responses:
+        "200":
+          description: Published alert event.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/alerts/analyze-and-publish:
+    post:
+      tags:
+        - Alerts
+      operationId: analyzeAndPublishAlert
+      summary: Analyze one news or disclosure item with Hannah-Montana-AI and publish it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertAnalysisPublishRequest"
+      responses:
+        "200":
+          description: Published alert event.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "422":
+          description: Hannah-Montana-AI did not match the item to a supported stock.
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/alerts/collect-and-publish:
+    post:
+      tags:
+        - Alerts
+      operationId: collectAnalyzeAndPublishAlerts
+      summary: Collect provider news and disclosures for stock codes, analyze them, and publish alerts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertCollectPublishRequest"
+      responses:
+        "200":
+          description: Collection and publishing result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertCollectPublishResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "404":
+          description: None of the requested stock codes are supported.
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+components:
+  securitySchemes:
+    partnerMtls:
+      type: mutualTLS
+      description: Partner client certificate used when mTLS is enabled in production.
+    partnerApiKey:
+      type: apiKey
+      in: header
+      name: X-HANA-OMNILENS-API-KEY
+      description: Partner API key. The server stores only SHA-256 hashes and can bind keys to partner IDs.
+    partnerTimestamp:
+      type: apiKey
+      in: header
+      name: X-HANA-OMNILENS-TIMESTAMP
+      description: ISO-8601 UTC timestamp used in HMAC request signing when signature verification is enabled.
+    partnerNonce:
+      type: apiKey
+      in: header
+      name: X-HANA-OMNILENS-NONCE
+      description: Per-request nonce used to prevent replay when signature verification is enabled.
+    partnerSignature:
+      type: apiKey
+      in: header
+      name: X-HANA-OMNILENS-SIGNATURE
+      description: Lowercase hex HMAC-SHA256 over method, URI with query, timestamp, nonce, and SHA-256 body hash.
+  parameters:
+    StockCode:
+      name: stockCode
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^\\d{6}$"
+      description: Six digit Korea stock code.
+    PartnerId:
+      name: partnerId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 80
+        pattern: "^[A-Za-z0-9._:-]+$"
+      description: Partner identifier issued to an overseas exchange or broker.
+  responses:
+    Unauthorized:
+      description: Missing or invalid partner API key.
+    ValidationError:
+      description: Request validation failed.
+    StockNotFound:
+      description: Supported stock master row was not found.
+    PartnerAccessDenied:
+      description: Authenticated partner cannot access another partner's alert resource.
+    ServiceUnavailable:
+      description: Server security or provider configuration is incomplete.
+  schemas:
+    ExchangeRateUpdateRequest:
+      type: object
+      required:
+        - fxRate
+      properties:
+        fxRate:
+          type: number
+          minimum: 0.000001
+          description: KRW to local currency conversion rate.
+    ExchangeRateResponse:
+      type: object
+      required:
+        - baseCurrency
+        - localCurrency
+        - fxRate
+        - updatedAt
+      properties:
+        baseCurrency:
+          type: string
+          example: KRW
+        localCurrency:
+          type: string
+          example: USD
+        fxRate:
+          type: number
+        updatedAt:
+          type: string
+          format: date-time
+    MarketQuote:
+      type: object
+      required:
+        - stockCode
+        - stockName
+        - stockNameEn
+        - market
+        - currentPriceKrw
+        - changeRate
+        - volume
+        - executionPriceKrw
+        - baseCurrency
+        - localCurrencyPrice
+        - localCurrency
+        - foreignOwnedQuantity
+        - foreignOwnershipRate
+        - foreignLimitExhaustionRate
+        - foreignOwnershipBaseDate
+        - marketDataTime
+        - source
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+        stockNameEn:
+          type: string
+        market:
+          type: string
+          example: KOSPI
+        currentPriceKrw:
+          type: number
+        changeRate:
+          type: number
+        volume:
+          type: integer
+          format: int64
+        executionPriceKrw:
+          type: number
+        baseCurrency:
+          type: string
+          example: KRW
+        localCurrencyPrice:
+          type: number
+        localCurrency:
+          type: string
+          example: USD
+        foreignOwnedQuantity:
+          type: integer
+          format: int64
+        foreignOwnershipRate:
+          type: number
+        foreignLimitExhaustionRate:
+          type: number
+        foreignOwnershipBaseDate:
+          type: string
+          format: date
+        marketDataTime:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: Data source chain, for example KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP, KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP, or PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE.
+    OrderBook:
+      type: object
+      required:
+        - stockCode
+        - asks
+        - bids
+        - marketDataTime
+        - source
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        asks:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderBookLevel"
+        bids:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderBookLevel"
+        marketDataTime:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: Data source, for example KIS_WEBSOCKET_ORDERBOOK or MOCK_KIS_WEBSOCKET.
+    OrderBookLevel:
+      type: object
+      required:
+        - priceKrw
+        - quantity
+      properties:
+        priceKrw:
+          type: number
+        quantity:
+          type: integer
+          format: int64
+    StockSummary:
+      type: object
+      required:
+        - stockCode
+        - stockName
+        - stockNameEn
+        - market
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+        stockNameEn:
+          type: string
+        market:
+          type: string
+        isinCode:
+          type:
+            - string
+            - "null"
+        dartCorpCode:
+          type:
+            - string
+            - "null"
+    AlertPublishRequest:
+      type: object
+      required:
+        - partnerId
+        - stockCode
+        - stockName
+        - sourceType
+        - originalTitle
+        - translatedTitle
+        - summary
+        - originalUrl
+        - publishedAt
+        - sentiment
+        - importance
+      properties:
+        partnerId:
+          type: string
+          maxLength: 80
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+          maxLength: 80
+        sourceType:
+          $ref: "#/components/schemas/SourceType"
+        originalTitle:
+          type: string
+          maxLength: 300
+        translatedTitle:
+          type: string
+          maxLength: 300
+        summary:
+          type: string
+          maxLength: 1000
+        originalUrl:
+          type: string
+          maxLength: 500
+        publishedAt:
+          type: string
+          format: date-time
+        eventTags:
+          type: array
+          items:
+            type: string
+        sentiment:
+          $ref: "#/components/schemas/Sentiment"
+        importance:
+          $ref: "#/components/schemas/Importance"
+        relatedStocks:
+          type: array
+          items:
+            type: string
+            pattern: "^\\d{6}$"
+        holderTarget:
+          type: boolean
+        watchlistTarget:
+          type: boolean
+        duplicateKey:
+          type:
+            - string
+            - "null"
+          maxLength: 128
+          description: AI normalized duplicate key for downstream idempotency.
+        modelVersion:
+          type:
+            - string
+            - "null"
+          maxLength: 120
+          description: AI model version that produced this alert analysis.
+    AlertAnalysisPublishRequest:
+      type: object
+      required:
+        - partnerId
+        - sourceType
+        - title
+        - originalUrl
+        - publishedAt
+      properties:
+        partnerId:
+          type: string
+          maxLength: 80
+        sourceType:
+          $ref: "#/components/schemas/SourceType"
+        title:
+          type: string
+          maxLength: 300
+        snippet:
+          type: string
+          maxLength: 1000
+        originalUrl:
+          type: string
+          maxLength: 500
+        publishedAt:
+          type: string
+          format: date-time
+        stockUniverse:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockCandidate"
+    StockCandidate:
+      type: object
+      required:
+        - stockCode
+        - stockName
+        - stockNameEn
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+          maxLength: 80
+        stockNameEn:
+          type: string
+          maxLength: 120
+        aliases:
+          type: array
+          items:
+            type: string
+            maxLength: 80
+    AlertCollectPublishRequest:
+      type: object
+      required:
+        - partnerId
+        - stockCodes
+      properties:
+        partnerId:
+          type: string
+          maxLength: 80
+        stockCodes:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            pattern: "^\\d{6}$"
+        newsDisplay:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+        disclosureLookbackDays:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+    PartnerWatchlistUpdateRequest:
+      type: object
+      required:
+        - stockCodes
+      properties:
+        stockCodes:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            pattern: "^\\d{6}$"
+    PartnerWatchlistResponse:
+      type: object
+      required:
+        - partnerId
+        - stockCodes
+      properties:
+        partnerId:
+          type: string
+          maxLength: 80
+        stockCodes:
+          type: array
+          items:
+            type: string
+            pattern: "^\\d{6}$"
+    AlertCollectPublishResponse:
+      type: object
+      required:
+        - partnerId
+        - requestedStockCodes
+        - collectedNewsCount
+        - collectedDisclosureCount
+        - publishedCount
+        - skippedDuplicateCount
+        - failedAnalysisCount
+        - events
+      properties:
+        partnerId:
+          type: string
+        requestedStockCodes:
+          type: array
+          items:
+            type: string
+        collectedNewsCount:
+          type: integer
+        collectedDisclosureCount:
+          type: integer
+        publishedCount:
+          type: integer
+        skippedDuplicateCount:
+          type: integer
+        failedAnalysisCount:
+          type: integer
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertEvent"
+    AlertEvent:
+      allOf:
+        - $ref: "#/components/schemas/AlertPublishRequest"
+        - type: object
+          required:
+            - alertId
+            - createdAt
+          properties:
+            alertId:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+    SourceType:
+      type: string
+      enum:
+        - NEWS
+        - DISCLOSURE
+    Sentiment:
+      type: string
+      enum:
+        - POSITIVE
+        - NEUTRAL
+        - NEGATIVE
+    Importance:
+      type: string
+      enum:
+        - LOW
+        - MEDIUM
+        - HIGH
+        - CRITICAL
