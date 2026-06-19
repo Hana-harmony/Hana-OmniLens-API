@@ -143,6 +143,8 @@ STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 - 기본 refresh scheduler는 비활성화되어 있다.
 - 활성화하면 `EXCHANGE_RATE_REFRESH_CURRENCIES`에 지정한 통화만 주기적으로 갱신한다.
 - 한국수출입은행 환율 API는 레거시 provider로 제거됐다. 환율은 Frankfurter adapter와 cache를 기준으로 운영한다.
+- DeepL live smoke는 `DEEPL_API_KEY` 또는 `OMNILENS_PROVIDERS_DEEP_L_TRANSLATION_API_KEY`를 환경변수로 주입한 뒤 `python3 scripts/build_deepl_translation_smoke_report.py`로 실행한다. 결과는 `reports/deepl-translation-smoke-report.json`에 저장되며 API key는 기록하지 않는다.
+- Papago는 레거시 provider로 제거됐으므로 smoke report에는 `legacy_disabled` 상태만 기록한다.
 
 ```text
 EXCHANGE_RATE_REFRESH_ENABLED=true

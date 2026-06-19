@@ -1,0 +1,28 @@
+{
+  "schema_version": "deepl-translation-smoke-report/v1",
+  "generated_at": "2026-06-20T00:00:00+00:00",
+  "sample": {
+    "source_type": "NEWS",
+    "original_text": "삼성전자 영업이익 증가",
+    "original_url": "local-smoke://deepl-translation",
+    "external_translation_join_key": "6c43590ff27d39c2006bf5b579b7660f9423fe19256fe09f68e6a2e14b16e8d2"
+  },
+  "providers": {
+    "deepl": {
+      "status": "success",
+      "base_url": "https://api-free.deepl.com",
+      "http_status": 200,
+      "latency_ms": 1307,
+      "detected_source_language": "KO",
+      "translated_text": "Samsung Electronics Reports Increase in Operating Profit"
+    },
+    "papago": {
+      "status": "legacy_disabled",
+      "reason": "Papago adapter is removed; DeepL is the active translation provider."
+    }
+  },
+  "security": {
+    "credential_source": "environment",
+    "api_key_recorded": false
+  }
+}
