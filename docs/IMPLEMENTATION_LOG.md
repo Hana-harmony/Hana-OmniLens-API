@@ -349,6 +349,7 @@
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
 - 외부 provider 호출은 공통 timeout, retry, circuit breaker 정책을 통과한다.
 - API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.
+- 세무 상태 sync는 `POST /api/v1/tax/refund-cases/sync`에서 현지 거래소 tax case를 받아 예상 환급액과 선지급 요청/가능 여부로 `NO_REFUNDABLE_PROFIT`, `REFUND_APPROVED`, `ADVANCE_PAID`, `RECAPTURE_RISK`, `SYNCED_WITH_HANA` 상태를 반환한다. 실제 신고 제출, 지급, OCR/법무 판정은 수행하지 않는다.
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 - 운영 요청 서명은 HMAC-SHA256, timestamp clock skew, nonce replay 방어를 적용할 수 있다.
 - 운영 요청 서명 nonce는 Redis에 공유 저장해 다중 인스턴스에서도 replay를 방지한다.

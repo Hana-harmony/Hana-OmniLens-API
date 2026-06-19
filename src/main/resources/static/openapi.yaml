@@ -25,6 +25,8 @@ tags:
     description: Korea stock quote, orderbook, and stock search APIs.
   - name: Alerts
     description: News and disclosure alert publish, analysis, and collection APIs.
+  - name: Tax
+    description: Tax refund status synchronization APIs.
 x-websocket:
   alertStream:
     endpoint: /ws/alerts
@@ -50,6 +52,35 @@ x-websocket:
       realtime trade tick. Sending QUOTE_STREAM_REPLAY replays the current
       quote snapshot in the requested local currency.
 paths:
+  /api/v1/tax/refund-cases/sync:
+    post:
+      tags:
+        - Tax
+      operationId: syncTaxRefundCase
+      summary: Synchronize a partner tax refund case status.
+      description: >
+        Receives a partner exchange tax refund case derived from mock sell
+        realized PnL and returns Hana's demo-safe status boundary. This endpoint
+        does not submit filings, execute real payments, or perform settlement.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaxStatusSyncRequest"
+      responses:
+        "200":
+          description: Tax refund case status synchronized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxStatusSyncApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/stocks/{stockCode}:
     get:
       tags:
@@ -706,6 +737,92 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/AlertCollectPublishResponse"
+    TaxStatusSyncApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/TaxStatusSyncResponse"
+    TaxStatusSyncRequest:
+      type: object
+      required:
+        - caseId
+        - accountId
+        - userId
+        - taxYear
+        - treatyCountry
+        - estimatedRefundUsd
+        - advancePaymentRequested
+        - advancePaymentEligible
+        - matchedTradeIds
+        - requestedAt
+      properties:
+        caseId:
+          type: string
+          maxLength: 80
+          example: TAX-CASE-1
+        accountId:
+          type: string
+          maxLength: 80
+          example: ACC-ABC123456789
+        userId:
+          type: string
+          maxLength: 80
+          example: USR-ABC123456789
+        taxYear:
+          type: integer
+          minimum: 2020
+          maximum: 2100
+          example: 2026
+        treatyCountry:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          example: US
+        estimatedRefundUsd:
+          type: string
+          pattern: "^-?\\d+(\\.\\d{1,2})?$"
+          example: "1.40"
+        advancePaymentRequested:
+          type: boolean
+        advancePaymentEligible:
+          type: boolean
+        matchedTradeIds:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            maxLength: 80
+          example:
+            - TRD-1
+        requestedAt:
+          type: string
+          format: date-time
+    TaxStatusSyncResponse:
+      type: object
+      required:
+        - caseId
+        - status
+        - syncedAt
+        - source
+      properties:
+        caseId:
+          type: string
+        status:
+          type: string
+          enum:
+            - NO_REFUNDABLE_PROFIT
+            - SYNCED_WITH_HANA
+            - REFUND_APPROVED
+            - ADVANCE_PAID
+            - RECAPTURE_RISK
+        syncedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
     ExchangeRateUpdateRequest:
       type: object
       required:
