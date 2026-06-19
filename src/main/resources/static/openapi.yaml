@@ -1190,6 +1190,18 @@ components:
           type: boolean
         watchlistTarget:
           type: boolean
+        glossaryTerms:
+          type: array
+          description: Financial glossary terms normalized by Hannah-Montana-AI for translation quality review.
+          items:
+            $ref: "#/components/schemas/AlertGlossaryTerm"
+        translationQualityFlags:
+          type: array
+          description: Translation quality and review flags propagated from Hannah-Montana-AI.
+          items:
+            type: string
+          example:
+            - FINANCIAL_GLOSSARY_APPLIED
         duplicateKey:
           type:
             - string
@@ -1202,6 +1214,26 @@ components:
             - "null"
           maxLength: 120
           description: AI model version that produced this alert analysis.
+    AlertGlossaryTerm:
+      type: object
+      required:
+        - sourceTerm
+        - normalizedTerm
+        - englishTerm
+        - category
+      properties:
+        sourceTerm:
+          type: string
+          example: 실적
+        normalizedTerm:
+          type: string
+          example: 실적
+        englishTerm:
+          type: string
+          example: earnings
+        category:
+          type: string
+          example: event
     AlertAnalysisPublishRequest:
       type: object
       required:

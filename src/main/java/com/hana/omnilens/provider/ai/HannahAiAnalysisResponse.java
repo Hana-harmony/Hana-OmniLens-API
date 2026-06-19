@@ -16,6 +16,8 @@ public record HannahAiAnalysisResponse(
         @JsonProperty("related_stocks") List<String> relatedStocks,
         @JsonProperty("holder_target") boolean holderTarget,
         @JsonProperty("watchlist_target") boolean watchlistTarget,
+        @JsonProperty("glossary_terms") List<HannahAiGlossaryTerm> glossaryTerms,
+        @JsonProperty("translation_quality_flags") List<String> translationQualityFlags,
         @JsonProperty("duplicate_key") String duplicateKey,
         @JsonProperty("model_version") String modelVersion
 ) {

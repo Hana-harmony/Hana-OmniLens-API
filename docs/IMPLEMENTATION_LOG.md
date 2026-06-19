@@ -139,6 +139,11 @@
 - 직접 알림 발행 API는 협력사 내부 재처리·마이그레이션용으로 두 필드를 선택값으로 허용한다.
 - `analyze-and-publish`, `collect-and-publish`, WebSocket 계약 테스트에서 AI 중복 키와 모델 버전 전파를 검증한다.
 
+## 2026-06-19 AI 번역 품질 메타데이터 전파
+- Hannah AI 응답의 `glossary_terms`와 `translation_quality_flags`를 `AlertEvent`의 `glossaryTerms`, `translationQualityFlags`로 전파한다.
+- 직접 알림 발행 API도 동일 필드를 선택값으로 허용해 협력사 내부 재처리 이벤트가 번역 품질 메타를 유지할 수 있게 한다.
+- `analyze-and-publish`, `collect-and-publish`, WebSocket 계약 테스트에서 금융 용어집과 품질 플래그 전파를 검증한다.
+
 ## 2026-06-04 AI duplicateKey 기반 수집 중복 방지
 - provider 원문 URL dedupe 이후 Hannah AI가 생성한 `duplicateKey`를 한 번 더 dedupe 기준으로 사용한다.
 - dedupe key는 `partnerId`, `sourceType`, AI `duplicateKey`를 조합해 협력사·뉴스/공시 경계를 분리한다.

@@ -9,10 +9,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.hana.omnilens.alert.api.AlertAnalysisPublishRequest;
 import com.hana.omnilens.alert.api.AlertPublishRequest;
+import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.alert.domain.AlertEvent;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
+import com.hana.omnilens.provider.ai.HannahAiGlossaryTerm;
 import com.hana.omnilens.provider.ai.HannahAiStockCandidate;
 
 @Service
@@ -63,6 +65,8 @@ public class AlertAnalysisPublishingService {
                 analysis.relatedStocks(),
                 analysis.holderTarget(),
                 analysis.watchlistTarget(),
+                toAlertGlossaryTerms(analysis.glossaryTerms()),
+                analysis.translationQualityFlags() == null ? List.of() : analysis.translationQualityFlags(),
                 analysis.duplicateKey(),
                 analysis.modelVersion());
     }
@@ -82,6 +86,19 @@ public class AlertAnalysisPublishingService {
                         stock.stockName(),
                         stock.stockNameEn(),
                         stock.aliases() == null ? List.of() : stock.aliases()))
+                .toList();
+    }
+
+    private List<AlertGlossaryTerm> toAlertGlossaryTerms(List<HannahAiGlossaryTerm> glossaryTerms) {
+        if (glossaryTerms == null) {
+            return List.of();
+        }
+        return glossaryTerms.stream()
+                .map(term -> new AlertGlossaryTerm(
+                        term.sourceTerm(),
+                        term.normalizedTerm(),
+                        term.englishTerm(),
+                        term.category()))
                 .toList();
     }
 }

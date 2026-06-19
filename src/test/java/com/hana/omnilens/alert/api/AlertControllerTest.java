@@ -30,6 +30,7 @@ import com.hana.omnilens.alert.application.AlertTitleTranslationService;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
+import com.hana.omnilens.provider.ai.HannahAiGlossaryTerm;
 import com.hana.omnilens.provider.disclosure.OpenDartDisclosure;
 import com.hana.omnilens.provider.disclosure.OpenDartDisclosureClient;
 import com.hana.omnilens.provider.news.NaverNewsArticle;
@@ -174,6 +175,8 @@ class AlertControllerTest {
                 List.of("005930"),
                 true,
                 true,
+                List.of(new HannahAiGlossaryTerm("실적", "실적", "earnings", "event")),
+                List.of("FINANCIAL_GLOSSARY_APPLIED"),
                 "duplicate-key",
                 "financial-keyword-baseline-2026-06-04"));
         when(alertTitleTranslationService.translateTitle("삼성전자 실적 개선"))
@@ -211,6 +214,8 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
                 .andExpect(jsonPath("$.data.holderTarget", equalTo(true)))
                 .andExpect(jsonPath("$.data.watchlistTarget", equalTo(true)))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].englishTerm", equalTo("earnings")))
+                .andExpect(jsonPath("$.data.translationQualityFlags[0]", equalTo("FINANCIAL_GLOSSARY_APPLIED")))
                 .andExpect(jsonPath("$.data.duplicateKey", equalTo("duplicate-key")))
                 .andExpect(jsonPath("$.data.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")));
     }
@@ -257,6 +262,8 @@ class AlertControllerTest {
                     List.of("005930"),
                     true,
                     true,
+                    List.of(new HannahAiGlossaryTerm("실적", "실적", "earnings", "event")),
+                    List.of("FINANCIAL_GLOSSARY_APPLIED"),
                     "duplicate-key",
                     "financial-ml-tfidf-logreg-test");
         });
@@ -286,6 +293,8 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.failedAnalysisCount", equalTo(0)))
                 .andExpect(jsonPath("$.data.events[0].sourceType", equalTo("NEWS")))
                 .andExpect(jsonPath("$.data.events[0].duplicateKey", equalTo("duplicate-key")))
+                .andExpect(jsonPath("$.data.events[0].translationQualityFlags[0]",
+                        equalTo("FINANCIAL_GLOSSARY_APPLIED")))
                 .andExpect(jsonPath("$.data.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
                 .andExpect(jsonPath("$.data.events[1].sourceType", equalTo("DISCLOSURE")));
     }

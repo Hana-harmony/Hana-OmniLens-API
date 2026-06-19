@@ -47,6 +47,15 @@ class HannahAiAnalysisClientTest {
                           "related_stocks": ["005930"],
                           "holder_target": true,
                           "watchlist_target": true,
+                          "glossary_terms": [
+                            {
+                              "source_term": "실적",
+                              "normalized_term": "실적",
+                              "english_term": "earnings",
+                              "category": "event"
+                            }
+                          ],
+                          "translation_quality_flags": ["FINANCIAL_GLOSSARY_APPLIED"],
                           "duplicate_key": "duplicate-key",
                           "model_version": "financial-keyword-baseline-2026-06-04"
                         }
@@ -67,6 +76,9 @@ class HannahAiAnalysisClientTest {
         assertThat(response.eventTags()).containsExactly("EARNINGS");
         assertThat(response.sentiment()).isEqualTo("POSITIVE");
         assertThat(response.holderTarget()).isTrue();
+        assertThat(response.glossaryTerms()).hasSize(1);
+        assertThat(response.glossaryTerms().get(0).englishTerm()).isEqualTo("earnings");
+        assertThat(response.translationQualityFlags()).containsExactly("FINANCIAL_GLOSSARY_APPLIED");
         assertThat(response.modelVersion()).isEqualTo("financial-keyword-baseline-2026-06-04");
         server.verify();
     }
