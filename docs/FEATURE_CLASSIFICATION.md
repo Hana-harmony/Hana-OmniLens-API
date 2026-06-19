@@ -26,7 +26,7 @@ Hana-OmniLens-API는 실제 주문 명령을 받지 않는다. 대신 현지 거
 | 아이디/비밀번호 회원가입, mock USD 계좌 생성, 달러 충전 | Stock-exchange-BE | Done |
 | KIS 모의투자 API가 아닌 자체 mock ledger 기반 가짜 매수·매도 | Stock-exchange-BE | Done |
 | 매도 실현손익을 세무 환급/선지급 입력 데이터로 연결 | Stock-exchange-BE | Done |
-| 외국인 한도 게이지, VI/상·하한가 배지, 주문 제한 팝업 | Stock-exchange-FE | Partial |
+| 외국인 한도 게이지, VI/상·하한가 배지, 주문 제한 팝업 | Stock-exchange-FE | Done |
 
 ## 2. 한국 주식 정보 취득 및 분석
 
@@ -36,7 +36,7 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 | --- | --- | --- |
 | Naver News Search 수집 | Hana-OmniLens-API | Done |
 | OpenDART 공시 수집 | Hana-OmniLens-API | Done |
-| 종목 매핑, 이벤트 분류, 감성, 중요도, 중복 제거, 금융 용어 normalization과 번역 품질 플래그 | Hannah-Montana-AI | Partial |
+| 종목 매핑, 이벤트 분류, 감성, 중요도, 중복 제거, 금융 용어 normalization과 번역 품질 플래그 | Hannah-Montana-AI | Implemented, audited gold coverage pending |
 | Papago 전문 번역 어댑터 | Hana-OmniLens-API | Done |
 | DeepL 전문 번역 어댑터 | Hana-OmniLens-API | Done |
 | 분석·번역 완료 이벤트 WebSocket 송신 | Hana-OmniLens-API | Done |
@@ -50,12 +50,12 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 
 | 기능 | 책임 | 상태 |
 | --- | --- | --- |
-| 거주자증명서, 제한세율신청서, 거래원장 수집 게이트웨이 | Stock-exchange-BE, Hana-OmniLens-API | Partial |
+| 거주자증명서, 제한세율신청서, 거래원장 수집 게이트웨이 | Stock-exchange-BE, Hana-OmniLens-API | Done for BE metadata gateway, OCR/legal review Planned |
 | OCR 텍스트 추출, 위변조/딥페이크 1차 검증 | Hannah-Montana-AI 또는 별도 OCR service | Planned |
 | 한국·홍콩 조세조약 케이스 판정 | Hana-OmniLens-API | Planned |
 | 환급금 선지급 상태 sync와 사후 환수 상태 계약 | Hana-OmniLens-API | Done for status sync, real payout/OCR review Planned |
 | 분기별 경정청구 배치 상태 조회 | Hana-OmniLens-API | Planned |
-| 서류 업로드, 상태 타임라인, 환급 신청, 입금 완료 UI | Stock-exchange-FE | Partial |
+| 서류 업로드, 상태 타임라인, 환급 신청, 입금 완료 UI | Stock-exchange-FE | Done |
 
 ## 기존 기획에서 보존할 항목
 
