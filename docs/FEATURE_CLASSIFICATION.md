@@ -52,7 +52,7 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 | --- | --- | --- |
 | 거주자증명서, 제한세율신청서, 거래원장 수집 게이트웨이 | Stock-exchange-BE, Hana-OmniLens-API | Done for BE metadata gateway, legal review Planned |
 | OCR 텍스트 추출, 위변조/딥페이크 1차 검증 | Hannah-Montana-AI | Done |
-| 한국·홍콩 조세조약 케이스 판정 | Hana-OmniLens-API | Planned |
+| 한국·홍콩 조세조약 케이스 판정 | Hana-OmniLens-API | Done |
 | 환급금 선지급 상태 sync와 사후 환수 상태 계약 | Hana-OmniLens-API | Done for status sync, real payout/OCR review Planned |
 | 분기별 경정청구 배치 상태 조회 | Hana-OmniLens-API | Planned |
 | 서류 업로드, 상태 타임라인, 환급 신청, 입금 완료 UI | Stock-exchange-FE | Done |
