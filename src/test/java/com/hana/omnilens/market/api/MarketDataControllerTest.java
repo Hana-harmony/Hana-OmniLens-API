@@ -1,7 +1,9 @@
 package com.hana.omnilens.market.api;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,9 +20,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import com.hana.omnilens.market.application.ForeignOwnershipRefreshResult;
+import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.MarketDailyPriceRepository;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
+import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
 
 @SpringBootTest(properties = {
         "omnilens.security.api-key-enabled=true",
@@ -36,6 +43,9 @@ class MarketDataControllerTest {
 
     @Autowired
     private MarketDailyPriceRepository marketDailyPriceRepository;
+
+    @MockitoBean
+    private ForeignOwnershipRefreshService foreignOwnershipRefreshService;
 
     @Test
     void stockDetailReturnsSeededStockMasterRow() throws Exception {
@@ -248,6 +258,36 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data[0].tradingVolume", equalTo(19123456)))
                 .andExpect(jsonPath("$.data[0].tradingValueKrw", equalTo(1.122334455E12)))
                 .andExpect(jsonPath("$.data[0].source", equalTo("KRX_OPEN_API_DAILY_TRADE")));
+    }
+
+    @Test
+    void foreignOwnershipRefreshApiStoresKrxSnapshotInCache() throws Exception {
+        when(foreignOwnershipRefreshService.refresh("005930", LocalDate.of(2025, 6, 4)))
+                .thenReturn(new ForeignOwnershipRefreshResult(
+                        "005930",
+                        LocalDate.of(2025, 6, 4),
+                        Optional.of(new KrxForeignOwnershipSnapshot(
+                                "005930",
+                                3_642_091_300L,
+                                new BigDecimal("54.19"),
+                                6_720_000_000L,
+                                new BigDecimal("54.21"),
+                                LocalDate.of(2025, 6, 4))),
+                        "KRX_FOREIGN_OWNERSHIP"));
+
+        mockMvc.perform(post("/api/v1/market/stocks/005930/foreign-ownership/refresh")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("baseDate", "2025-06-04"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data.baseDate", equalTo("2025-06-04")))
+                .andExpect(jsonPath("$.data.refreshed", equalTo(true)))
+                .andExpect(jsonPath("$.data.foreignOwnedQuantity", equalTo(3_642_091_300L)))
+                .andExpect(jsonPath("$.data.foreignOwnershipRate", equalTo(54.19)))
+                .andExpect(jsonPath("$.data.foreignLimitQuantity", equalTo(6_720_000_000L)))
+                .andExpect(jsonPath("$.data.foreignLimitExhaustionRate", equalTo(54.21)))
+                .andExpect(jsonPath("$.data.source", equalTo("KRX_FOREIGN_OWNERSHIP")));
     }
 
     @Test

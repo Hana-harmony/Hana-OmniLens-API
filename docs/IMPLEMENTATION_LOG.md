@@ -1,5 +1,10 @@
 # 구현 기록
 
+## 2026-06-19 KRX 외국인보유량 provider 복구
+- 외국인보유량은 주문 가능 여부 판단에 필요한 핵심 데이터이므로 KRX 외국인보유량 provider를 복구했다.
+- `/api/v1/market/stocks/{stockCode}/foreign-ownership/refresh`에서 종목 마스터의 ISIN으로 KRX snapshot을 조회하고 `ForeignOwnershipSnapshotCache`에 저장한다.
+- KRX 응답이 비어 있거나 실패하면 기존 cache를 덮어쓰지 않아 quote와 orderability fallback 동작을 유지한다.
+
 ## 2026-06-03 하네스 구축
 - Spring Boot 3.5.14, Java 17, Gradle Wrapper 기반 API 프로젝트 생성
 - Real-time Korea Market Data API 계약 초안 구현
@@ -335,9 +340,9 @@
 - KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다.
 - 과거 시세는 `/api/v1/market/stocks/{stockCode}/history`에서 공동 응답 envelope으로 조회하고, 운영 수집은 `/api/v1/market/history/collect` 또는 scheduler로 실행한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
-- 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.
+- 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 refresh로 저장한 snapshot cache를 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
 - 외국인 보유율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
-- 현지 통화 환산가는 quote 요청의 `fxRate`, 한국수출입은행 또는 협력사 입력 환율 캐시, `1` fallback 순서로 선택한 환율에 `currentPriceKrw`를 곱해 계산한다.
+- 현지 통화 환산가는 quote 요청의 `fxRate`, Frankfurter 또는 협력사 입력 환율 캐시, `1` fallback 순서로 선택한 환율에 `currentPriceKrw`를 곱해 계산한다.
 - 환율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
 - validation 실패 응답은 `400 Bad Request`와 ProblemDetail body로 통일한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.
@@ -349,7 +354,7 @@
 - Naver News 응답의 HTML 태그와 entity를 정규화해 제목과 snippet으로 변환한다.
 - OpenDART 공시검색 응답의 접수번호로 원문 공시 URL을 생성한다.
 - KIS 현재가 응답은 `KisCurrentPriceSnapshot`으로 변환한다.
-- 한국수출입은행 환율 refresh scheduler는 설정된 통화의 `KRW -> 현지통화` 환율을 `ExchangeRateCache`에 주기 저장한다.
+- Frankfurter 환율 refresh scheduler는 설정된 통화의 `KRW -> 현지통화` 환율을 `ExchangeRateCache`에 주기 저장한다.
 - 공공데이터 주식시세 응답은 첫 번째 종목 항목을 `PublicDataStockPriceSnapshot`으로 변환한다.
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
 - 외부 provider 호출은 공통 timeout, retry, circuit breaker 정책을 통과한다.

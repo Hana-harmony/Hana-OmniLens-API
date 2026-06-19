@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hana.omnilens.common.api.ApiResponse;
+import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.MarketDataService;
 import com.hana.omnilens.market.application.MarketHistoryService;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
@@ -41,10 +42,15 @@ public class MarketDataController {
 
     private final MarketDataService marketDataService;
     private final MarketHistoryService marketHistoryService;
+    private final ForeignOwnershipRefreshService foreignOwnershipRefreshService;
 
-    public MarketDataController(MarketDataService marketDataService, MarketHistoryService marketHistoryService) {
+    public MarketDataController(
+            MarketDataService marketDataService,
+            MarketHistoryService marketHistoryService,
+            ForeignOwnershipRefreshService foreignOwnershipRefreshService) {
         this.marketDataService = marketDataService;
         this.marketHistoryService = marketHistoryService;
+        this.foreignOwnershipRefreshService = foreignOwnershipRefreshService;
     }
 
     @GetMapping("/stocks/{stockCode}")
@@ -103,6 +109,15 @@ public class MarketDataController {
             @RequestParam(required = false) LocalDate baseDate) {
         return ApiResponse.success(MarketHistoryCollectionResponse.from(
                 marketHistoryService.collectDailyHistory(baseDate)));
+    }
+
+    @PostMapping("/stocks/{stockCode}/foreign-ownership/refresh")
+    @Operation(summary = "Refresh KRX foreign ownership snapshot cache for one Korean stock")
+    public ApiResponse<ForeignOwnershipRefreshResponse> refreshForeignOwnership(
+            @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
+            @RequestParam(required = false) LocalDate baseDate) {
+        return ApiResponse.success(ForeignOwnershipRefreshResponse.from(
+                foreignOwnershipRefreshService.refresh(stockCode, baseDate)));
     }
 
     @GetMapping("/stocks/search")
