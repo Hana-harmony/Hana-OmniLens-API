@@ -10,7 +10,7 @@ class ExternalProviderPropertiesTest {
     @Test
     void defaultsDoNotExposeSecretsAndFailClosedWhenRequired() {
         ExternalProviderProperties properties =
-                new ExternalProviderProperties(null, null, null, null, null);
+                new ExternalProviderProperties(null, null, null, null, null, null);
 
         assertThat(properties.publicData().stockSecuritiesBaseUrl().toString())
                 .isEqualTo("https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService");
@@ -21,6 +21,7 @@ class ExternalProviderPropertiesTest {
         assertThat(properties.kis().websocketUrl().toString())
                 .isEqualTo("ws://ops.koreainvestment.com:31000");
         assertThat(properties.papagoTranslation().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
+        assertThat(properties.deepLTranslation().baseUrl().toString()).isEqualTo("https://api-free.deepl.com");
 
         assertThatThrownBy(() -> properties.naverNews().requiredClientSecret())
                 .isInstanceOf(IllegalStateException.class)
@@ -31,5 +32,8 @@ class ExternalProviderPropertiesTest {
         assertThatThrownBy(() -> properties.papagoTranslation().requiredClientSecret())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.papago-translation.client-secret");
+        assertThatThrownBy(() -> properties.deepLTranslation().requiredApiKey())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("omnilens.providers.deep-l-translation.api-key");
     }
 }

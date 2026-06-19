@@ -29,7 +29,7 @@
 - Naver News Search 수집 endpoint 연결 완료
 - OpenDART 공시 수집 endpoint 연결 완료
 - Papago NMT 번역 공급자 어댑터 완료
-- DeepL 번역 공급자 어댑터 예정
+- DeepL 번역 공급자 어댑터 완료
 - Hannah-Montana-AI 분석 API 연동 완료
 - Redis TTL 기반 중복 제거 완료
 - 협력사별 watchlist 기반 주기 수집 스케줄러 완료

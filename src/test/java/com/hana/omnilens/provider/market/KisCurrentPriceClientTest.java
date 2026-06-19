@@ -71,6 +71,7 @@ class KisCurrentPriceClientTest {
                         "kis-app-secret",
                         "kis-access-token",
                         "kis-approval-key"),
+                null,
                 null);
     }
 }

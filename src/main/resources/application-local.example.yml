@@ -34,6 +34,9 @@ omnilens:
       base-url: https://openapi.naver.com
       client-id: "replace-with-papago-translation-client-id"
       client-secret: "replace-with-papago-translation-client-secret"
+    deep-l-translation:
+      base-url: https://api-free.deepl.com
+      api-key: "replace-with-deepl-api-key"
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: "replace-with-open-dart-api-key"

@@ -61,6 +61,8 @@ docker compose -f compose.local.yml up -d
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.
 - `PAPAGO_TRANSLATION_CLIENT_ID`: Papago NMT API Client ID. 없으면 번역 실패 시 원문 제목으로 fallback한다.
 - `PAPAGO_TRANSLATION_CLIENT_SECRET`: Papago NMT API Client Secret.
+- `DEEPL_TRANSLATION_BASE_URL`: DeepL 번역 endpoint 주소. 기본값은 `https://api-free.deepl.com`이다.
+- `DEEPL_API_KEY`: DeepL 번역 API key. 없거나 실패하면 Papago, 이후 원문 제목으로 fallback한다.
 - `OMNILENS_RATE_LIMIT_ENABLED`: API key fingerprint 단위 rate limit 활성화 여부. 기본값은 `true`이다.
 - `OMNILENS_RATE_LIMIT_CAPACITY`: bucket 최대 요청 수. 기본값은 `120`이다.
 - `OMNILENS_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
