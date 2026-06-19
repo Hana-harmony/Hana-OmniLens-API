@@ -195,8 +195,13 @@
 - DeepL `POST /v2/translate` 계약을 `DeepLTranslationClient`로 격리했다.
 - 요청 header는 `Authorization: DeepL-Auth-Key {apiKey}`로 고정하고, 요청 body는 `source_lang=KO`, `target_lang=EN-US`, `text={원문 제목}` form payload로 전송한다.
 - 운영 설정은 `DEEPL_TRANSLATION_BASE_URL`, `DEEPL_API_KEY` 환경변수 슬롯만 추가하고, 실제 값은 커밋하지 않는다.
-- `AlertTitleTranslationService`는 DeepL을 먼저 시도하고, DeepL 키 미설정·장애·빈 결과 시 Papago를 시도한 뒤, Papago도 실패하면 원문 제목으로 fallback한다.
-- 단위 테스트로 DeepL 요청 계약, DeepL 우선 번역, Papago fallback, 전체 provider 실패 시 원문 fallback을 검증했다.
+- `AlertTitleTranslationService`는 DeepL을 시도하고, DeepL 키 미설정·장애·빈 결과 시 원문 제목으로 fallback한다.
+- 단위 테스트로 DeepL 요청 계약, DeepL 우선 번역, provider 실패 시 원문 fallback을 검증했다.
+
+## 2026-06-20 DeepL live smoke report
+- `build_deepl_translation_smoke_report.py`를 추가해 실제 DeepL translation API 호출 결과를 `reports/deepl-translation-smoke-report.json`에 기록한다.
+- 로컬 `application-local.yml`의 DeepL key를 환경변수로만 주입해 live smoke를 실행했고, HTTP 200과 영어 번역문을 확인했다.
+- Papago는 레거시 provider로 제거된 상태를 유지하며 smoke report에는 `legacy_disabled`로 기록한다.
 
 ## 2026-06-04 HMAC 요청 서명 인증
 - `omnilens.security.signature.enabled`가 켜진 경우 보호 API 요청에 HMAC-SHA256 서명을 요구한다.
