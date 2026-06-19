@@ -81,6 +81,35 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/tax/refund-cases/classify:
+    post:
+      tags:
+        - Tax
+      operationId: classifyTaxRefundCase
+      summary: Classify a Korea-Hong Kong tax treaty refund case.
+      description: >
+        Classifies whether a partner tax refund case satisfies the demo CASE_01
+        Korea-Hong Kong listed stock treaty boundary. This endpoint does not
+        perform legal review, submit filings, or execute payments.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaxTreatyCaseClassificationRequest"
+      responses:
+        "200":
+          description: Tax treaty case classified.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxTreatyCaseClassificationApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/stocks/{stockCode}:
     get:
       tags:
@@ -746,6 +775,15 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/TaxStatusSyncResponse"
+    TaxTreatyCaseClassificationApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/TaxTreatyCaseClassificationResponse"
     TaxStatusSyncRequest:
       type: object
       required:
@@ -821,6 +859,95 @@ components:
         syncedAt:
           type: string
           format: date-time
+        source:
+          type: string
+    TaxTreatyCaseClassificationRequest:
+      type: object
+      required:
+        - caseId
+        - taxYear
+        - treatyCountry
+        - investorResidencyCountry
+        - incomeTypes
+        - allListedMarketTrade
+        - maxOwnershipRatePercent
+        - residenceCertificateVerified
+        - treatyApplicationVerified
+        - requestedAt
+      properties:
+        caseId:
+          type: string
+          maxLength: 80
+          example: TAX-CASE-1
+        taxYear:
+          type: integer
+          minimum: 2020
+          maximum: 2100
+          example: 2026
+        treatyCountry:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          example: HK
+        investorResidencyCountry:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          example: HK
+        incomeTypes:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            enum:
+              - DIVIDEND
+              - SELL
+        allListedMarketTrade:
+          type: boolean
+        maxOwnershipRatePercent:
+          type: string
+          description: Maximum direct or indirect ownership rate during the treaty lookback window.
+          example: "0.20"
+        residenceCertificateVerified:
+          type: boolean
+        treatyApplicationVerified:
+          type: boolean
+        requestedAt:
+          type: string
+          format: date-time
+    TaxTreatyCaseClassificationResponse:
+      type: object
+      required:
+        - caseId
+        - treatyCaseType
+        - eligibleForTreatyBenefit
+        - classificationReasons
+        - requiredNextActions
+        - classifiedAt
+        - modelVersion
+        - source
+      properties:
+        caseId:
+          type: string
+        treatyCaseType:
+          type: string
+          enum:
+            - CASE_01
+            - CASE_REVIEW_REQUIRED
+        eligibleForTreatyBenefit:
+          type: boolean
+        classificationReasons:
+          type: array
+          items:
+            type: string
+        requiredNextActions:
+          type: array
+          items:
+            type: string
+        classifiedAt:
+          type: string
+          format: date-time
+        modelVersion:
+          type: string
         source:
           type: string
     ExchangeRateUpdateRequest:

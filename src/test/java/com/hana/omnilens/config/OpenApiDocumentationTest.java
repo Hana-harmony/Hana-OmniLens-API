@@ -32,6 +32,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/market/stocks/{stockCode}/orderability']", notNullValue()))
                 .andExpect(jsonPath("$.paths['/api/v1/market/stocks/{stockCode}/history']", notNullValue()))
                 .andExpect(jsonPath("$.paths['/api/v1/tax/refund-cases/sync']", notNullValue()))
+                .andExpect(jsonPath("$.paths['/api/v1/tax/refund-cases/classify']", notNullValue()))
                 .andExpect(jsonPath("$.components.securitySchemes.hanaApiKey", notNullValue()));
     }
 }
