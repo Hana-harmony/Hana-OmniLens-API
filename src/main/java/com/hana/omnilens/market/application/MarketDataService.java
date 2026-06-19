@@ -18,6 +18,7 @@ import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
+import com.hana.omnilens.market.domain.StockDetail;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
@@ -144,6 +145,38 @@ public class MarketDataService {
                 Instant.now(clock),
                 source(priceLookup.source(), foreignOwnership.source()))
         ;
+    }
+
+    public StockDetail getStockDetail(String stockCode, String localCurrency, BigDecimal fxRate) {
+        MarketQuote quote = getQuote(stockCode, localCurrency, fxRate);
+        Orderability orderability = getOrderability(stockCode, "BUY", 1);
+        ForeignOwnershipPrediction prediction = orderability.foreignOwnershipPrediction();
+        return new StockDetail(
+                quote.stockCode(),
+                quote.stockName(),
+                quote.stockNameEn(),
+                quote.market(),
+                null,
+                quote.currentPriceKrw(),
+                quote.changeRate(),
+                quote.volume(),
+                quote.localCurrency(),
+                quote.localCurrencyPrice(),
+                quote.marketDataTime(),
+                quote.foreignOwnedQuantity(),
+                quote.foreignOwnershipRate(),
+                quote.foreignLimitExhaustionRate(),
+                quote.foreignOwnershipRate(),
+                quote.foreignOwnershipRate(),
+                prediction.minForeignLimitExhaustionRate(),
+                prediction.maxForeignLimitExhaustionRate(),
+                quote.foreignOwnershipBaseDate(),
+                orderability.viActive(),
+                orderability.singlePriceTrading(),
+                orderability.priceLimitState(),
+                orderability.tradingHalted(),
+                orderability.orderable(),
+                quote.source() + "+" + orderability.source());
     }
 
     public List<MarketQuote> getQuotes(

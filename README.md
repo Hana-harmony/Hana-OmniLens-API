@@ -54,6 +54,7 @@ curl http://localhost:8080/actuator/health
 - 시장 데이터는 KIS 모의투자 현재가, 실시간 체결가·호가 WebSocket, KIS 종목 마스터, KRX 과거 시세, KIS REST snapshot/cache 기반 외국인 보유율, 실시간/준실시간 FX 환율을 합성한다.
 - Market REST API는 성공/실패 모두 `success`, `status`, `code`, `message`, `data`, `timestamp`를 포함하는 공동 응답 형식을 사용한다.
 - 주문 관련 기능은 실제 주문 API가 아니라 외국인 투자 한도, 당일 예측 지분율 min/base/max boundary, VI 발동, 상·하한가 상태를 현지 MTS 주문/종목 화면에 제공하는 의사결정 지원 API다.
+- `GET /api/v1/market/stocks/{stockCode}/detail`은 Stock-exchange-BE 종목 상세 화면용으로 quote, 현지통화 가격, KIS 외국인 보유 snapshot, 한도소진율 예측, VI/단일가/상·하한가/거래정지 flags를 한 응답으로 제공한다.
 - `GET /api/v1/market/stocks/{stockCode}/orderability`는 협력사 거래소가 자체 mock ledger 주문 전 확인할 외국인 한도 min/base/max 예측, VI, 상·하한가, 거래정지 상태를 공동 응답 형식으로 제공한다. 이 API는 실제 주문이나 KIS 모의투자 주문을 실행하지 않는다.
 - 뉴스·공시는 Naver News Search와 OpenDART를 수집하고, Hannah-Montana-AI 분석 결과와 DeepL 번역 결과를 함께 WebSocket 이벤트로 송신한다. Papago는 레거시 provider로 제거되어 smoke report에서 `legacy_disabled`로만 기록한다.
 - 세무 기능은 최종투자자별 서류/OCR/케이스 판정/환급금 선지급 상태를 현지 거래소 백엔드에 제공하는 연동 계약으로 관리한다. `POST /api/v1/tax/refund-cases/classify`는 한국·홍콩 조세조약 CASE_01 경계를 판정하고, `POST /api/v1/tax/refund-cases/sync`는 현지 거래소 mock 매도 실현손익 기반 tax case를 받아 환급/선지급 상태를 공동 응답 형식으로 반환한다. `GET /api/v1/tax/rectification-batches/{taxYear}/quarters/{quarter}`는 분기별 경정청구 배치 진행 상태를 조회한다.

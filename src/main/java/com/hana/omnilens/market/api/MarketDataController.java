@@ -29,6 +29,7 @@ import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
+import com.hana.omnilens.market.domain.StockDetail;
 import com.hana.omnilens.market.domain.StockSummary;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -65,6 +66,15 @@ public class MarketDataController {
             @RequestParam(defaultValue = "USD") @Pattern(regexp = "[A-Z]{3}") String currency,
             @RequestParam(required = false) @DecimalMin("0.000001") BigDecimal fxRate) {
         return ApiResponse.success(marketDataService.getQuote(stockCode, currency, fxRate));
+    }
+
+    @GetMapping("/stocks/{stockCode}/detail")
+    @Operation(summary = "Get Korean stock detail for exchange app screens")
+    public ApiResponse<StockDetail> getStockDetail(
+            @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
+            @RequestParam(defaultValue = "USD") @Pattern(regexp = "[A-Z]{3}") String currency,
+            @RequestParam(required = false) @DecimalMin("0.000001") BigDecimal fxRate) {
+        return ApiResponse.success(marketDataService.getStockDetail(stockCode, currency, fxRate));
     }
 
     @GetMapping("/quotes")

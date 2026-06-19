@@ -209,6 +209,48 @@ paths:
           $ref: "#/components/responses/PartnerAccessDenied"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/{stockCode}/detail:
+    get:
+      tags:
+        - Market Data
+      operationId: getStockDetail
+      summary: Get Korea stock detail for exchange app screens.
+      description: >
+        Returns quote, local currency price, KIS foreign ownership snapshot,
+        foreign limit prediction, and realtime order boundary flags in one
+        payload for Stock-exchange-BE detail pages.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+            default: USD
+        - name: fxRate
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0.000001
+      responses:
+        "200":
+          description: Stock detail response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockDetailApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/quotes:
     get:
       tags:
@@ -722,6 +764,15 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/MarketQuote"
+    StockDetailApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/StockDetail"
     MarketQuoteListApiResponse:
       allOf:
         - $ref: "#/components/schemas/ApiResponseBase"
@@ -1239,6 +1290,100 @@ components:
         source:
           type: string
           description: Data source chain, for example KIS_WEBSOCKET_TRADE+KIS_FOREIGN_OWNERSHIP_CACHE, KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE, or PUBLIC_DATA_STOCK_SECURITIES+KIS_FOREIGN_OWNERSHIP_CACHE.
+    StockDetail:
+      type: object
+      required:
+        - stockCode
+        - stockName
+        - stockNameEn
+        - market
+        - currentPriceKrw
+        - changeRate
+        - volume
+        - localCurrency
+        - localCurrencyPrice
+        - marketDataTime
+        - foreignOwnedQuantity
+        - foreignOwnershipRate
+        - foreignLimitExhaustionRate
+        - predictedForeignOwnershipRateMin
+        - predictedForeignOwnershipRateMax
+        - predictedForeignLimitExhaustionRateMin
+        - predictedForeignLimitExhaustionRateMax
+        - foreignOwnershipBaseDate
+        - viActive
+        - singlePriceTrading
+        - priceLimitState
+        - tradingHalted
+        - orderable
+        - source
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+        stockNameEn:
+          type: string
+        market:
+          type: string
+          example: KOSPI
+        sector:
+          type:
+            - string
+            - "null"
+        currentPriceKrw:
+          type: number
+        changeRate:
+          type: number
+        volume:
+          type: integer
+          format: int64
+        localCurrency:
+          type: string
+          example: USD
+        localCurrencyPrice:
+          type: number
+        marketDataTime:
+          type: string
+          format: date-time
+        foreignOwnedQuantity:
+          type: integer
+          format: int64
+        foreignOwnershipRate:
+          type: number
+        foreignLimitExhaustionRate:
+          type: number
+        predictedForeignOwnershipRateMin:
+          type: number
+          description: Current KIS snapshot ownership rate until an ownership-rate prediction model is introduced.
+        predictedForeignOwnershipRateMax:
+          type: number
+          description: Current KIS snapshot ownership rate until an ownership-rate prediction model is introduced.
+        predictedForeignLimitExhaustionRateMin:
+          type: number
+        predictedForeignLimitExhaustionRateMax:
+          type: number
+        foreignOwnershipBaseDate:
+          type: string
+          format: date
+        viActive:
+          type: boolean
+        singlePriceTrading:
+          type: boolean
+        priceLimitState:
+          type: string
+          enum:
+            - NORMAL
+            - UPPER_LIMIT
+            - LOWER_LIMIT
+        tradingHalted:
+          type: boolean
+        orderable:
+          type: boolean
+        source:
+          type: string
+          description: Combined quote and orderability source chain.
     Orderability:
       type: object
       required:

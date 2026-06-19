@@ -320,6 +320,11 @@
 - OpenAPI 문서에 단건 조회 path와 404 응답을 추가했다.
 - MockMvc 테스트로 정상 조회, 미지원 종목 404, 잘못된 종목코드 validation 실패를 검증했다.
 
+## 2026-06-20 Stock detail contract 복구
+- `GET /api/v1/market/stocks/{stockCode}/detail`을 추가해 Stock-exchange-BE가 기대하던 종목 상세 계약을 복구했다.
+- 응답은 quote, 현지통화 가격, KIS 외국인 보유 snapshot/cache, 한도소진율 예측 min/max, VI, 단일가, 상·하한가, 거래정지, 주문 가능 여부를 하나의 `StockDetail` payload로 반환한다.
+- OpenAPI와 MockMvc 테스트를 갱신해 feature 브랜치 간 REST 계약 불일치를 재발견 가능하게 했다.
+
 ## 2026-06-19 Market REST 공동 응답 정합화
 - `GET /api/v1/market/stocks/{stockCode}`와 `PUT /api/v1/market/exchange-rates/{currency}`가 `ApiResponse` envelope을 반환하도록 정리했다.
 - static OpenAPI의 market quote, bulk quote, orderbook, orderability, history, history collect, stock search, stock detail, exchange-rate schema를 typed `ApiResponse*`로 맞춰 Swagger에서 본문-only 계약으로 보이지 않게 했다.
