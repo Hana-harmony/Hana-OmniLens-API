@@ -38,7 +38,7 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 | OpenDART 공시 수집 | Hana-OmniLens-API | Done |
 | 종목 매핑, 이벤트 분류, 감성, 중요도, 중복 제거 | Hannah-Montana-AI | Partial |
 | Papago 전문 번역 어댑터 | Hana-OmniLens-API | Done |
-| DeepL 전문 번역 어댑터 | Hana-OmniLens-API | Planned |
+| DeepL 전문 번역 어댑터 | Hana-OmniLens-API | Done |
 | 분석·번역 완료 이벤트 WebSocket 송신 | Hana-OmniLens-API | Done |
 | Alert REST API 공동 응답 envelope | Hana-OmniLens-API | Done |
 | 이벤트 수신, 저장, 보유/관심종목 대상자 매칭, 푸시 발송 | Stock-exchange-BE | Done |

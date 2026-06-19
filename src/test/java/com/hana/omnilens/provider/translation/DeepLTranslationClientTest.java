@@ -19,31 +19,31 @@ import org.springframework.web.client.RestClient;
 import com.hana.omnilens.config.ExternalProviderProperties;
 import com.hana.omnilens.provider.ProviderTestResilience;
 
-class PapagoTranslationClientTest {
+class DeepLTranslationClientTest {
 
     @Test
-    void translateKoToEnSendsPapagoNmtRequestAndMapsTranslatedText() {
+    void translateKoToEnSendsDeepLRequestAndMapsTranslatedText() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        PapagoTranslationClient client = new PapagoTranslationClient(
+        DeepLTranslationClient client = new DeepLTranslationClient(
                 builder,
                 properties(),
                 ProviderTestResilience.disabled());
 
-        server.expect(requestTo("https://openapi.naver.com/v1/papago/n2mt"))
+        server.expect(requestTo("https://api-free.deepl.com/v2/translate"))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(header("X-Naver-Client-Id", "papago-client"))
-                .andExpect(header("X-Naver-Client-Secret", "papago-secret"))
-                .andExpect(content().string(containsString("source=ko")))
-                .andExpect(content().string(containsString("target=en")))
+                .andExpect(header("Authorization", "DeepL-Auth-Key deepl-secret"))
+                .andExpect(content().string(containsString("source_lang=KO")))
+                .andExpect(content().string(containsString("target_lang=EN-US")))
                 .andExpect(content().string(containsString("%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90")))
                 .andRespond(withSuccess("""
                         {
-                          "message": {
-                            "result": {
-                              "translatedText": "Samsung Electronics earnings improve"
+                          "translations": [
+                            {
+                              "detected_source_language": "KO",
+                              "text": "Samsung Electronics earnings improve"
                             }
-                          }
+                          ]
                         }
                         """, APPLICATION_JSON));
 
@@ -59,10 +59,9 @@ class PapagoTranslationClientTest {
                 null,
                 null,
                 null,
-                new ExternalProviderProperties.PapagoTranslation(
-                        URI.create("https://openapi.naver.com"),
-                        "papago-client",
-                        "papago-secret"),
-                null);
+                null,
+                new ExternalProviderProperties.DeepLTranslation(
+                        URI.create("https://api-free.deepl.com"),
+                        "deepl-secret"));
     }
 }

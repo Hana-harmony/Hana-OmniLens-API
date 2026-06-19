@@ -11,7 +11,8 @@ public record ExternalProviderProperties(
         NaverNews naverNews,
         OpenDart openDart,
         Kis kis,
-        PapagoTranslation papagoTranslation
+        PapagoTranslation papagoTranslation,
+        DeepLTranslation deepLTranslation
 ) {
 
     public ExternalProviderProperties {
@@ -20,6 +21,7 @@ public record ExternalProviderProperties(
         openDart = openDart == null ? OpenDart.defaults() : openDart.withDefaults();
         kis = kis == null ? Kis.defaults() : kis.withDefaults();
         papagoTranslation = papagoTranslation == null ? PapagoTranslation.defaults() : papagoTranslation.withDefaults();
+        deepLTranslation = deepLTranslation == null ? DeepLTranslation.defaults() : deepLTranslation.withDefaults();
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -145,6 +147,23 @@ public record ExternalProviderProperties(
 
         public String requiredClientSecret() {
             return requireSecret(clientSecret, "omnilens.providers.papago-translation.client-secret");
+        }
+    }
+
+    public record DeepLTranslation(URI baseUrl, String apiKey) {
+
+        private static DeepLTranslation defaults() {
+            return new DeepLTranslation(URI.create("https://api-free.deepl.com"), "");
+        }
+
+        private DeepLTranslation withDefaults() {
+            return new DeepLTranslation(
+                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    apiKey == null ? "" : apiKey);
+        }
+
+        public String requiredApiKey() {
+            return requireSecret(apiKey, "omnilens.providers.deep-l-translation.api-key");
         }
     }
 

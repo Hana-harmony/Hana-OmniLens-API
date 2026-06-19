@@ -61,7 +61,8 @@ docker compose -f compose.local.yml up -d
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
 - Papago NMT 번역 요청 계약과 응답 매핑
-- 알림 제목 번역 성공과 번역 장애 시 원문 fallback
+- DeepL 번역 요청 계약과 응답 매핑
+- 알림 제목 번역 DeepL 우선, Papago fallback, 번역 장애 시 원문 fallback
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 외부 provider 공통 timeout 설정 기본값
 - 외부 provider 재시도, circuit open, 비네트워크 예외 no-retry 정책

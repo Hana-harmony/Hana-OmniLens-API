@@ -42,7 +42,7 @@ class KisRealtimeSessionRunnerTest {
         FakeConnection connection = new FakeConnection();
         KisRealtimeSessionRunner runner = new KisRealtimeSessionRunner(
                 new KisRealtimeProperties(true, List.of("", " ")),
-                new ExternalProviderProperties(null, null, null, null, null),
+                new ExternalProviderProperties(null, null, null, null, null, null),
                 new KisRealtimeSubscriptionFrameFactory(),
                 connection,
                 new RealtimeMarketDataIngestionService(
@@ -125,6 +125,7 @@ class KisRealtimeSessionRunnerTest {
                         "app-secret",
                         "access-token",
                         "approval-key"),
+                null,
                 null);
     }
 
