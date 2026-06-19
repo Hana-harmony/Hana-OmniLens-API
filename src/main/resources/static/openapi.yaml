@@ -110,6 +110,47 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/tax/rectification-batches/{taxYear}/quarters/{quarter}:
+    get:
+      tags:
+        - Tax
+      operationId: getTaxRectificationBatchStatus
+      summary: Get quarterly rectification claim batch status.
+      description: >
+        Returns the demo-safe quarterly rectification claim batch status used by
+        partner exchanges to display tax refund filing progress. This endpoint
+        does not submit filings, execute payments, or make a final legal tax
+        determination.
+      parameters:
+        - name: taxYear
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 2020
+            maximum: 2100
+          example: 2026
+        - name: quarter
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4
+          example: 2
+      responses:
+        "200":
+          description: Quarterly rectification claim batch status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxRectificationBatchStatusApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/stocks/{stockCode}:
     get:
       tags:
@@ -784,6 +825,15 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/TaxTreatyCaseClassificationResponse"
+    TaxRectificationBatchStatusApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/TaxRectificationBatchStatusResponse"
     TaxStatusSyncRequest:
       type: object
       required:
@@ -948,6 +998,66 @@ components:
           format: date-time
         modelVersion:
           type: string
+        source:
+          type: string
+    TaxRectificationBatchStatusResponse:
+      type: object
+      required:
+        - batchId
+        - taxYear
+        - quarter
+        - status
+        - filingWindowStart
+        - filingWindowEnd
+        - totalCaseCount
+        - readyCaseCount
+        - pendingReviewCaseCount
+        - requiredNextActions
+        - checkedAt
+        - source
+      properties:
+        batchId:
+          type: string
+          example: RECT-2026-Q2
+        taxYear:
+          type: integer
+          example: 2026
+        quarter:
+          type: integer
+          minimum: 1
+          maximum: 4
+          example: 2
+        status:
+          type: string
+          enum:
+            - SCHEDULED
+            - COLLECTING_CASES
+            - READY_FOR_REVIEW
+            - SUBMISSION_PREPARED
+        filingWindowStart:
+          type: string
+          format: date
+          example: 2026-04-01
+        filingWindowEnd:
+          type: string
+          format: date
+          example: 2026-06-30
+        totalCaseCount:
+          type: integer
+          minimum: 0
+        readyCaseCount:
+          type: integer
+          minimum: 0
+        pendingReviewCaseCount:
+          type: integer
+          minimum: 0
+        requiredNextActions:
+          type: array
+          items:
+            type: string
+        checkedAt:
+          type: string
+          format: date-time
         source:
           type: string
     ExchangeRateUpdateRequest:

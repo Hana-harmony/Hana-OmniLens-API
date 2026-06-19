@@ -56,7 +56,7 @@ curl http://localhost:8080/actuator/health
 - 주문 관련 기능은 실제 주문 API가 아니라 외국인 투자 한도, 당일 예측 지분율 min/base/max boundary, VI 발동, 상·하한가 상태를 현지 MTS 주문/종목 화면에 제공하는 의사결정 지원 API다.
 - `GET /api/v1/market/stocks/{stockCode}/orderability`는 협력사 거래소가 자체 mock ledger 주문 전 확인할 외국인 한도 min/base/max 예측, VI, 상·하한가, 거래정지 상태를 공동 응답 형식으로 제공한다. 이 API는 실제 주문이나 KIS 모의투자 주문을 실행하지 않는다.
 - 뉴스·공시는 Naver News Search와 OpenDART를 수집하고, Hannah-Montana-AI 분석 결과와 Papago/DeepL 번역 결과를 함께 WebSocket 이벤트로 송신한다.
-- 세무 기능은 최종투자자별 서류/OCR/케이스 판정/환급금 선지급 상태를 현지 거래소 백엔드에 제공하는 연동 계약으로 관리한다. `POST /api/v1/tax/refund-cases/classify`는 한국·홍콩 조세조약 CASE_01 경계를 판정하고, `POST /api/v1/tax/refund-cases/sync`는 현지 거래소 mock 매도 실현손익 기반 tax case를 받아 환급/선지급 상태를 공동 응답 형식으로 반환한다.
+- 세무 기능은 최종투자자별 서류/OCR/케이스 판정/환급금 선지급 상태를 현지 거래소 백엔드에 제공하는 연동 계약으로 관리한다. `POST /api/v1/tax/refund-cases/classify`는 한국·홍콩 조세조약 CASE_01 경계를 판정하고, `POST /api/v1/tax/refund-cases/sync`는 현지 거래소 mock 매도 실현손익 기반 tax case를 받아 환급/선지급 상태를 공동 응답 형식으로 반환한다. `GET /api/v1/tax/rectification-batches/{taxYear}/quarters/{quarter}`는 분기별 경정청구 배치 진행 상태를 조회한다.
 
 ## 문서
 - [기여 가이드](CONTRIBUTING.md)
