@@ -41,21 +41,24 @@ omnilens:
       base-url: ${PAPAGO_TRANSLATION_BASE_URL:https://openapi.naver.com}
       client-id: ${PAPAGO_TRANSLATION_CLIENT_ID:}
       client-secret: ${PAPAGO_TRANSLATION_CLIENT_SECRET:}
+    deep-l-translation:
+      base-url: ${DEEPL_TRANSLATION_BASE_URL:https://api-free.deepl.com}
+      api-key: ${DEEPL_API_KEY:}
     open-dart:
       base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
       api-key: ${OPEN_DART_API_KEY}
-    krx:
-      base-url: ${KRX_BASE_URL:https://data.krx.co.kr}
+    krx-open-api:
+      base-url: ${KRX_OPEN_API_BASE_URL:https://data-dbg.krx.co.kr}
+      auth-key: ${KRX_OPEN_API_AUTH_KEY:}
     kis:
-      base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
-      websocket-url: ${KIS_WEBSOCKET_URL:wss://openapi.koreainvestment.com:9443/tryitout}
+      base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}
+      websocket-url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:31000}
       app-key: ${KIS_APP_KEY:}
       app-secret: ${KIS_APP_SECRET:}
       access-token: ${KIS_ACCESS_TOKEN:}
       approval-key: ${KIS_APPROVAL_KEY:}
-    korea-exim:
-      base-url: ${KOREA_EXIM_BASE_URL:https://oapi.koreaexim.go.kr}
-      auth-key: ${KOREA_EXIM_AUTH_KEY:}
+    frankfurter:
+      base-url: ${FRANKFURTER_BASE_URL:https://api.frankfurter.dev}
     resilience:
       connect-timeout: ${PROVIDER_CONNECT_TIMEOUT:2s}
       read-timeout: ${PROVIDER_READ_TIMEOUT:5s}
@@ -89,6 +92,10 @@ omnilens:
       fixed-delay-ms: ${EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS:300000}
       base-date-offset-days: ${EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS:0}
       currencies: ${EXCHANGE_RATE_REFRESH_CURRENCIES:}
+    history-collection:
+      enabled: ${MARKET_HISTORY_COLLECTION_ENABLED:false}
+      fixed-delay-ms: ${MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS:86400000}
+      base-date-offset-days: ${MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS:1}
   alert:
     dedupe:
       mode: ${ALERT_DEDUPE_MODE:redis}

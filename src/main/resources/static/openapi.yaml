@@ -25,18 +25,132 @@ tags:
     description: Korea stock quote, orderbook, and stock search APIs.
   - name: Alerts
     description: News and disclosure alert publish, analysis, and collection APIs.
+  - name: Tax
+    description: Tax refund status synchronization APIs.
 x-websocket:
-  endpoint: /ws/alerts
-  protocol: STOMP
-  subscribeTopics:
-    partnerAlerts: /topic/partners/{partnerId}/alerts
-    partnerStockAlerts: /topic/partners/{partnerId}/stocks/{stockCode}/alerts
-    stockAlerts: /topic/stocks/{stockCode}/alerts
-  authorization: >
-    DB-bound partner credentials may subscribe only to their own partner topics.
-    The global stock topic is retained for bootstrap/global-key compatibility.
-  payloadSchema: AlertEvent
+  alertStream:
+    endpoint: /ws/alerts
+    protocol: STOMP
+    subscribeTopics:
+      partnerAlerts: /topic/partners/{partnerId}/alerts
+      partnerStockAlerts: /topic/partners/{partnerId}/stocks/{stockCode}/alerts
+      stockAlerts: /topic/stocks/{stockCode}/alerts
+    authorization: >
+      DB-bound partner credentials may subscribe only to their own partner topics.
+      The global stock topic is retained for bootstrap/global-key compatibility.
+    payloadSchema: AlertEvent
+  marketQuoteStream:
+    endpoint: /ws/market/quotes
+    protocol: raw WebSocket JSON
+    payloadSchema: MarketQuote
+    replayRequest:
+      type: QUOTE_STREAM_REPLAY
+      currency: USD
+      after: 2026-06-18T06:00:00Z
+    description: >
+      Authenticated partners receive one MarketQuote JSON message per KIS
+      realtime trade tick. Sending QUOTE_STREAM_REPLAY replays the current
+      quote snapshot in the requested local currency.
 paths:
+  /api/v1/tax/refund-cases/sync:
+    post:
+      tags:
+        - Tax
+      operationId: syncTaxRefundCase
+      summary: Synchronize a partner tax refund case status.
+      description: >
+        Receives a partner exchange tax refund case derived from mock sell
+        realized PnL and returns Hana's demo-safe status boundary. This endpoint
+        does not submit filings, execute real payments, or perform settlement.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaxStatusSyncRequest"
+      responses:
+        "200":
+          description: Tax refund case status synchronized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxStatusSyncApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/tax/refund-cases/classify:
+    post:
+      tags:
+        - Tax
+      operationId: classifyTaxRefundCase
+      summary: Classify a Korea-Hong Kong tax treaty refund case.
+      description: >
+        Classifies whether a partner tax refund case satisfies the demo CASE_01
+        Korea-Hong Kong listed stock treaty boundary. This endpoint does not
+        perform legal review, submit filings, or execute payments.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaxTreatyCaseClassificationRequest"
+      responses:
+        "200":
+          description: Tax treaty case classified.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxTreatyCaseClassificationApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/tax/rectification-batches/{taxYear}/quarters/{quarter}:
+    get:
+      tags:
+        - Tax
+      operationId: getTaxRectificationBatchStatus
+      summary: Get quarterly rectification claim batch status.
+      description: >
+        Returns the demo-safe quarterly rectification claim batch status used by
+        partner exchanges to display tax refund filing progress. This endpoint
+        does not submit filings, execute payments, or make a final legal tax
+        determination.
+      parameters:
+        - name: taxYear
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 2020
+            maximum: 2100
+          example: 2026
+        - name: quarter
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4
+          example: 2
+      responses:
+        "200":
+          description: Quarterly rectification claim batch status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxRectificationBatchStatusApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/stocks/{stockCode}:
     get:
       tags:
@@ -52,7 +166,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StockSummary"
+                $ref: "#/components/schemas/StockSummaryApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -88,11 +202,200 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MarketQuote"
+                $ref: "#/components/schemas/MarketQuoteApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/PartnerAccessDenied"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/quotes:
+    get:
+      tags:
+        - Market Data
+      operationId: getMarketQuotes
+      summary: Get all or requested Korea stock quotes with local currency prices.
+      description: >
+        If stockCodes are omitted, returns the stock master universe up to
+        limit. If stockCodes are present, returns deduplicated requested quotes
+        in request order. Each quote includes KRW price, local currency price,
+        FX metadata, foreign ownership, and source metadata.
+      parameters:
+        - name: stockCodes
+          in: query
+          required: false
+          schema:
+            type: array
+            maxItems: 200
+            items:
+              type: string
+              pattern: "^\\d{6}$"
+          style: form
+          explode: true
+        - name: market
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - KOSPI
+              - KOSDAQ
+              - KONEX
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+            default: USD
+        - name: fxRate
+          in: query
+          required: false
+          schema:
+            type: number
+            minimum: 0.000001
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2000
+            default: 500
+      responses:
+        "200":
+          description: Quote array response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketQuoteListApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/{stockCode}/orderability:
+    get:
+      tags:
+        - Market Data
+      operationId: getOrderability
+      summary: Check partner mock-order boundary for a Korea stock.
+      description: >
+        Returns the market boundary that overseas exchange backends must check
+        before writing their own mock ledger. Hana-OmniLens-API does not place
+        a real order or call a KIS mock-trading order endpoint.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+        - name: side
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - BUY
+              - SELL
+        - name: quantity
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: Orderability boundary response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderabilityApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/PartnerAccessDenied"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/stocks/{stockCode}/history:
+    get:
+      tags:
+        - Market Data
+      operationId: getMarketHistory
+      summary: Get KRX-based Korea stock daily OHLCV history.
+      description: >
+        Returns normalized daily chart data saved by Hana-OmniLens-API from KRX
+        Open API daily trade feeds. Overseas exchange backends use this REST
+        snapshot for chart rendering and do not call KRX directly.
+      parameters:
+        - $ref: "#/components/parameters/StockCode"
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 365
+      responses:
+        "200":
+          description: Daily OHLCV history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketDailyPriceListApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/StockNotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/history/collect:
+    post:
+      tags:
+        - Market Data
+      operationId: collectMarketHistory
+      summary: Collect all Korean stock daily OHLCV history from KRX for one base date.
+      description: >
+        Operational endpoint used by scheduled jobs or administrators to collect
+        KOSPI, KOSDAQ, and KONEX daily trade rows from KRX Open API and upsert
+        them into Hana-OmniLens-API DB.
+      parameters:
+        - name: baseDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Collection result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketHistoryCollectionApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/exchange-rates/{currency}:
@@ -121,7 +424,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExchangeRateResponse"
+                $ref: "#/components/schemas/ExchangeRateApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -142,7 +445,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/OrderBook"
+                $ref: "#/components/schemas/OrderBookApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "503":
@@ -167,9 +470,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/StockSummary"
+                $ref: "#/components/schemas/StockSummaryListApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "503":
@@ -188,7 +489,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PartnerWatchlistResponse"
+                $ref: "#/components/schemas/PartnerWatchlistApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -218,7 +519,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PartnerWatchlistResponse"
+                $ref: "#/components/schemas/PartnerWatchlistApiResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -247,7 +548,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AlertEvent"
+                $ref: "#/components/schemas/AlertEventApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -272,7 +573,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AlertEvent"
+                $ref: "#/components/schemas/AlertEventApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -299,7 +600,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AlertCollectPublishResponse"
+                $ref: "#/components/schemas/AlertCollectPublishApiResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -364,6 +665,401 @@ components:
     ServiceUnavailable:
       description: Server security or provider configuration is incomplete.
   schemas:
+    ApiResponseBase:
+      type: object
+      required:
+        - success
+        - status
+        - code
+        - message
+        - timestamp
+      properties:
+        success:
+          type: boolean
+        status:
+          type: integer
+        code:
+          type: string
+          example: COMMON_000
+        message:
+          type: string
+          example: OK
+        errors:
+          type:
+            - array
+            - "null"
+          items:
+            type: object
+        timestamp:
+          type: string
+          format: date-time
+    StockSummaryApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/StockSummary"
+    StockSummaryListApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/StockSummary"
+    MarketQuoteApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/MarketQuote"
+    MarketQuoteListApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/MarketQuote"
+    OrderBookApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/OrderBook"
+    OrderabilityApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/Orderability"
+    MarketDailyPriceListApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/MarketDailyPrice"
+    MarketHistoryCollectionApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/MarketHistoryCollectionResponse"
+    ExchangeRateApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/ExchangeRateResponse"
+    PartnerWatchlistApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/PartnerWatchlistResponse"
+    AlertEventApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/AlertEvent"
+    AlertCollectPublishApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/AlertCollectPublishResponse"
+    TaxStatusSyncApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/TaxStatusSyncResponse"
+    TaxTreatyCaseClassificationApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/TaxTreatyCaseClassificationResponse"
+    TaxRectificationBatchStatusApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/TaxRectificationBatchStatusResponse"
+    TaxStatusSyncRequest:
+      type: object
+      required:
+        - caseId
+        - accountId
+        - userId
+        - taxYear
+        - treatyCountry
+        - estimatedRefundUsd
+        - advancePaymentRequested
+        - advancePaymentEligible
+        - matchedTradeIds
+        - requestedAt
+      properties:
+        caseId:
+          type: string
+          maxLength: 80
+          example: TAX-CASE-1
+        accountId:
+          type: string
+          maxLength: 80
+          example: ACC-ABC123456789
+        userId:
+          type: string
+          maxLength: 80
+          example: USR-ABC123456789
+        taxYear:
+          type: integer
+          minimum: 2020
+          maximum: 2100
+          example: 2026
+        treatyCountry:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          example: US
+        estimatedRefundUsd:
+          type: string
+          pattern: "^-?\\d+(\\.\\d{1,2})?$"
+          example: "1.40"
+        advancePaymentRequested:
+          type: boolean
+        advancePaymentEligible:
+          type: boolean
+        matchedTradeIds:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            maxLength: 80
+          example:
+            - TRD-1
+        requestedAt:
+          type: string
+          format: date-time
+    TaxStatusSyncResponse:
+      type: object
+      required:
+        - caseId
+        - status
+        - syncedAt
+        - source
+      properties:
+        caseId:
+          type: string
+        status:
+          type: string
+          enum:
+            - NO_REFUNDABLE_PROFIT
+            - SYNCED_WITH_HANA
+            - REFUND_APPROVED
+            - ADVANCE_PAID
+            - RECAPTURE_RISK
+        syncedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+    TaxTreatyCaseClassificationRequest:
+      type: object
+      required:
+        - caseId
+        - taxYear
+        - treatyCountry
+        - investorResidencyCountry
+        - incomeTypes
+        - allListedMarketTrade
+        - maxOwnershipRatePercent
+        - residenceCertificateVerified
+        - treatyApplicationVerified
+        - requestedAt
+      properties:
+        caseId:
+          type: string
+          maxLength: 80
+          example: TAX-CASE-1
+        taxYear:
+          type: integer
+          minimum: 2020
+          maximum: 2100
+          example: 2026
+        treatyCountry:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          example: HK
+        investorResidencyCountry:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          example: HK
+        incomeTypes:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            enum:
+              - DIVIDEND
+              - SELL
+        allListedMarketTrade:
+          type: boolean
+        maxOwnershipRatePercent:
+          type: string
+          description: Maximum direct or indirect ownership rate during the treaty lookback window.
+          example: "0.20"
+        residenceCertificateVerified:
+          type: boolean
+        treatyApplicationVerified:
+          type: boolean
+        requestedAt:
+          type: string
+          format: date-time
+    TaxTreatyCaseClassificationResponse:
+      type: object
+      required:
+        - caseId
+        - treatyCaseType
+        - eligibleForTreatyBenefit
+        - classificationReasons
+        - requiredNextActions
+        - classifiedAt
+        - modelVersion
+        - source
+      properties:
+        caseId:
+          type: string
+        treatyCaseType:
+          type: string
+          enum:
+            - CASE_01
+            - CASE_REVIEW_REQUIRED
+        eligibleForTreatyBenefit:
+          type: boolean
+        classificationReasons:
+          type: array
+          items:
+            type: string
+        requiredNextActions:
+          type: array
+          items:
+            type: string
+        classifiedAt:
+          type: string
+          format: date-time
+        modelVersion:
+          type: string
+        source:
+          type: string
+    TaxRectificationBatchStatusResponse:
+      type: object
+      required:
+        - batchId
+        - taxYear
+        - quarter
+        - status
+        - filingWindowStart
+        - filingWindowEnd
+        - totalCaseCount
+        - readyCaseCount
+        - pendingReviewCaseCount
+        - requiredNextActions
+        - checkedAt
+        - source
+      properties:
+        batchId:
+          type: string
+          example: RECT-2026-Q2
+        taxYear:
+          type: integer
+          example: 2026
+        quarter:
+          type: integer
+          minimum: 1
+          maximum: 4
+          example: 2
+        status:
+          type: string
+          enum:
+            - SCHEDULED
+            - COLLECTING_CASES
+            - READY_FOR_REVIEW
+            - SUBMISSION_PREPARED
+        filingWindowStart:
+          type: string
+          format: date
+          example: 2026-04-01
+        filingWindowEnd:
+          type: string
+          format: date
+          example: 2026-06-30
+        totalCaseCount:
+          type: integer
+          minimum: 0
+        readyCaseCount:
+          type: integer
+          minimum: 0
+        pendingReviewCaseCount:
+          type: integer
+          minimum: 0
+        requiredNextActions:
+          type: array
+          items:
+            type: string
+        checkedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
     ExchangeRateUpdateRequest:
       type: object
       required:
@@ -392,6 +1088,76 @@ components:
         updatedAt:
           type: string
           format: date-time
+    MarketHistoryCollectionResponse:
+      type: object
+      required:
+        - baseDate
+        - requestedCount
+        - savedCount
+        - source
+      properties:
+        baseDate:
+          type: string
+          format: date
+        requestedCount:
+          type: integer
+        savedCount:
+          type: integer
+        source:
+          type: string
+          example: KRX_OPEN_API_DAILY_TRADE
+    MarketDailyPrice:
+      type: object
+      required:
+        - stockCode
+        - tradeDate
+        - market
+        - openPriceKrw
+        - highPriceKrw
+        - lowPriceKrw
+        - closePriceKrw
+        - changeRate
+        - tradingVolume
+        - tradingValueKrw
+        - adjustedClosePriceKrw
+        - source
+        - collectedAt
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        tradeDate:
+          type: string
+          format: date
+        market:
+          type: string
+          enum:
+            - KOSPI
+            - KOSDAQ
+            - KONEX
+        openPriceKrw:
+          type: number
+        highPriceKrw:
+          type: number
+        lowPriceKrw:
+          type: number
+        closePriceKrw:
+          type: number
+        changeRate:
+          type: number
+        tradingVolume:
+          type: integer
+          format: int64
+        tradingValueKrw:
+          type: number
+        adjustedClosePriceKrw:
+          type: number
+        source:
+          type: string
+          example: KRX_OPEN_API_DAILY_TRADE
+        collectedAt:
+          type: string
+          format: date-time
     MarketQuote:
       type: object
       required:
@@ -406,6 +1172,10 @@ components:
         - baseCurrency
         - localCurrencyPrice
         - localCurrency
+        - fxRate
+        - fxRateTime
+        - fxRateSource
+        - fxStale
         - foreignOwnedQuantity
         - foreignOwnershipRate
         - foreignLimitExhaustionRate
@@ -440,6 +1210,19 @@ components:
         localCurrency:
           type: string
           example: USD
+        fxRate:
+          type: number
+          description: KRW to local currency conversion rate applied to the quote.
+        fxRateTime:
+          type: string
+          format: date-time
+          description: Time when the applied FX rate was supplied or cached.
+        fxRateSource:
+          type: string
+          description: PARTNER_REQUEST, EXCHANGE_RATE_CACHE, or FX_FALLBACK.
+        fxStale:
+          type: boolean
+          description: true when the quote used fallback FX metadata.
         foreignOwnedQuantity:
           type: integer
           format: int64
@@ -456,6 +1239,125 @@ components:
         source:
           type: string
           description: Data source chain, for example KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP, KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP, or PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE.
+    Orderability:
+      type: object
+      required:
+        - stockCode
+        - market
+        - side
+        - quantity
+        - orderable
+        - foreignLimitExceeded
+        - currentForeignLimitExhaustionRate
+        - predictedForeignLimitExhaustionRate
+        - foreignOwnershipPrediction
+        - viActive
+        - singlePriceTrading
+        - priceLimitState
+        - tradingHalted
+        - checkedAt
+        - source
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        market:
+          type: string
+          example: KOSPI
+        side:
+          type: string
+          enum:
+            - BUY
+            - SELL
+        quantity:
+          type: integer
+          format: int64
+        orderable:
+          type: boolean
+        orderBlockedReason:
+          type:
+            - string
+            - "null"
+          example: FOREIGN_LIMIT_EXCEEDED
+        foreignLimitExceeded:
+          type: boolean
+        currentForeignLimitExhaustionRate:
+          type: number
+        predictedForeignLimitExhaustionRate:
+          type: number
+        foreignOwnershipPrediction:
+          $ref: "#/components/schemas/ForeignOwnershipPrediction"
+        foreignOwnershipBaseDate:
+          type:
+            - string
+            - "null"
+          format: date
+        viActive:
+          type: boolean
+        singlePriceTrading:
+          type: boolean
+        priceLimitState:
+          type: string
+          enum:
+            - NORMAL
+            - UPPER_LIMIT
+            - LOWER_LIMIT
+        tradingHalted:
+          type: boolean
+        checkedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: Source chain used to compute the boundary, including KIS realtime status when price-limit state was derived from tick data.
+    ForeignOwnershipPrediction:
+      type: object
+      required:
+        - minForeignLimitExhaustionRate
+        - baseForeignLimitExhaustionRate
+        - maxForeignLimitExhaustionRate
+        - orderImpactRate
+        - intradayUncertaintyRate
+        - observedIntradayVolume
+        - calculatedAt
+        - confidenceLevel
+        - source
+      properties:
+        minForeignLimitExhaustionRate:
+          type: number
+          description: Lower bound of the predicted foreign ownership limit exhaustion rate.
+        baseForeignLimitExhaustionRate:
+          type: number
+          description: Snapshot rate plus the simulated order impact.
+        maxForeignLimitExhaustionRate:
+          type: number
+          description: Conservative upper bound used for BUY blocking.
+        orderImpactRate:
+          type: number
+          description: Percentage-point impact of the requested mock order quantity.
+        intradayUncertaintyRate:
+          type: number
+          description: Intraday uncertainty derived from KIS realtime accumulated volume, or snapshot-only fallback.
+        observedIntradayVolume:
+          type: integer
+          format: int64
+        baseDate:
+          type:
+            - string
+            - "null"
+          format: date
+        calculatedAt:
+          type: string
+          format: date-time
+        confidenceLevel:
+          type: string
+          enum:
+            - REALTIME_VOLUME_ADJUSTED
+            - SNAPSHOT_ONLY
+            - NO_SNAPSHOT
+        source:
+          type: string
+          description: Data source chain used by the prediction engine.
     OrderBook:
       type: object
       required:
@@ -576,6 +1478,18 @@ components:
           type: boolean
         watchlistTarget:
           type: boolean
+        glossaryTerms:
+          type: array
+          description: Financial glossary terms normalized by Hannah-Montana-AI for translation quality review.
+          items:
+            $ref: "#/components/schemas/AlertGlossaryTerm"
+        translationQualityFlags:
+          type: array
+          description: Translation quality and review flags propagated from Hannah-Montana-AI.
+          items:
+            type: string
+          example:
+            - FINANCIAL_GLOSSARY_APPLIED
         duplicateKey:
           type:
             - string
@@ -588,6 +1502,26 @@ components:
             - "null"
           maxLength: 120
           description: AI model version that produced this alert analysis.
+    AlertGlossaryTerm:
+      type: object
+      required:
+        - sourceTerm
+        - normalizedTerm
+        - englishTerm
+        - category
+      properties:
+        sourceTerm:
+          type: string
+          example: 실적
+        normalizedTerm:
+          type: string
+          example: 실적
+        englishTerm:
+          type: string
+          example: earnings
+        category:
+          type: string
+          example: event
     AlertAnalysisPublishRequest:
       type: object
       required:

@@ -21,10 +21,11 @@ docker compose -f compose.local.yml down
 ## 운영 설정
 - `src/main/resources/application-prod.yml`은 커밋되는 실제 운영 profile 설정 파일이다.
 - 민감값은 `${...}` 환경변수 placeholder로만 작성한다.
-- KIS 현재가 provider를 사용하려면 `KIS_APP_KEY`, `KIS_APP_SECRET`, `KIS_ACCESS_TOKEN`을 GitHub Secrets에 등록한다.
-- KIS WebSocket provider를 사용하려면 `KIS_WEBSOCKET_URL`, `KIS_APPROVAL_KEY`를 GitHub Secrets에 등록한다.
-- `KIS_APPROVAL_KEY`는 WebSocket 접속키이며 REST `KIS_ACCESS_TOKEN`과 혼용하지 않는다.
-- 한국수출입은행 환율 provider를 사용하려면 `KOREA_EXIM_AUTH_KEY`를 GitHub Secrets에 등록한다.
+- KIS 현재가 provider는 모의투자 REST domain `https://openapivts.koreainvestment.com:29443`을 기본으로 사용한다.
+- KIS 현재가 provider를 사용하려면 `KIS_APP_KEY`, `KIS_APP_SECRET`을 GitHub Secrets에 등록한다. `KIS_ACCESS_TOKEN`은 비워두면 앱이 자동 발급한다.
+- KIS WebSocket provider는 모의투자 WebSocket domain `ws://ops.koreainvestment.com:31000`을 기본으로 사용한다.
+- KIS WebSocket provider를 사용하려면 `KIS_WEBSOCKET_URL`을 설정할 수 있다. `KIS_APPROVAL_KEY`는 비워두면 앱이 자동 발급한다.
+- 환율 provider는 `FRANKFURTER_BASE_URL` 하나만 사용한다. Frankfurter public API는 별도 API key가 필요 없다.
 - `main` push 시 GitHub Secrets로 원격 서버의 `application-prod.env`를 생성한다.
 - `main` push 시 Docker 이미지를 GHCR에 push한다.
 - 원격 서버는 GHCR에서 이미지를 pull하고 `compose.prod.yml`로 컨테이너를 실행한다.
@@ -33,6 +34,7 @@ docker compose -f compose.local.yml down
 ## 알림 주기 수집
 - 기본값은 `omnilens.alert.scheduler.enabled=false`이다.
 - 스케줄러를 켜면 설정 또는 DB에 저장된 협력사 watchlist마다 Naver 뉴스와 OpenDART 공시를 수집하고 Hannah-Montana-AI 분석 후 WebSocket으로 발행한다.
+- watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
 - 주기는 `ALERT_SCHEDULER_FIXED_DELAY_MS`로 조정한다. 기본값은 `300000`이다.
 - 수집 범위는 `ALERT_SCHEDULER_NEWS_DISPLAY`, `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`로 조정한다.
 - 운영 중 watchlist는 `PUT /api/v1/alerts/watchlists/{partnerId}`로 DB에 저장한다.
@@ -58,11 +60,33 @@ curl http://localhost:8080/api/v1/alerts/watchlists/partner-a \
 - 기본값은 `KIS_REALTIME_ENABLED=false`이다.
 - 활성화하면 `KIS_REALTIME_STOCK_CODES`의 종목마다 KIS 실시간 체결과 호가를 구독한다.
 - 수신 메시지는 실시간 cache에 저장되고 quote/orderbook 응답에서 우선 사용된다.
+- KIS 체결 tick 수신 시 `/ws/market/quotes` raw WebSocket 연결에도 `MarketQuote` JSON을 송신한다.
+- 협력사는 `{"type":"QUOTE_STREAM_REPLAY","currency":"USD","after":"..."}` 메시지로 현재 quote snapshot replay를 요청할 수 있다.
 
 ```text
 KIS_REALTIME_ENABLED=true
 KIS_REALTIME_STOCK_CODES=005930,000660
 ```
+
+## KRX 과거 시세 수집
+- 기본값은 `MARKET_HISTORY_COLLECTION_ENABLED=false`다.
+- 활성화하면 설정된 주기마다 전일 기준 KOSPI/KOSDAQ/KONEX 일별매매정보를 KRX Open API에서 수집해 DB에 upsert한다.
+- 수동 운영 수집은 `POST /api/v1/market/history/collect?baseDate=YYYY-MM-DD`로 실행한다.
+- 차트 조회는 `GET /api/v1/market/stocks/{stockCode}/history?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=365`를 사용한다.
+- Stock-exchange-BE는 KRX를 직접 호출하지 않고 이 history API를 호출해 앱 차트 응답으로 재가공한다.
+
+```text
+MARKET_HISTORY_COLLECTION_ENABLED=true
+MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS=86400000
+MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
+```
+
+## 주문 가능 여부 boundary
+- `GET /api/v1/market/stocks/{stockCode}/orderability?side=BUY&quantity=1`를 사용한다.
+- 이 API는 현지 거래소의 자체 mock ledger 주문 전 확인용이며 실제 주문, 체결, 정산, KIS 모의투자 주문을 수행하지 않는다.
+- BUY 요청은 KRX 외국인보유량 cache의 한도소진율, 요청 수량, KIS 실시간 체결 누적 거래량을 이용해 `foreignOwnershipPrediction`의 min/base/max 한도소진율, 주문 영향도, 당일 불확실성, 신뢰도, 산출 source를 계산한다. 차단 여부는 보수적인 max 한도소진율이 100% 이상인지로 판단한다.
+- SELL 요청은 외국인 한도소진율이 100% 이상이어도 한도 초과 사유로 차단하지 않는다.
+- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
 
 ## 헬스체크
 - `GET /actuator/health`
@@ -72,12 +96,13 @@ KIS_REALTIME_STOCK_CODES=005930,000660
 ## API 계약 문서
 - `GET /openapi.yaml`
 - 문서는 협력사 API key 보호 대상이다.
-- REST endpoint와 STOMP WebSocket endpoint/topic 계약을 함께 확인할 수 있다.
+- REST endpoint, STOMP alert WebSocket topic, raw market quote WebSocket 계약을 함께 확인할 수 있다.
 - DB credential을 사용하는 협력사는 `/topic/partners/{partnerId}/alerts` 또는 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`를 구독한다.
 - `/topic/stocks/{stockCode}/alerts`는 bootstrap 전역 키 호환용 topic으로 유지한다.
 
 ## 협력사 입력 환율
 - `PUT /api/v1/market/exchange-rates/{currency}`로 `KRW -> 현지통화` 표시용 환율을 저장한다.
+- 응답은 `data.baseCurrency`, `data.localCurrency`, `data.fxRate`, `data.updatedAt`를 담은 공동 응답 envelope이다.
 - quote 요청에 `fxRate`가 없으면 저장된 환율을 현지 통화 환산가 계산에 사용한다.
 - quote 요청에 `fxRate`가 있으면 해당 요청값을 우선한다.
 - 기본 캐시는 Redis TTL 기반이며 Redis 장애 시 같은 프로세스의 in-memory fallback을 사용한다.
@@ -97,6 +122,7 @@ EXCHANGE_RATE_CACHE_TTL=24h
 
 ## 종목 마스터 DB
 - Flyway가 `stock_master` 테이블을 생성한다.
+- 단건 조회 `GET /api/v1/market/stocks/{stockCode}`는 `StockSummary`를 `data`에 담은 공동 응답 envelope으로 반환한다.
 - 기본 seed 파일은 `classpath:data/stock-master-seed.csv`이다.
 - seed loader는 테이블이 비어 있을 때만 실행되며, 이미 적재된 데이터가 있으면 건너뛴다.
 - 운영에서 seed 위치를 바꿀 때는 `STOCK_MASTER_SEED_LOCATION`을 사용한다.
@@ -109,13 +135,12 @@ STOCK_MASTER_SEED_ENABLED=true
 STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 ```
 
-## 한국수출입은행 환율 provider
-- provider 응답의 `deal_bas_r`는 외화 기준 원화 환율이므로 내부 캐시에는 `KRW -> 현지통화` 비율로 변환해 저장한다.
-- `JPY(100)`처럼 단위가 붙은 통화는 괄호 안 단위를 분자로 사용한다.
-- 기본 endpoint는 `https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON`이다.
+## 환율 provider
+- 기본 provider는 Frankfurter REST 환율 endpoint인 `FRANKFURTER_BASE_URL`이다.
+- 내부 캐시에는 `KRW -> 현지통화` 비율로 저장한다.
 - 기본 refresh scheduler는 비활성화되어 있다.
 - 활성화하면 `EXCHANGE_RATE_REFRESH_CURRENCIES`에 지정한 통화만 주기적으로 갱신한다.
-- 한국수출입은행 영업일 데이터 지연에 대비해 `EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS`로 조회 기준일을 조정할 수 있다.
+- 한국수출입은행 환율 API는 사용하지 않는다. 해당 API는 공공데이터포털 키가 아니라 한국수출입은행 별도 신청 키가 필요하기 때문이다.
 
 ```text
 EXCHANGE_RATE_REFRESH_ENABLED=true

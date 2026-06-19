@@ -20,6 +20,8 @@ public record AlertEvent(
         List<String> relatedStocks,
         boolean holderTarget,
         boolean watchlistTarget,
+        List<AlertGlossaryTerm> glossaryTerms,
+        List<String> translationQualityFlags,
         String duplicateKey,
         String modelVersion,
         Instant createdAt

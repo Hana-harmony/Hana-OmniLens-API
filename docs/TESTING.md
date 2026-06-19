@@ -42,10 +42,13 @@ docker compose -f compose.local.yml up -d
 - KIS WebSocket raw message ingestion과 실시간 cache 저장
 - KIS WebSocket session runner의 disabled no-op, 구독 frame 생성, 수신 메시지 cache 반영
 - 시장 데이터 quote/orderbook의 KIS 실시간 cache 우선 사용
+- orderability의 KIS 실시간 체결 기반 상·하한가, VI, 단일가, 거래정지 상태 반영
+- raw `/ws/market/quotes` WebSocket quote tick 수신과 replay 요청
 - 시장 데이터 quote의 KIS 현재가 우선 사용과 공공데이터 fallback
 - 공공데이터 주식시세 provider 성공·fallback
 - KRX 외국인보유량 provider 요청·응답 매핑
 - 시장 데이터 quote의 KRX 외국인 보유수량·지분율·한도소진율 반영
+- 외국인 보유율 예측 engine의 snapshot-only, 실시간 거래량 조정, snapshot 부재 fallback
 - KRX 외국인보유량 날짜 재시도와 장애 시 전일 캐시 fallback
 - Redis 외국인 보유율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - 협력사 입력 환율 저장과 quote의 환율 캐시 fallback
@@ -54,15 +57,20 @@ docker compose -f compose.local.yml up -d
 - 환율 refresh scheduler의 disabled no-op, 기준일 offset, 통화별 장애 격리
 - Redis 환율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - quote 요청 `fxRate`가 저장된 환율보다 우선되는 계산 계약
+- KRX KOSPI/KOSDAQ/KONEX 일별매매정보 provider 요청·응답 매핑
+- KRX 과거 시세 수집 service의 stock master 필터링과 DB 저장 계약
+- 과거 시세 history API의 공동 응답 envelope과 OHLCV/거래대금 payload
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
 - Papago NMT 번역 요청 계약과 응답 매핑
-- 알림 제목 번역 성공과 번역 장애 시 원문 fallback
+- DeepL 번역 요청 계약과 응답 매핑
+- 알림 제목 번역 DeepL 우선, Papago fallback, 번역 장애 시 원문 fallback
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 외부 provider 공통 timeout 설정 기본값
 - 외부 provider 재시도, circuit open, 비네트워크 예외 no-retry 정책
 - 수집된 뉴스·공시의 AI 분석 후 WebSocket 알림 발행
 - AI 분석 `duplicateKey`, `modelVersion` 추적 메타데이터 전파
+- AI 분석 `glossaryTerms`, `translationQualityFlags` 번역 품질 메타데이터 전파
 - API key handshake 기반 WebSocket subscription 계약
 - DB credential WebSocket 세션의 partner-scoped topic 수신과 global stock topic 차단
 - 시장/알림 API 입력 validation 실패와 ProblemDetail 응답 계약
@@ -73,6 +81,9 @@ docker compose -f compose.local.yml up -d
 - 협력사 watchlist DB 교체 저장, 조회, 순서 보존, 빈 목록 삭제
 - 협력사 watchlist REST API의 중복 제거, validation, 미지원 종목 404
 - 설정 기반 watchlist와 DB watchlist의 스케줄러 병합
+- tax refund case sync API의 공동 응답 envelope, 입력 validation, 환급/선지급 상태 판정
+- tax treaty case classification API의 CASE_01 판정, 수동 검토 사유, 입력 validation
+- tax rectification batch status API의 분기 window, 진행 상태, case count, path variable validation
 
 ## 추가 예정
 - Redis integration testcontainer 기반 연결 테스트

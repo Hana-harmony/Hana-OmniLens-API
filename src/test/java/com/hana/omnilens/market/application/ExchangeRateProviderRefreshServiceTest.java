@@ -13,8 +13,8 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
-import com.hana.omnilens.provider.market.KoreaEximExchangeRateClient;
-import com.hana.omnilens.provider.market.KoreaEximExchangeRateSnapshot;
+import com.hana.omnilens.provider.market.ExchangeRateProviderClient;
+import com.hana.omnilens.provider.market.ProviderExchangeRateSnapshot;
 
 class ExchangeRateProviderRefreshServiceTest {
 
@@ -22,7 +22,7 @@ class ExchangeRateProviderRefreshServiceTest {
 
     @Test
     void refreshStoresProviderRateInExchangeRateCache() {
-        KoreaEximExchangeRateClient client = mock(KoreaEximExchangeRateClient.class);
+        ExchangeRateProviderClient client = mock(ExchangeRateProviderClient.class);
         InMemoryExchangeRateCache cache = new InMemoryExchangeRateCache();
         ExchangeRateProviderRefreshService service = new ExchangeRateProviderRefreshService(
                 client,
@@ -30,10 +30,12 @@ class ExchangeRateProviderRefreshServiceTest {
                 Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
 
         when(client.findKrwToLocalRate("usd", LocalDate.of(2025, 6, 4)))
-                .thenReturn(Optional.of(new KoreaEximExchangeRateSnapshot(
+                .thenReturn(Optional.of(new ProviderExchangeRateSnapshot(
                         "USD",
                         new BigDecimal("0.0007407407407407407"),
-                        LocalDate.of(2025, 6, 4))));
+                        LocalDate.of(2025, 6, 4),
+                        FIXED_NOW,
+                        "FRANKFURTER_DAILY")));
 
         Optional<ExchangeRateSnapshot> snapshot = service.refresh("usd", LocalDate.of(2025, 6, 4));
 
@@ -47,7 +49,7 @@ class ExchangeRateProviderRefreshServiceTest {
 
     @Test
     void refreshDoesNotMutateCacheWhenProviderHasNoRate() {
-        KoreaEximExchangeRateClient client = mock(KoreaEximExchangeRateClient.class);
+        ExchangeRateProviderClient client = mock(ExchangeRateProviderClient.class);
         InMemoryExchangeRateCache cache = new InMemoryExchangeRateCache();
         ExchangeRateProviderRefreshService service = new ExchangeRateProviderRefreshService(
                 client,

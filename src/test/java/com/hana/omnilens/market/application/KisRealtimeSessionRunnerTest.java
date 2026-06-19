@@ -1,6 +1,8 @@
 package com.hana.omnilens.market.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -13,10 +15,12 @@ import org.junit.jupiter.api.Test;
 import com.hana.omnilens.config.ExternalProviderProperties;
 import com.hana.omnilens.config.KisRealtimeProperties;
 import com.hana.omnilens.provider.market.KisRealtimeMessageParser;
+import com.hana.omnilens.provider.market.KisRealtimeApprovalKeyProvider;
 import com.hana.omnilens.provider.market.KisRealtimeSubscriptionFrame;
 import com.hana.omnilens.provider.market.KisRealtimeSubscriptionFrameFactory;
 import com.hana.omnilens.provider.market.KisRealtimeTransaction;
 import com.hana.omnilens.provider.market.KisRealtimeWebSocketConnection;
+import com.hana.omnilens.market.stream.MarketQuoteStreamingService;
 
 class KisRealtimeSessionRunnerTest {
 
@@ -38,12 +42,14 @@ class KisRealtimeSessionRunnerTest {
         FakeConnection connection = new FakeConnection();
         KisRealtimeSessionRunner runner = new KisRealtimeSessionRunner(
                 new KisRealtimeProperties(true, List.of("", " ")),
-                new ExternalProviderProperties(null, null, null, null, null, null, null),
+                new ExternalProviderProperties(null, null, null, null, null, null),
                 new KisRealtimeSubscriptionFrameFactory(),
                 connection,
                 new RealtimeMarketDataIngestionService(
                         new KisRealtimeMessageParser(),
-                        new InMemoryRealtimeMarketDataCache()));
+                        new InMemoryRealtimeMarketDataCache(),
+                        mock(MarketQuoteStreamingService.class)),
+                approvalKeyProvider());
 
         runner.start();
 
@@ -94,12 +100,21 @@ class KisRealtimeSessionRunnerTest {
                 externalProviderProperties(),
                 new KisRealtimeSubscriptionFrameFactory(),
                 connection,
-                new RealtimeMarketDataIngestionService(new KisRealtimeMessageParser(), cache));
+                new RealtimeMarketDataIngestionService(
+                        new KisRealtimeMessageParser(),
+                        cache,
+                        mock(MarketQuoteStreamingService.class)),
+                approvalKeyProvider());
+    }
+
+    private KisRealtimeApprovalKeyProvider approvalKeyProvider() {
+        KisRealtimeApprovalKeyProvider provider = mock(KisRealtimeApprovalKeyProvider.class);
+        when(provider.approvalKey()).thenReturn("approval-key");
+        return provider;
     }
 
     private ExternalProviderProperties externalProviderProperties() {
         return new ExternalProviderProperties(
-                null,
                 null,
                 null,
                 null,

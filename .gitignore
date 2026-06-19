@@ -7,6 +7,8 @@ build/
 /application-prod.env
 /deploy-prod.env
 /.env
+/secrets.local.env
+/*.local.env
 src/main/resources/application-local.yml
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/

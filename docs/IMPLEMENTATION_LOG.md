@@ -34,12 +34,8 @@
 - 서비스 단위 테스트로 provider 성공, provider 실패 fallback, 종목 마스터 검색을 검증
 
 ## 2026-06-04 KRX 외국인보유량 snapshot 연결
-- KRX 외국인보유량(개별종목) 화면의 `MDCSTAT03702` 데이터 계약을 격리한 `KrxForeignOwnershipClient` 추가
-- 종목 마스터에 ISIN을 추가해 KRX 개별종목 조회에 필요한 `isuCd`를 전달
-- KRX 응답의 외국인 보유수량, 외국인 지분율, 외국인 한도수량, 한도소진율을 `KrxForeignOwnershipSnapshot`으로 변환
-- `MarketDataService`가 KRX snapshot을 우선 사용하고, 호출 실패 또는 미응답 시 기존 fallback 값을 유지
-- source 필드에 가격 provider와 외국인보유 provider 사용 여부를 함께 표시
-- MockRestServiceServer 테스트로 KRX form 요청과 숫자 포맷 파싱을 검증
+- KRX 화면 데이터 API 의존성은 제거하고, KRX 인증키 기반 Open API client만 유지한다.
+- 외국인보유량은 live 화면 데이터 호출 없이 cache 또는 기본 fallback 값만 사용한다.
 
 ## 2026-06-04 Hannah-Montana-AI 분석 클라이언트
 - 내부 FastAPI 서비스 `POST /api/v1/alerts/analyze` 호출용 `HannahAiAnalysisClient` 추가
@@ -92,6 +88,11 @@
 - 스케줄러는 설정 기반 watchlist와 DB watchlist를 협력사별로 병합해 주기 수집 대상으로 사용한다.
 - 테스트로 JDBC 저장소의 교체 저장, 순서 보존, 전체 조회 grouping, HTTP validation, 미지원 종목 404, 스케줄러 병합을 검증했다.
 
+## 2026-06-19 Alert REST 공동 응답 정합화
+- `GET/PUT /api/v1/alerts/watchlists/{partnerId}`, `POST /api/v1/alerts/analyze-and-publish`, `POST /api/v1/alerts/collect-and-publish` 응답을 `ApiResponse` envelope으로 통일했다.
+- `/api/v1/alerts/events`를 포함한 alert REST 200 응답 schema를 static OpenAPI에서 `PartnerWatchlistApiResponse`, `AlertEventApiResponse`, `AlertCollectPublishApiResponse`로 명시했다.
+- MockMvc 테스트가 alert REST의 `success`, `status`, `code`, `data` envelope을 검증하도록 갱신했다.
+
 ## 2026-06-04 협력사별 API key registry
 - Flyway가 `partner_api_credential` 테이블을 생성하고 API key SHA-256 해시, `partner_id`, active 상태를 저장하게 했다.
 - `ApiKeyAuthenticationFilter`는 전역 bootstrap 해시를 먼저 상수 시간 비교하고, 일치하지 않으면 DB active credential을 조회한다.
@@ -138,6 +139,11 @@
 - 직접 알림 발행 API는 협력사 내부 재처리·마이그레이션용으로 두 필드를 선택값으로 허용한다.
 - `analyze-and-publish`, `collect-and-publish`, WebSocket 계약 테스트에서 AI 중복 키와 모델 버전 전파를 검증한다.
 
+## 2026-06-19 AI 번역 품질 메타데이터 전파
+- Hannah AI 응답의 `glossary_terms`와 `translation_quality_flags`를 `AlertEvent`의 `glossaryTerms`, `translationQualityFlags`로 전파한다.
+- 직접 알림 발행 API도 동일 필드를 선택값으로 허용해 협력사 내부 재처리 이벤트가 번역 품질 메타를 유지할 수 있게 한다.
+- `analyze-and-publish`, `collect-and-publish`, WebSocket 계약 테스트에서 금융 용어집과 품질 플래그 전파를 검증한다.
+
 ## 2026-06-04 AI duplicateKey 기반 수집 중복 방지
 - provider 원문 URL dedupe 이후 Hannah AI가 생성한 `duplicateKey`를 한 번 더 dedupe 기준으로 사용한다.
 - dedupe key는 `partnerId`, `sourceType`, AI `duplicateKey`를 조합해 협력사·뉴스/공시 경계를 분리한다.
@@ -174,6 +180,13 @@
 - `AlertAnalysisPublishingService`가 Hannah-Montana-AI 분석 결과의 원문 제목을 번역해 `translatedTitle`에 넣도록 연결했다.
 - 번역 키 미설정, Papago 장애, 빈 번역 결과는 알림 발행을 막지 않고 원문 제목으로 fallback한다.
 - 단위 테스트로 Papago 요청 계약, 번역 성공, 번역 실패 fallback, 분석 후 발행 payload의 번역 제목 반영을 검증했다.
+
+## 2026-06-19 DeepL 알림 제목 번역 fallback chain
+- DeepL `POST /v2/translate` 계약을 `DeepLTranslationClient`로 격리했다.
+- 요청 header는 `Authorization: DeepL-Auth-Key {apiKey}`로 고정하고, 요청 body는 `source_lang=KO`, `target_lang=EN-US`, `text={원문 제목}` form payload로 전송한다.
+- 운영 설정은 `DEEPL_TRANSLATION_BASE_URL`, `DEEPL_API_KEY` 환경변수 슬롯만 추가하고, 실제 값은 커밋하지 않는다.
+- `AlertTitleTranslationService`는 DeepL을 먼저 시도하고, DeepL 키 미설정·장애·빈 결과 시 Papago를 시도한 뒤, Papago도 실패하면 원문 제목으로 fallback한다.
+- 단위 테스트로 DeepL 요청 계약, DeepL 우선 번역, Papago fallback, 전체 provider 실패 시 원문 fallback을 검증했다.
 
 ## 2026-06-04 HMAC 요청 서명 인증
 - `omnilens.security.signature.enabled`가 켜진 경우 보호 API 요청에 HMAC-SHA256 서명을 요구한다.
@@ -235,15 +248,12 @@
 - 빈 종목코드 설정은 `KisRealtimeProperties`에서 제거해 env placeholder 기본값이 구독 요청으로 전파되지 않게 했다.
 - 단위 테스트로 disabled no-op, 종목별 구독 frame 생성, 수신 메시지 cache 반영, 빈 종목코드 제거를 검증했다.
 
-## 2026-06-04 한국수출입은행 환율 provider 연결
-- 한국수출입은행 현재환율 endpoint `GET /site/program/financial/exchangeJSON` 계약을 `KoreaEximExchangeRateClient`로 격리했다.
-- 한국수출입은행 신규 OpenAPI domain `https://oapi.koreaexim.go.kr`을 기본값으로 사용한다.
-- 요청 query는 `authkey`, `searchdate=yyyyMMdd`, `data=AP01`로 고정했다.
-- 응답의 `cur_unit`, `deal_bas_r`를 읽고 내부 계산용 `KRW -> 현지통화` 환율로 변환한다.
-- `deal_bas_r`는 외화 1단위 또는 `JPY(100)` 같은 묶음 단위당 원화 기준율이므로 `통화단위 / deal_bas_r`로 환산한다.
+## 2026-06-04 Frankfurter 환율 provider 연결
+- Frankfurter `GET /v2/rates` 계약을 `FrankfurterExchangeRateClient`로 격리했다.
+- 요청 query는 `base=KRW`, `quotes={통화}`로 고정했다.
+- Frankfurter는 별도 API key를 사용하지 않으므로 환율 provider secret을 두지 않는다.
 - `ExchangeRateProviderRefreshService`가 provider snapshot을 `ExchangeRateCache`에 저장해 기존 quote 환산 fallback 흐름과 같은 캐시를 사용하게 했다.
-- `KOREA_EXIM_AUTH_KEY`는 env placeholder로만 관리하고, 테스트 fixture에는 가짜 값만 사용한다.
-- 단위 테스트로 요청 query, USD 환산, `JPY(100)` 단위 처리, provider 미응답 시 cache 미변경을 검증했다.
+- 단위 테스트로 요청 query, 응답 매핑, provider 미응답 시 cache 미변경을 검증했다.
 
 ## 2026-06-04 한국수출입은행 환율 refresh scheduler
 - `ExchangeRateRefreshProperties`를 추가해 `enabled`, `fixedDelayMs`, `baseDateOffsetDays`, `currencies`를 설정으로 분리했다.
@@ -290,10 +300,15 @@
 
 ## 2026-06-04 종목 마스터 단건 조회 API
 - `GET /api/v1/market/stocks/{stockCode}` endpoint를 추가해 협력사 백엔드가 watchlist·보유 종목 동기화에 필요한 종목 메타데이터를 코드로 직접 조회할 수 있게 했다.
-- 응답은 quote, orderbook, 뉴스·공시 수집에서 쓰는 `StockSummary` 계약과 동일하게 종목코드, 한글명, 영문명, 시장구분, ISIN, OpenDART 고유번호를 반환한다.
+- 응답은 quote, orderbook, 뉴스·공시 수집에서 쓰는 `StockSummary` 계약을 `data`에 담은 공동 응답 envelope으로 반환하며, 종목코드, 한글명, 영문명, 시장구분, ISIN, OpenDART 고유번호를 포함한다.
 - 미지원 종목코드는 `404 Not Found`와 `https://hana-omnilens-api/errors/stock-not-found` ProblemDetail로 반환해 validation 오류와 구분한다.
 - OpenAPI 문서에 단건 조회 path와 404 응답을 추가했다.
 - MockMvc 테스트로 정상 조회, 미지원 종목 404, 잘못된 종목코드 validation 실패를 검증했다.
+
+## 2026-06-19 Market REST 공동 응답 정합화
+- `GET /api/v1/market/stocks/{stockCode}`와 `PUT /api/v1/market/exchange-rates/{currency}`가 `ApiResponse` envelope을 반환하도록 정리했다.
+- static OpenAPI의 market quote, bulk quote, orderbook, orderability, history, history collect, stock search, stock detail, exchange-rate schema를 typed `ApiResponse*`로 맞춰 Swagger에서 본문-only 계약으로 보이지 않게 했다.
+- MockMvc 테스트로 종목 단건 조회와 환율 갱신의 `success`, `status`, `code`, `data` envelope을 검증한다.
 
 ## 2026-06-04 mTLS client certificate gate
 - `omnilens.security.mtls.enabled` 설정을 추가해 운영에서 보호 API 요청의 client certificate 존재를 앱 레벨에서 검증할 수 있게 했다.
@@ -315,6 +330,10 @@
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
+- 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KRX 외국인보유량 cache, 요청 수량, KIS 실시간 체결 누적 거래량으로 예상 한도소진율 min/base/max를 계산한다. 차단 여부는 보수적인 max 한도소진율이 100% 이상인지로 판단한다.
+- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산해 orderability 응답에 반영한다. `tradingHalted=true`이면 `TRADING_HALTED`로 주문 가능 여부를 차단한다.
+- KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다.
+- 과거 시세는 `/api/v1/market/stocks/{stockCode}/history`에서 공동 응답 envelope으로 조회하고, 운영 수집은 `/api/v1/market/history/collect` 또는 scheduler로 실행한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 snapshot을 우선 사용하고 장애 시 캐시 또는 fallback 데이터로 응답 구조를 유지한다.
 - 외국인 보유율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
@@ -335,6 +354,17 @@
 - Hannah-Montana-AI 분석 응답은 알림 이벤트 생성 단계에서 사용할 표준 분석 결과 DTO로 수신한다.
 - 외부 provider 호출은 공통 timeout, retry, circuit breaker 정책을 통과한다.
 - API 계약은 `/openapi.yaml`에서 OpenAPI 3.1 문서로 제공한다.
+- 세무 상태 sync는 `POST /api/v1/tax/refund-cases/sync`에서 현지 거래소 tax case를 받아 예상 환급액과 선지급 요청/가능 여부로 `NO_REFUNDABLE_PROFIT`, `REFUND_APPROVED`, `ADVANCE_PAID`, `RECAPTURE_RISK`, `SYNCED_WITH_HANA` 상태를 반환한다. 실제 신고 제출, 지급, OCR/법무 판정은 수행하지 않는다.
+
+## 2026-06-19 tax treaty case classification
+- `POST /api/v1/tax/refund-cases/classify`를 추가해 한국·홍콩 조세조약 CASE_01 경계를 공동 응답 envelope으로 제공한다.
+- 홍콩 거주, 상장주식 장내거래, 25% 미만 지분율, 거주자증명서/제한세율신청서 검증 완료 조건을 모두 만족하면 `CASE_01`로 판정한다.
+- 조건 미충족 시 `CASE_REVIEW_REQUIRED`와 수동 검토/서류 검증 next action을 반환한다. 실제 법무 최종판정, 신고 제출, 지급 실행은 수행하지 않는다.
+
+## 2026-06-19 tax rectification batch status
+- `GET /api/v1/tax/rectification-batches/{taxYear}/quarters/{quarter}`를 추가해 분기별 경정청구 배치 상태를 공동 응답 envelope으로 제공한다.
+- 배치 상태는 quarter filing window 기준으로 `SCHEDULED`, `COLLECTING_CASES`, `READY_FOR_REVIEW`, `SUBMISSION_PREPARED`를 반환한다.
+- 응답은 batch id, filing window, 전체/준비/수동검토 case count, next action, source를 포함한다. 실제 신고 제출, 법무 최종판정, 지급 실행은 수행하지 않는다.
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 - 운영 요청 서명은 HMAC-SHA256, timestamp clock skew, nonce replay 방어를 적용할 수 있다.
 - 운영 요청 서명 nonce는 Redis에 공유 저장해 다중 인스턴스에서도 replay를 방지한다.

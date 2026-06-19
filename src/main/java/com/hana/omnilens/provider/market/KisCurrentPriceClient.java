@@ -18,6 +18,7 @@ public class KisCurrentPriceClient {
 
     private final RestClient restClient;
     private final ExternalProviderProperties.Kis kisProperties;
+    private final KisAccessTokenProvider accessTokenProvider;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
 
     public KisCurrentPriceClient(
@@ -28,11 +29,12 @@ public class KisCurrentPriceClient {
                 .baseUrl(properties.kis().baseUrl().toString())
                 .build();
         this.kisProperties = properties.kis();
+        this.accessTokenProvider = new KisAccessTokenProvider(restClientBuilder, this.kisProperties, resiliencePolicy);
         this.resiliencePolicy = resiliencePolicy;
     }
 
     public Optional<KisCurrentPriceSnapshot> findCurrentPrice(String stockCode) {
-        String accessToken = kisProperties.requiredAccessToken();
+        String accessToken = accessTokenProvider.accessToken();
         String appKey = kisProperties.requiredAppKey();
         String appSecret = kisProperties.requiredAppSecret();
         JsonNode root = resiliencePolicy.execute("kis-current-price", () -> restClient.get()

@@ -1,6 +1,7 @@
 package com.hana.omnilens.alert.application;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -36,6 +37,8 @@ public class AlertStreamingService {
                 request.relatedStocks(),
                 request.holderTarget(),
                 request.watchlistTarget(),
+                request.glossaryTerms() == null ? List.of() : request.glossaryTerms(),
+                request.translationQualityFlags() == null ? List.of() : request.translationQualityFlags(),
                 request.duplicateKey(),
                 request.modelVersion(),
                 Instant.now());

@@ -12,6 +12,34 @@ public record KisRealtimeTradeTick(
         BigDecimal bidPrice1Krw,
         long executionVolume,
         long accumulatedVolume,
-        LocalDate businessDate
+        LocalDate businessDate,
+        String viStatusCode,
+        String singlePriceTradingCode,
+        String tradingHaltCode
 ) {
+    public KisRealtimeTradeTick(
+            String stockCode,
+            String tradeTime,
+            BigDecimal currentPriceKrw,
+            BigDecimal changeRate,
+            BigDecimal askPrice1Krw,
+            BigDecimal bidPrice1Krw,
+            long executionVolume,
+            long accumulatedVolume,
+            LocalDate businessDate
+    ) {
+        this(
+                stockCode,
+                tradeTime,
+                currentPriceKrw,
+                changeRate,
+                askPrice1Krw,
+                bidPrice1Krw,
+                executionVolume,
+                accumulatedVolume,
+                businessDate,
+                "",
+                "",
+                "");
+    }
 }

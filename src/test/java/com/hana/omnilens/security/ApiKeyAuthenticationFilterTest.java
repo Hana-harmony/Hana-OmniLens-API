@@ -1,6 +1,8 @@
 package com.hana.omnilens.security;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -39,7 +41,9 @@ class ApiKeyAuthenticationFilterTest {
     void apiFailsClosedWhenHashIsMissing() throws Exception {
         mockMvc.perform(get("/api/v1/market/stocks/005930/quote")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
-                .andExpect(status().isServiceUnavailable());
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("AUTH_002")));
     }
 
     @Test

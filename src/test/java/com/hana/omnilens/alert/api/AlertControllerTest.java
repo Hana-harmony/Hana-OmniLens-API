@@ -30,6 +30,7 @@ import com.hana.omnilens.alert.application.AlertTitleTranslationService;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
+import com.hana.omnilens.provider.ai.HannahAiGlossaryTerm;
 import com.hana.omnilens.provider.disclosure.OpenDartDisclosure;
 import com.hana.omnilens.provider.disclosure.OpenDartDisclosureClient;
 import com.hana.omnilens.provider.news.NaverNewsArticle;
@@ -78,16 +79,20 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-api")))
-                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")))
-                .andExpect(jsonPath("$.stockCodes[1]", equalTo("000660")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-api")))
+                .andExpect(jsonPath("$.data.stockCodes[0]", equalTo("005930")))
+                .andExpect(jsonPath("$.data.stockCodes[1]", equalTo("000660")));
 
         mockMvc.perform(get("/api/v1/alerts/watchlists/partner-api")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-api")))
-                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")))
-                .andExpect(jsonPath("$.stockCodes[1]", equalTo("000660")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-api")))
+                .andExpect(jsonPath("$.data.stockCodes[0]", equalTo("005930")))
+                .andExpect(jsonPath("$.data.stockCodes[1]", equalTo("000660")));
     }
 
     @Test
@@ -101,8 +106,9 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/stock-not-found")))
-                .andExpect(jsonPath("$.stockCode", equalTo("999999")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("MARKET_001")))
+                .andExpect(jsonPath("$.message", equalTo("Stock master row not found: 999999")));
     }
 
     @Test
@@ -116,7 +122,8 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test
@@ -132,8 +139,8 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/partner-access-denied")))
-                .andExpect(jsonPath("$.requestedPartnerId", equalTo("partner-b")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("AUTH_005")));
     }
 
     @Test
@@ -149,8 +156,9 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
-                .andExpect(jsonPath("$.stockCodes[0]", equalTo("005930")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
+                .andExpect(jsonPath("$.data.stockCodes[0]", equalTo("005930")));
     }
 
     @Test
@@ -167,6 +175,8 @@ class AlertControllerTest {
                 List.of("005930"),
                 true,
                 true,
+                List.of(new HannahAiGlossaryTerm("실적", "실적", "earnings", "event")),
+                List.of("FINANCIAL_GLOSSARY_APPLIED"),
                 "duplicate-key",
                 "financial-keyword-baseline-2026-06-04"));
         when(alertTitleTranslationService.translateTitle("삼성전자 실적 개선"))
@@ -194,15 +204,20 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
-                .andExpect(jsonPath("$.stockCode", equalTo("005930")))
-                .andExpect(jsonPath("$.translatedTitle", equalTo("Samsung Electronics earnings improve")))
-                .andExpect(jsonPath("$.summary", equalTo("반도체 회복으로 실적 개선 기대")))
-                .andExpect(jsonPath("$.importance", equalTo("HIGH")))
-                .andExpect(jsonPath("$.holderTarget", equalTo(true)))
-                .andExpect(jsonPath("$.watchlistTarget", equalTo(true)))
-                .andExpect(jsonPath("$.duplicateKey", equalTo("duplicate-key")))
-                .andExpect(jsonPath("$.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
+                .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data.translatedTitle", equalTo("Samsung Electronics earnings improve")))
+                .andExpect(jsonPath("$.data.summary", equalTo("반도체 회복으로 실적 개선 기대")))
+                .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
+                .andExpect(jsonPath("$.data.holderTarget", equalTo(true)))
+                .andExpect(jsonPath("$.data.watchlistTarget", equalTo(true)))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].englishTerm", equalTo("earnings")))
+                .andExpect(jsonPath("$.data.translationQualityFlags[0]", equalTo("FINANCIAL_GLOSSARY_APPLIED")))
+                .andExpect(jsonPath("$.data.duplicateKey", equalTo("duplicate-key")))
+                .andExpect(jsonPath("$.data.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")));
     }
 
     @Test
@@ -247,6 +262,8 @@ class AlertControllerTest {
                     List.of("005930"),
                     true,
                     true,
+                    List.of(new HannahAiGlossaryTerm("실적", "실적", "earnings", "event")),
+                    List.of("FINANCIAL_GLOSSARY_APPLIED"),
                     "duplicate-key",
                     "financial-ml-tfidf-logreg-test");
         });
@@ -265,16 +282,21 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.partnerId", equalTo("partner-a")))
-                .andExpect(jsonPath("$.collectedNewsCount", equalTo(3)))
-                .andExpect(jsonPath("$.collectedDisclosureCount", equalTo(1)))
-                .andExpect(jsonPath("$.publishedCount", equalTo(2)))
-                .andExpect(jsonPath("$.skippedDuplicateCount", equalTo(2)))
-                .andExpect(jsonPath("$.failedAnalysisCount", equalTo(0)))
-                .andExpect(jsonPath("$.events[0].sourceType", equalTo("NEWS")))
-                .andExpect(jsonPath("$.events[0].duplicateKey", equalTo("duplicate-key")))
-                .andExpect(jsonPath("$.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
-                .andExpect(jsonPath("$.events[1].sourceType", equalTo("DISCLOSURE")));
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
+                .andExpect(jsonPath("$.data.collectedNewsCount", equalTo(3)))
+                .andExpect(jsonPath("$.data.collectedDisclosureCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.publishedCount", equalTo(2)))
+                .andExpect(jsonPath("$.data.skippedDuplicateCount", equalTo(2)))
+                .andExpect(jsonPath("$.data.failedAnalysisCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.events[0].sourceType", equalTo("NEWS")))
+                .andExpect(jsonPath("$.data.events[0].duplicateKey", equalTo("duplicate-key")))
+                .andExpect(jsonPath("$.data.events[0].translationQualityFlags[0]",
+                        equalTo("FINANCIAL_GLOSSARY_APPLIED")))
+                .andExpect(jsonPath("$.data.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
+                .andExpect(jsonPath("$.data.events[1].sourceType", equalTo("DISCLOSURE")));
     }
 
     @Test
@@ -304,8 +326,8 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
-                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test
@@ -332,8 +354,8 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type", equalTo("https://hana-omnilens-api/errors/validation")))
-                .andExpect(jsonPath("$.title", equalTo("Invalid request")));
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
     }
 
     @Test

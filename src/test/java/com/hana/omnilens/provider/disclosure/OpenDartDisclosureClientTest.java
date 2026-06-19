@@ -69,7 +69,6 @@ class OpenDartDisclosureClientTest {
                         "dart-api-key"),
                 null,
                 null,
-                null,
                 null);
     }
 }

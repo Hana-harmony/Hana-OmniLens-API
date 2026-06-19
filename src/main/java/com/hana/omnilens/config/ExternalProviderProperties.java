@@ -3,6 +3,7 @@ package com.hana.omnilens.config;
 import java.net.URI;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.util.StringUtils;
 
 @ConfigurationProperties(prefix = "omnilens.providers")
@@ -13,9 +14,11 @@ public record ExternalProviderProperties(
         Krx krx,
         Kis kis,
         KoreaExim koreaExim,
-        PapagoTranslation papagoTranslation
+        PapagoTranslation papagoTranslation,
+        DeepLTranslation deepLTranslation
 ) {
 
+    @ConstructorBinding
     public ExternalProviderProperties {
         publicData = publicData == null ? PublicData.defaults() : publicData.withDefaults();
         naverNews = naverNews == null ? NaverNews.defaults() : naverNews.withDefaults();
@@ -24,6 +27,28 @@ public record ExternalProviderProperties(
         kis = kis == null ? Kis.defaults() : kis.withDefaults();
         koreaExim = koreaExim == null ? KoreaExim.defaults() : koreaExim.withDefaults();
         papagoTranslation = papagoTranslation == null ? PapagoTranslation.defaults() : papagoTranslation.withDefaults();
+        deepLTranslation = deepLTranslation == null ? DeepLTranslation.defaults() : deepLTranslation.withDefaults();
+    }
+
+    public ExternalProviderProperties(
+            PublicData publicData,
+            NaverNews naverNews,
+            OpenDart openDart,
+            Kis kis,
+            PapagoTranslation papagoTranslation,
+            DeepLTranslation deepLTranslation) {
+        this(publicData, naverNews, openDart, null, kis, null, papagoTranslation, deepLTranslation);
+    }
+
+    public ExternalProviderProperties(
+            PublicData publicData,
+            NaverNews naverNews,
+            OpenDart openDart,
+            Krx krx,
+            Kis kis,
+            KoreaExim koreaExim,
+            PapagoTranslation papagoTranslation) {
+        this(publicData, naverNews, openDart, krx, kis, koreaExim, papagoTranslation, null);
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -105,8 +130,8 @@ public record ExternalProviderProperties(
 
         private static Kis defaults() {
             return new Kis(
-                    URI.create("https://openapi.koreainvestment.com:9443"),
-                    URI.create("wss://openapi.koreainvestment.com:9443/tryitout"),
+                    URI.create("https://openapivts.koreainvestment.com:29443"),
+                    URI.create("ws://ops.koreainvestment.com:31000"),
                     "",
                     "",
                     "",
@@ -141,23 +166,6 @@ public record ExternalProviderProperties(
         }
     }
 
-    public record KoreaExim(URI baseUrl, String authKey) {
-
-        private static KoreaExim defaults() {
-            return new KoreaExim(URI.create("https://oapi.koreaexim.go.kr"), "");
-        }
-
-        private KoreaExim withDefaults() {
-            return new KoreaExim(
-                    baseUrl == null ? defaults().baseUrl() : baseUrl,
-                    authKey == null ? "" : authKey);
-        }
-
-        public String requiredAuthKey() {
-            return requireSecret(authKey, "omnilens.providers.korea-exim.auth-key");
-        }
-    }
-
     public record PapagoTranslation(URI baseUrl, String clientId, String clientSecret) {
 
         private static PapagoTranslation defaults() {
@@ -177,6 +185,40 @@ public record ExternalProviderProperties(
 
         public String requiredClientSecret() {
             return requireSecret(clientSecret, "omnilens.providers.papago-translation.client-secret");
+        }
+    }
+
+    public record KoreaExim(URI baseUrl, String authKey) {
+
+        private static KoreaExim defaults() {
+            return new KoreaExim(URI.create("https://www.koreaexim.go.kr"), "");
+        }
+
+        private KoreaExim withDefaults() {
+            return new KoreaExim(
+                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    authKey == null ? "" : authKey);
+        }
+
+        public String requiredAuthKey() {
+            return requireSecret(authKey, "omnilens.providers.korea-exim.auth-key");
+        }
+    }
+
+    public record DeepLTranslation(URI baseUrl, String apiKey) {
+
+        private static DeepLTranslation defaults() {
+            return new DeepLTranslation(URI.create("https://api-free.deepl.com"), "");
+        }
+
+        private DeepLTranslation withDefaults() {
+            return new DeepLTranslation(
+                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    apiKey == null ? "" : apiKey);
+        }
+
+        public String requiredApiKey() {
+            return requireSecret(apiKey, "omnilens.providers.deep-l-translation.api-key");
         }
     }
 

@@ -9,17 +9,19 @@ class ExternalProviderPropertiesTest {
 
     @Test
     void defaultsDoNotExposeSecretsAndFailClosedWhenRequired() {
-        ExternalProviderProperties properties = new ExternalProviderProperties(null, null, null, null, null, null, null);
+        ExternalProviderProperties properties =
+                new ExternalProviderProperties(null, null, null, null, null, null);
 
         assertThat(properties.publicData().stockSecuritiesBaseUrl().toString())
                 .isEqualTo("https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService");
         assertThat(properties.naverNews().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
         assertThat(properties.openDart().baseUrl().toString()).isEqualTo("https://opendart.fss.or.kr");
-        assertThat(properties.krx().baseUrl().toString()).isEqualTo("https://data.krx.co.kr");
+        assertThat(properties.kis().baseUrl().toString())
+                .isEqualTo("https://openapivts.koreainvestment.com:29443");
         assertThat(properties.kis().websocketUrl().toString())
-                .isEqualTo("wss://openapi.koreainvestment.com:9443/tryitout");
-        assertThat(properties.koreaExim().baseUrl().toString()).isEqualTo("https://oapi.koreaexim.go.kr");
+                .isEqualTo("ws://ops.koreainvestment.com:31000");
         assertThat(properties.papagoTranslation().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
+        assertThat(properties.deepLTranslation().baseUrl().toString()).isEqualTo("https://api-free.deepl.com");
 
         assertThatThrownBy(() -> properties.naverNews().requiredClientSecret())
                 .isInstanceOf(IllegalStateException.class)
@@ -27,11 +29,11 @@ class ExternalProviderPropertiesTest {
         assertThatThrownBy(() -> properties.kis().requiredApprovalKey())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.kis.approval-key");
-        assertThatThrownBy(() -> properties.koreaExim().requiredAuthKey())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("omnilens.providers.korea-exim.auth-key");
         assertThatThrownBy(() -> properties.papagoTranslation().requiredClientSecret())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.papago-translation.client-secret");
+        assertThatThrownBy(() -> properties.deepLTranslation().requiredApiKey())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("omnilens.providers.deep-l-translation.api-key");
     }
 }

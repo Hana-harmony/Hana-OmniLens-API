@@ -1,6 +1,8 @@
 package com.hana.omnilens.market.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -9,12 +11,14 @@ import org.junit.jupiter.api.Test;
 
 import com.hana.omnilens.provider.market.KisRealtimeMessageParser;
 import com.hana.omnilens.provider.market.KisRealtimeTransaction;
+import com.hana.omnilens.market.stream.MarketQuoteStreamingService;
 
 class RealtimeMarketDataIngestionServiceTest {
 
     private final RealtimeMarketDataCache cache = new InMemoryRealtimeMarketDataCache();
+    private final MarketQuoteStreamingService streamingService = mock(MarketQuoteStreamingService.class);
     private final RealtimeMarketDataIngestionService service =
-            new RealtimeMarketDataIngestionService(new KisRealtimeMessageParser(), cache);
+            new RealtimeMarketDataIngestionService(new KisRealtimeMessageParser(), cache, streamingService);
 
     @Test
     void ingestKisMessageStoresTradeTick() {
@@ -26,6 +30,7 @@ class RealtimeMarketDataIngestionServiceTest {
         assertThat(result.stockCode()).isEqualTo("005930");
         assertThat(cache.latestTrade("005930")).isPresent();
         assertThat(cache.latestTrade("005930").orElseThrow().currentPriceKrw()).isEqualByComparingTo("81500");
+        verify(streamingService).publishTick("005930", "USD");
     }
 
     @Test

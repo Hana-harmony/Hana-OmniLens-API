@@ -14,11 +14,15 @@ public class KisRealtimeMessageParser {
 
     private static final int KIS_FRAME_FIELD_COUNT = 4;
     private static final int ORDERBOOK_LEVEL_COUNT = 10;
+    private static final int TRADE_MIN_FIELD_COUNT = 46;
+    private static final int VI_STATUS_INDEX = 43;
+    private static final int SINGLE_PRICE_TRADING_INDEX = 44;
+    private static final int TRADING_HALT_INDEX = 45;
     private static final DateTimeFormatter BUSINESS_DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
 
     public Optional<KisRealtimeTradeTick> parseTradeTick(String rawMessage) {
         return payload(rawMessage, KisRealtimeTransaction.TRADE)
-                .filter(fields -> fields.length >= 46)
+                .filter(fields -> fields.length >= TRADE_MIN_FIELD_COUNT)
                 .map(fields -> new KisRealtimeTradeTick(
                         fields[0],
                         fields[1],
@@ -28,7 +32,10 @@ public class KisRealtimeMessageParser {
                         decimal(fields[11]),
                         number(fields[12]),
                         number(fields[13]),
-                        LocalDate.parse(fields[33], BUSINESS_DATE_FORMATTER)));
+                        LocalDate.parse(fields[33], BUSINESS_DATE_FORMATTER),
+                        fields[VI_STATUS_INDEX],
+                        fields[SINGLE_PRICE_TRADING_INDEX],
+                        fields[TRADING_HALT_INDEX]));
     }
 
     public Optional<KisRealtimeOrderBookSnapshot> parseOrderBook(String rawMessage) {

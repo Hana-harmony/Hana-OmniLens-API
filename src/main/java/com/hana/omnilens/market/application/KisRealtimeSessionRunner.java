@@ -14,6 +14,7 @@ import com.hana.omnilens.provider.market.KisRealtimeSubscriptionFrameFactory;
 import com.hana.omnilens.provider.market.KisRealtimeSubscriptionType;
 import com.hana.omnilens.provider.market.KisRealtimeTransaction;
 import com.hana.omnilens.provider.market.KisRealtimeWebSocketConnection;
+import com.hana.omnilens.provider.market.KisRealtimeApprovalKeyProvider;
 
 @Component
 public class KisRealtimeSessionRunner {
@@ -23,18 +24,21 @@ public class KisRealtimeSessionRunner {
     private final KisRealtimeSubscriptionFrameFactory frameFactory;
     private final KisRealtimeWebSocketConnection webSocketConnection;
     private final RealtimeMarketDataIngestionService ingestionService;
+    private final KisRealtimeApprovalKeyProvider approvalKeyProvider;
 
     public KisRealtimeSessionRunner(
             KisRealtimeProperties kisRealtimeProperties,
             ExternalProviderProperties externalProviderProperties,
             KisRealtimeSubscriptionFrameFactory frameFactory,
             KisRealtimeWebSocketConnection webSocketConnection,
-            RealtimeMarketDataIngestionService ingestionService) {
+            RealtimeMarketDataIngestionService ingestionService,
+            KisRealtimeApprovalKeyProvider approvalKeyProvider) {
         this.kisRealtimeProperties = kisRealtimeProperties;
         this.externalProviderProperties = externalProviderProperties;
         this.frameFactory = frameFactory;
         this.webSocketConnection = webSocketConnection;
         this.ingestionService = ingestionService;
+        this.approvalKeyProvider = approvalKeyProvider;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -53,7 +57,7 @@ public class KisRealtimeSessionRunner {
     }
 
     List<KisRealtimeSubscriptionFrame> subscriptionFrames() {
-        String approvalKey = externalProviderProperties.kis().requiredApprovalKey();
+        String approvalKey = approvalKeyProvider.approvalKey();
         List<KisRealtimeSubscriptionFrame> frames = new ArrayList<>();
         for (String stockCode : kisRealtimeProperties.stockCodes()) {
             frames.add(frameFactory.create(

@@ -7,16 +7,21 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Optional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.hana.omnilens.common.api.ApiResponse;
+import com.hana.omnilens.common.exception.ErrorCode;
 import com.hana.omnilens.security.ApiKeyRateLimiter;
 import com.hana.omnilens.security.ApiKeyRateLimiter.RateLimitDecision;
 import com.hana.omnilens.security.ApiRequestSignatureVerifier;
@@ -37,18 +42,21 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private final ApiRequestSignatureVerifier apiRequestSignatureVerifier;
     private final SecurityAuditLogger securityAuditLogger;
     private final PartnerCredentialRepository partnerCredentialRepository;
+    private final ObjectMapper objectMapper;
 
     public ApiKeyAuthenticationFilter(
             OmniLensSecurityProperties properties,
             ApiKeyRateLimiter apiKeyRateLimiter,
             ApiRequestSignatureVerifier apiRequestSignatureVerifier,
             SecurityAuditLogger securityAuditLogger,
-            PartnerCredentialRepository partnerCredentialRepository) {
+            PartnerCredentialRepository partnerCredentialRepository,
+            ObjectMapper objectMapper) {
         this.properties = properties;
         this.apiKeyRateLimiter = apiKeyRateLimiter;
         this.apiRequestSignatureVerifier = apiRequestSignatureVerifier;
         this.securityAuditLogger = securityAuditLogger;
         this.partnerCredentialRepository = partnerCredentialRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -65,7 +73,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         String providedKeyHash = StringUtils.hasText(providedKey) ? sha256Hex(providedKey) : "";
         if (!StringUtils.hasText(providedKey)) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "invalid_api_key");
-            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid API key");
+            writeError(response, ErrorCode.INVALID_API_KEY);
             return;
         }
 
@@ -74,18 +82,18 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             authentication = authenticate(providedKeyHash);
         } catch (CredentialStoreUnavailableException exception) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "credential_store_unavailable");
-            response.sendError(HttpStatus.SERVICE_UNAVAILABLE.value(), "API credential store is unavailable");
+            writeError(response, ErrorCode.API_KEY_NOT_CONFIGURED);
             return;
         }
 
         if (!authentication.configured()) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "api_key_hash_missing");
-            response.sendError(HttpStatus.SERVICE_UNAVAILABLE.value(), "API key hash is not configured");
+            writeError(response, ErrorCode.API_KEY_NOT_CONFIGURED);
             return;
         }
         if (!authentication.authenticated()) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "invalid_api_key");
-            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid API key");
+            writeError(response, ErrorCode.INVALID_API_KEY);
             return;
         }
 
@@ -93,7 +101,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         if (!decision.allowed()) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_exceeded");
             response.setHeader("Retry-After", String.valueOf(decision.retryAfterSeconds()));
-            response.sendError(HttpStatus.TOO_MANY_REQUESTS.value(), "Rate limit exceeded");
+            writeError(response, HttpStatus.TOO_MANY_REQUESTS, "AUTH_003", "Rate limit exceeded");
             return;
         }
 
@@ -103,7 +111,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 cachedRequest.body());
         if (!signature.valid()) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "invalid_signature");
-            response.sendError(signature.status().value(), signature.message());
+            writeError(response, signature.status(), "AUTH_004", signature.message());
             return;
         }
 
@@ -118,7 +126,21 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private boolean isPublicEndpoint(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator/health") || path.equals("/actuator/info");
+        return path.startsWith("/actuator/health")
+                || path.equals("/actuator/info")
+                || path.startsWith("/swagger-ui")
+                || path.startsWith("/v3/api-docs");
+    }
+
+    private void writeError(HttpServletResponse response, ErrorCode errorCode) throws IOException {
+        writeError(response, errorCode.status(), errorCode.code(), errorCode.message());
+    }
+
+    private void writeError(HttpServletResponse response, HttpStatus status, String code, String message)
+            throws IOException {
+        response.setStatus(status.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        objectMapper.writeValue(response.getWriter(), ApiResponse.error(status.value(), code, message));
     }
 
     private boolean matchesConfiguredHash(String providedKeyHash) {

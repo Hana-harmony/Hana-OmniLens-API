@@ -17,6 +17,7 @@ docker compose -f compose.local.yml up -d
 - 원격 서버에는 `application-prod.yml`, `application-prod.env`, `deploy-prod.env`, `compose.prod.yml`, `deploy.sh`를 전송한다.
 - 원격 서버의 `deploy.sh`가 GHCR에서 이미지를 pull하고 Docker Compose로 `prod` profile 컨테이너를 재시작한다.
 - 배포 환경 분리 guardrail 테스트가 로컬 설정 gitignore, 운영 placeholder, prod compose profile, GHCR 배포 흐름을 검증한다.
+- `deploy-prod` job은 필수 운영 secret이 모두 있을 때만 이미지 push와 SSH 배포를 실행한다. 미설정 환경에서는 배포 단계를 skip하고 CI를 성공으로 종료한다.
 
 ## 필요한 GitHub Secrets
 - `PROD_HOST`: 운영 서버 호스트
@@ -36,7 +37,6 @@ docker compose -f compose.local.yml up -d
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART API 인증키
-- `KOREA_EXIM_AUTH_KEY`: 한국수출입은행 환율 API 인증키
 
 ## 선택 운영 변수
 - `SERVER_SSL_ENABLED`: Spring Boot TLS 활성화 여부. mTLS 사용 시 `true`로 설정한다.
@@ -51,10 +51,18 @@ docker compose -f compose.local.yml up -d
 - `SERVER_SSL_TRUST_STORE_BASE64`: 협력사 client certificate CA truststore 파일을 base64 인코딩한 값. CI/CD가 원격 서버 `tls/` 디렉터리에 자동 생성한다.
 - `HEALTHCHECK_SCHEME`: 컨테이너 healthcheck scheme. TLS 활성화 시 `https`로 설정한다.
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
-- `KRX_BASE_URL`: KRX 데이터 endpoint 주소. 기본값은 `https://data.krx.co.kr`이다.
-- `KOREA_EXIM_BASE_URL`: 한국수출입은행 환율 endpoint 주소. 기본값은 `https://oapi.koreaexim.go.kr`이다.
+- `KRX_OPEN_API_BASE_URL`: KRX Open API 실제 호출 endpoint 주소. 기본값은 `https://data-dbg.krx.co.kr`이다.
+- `KRX_OPEN_API_AUTH_KEY`: KRX Open API `AUTH_KEY` 헤더로 전달하는 인증키다.
+- `MARKET_HISTORY_COLLECTION_ENABLED`: KRX 과거 일별 시세 수집 scheduler 활성화 여부. 기본값은 `false`이다.
+- `MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS`: KRX 과거 시세 수집 scheduler 주기. 기본값은 `86400000`이다.
+- `MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS`: KRX 과거 시세 수집 기준일 offset. 기본값은 `1`이다.
+- `KIS_BASE_URL`: KIS 모의투자 REST endpoint 주소. 기본값은 `https://openapivts.koreainvestment.com:29443`이다.
+- `KIS_WEBSOCKET_URL`: KIS 모의투자 WebSocket endpoint 주소. 기본값은 `ws://ops.koreainvestment.com:31000`이다.
+- `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.
 - `PAPAGO_TRANSLATION_CLIENT_ID`: Papago NMT API Client ID. 없으면 번역 실패 시 원문 제목으로 fallback한다.
 - `PAPAGO_TRANSLATION_CLIENT_SECRET`: Papago NMT API Client Secret.
+- `DEEPL_TRANSLATION_BASE_URL`: DeepL 번역 endpoint 주소. 기본값은 `https://api-free.deepl.com`이다.
+- `DEEPL_API_KEY`: DeepL 번역 API key. 없거나 실패하면 Papago, 이후 원문 제목으로 fallback한다.
 - `OMNILENS_RATE_LIMIT_ENABLED`: API key fingerprint 단위 rate limit 활성화 여부. 기본값은 `true`이다.
 - `OMNILENS_RATE_LIMIT_CAPACITY`: bucket 최대 요청 수. 기본값은 `120`이다.
 - `OMNILENS_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
@@ -73,9 +81,9 @@ docker compose -f compose.local.yml up -d
 - `ALERT_SCHEDULER_FIXED_DELAY_MS`: 주기 수집 간격. 기본값은 `300000`이다.
 - `ALERT_SCHEDULER_NEWS_DISPLAY`: 종목별 뉴스 수집 개수. 기본값은 `10`이다.
 - `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`: 공시 조회 기간. 기본값은 `7`이다.
-- `EXCHANGE_RATE_REFRESH_ENABLED`: 한국수출입은행 환율 주기 갱신 활성화 여부. 기본값은 `false`이다.
+- `EXCHANGE_RATE_REFRESH_ENABLED`: FX 환율 주기 갱신 활성화 여부. 기본값은 `false`이다.
 - `EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS`: 환율 갱신 간격. 기본값은 `300000`이다.
-- `EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS`: 환율 조회 기준일 offset. 기본값은 `0`이다.
+- `EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS`: fallback provider가 기준일을 요구할 때 사용할 조회 기준일 offset. 기본값은 `0`이다.
 - `EXCHANGE_RATE_REFRESH_CURRENCIES`: 갱신할 통화 목록. 예: `USD,JPY`.
 - `EXCHANGE_RATE_CACHE_MODE`: 환율 cache 저장소. 기본값은 `redis`이다.
 - `EXCHANGE_RATE_CACHE_TTL`: Redis 환율 cache TTL. 기본값은 `24h`이다.
@@ -108,6 +116,20 @@ HEALTHCHECK_SCHEME=https
 ```
 
 `SERVER_SSL_CLIENT_AUTH=want`는 healthcheck가 client certificate 없이 통과할 수 있게 두고, 보호 API는 앱 필터가 client certificate 존재와 유효 기간을 다시 검증한다.
+
+## 향후 외부 연동 Secrets
+최신 기능정의 구현 시 아래 값은 GitHub Secrets 또는 배포 환경 Secret Manager에만 둔다.
+
+- `KIS_ACCOUNT_NUMBER`: KIS 계좌번호
+- `KIS_APP_KEY`, `KIS_APP_SECRET`: KIS Open API credential
+- `EXIMBANK_API_KEY`: 한국수출입은행 환율 API credential
+- `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API credential
+- `OPEN_DART_API_KEY`: OpenDART API credential
+- `PAPAGO_CLIENT_ID`, `PAPAGO_CLIENT_SECRET`: Papago 번역 credential
+- `DEEPL_API_KEY`: DeepL 번역 credential
+- `TAX_OCR_PROVIDER_KEY`: 세무 OCR/문서 검증 공급자를 사용할 경우 credential
+
+세무 파일 원본, OCR 결과, 환급금 선지급 상태는 별도 암호화 저장소와 접근 감사 로그를 전제로 배포한다.
 
 ## 원격 서버 준비
 원격 서버에는 아래 런타임이 미리 설치되어 있어야 한다.

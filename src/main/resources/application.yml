@@ -49,21 +49,24 @@ omnilens:
       base-url: https://openapi.naver.com
       client-id: ""
       client-secret: ""
+    deep-l-translation:
+      base-url: https://api-free.deepl.com
+      api-key: ""
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: ""
-    krx:
-      base-url: https://data.krx.co.kr
+    krx-open-api:
+      base-url: https://data-dbg.krx.co.kr
+      auth-key: ""
     kis:
-      base-url: https://openapi.koreainvestment.com:9443
-      websocket-url: wss://openapi.koreainvestment.com:9443/tryitout
+      base-url: https://openapivts.koreainvestment.com:29443
+      websocket-url: ws://ops.koreainvestment.com:31000
       app-key: ""
       app-secret: ""
       access-token: ""
       approval-key: ""
-    korea-exim:
-      base-url: https://oapi.koreaexim.go.kr
-      auth-key: ""
+    frankfurter:
+      base-url: https://api.frankfurter.dev
     resilience:
       connect-timeout: 2s
       read-timeout: 5s
@@ -97,6 +100,10 @@ omnilens:
       fixed-delay-ms: 300000
       base-date-offset-days: 0
       currencies: []
+    history-collection:
+      enabled: false
+      fixed-delay-ms: 86400000
+      base-date-offset-days: 1
   alert:
     dedupe:
       mode: redis
