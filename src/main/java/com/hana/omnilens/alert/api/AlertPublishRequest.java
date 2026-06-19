@@ -8,6 +8,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
+
 public record AlertPublishRequest(
         @NotBlank @Size(max = 80) String partnerId,
         @NotBlank @Pattern(regexp = "\\d{6}") String stockCode,
@@ -24,6 +26,8 @@ public record AlertPublishRequest(
         List<String> relatedStocks,
         boolean holderTarget,
         boolean watchlistTarget,
+        List<AlertGlossaryTerm> glossaryTerms,
+        List<String> translationQualityFlags,
         @Size(max = 128) String duplicateKey,
         @Size(max = 120) String modelVersion
 ) {

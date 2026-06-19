@@ -87,6 +87,9 @@ class AlertWebSocketContractTest {
         assertThat(partnerEvent.partnerId()).isEqualTo("partner-a");
         assertThat(partnerEvent.stockCode()).isEqualTo("005930");
         assertThat(partnerEvent.eventTags()).containsExactly("EARNINGS");
+        assertThat(partnerEvent.glossaryTerms()).hasSize(1);
+        assertThat(partnerEvent.glossaryTerms().get(0).englishTerm()).isEqualTo("earnings");
+        assertThat(partnerEvent.translationQualityFlags()).containsExactly("FINANCIAL_GLOSSARY_APPLIED");
         assertThat(partnerEvent.duplicateKey()).isEqualTo("manual-duplicate");
         assertThat(partnerEvent.modelVersion()).isEqualTo("manual-publisher");
         assertThat(stockEvent.alertId()).isEqualTo(partnerEvent.alertId());
@@ -202,6 +205,12 @@ class AlertWebSocketContractTest {
         payload.put("relatedStocks", List.of("005930"));
         payload.put("holderTarget", true);
         payload.put("watchlistTarget", true);
+        payload.put("glossaryTerms", List.of(Map.of(
+                "sourceTerm", "실적",
+                "normalizedTerm", "실적",
+                "englishTerm", "earnings",
+                "category", "event")));
+        payload.put("translationQualityFlags", List.of("FINANCIAL_GLOSSARY_APPLIED"));
         payload.put("duplicateKey", "manual-duplicate");
         payload.put("modelVersion", "manual-publisher");
         return payload;
