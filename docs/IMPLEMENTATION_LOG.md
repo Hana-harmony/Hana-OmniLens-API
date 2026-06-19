@@ -360,6 +360,11 @@
 - `POST /api/v1/tax/refund-cases/classify`를 추가해 한국·홍콩 조세조약 CASE_01 경계를 공동 응답 envelope으로 제공한다.
 - 홍콩 거주, 상장주식 장내거래, 25% 미만 지분율, 거주자증명서/제한세율신청서 검증 완료 조건을 모두 만족하면 `CASE_01`로 판정한다.
 - 조건 미충족 시 `CASE_REVIEW_REQUIRED`와 수동 검토/서류 검증 next action을 반환한다. 실제 법무 최종판정, 신고 제출, 지급 실행은 수행하지 않는다.
+
+## 2026-06-19 tax rectification batch status
+- `GET /api/v1/tax/rectification-batches/{taxYear}/quarters/{quarter}`를 추가해 분기별 경정청구 배치 상태를 공동 응답 envelope으로 제공한다.
+- 배치 상태는 quarter filing window 기준으로 `SCHEDULED`, `COLLECTING_CASES`, `READY_FOR_REVIEW`, `SUBMISSION_PREPARED`를 반환한다.
+- 응답은 batch id, filing window, 전체/준비/수동검토 case count, next action, source를 포함한다. 실제 신고 제출, 법무 최종판정, 지급 실행은 수행하지 않는다.
 - 인증된 운영 API는 API key fingerprint별 rate limit을 적용한다.
 - 운영 요청 서명은 HMAC-SHA256, timestamp clock skew, nonce replay 방어를 적용할 수 있다.
 - 운영 요청 서명 nonce는 Redis에 공유 저장해 다중 인스턴스에서도 replay를 방지한다.

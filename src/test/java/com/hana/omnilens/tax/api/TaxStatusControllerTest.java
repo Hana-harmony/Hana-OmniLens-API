@@ -1,6 +1,7 @@
 package com.hana.omnilens.tax.api;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -128,6 +129,29 @@ class TaxStatusControllerTest {
                                   "requestedAt": "2026-06-18T06:00:00Z"
                                 }
                                 """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
+    }
+
+    @Test
+    void getRectificationBatchStatusReturnsCommonEnvelope() throws Exception {
+        mockMvc.perform(get("/api/v1/tax/rectification-batches/2026/quarters/2")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.status", equalTo(200)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
+                .andExpect(jsonPath("$.data.batchId", equalTo("RECT-2026-Q2")))
+                .andExpect(jsonPath("$.data.taxYear", equalTo(2026)))
+                .andExpect(jsonPath("$.data.quarter", equalTo(2)))
+                .andExpect(jsonPath("$.data.source", equalTo("HANA_TAX_RECTIFICATION_BATCH_RULE_ENGINE")));
+    }
+
+    @Test
+    void getRectificationBatchStatusRejectsInvalidQuarter() throws Exception {
+        mockMvc.perform(get("/api/v1/tax/rectification-batches/2026/quarters/5")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success", equalTo(false)))
                 .andExpect(jsonPath("$.code", equalTo("COMMON_002")));

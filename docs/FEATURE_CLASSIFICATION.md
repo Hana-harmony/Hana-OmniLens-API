@@ -54,7 +54,7 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 | OCR 텍스트 추출, 위변조/딥페이크 1차 검증 | Hannah-Montana-AI | Done |
 | 한국·홍콩 조세조약 케이스 판정 | Hana-OmniLens-API | Done |
 | 환급금 선지급 상태 sync와 사후 환수 상태 계약 | Hana-OmniLens-API | Done for status sync, real payout/OCR review Planned |
-| 분기별 경정청구 배치 상태 조회 | Hana-OmniLens-API | Planned |
+| 분기별 경정청구 배치 상태 조회 | Hana-OmniLens-API | Done |
 | 서류 업로드, 상태 타임라인, 환급 신청, 입금 완료 UI | Stock-exchange-FE | Done |
 
 ## 기존 기획에서 보존할 항목
@@ -64,3 +64,5 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 - WebSocket topic은 협력사 단위와 종목 단위를 모두 유지한다.
 - 실제 사용자별 알림 매칭, 푸시 발송, 알림함 저장은 현지 거래소 백엔드 책임이다.
 - 실제 주문 실행, 체결, 정산, 환전은 현재 프로젝트 범위 밖이다. Stock-exchange-BE의 거래 기능은 실제 거래가 아니라 자체 mock ledger 체험 기능이다.
+- 분기별 경정청구 배치 상태는 `GET /api/v1/tax/rectification-batches/{taxYear}/quarters/{quarter}`에서 공동 응답 envelope으로 제공한다.
+- 응답은 `SCHEDULED`, `COLLECTING_CASES`, `READY_FOR_REVIEW`, `SUBMISSION_PREPARED` 상태, filing window, case count, next action을 포함한다. 실제 세무서 신고 제출, 법무 최종판정, 지급 실행은 수행하지 않는다.
