@@ -437,6 +437,13 @@ class MarketDataServiceTest {
         assertThat(orderability.foreignLimitExceeded()).isTrue();
         assertThat(orderability.currentForeignLimitExhaustionRate()).isEqualByComparingTo("99.0000");
         assertThat(orderability.predictedForeignLimitExhaustionRate()).isEqualByComparingTo("101.000000");
+        assertThat(orderability.foreignOwnershipPrediction().minForeignLimitExhaustionRate())
+                .isEqualByComparingTo("100.950000");
+        assertThat(orderability.foreignOwnershipPrediction().baseForeignLimitExhaustionRate())
+                .isEqualByComparingTo("101.000000");
+        assertThat(orderability.foreignOwnershipPrediction().maxForeignLimitExhaustionRate())
+                .isEqualByComparingTo("101.050000");
+        assertThat(orderability.foreignOwnershipPrediction().confidenceLevel()).isEqualTo("SNAPSHOT_ONLY");
         assertThat(orderability.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 3));
         assertThat(orderability.priceLimitState()).isEqualTo("NORMAL");
         assertThat(orderability.viActive()).isFalse();
@@ -476,6 +483,9 @@ class MarketDataServiceTest {
         assertThat(orderability.orderBlockedReason()).isNull();
         assertThat(orderability.foreignLimitExceeded()).isFalse();
         assertThat(orderability.predictedForeignLimitExhaustionRate()).isEqualByComparingTo("100.0000");
+        assertThat(orderability.foreignOwnershipPrediction().baseForeignLimitExhaustionRate())
+                .isEqualByComparingTo("100.000000");
+        assertThat(orderability.foreignOwnershipPrediction().orderImpactRate()).isEqualByComparingTo("0.000000");
     }
 
     @Test

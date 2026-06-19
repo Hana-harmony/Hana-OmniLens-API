@@ -1013,6 +1013,7 @@ components:
         - foreignLimitExceeded
         - currentForeignLimitExhaustionRate
         - predictedForeignLimitExhaustionRate
+        - foreignOwnershipPrediction
         - viActive
         - singlePriceTrading
         - priceLimitState
@@ -1047,6 +1048,8 @@ components:
           type: number
         predictedForeignLimitExhaustionRate:
           type: number
+        foreignOwnershipPrediction:
+          $ref: "#/components/schemas/ForeignOwnershipPrediction"
         foreignOwnershipBaseDate:
           type:
             - string
@@ -1070,6 +1073,54 @@ components:
         source:
           type: string
           description: Source chain used to compute the boundary, including KIS realtime status when price-limit state was derived from tick data.
+    ForeignOwnershipPrediction:
+      type: object
+      required:
+        - minForeignLimitExhaustionRate
+        - baseForeignLimitExhaustionRate
+        - maxForeignLimitExhaustionRate
+        - orderImpactRate
+        - intradayUncertaintyRate
+        - observedIntradayVolume
+        - calculatedAt
+        - confidenceLevel
+        - source
+      properties:
+        minForeignLimitExhaustionRate:
+          type: number
+          description: Lower bound of the predicted foreign ownership limit exhaustion rate.
+        baseForeignLimitExhaustionRate:
+          type: number
+          description: Snapshot rate plus the simulated order impact.
+        maxForeignLimitExhaustionRate:
+          type: number
+          description: Conservative upper bound used for BUY blocking.
+        orderImpactRate:
+          type: number
+          description: Percentage-point impact of the requested mock order quantity.
+        intradayUncertaintyRate:
+          type: number
+          description: Intraday uncertainty derived from KIS realtime accumulated volume, or snapshot-only fallback.
+        observedIntradayVolume:
+          type: integer
+          format: int64
+        baseDate:
+          type:
+            - string
+            - "null"
+          format: date
+        calculatedAt:
+          type: string
+          format: date-time
+        confidenceLevel:
+          type: string
+          enum:
+            - REALTIME_VOLUME_ADJUSTED
+            - SNAPSHOT_ONLY
+            - NO_SNAPSHOT
+        source:
+          type: string
+          description: Data source chain used by the prediction engine.
     OrderBook:
       type: object
       required:
