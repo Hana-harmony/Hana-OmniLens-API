@@ -84,7 +84,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 ## 주문 가능 여부 boundary
 - `GET /api/v1/market/stocks/{stockCode}/orderability?side=BUY&quantity=1`를 사용한다.
 - 이 API는 현지 거래소의 자체 mock ledger 주문 전 확인용이며 실제 주문, 체결, 정산, KIS 모의투자 주문을 수행하지 않는다.
-- BUY 요청은 KRX 외국인보유량 cache의 한도소진율과 요청 수량을 이용해 예상 한도소진율을 계산하고, 100% 이상이면 `FOREIGN_LIMIT_EXCEEDED`로 차단한다.
+- BUY 요청은 KRX 외국인보유량 cache의 한도소진율, 요청 수량, KIS 실시간 체결 누적 거래량을 이용해 `foreignOwnershipPrediction`의 min/base/max 한도소진율, 주문 영향도, 당일 불확실성, 신뢰도, 산출 source를 계산한다. 차단 여부는 보수적인 max 한도소진율이 100% 이상인지로 판단한다.
 - SELL 요청은 외국인 한도소진율이 100% 이상이어도 한도 초과 사유로 차단하지 않는다.
 - KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
 

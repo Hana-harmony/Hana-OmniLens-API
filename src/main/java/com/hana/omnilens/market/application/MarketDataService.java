@@ -14,6 +14,7 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
@@ -45,6 +46,7 @@ public class MarketDataService {
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
     private final ExchangeRateCache exchangeRateCache;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
+    private final ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine;
     private final Clock clock;
 
     @Autowired
@@ -54,7 +56,8 @@ public class MarketDataService {
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             ExchangeRateCache exchangeRateCache,
-            RealtimeMarketDataCache realtimeMarketDataCache) {
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine) {
         this(
                 publicDataStockSecuritiesClient,
                 kisCurrentPriceClient,
@@ -62,6 +65,7 @@ public class MarketDataService {
                 foreignOwnershipSnapshotCache,
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                foreignOwnershipPredictionEngine,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -73,12 +77,33 @@ public class MarketDataService {
             ExchangeRateCache exchangeRateCache,
             RealtimeMarketDataCache realtimeMarketDataCache,
             Clock clock) {
+        this(
+                publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                exchangeRateCache,
+                realtimeMarketDataCache,
+                new ForeignOwnershipPredictionEngine(clock),
+                clock);
+    }
+
+    MarketDataService(
+            PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
+            Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.kisCurrentPriceClient = kisCurrentPriceClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
         this.exchangeRateCache = exchangeRateCache;
         this.realtimeMarketDataCache = realtimeMarketDataCache;
+        this.foreignOwnershipPredictionEngine = foreignOwnershipPredictionEngine;
         this.clock = clock;
     }
 
@@ -181,8 +206,13 @@ public class MarketDataService {
                 side,
                 quantity,
                 snapshot);
+        ForeignOwnershipPrediction foreignOwnershipPrediction = foreignOwnershipPredictionEngine.predict(
+                side,
+                quantity,
+                snapshot,
+                realtimeMarketDataCache.latestTrade(stockCode));
         boolean foreignLimitExceeded = "BUY".equals(side)
-                && predictedForeignLimitExhaustionRate.compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
+                && foreignOwnershipPrediction.maxForeignLimitExhaustionRate().compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
         MarketStatus marketStatus = latestMarketStatus(stockCode);
         String blockedReason = blockedReason(foreignLimitExceeded, marketStatus.tradingHalted());
 
@@ -196,6 +226,7 @@ public class MarketDataService {
                 foreignLimitExceeded,
                 currentForeignLimitExhaustionRate,
                 predictedForeignLimitExhaustionRate,
+                foreignOwnershipPrediction,
                 snapshot.map(KrxForeignOwnershipSnapshot::baseDate).orElse(null),
                 marketStatus.viActive(),
                 marketStatus.singlePriceTrading(),

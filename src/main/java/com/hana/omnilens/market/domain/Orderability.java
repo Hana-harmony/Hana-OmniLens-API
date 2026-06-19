@@ -14,6 +14,7 @@ public record Orderability(
         boolean foreignLimitExceeded,
         BigDecimal currentForeignLimitExhaustionRate,
         BigDecimal predictedForeignLimitExhaustionRate,
+        ForeignOwnershipPrediction foreignOwnershipPrediction,
         LocalDate foreignOwnershipBaseDate,
         boolean viActive,
         boolean singlePriceTrading,
