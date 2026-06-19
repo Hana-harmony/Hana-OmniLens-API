@@ -3,6 +3,7 @@ package com.hana.omnilens.config;
 import java.net.URI;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.util.StringUtils;
 
 @ConfigurationProperties(prefix = "omnilens.providers")
@@ -10,18 +11,44 @@ public record ExternalProviderProperties(
         PublicData publicData,
         NaverNews naverNews,
         OpenDart openDart,
+        Krx krx,
         Kis kis,
+        KoreaExim koreaExim,
         PapagoTranslation papagoTranslation,
         DeepLTranslation deepLTranslation
 ) {
 
+    @ConstructorBinding
     public ExternalProviderProperties {
         publicData = publicData == null ? PublicData.defaults() : publicData.withDefaults();
         naverNews = naverNews == null ? NaverNews.defaults() : naverNews.withDefaults();
         openDart = openDart == null ? OpenDart.defaults() : openDart.withDefaults();
+        krx = krx == null ? Krx.defaults() : krx.withDefaults();
         kis = kis == null ? Kis.defaults() : kis.withDefaults();
+        koreaExim = koreaExim == null ? KoreaExim.defaults() : koreaExim.withDefaults();
         papagoTranslation = papagoTranslation == null ? PapagoTranslation.defaults() : papagoTranslation.withDefaults();
         deepLTranslation = deepLTranslation == null ? DeepLTranslation.defaults() : deepLTranslation.withDefaults();
+    }
+
+    public ExternalProviderProperties(
+            PublicData publicData,
+            NaverNews naverNews,
+            OpenDart openDart,
+            Kis kis,
+            PapagoTranslation papagoTranslation,
+            DeepLTranslation deepLTranslation) {
+        this(publicData, naverNews, openDart, null, kis, null, papagoTranslation, deepLTranslation);
+    }
+
+    public ExternalProviderProperties(
+            PublicData publicData,
+            NaverNews naverNews,
+            OpenDart openDart,
+            Krx krx,
+            Kis kis,
+            KoreaExim koreaExim,
+            PapagoTranslation papagoTranslation) {
+        this(publicData, naverNews, openDart, krx, kis, koreaExim, papagoTranslation, null);
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -79,6 +106,17 @@ public record ExternalProviderProperties(
 
         public String requiredApiKey() {
             return requireSecret(apiKey, "omnilens.providers.open-dart.api-key");
+        }
+    }
+
+    public record Krx(URI baseUrl) {
+
+        private static Krx defaults() {
+            return new Krx(URI.create("https://data.krx.co.kr"));
+        }
+
+        private Krx withDefaults() {
+            return new Krx(baseUrl == null ? defaults().baseUrl() : baseUrl);
         }
     }
 
@@ -147,6 +185,23 @@ public record ExternalProviderProperties(
 
         public String requiredClientSecret() {
             return requireSecret(clientSecret, "omnilens.providers.papago-translation.client-secret");
+        }
+    }
+
+    public record KoreaExim(URI baseUrl, String authKey) {
+
+        private static KoreaExim defaults() {
+            return new KoreaExim(URI.create("https://www.koreaexim.go.kr"), "");
+        }
+
+        private KoreaExim withDefaults() {
+            return new KoreaExim(
+                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    authKey == null ? "" : authKey);
+        }
+
+        public String requiredAuthKey() {
+            return requireSecret(authKey, "omnilens.providers.korea-exim.auth-key");
         }
     }
 
