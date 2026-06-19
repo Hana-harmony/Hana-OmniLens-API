@@ -20,7 +20,7 @@ Hana-OmniLens-API는 실제 주문 명령을 받지 않는다. 대신 현지 거
 | 당일 외국인 한도소진율 주문 전 예측 boundary | Hana-OmniLens-API | Done |
 | 정교한 당일 외국인 보유율 min/max 예측 engine | Hana-OmniLens-API, Predict Engine | Planned |
 | KIS 실시간 체결 기반 상·하한가 상태 감지 | Hana-OmniLens-API | Done |
-| VI 발동, 단일가 매매, 거래정지 전용 상태 감지 | Hana-OmniLens-API | Planned |
+| VI 발동, 단일가 매매, 거래정지 전용 상태 감지 | Hana-OmniLens-API | Done |
 | 종목 상세/주문 상태 JSON API | Hana-OmniLens-API | Done |
 | 모의 매수·매도 기준 가격과 주문 가능 여부 판단 | Stock-exchange-BE | Done |
 | 아이디/비밀번호 회원가입, mock USD 계좌 생성, 달러 충전 | Stock-exchange-BE | Done |

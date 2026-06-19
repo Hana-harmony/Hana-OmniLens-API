@@ -198,6 +198,7 @@ public class MarketDataService {
                 predictedForeignLimitExhaustionRate,
                 snapshot.map(KrxForeignOwnershipSnapshot::baseDate).orElse(null),
                 marketStatus.viActive(),
+                marketStatus.singlePriceTrading(),
                 marketStatus.priceLimitState(),
                 marketStatus.tradingHalted(),
                 Instant.now(clock),
@@ -315,8 +316,21 @@ public class MarketDataService {
 
     private MarketStatus latestMarketStatus(String stockCode) {
         return realtimeMarketDataCache.latestTrade(stockCode)
-                .map(tick -> new MarketStatus(false, priceLimitState(tick), false, "KIS_WEBSOCKET_TRADE_STATUS"))
+                .map(tick -> new MarketStatus(
+                        activeStatusCode(tick.viStatusCode()),
+                        activeStatusCode(tick.singlePriceTradingCode()),
+                        priceLimitState(tick),
+                        activeStatusCode(tick.tradingHaltCode()),
+                        "KIS_WEBSOCKET_TRADE_STATUS"))
                 .orElse(MarketStatus.normalFallback());
+    }
+
+    private boolean activeStatusCode(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String normalized = value.trim().toUpperCase();
+        return !List.of("0", "00", "N", "NO", "NORMAL", "NONE", "FALSE", "INACTIVE", "OFF").contains(normalized);
     }
 
     private String priceLimitState(KisRealtimeTradeTick tick) {
@@ -446,12 +460,13 @@ public class MarketDataService {
 
     private record MarketStatus(
             boolean viActive,
+            boolean singlePriceTrading,
             String priceLimitState,
             boolean tradingHalted,
             String source
     ) {
         private static MarketStatus normalFallback() {
-            return new MarketStatus(false, "NORMAL", false, "MARKET_STATUS_FALLBACK");
+            return new MarketStatus(false, false, "NORMAL", false, "MARKET_STATUS_FALLBACK");
         }
     }
 }

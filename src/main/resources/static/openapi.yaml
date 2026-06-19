@@ -897,6 +897,7 @@ components:
         - currentForeignLimitExhaustionRate
         - predictedForeignLimitExhaustionRate
         - viActive
+        - singlePriceTrading
         - priceLimitState
         - tradingHalted
         - checkedAt
@@ -935,6 +936,8 @@ components:
             - "null"
           format: date
         viActive:
+          type: boolean
+        singlePriceTrading:
           type: boolean
         priceLimitState:
           type: string

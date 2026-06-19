@@ -173,6 +173,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.orderable", equalTo(true)))
                 .andExpect(jsonPath("$.data.foreignLimitExceeded", equalTo(false)))
                 .andExpect(jsonPath("$.data.viActive", equalTo(false)))
+                .andExpect(jsonPath("$.data.singlePriceTrading", equalTo(false)))
                 .andExpect(jsonPath("$.data.priceLimitState", equalTo("NORMAL")))
                 .andExpect(jsonPath("$.data.tradingHalted", equalTo(false)));
     }

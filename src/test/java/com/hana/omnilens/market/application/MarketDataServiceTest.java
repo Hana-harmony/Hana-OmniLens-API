@@ -510,6 +510,7 @@ class MarketDataServiceTest {
         assertThat(orderability.orderable()).isTrue();
         assertThat(orderability.priceLimitState()).isEqualTo("UPPER_LIMIT");
         assertThat(orderability.viActive()).isFalse();
+        assertThat(orderability.singlePriceTrading()).isFalse();
         assertThat(orderability.tradingHalted()).isFalse();
         assertThat(orderability.source()).isEqualTo("ORDERABILITY_KIS_WEBSOCKET_TRADE+KIS_WEBSOCKET_TRADE_STATUS");
     }
@@ -545,6 +546,84 @@ class MarketDataServiceTest {
 
         assertThat(orderability.orderable()).isTrue();
         assertThat(orderability.priceLimitState()).isEqualTo("LOWER_LIMIT");
+        assertThat(orderability.source()).isEqualTo("ORDERABILITY_KIS_WEBSOCKET_TRADE+KIS_WEBSOCKET_TRADE_STATUS");
+    }
+
+    @Test
+    void getOrderabilityDetectsViAndSinglePriceFromRealtimeTradeStatus() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        RealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                realtimeCache,
+                FIXED_CLOCK);
+        realtimeCache.putTrade(new KisRealtimeTradeTick(
+                "005930",
+                "093000",
+                new BigDecimal("81500"),
+                new BigDecimal("1.25"),
+                new BigDecimal("81600"),
+                new BigDecimal("81400"),
+                1200L,
+                16_200_000L,
+                LocalDate.of(2025, 6, 4),
+                "Y",
+                "SINGLE_PRICE",
+                "0"));
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+
+        Orderability orderability = service.getOrderability("005930", "BUY", 1);
+
+        assertThat(orderability.orderable()).isTrue();
+        assertThat(orderability.viActive()).isTrue();
+        assertThat(orderability.singlePriceTrading()).isTrue();
+        assertThat(orderability.priceLimitState()).isEqualTo("NORMAL");
+        assertThat(orderability.tradingHalted()).isFalse();
+        assertThat(orderability.source()).isEqualTo("ORDERABILITY_KIS_WEBSOCKET_TRADE+KIS_WEBSOCKET_TRADE_STATUS");
+    }
+
+    @Test
+    void getOrderabilityBlocksWhenRealtimeTradeStatusIsHalted() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        RealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                realtimeCache,
+                FIXED_CLOCK);
+        realtimeCache.putTrade(new KisRealtimeTradeTick(
+                "005930",
+                "093000",
+                new BigDecimal("81500"),
+                new BigDecimal("0.00"),
+                new BigDecimal("81600"),
+                new BigDecimal("81400"),
+                1200L,
+                16_200_000L,
+                LocalDate.of(2025, 6, 4),
+                "0",
+                "0",
+                "HALT"));
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+
+        Orderability orderability = service.getOrderability("005930", "SELL", 1);
+
+        assertThat(orderability.orderable()).isFalse();
+        assertThat(orderability.orderBlockedReason()).isEqualTo("TRADING_HALTED");
+        assertThat(orderability.tradingHalted()).isTrue();
         assertThat(orderability.source()).isEqualTo("ORDERABILITY_KIS_WEBSOCKET_TRADE+KIS_WEBSOCKET_TRADE_STATUS");
     }
 

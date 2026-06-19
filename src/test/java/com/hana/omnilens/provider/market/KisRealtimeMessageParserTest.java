@@ -29,6 +29,9 @@ class KisRealtimeMessageParserTest {
         assertThat(tick.orElseThrow().executionVolume()).isEqualTo(1200L);
         assertThat(tick.orElseThrow().accumulatedVolume()).isEqualTo(16_200_000L);
         assertThat(tick.orElseThrow().businessDate()).isEqualTo(LocalDate.of(2025, 6, 4));
+        assertThat(tick.orElseThrow().viStatusCode()).isEqualTo("Y");
+        assertThat(tick.orElseThrow().singlePriceTradingCode()).isEqualTo("SINGLE_PRICE");
+        assertThat(tick.orElseThrow().tradingHaltCode()).isEqualTo("HALT");
     }
 
     @Test
@@ -69,6 +72,9 @@ class KisRealtimeMessageParserTest {
         fields.set(12, "1200");
         fields.set(13, "16200000");
         fields.set(33, "20250604");
+        fields.set(43, "Y");
+        fields.set(44, "SINGLE_PRICE");
+        fields.set(45, "HALT");
         return String.join("^", fields);
     }
 

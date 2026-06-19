@@ -326,7 +326,7 @@
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
 - 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KRX 외국인보유량 cache와 요청 수량으로 예상 한도소진율을 계산해 100% 이상이면 `FOREIGN_LIMIT_EXCEEDED`로 차단한다.
-- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단해 orderability 응답에 반영한다. VI와 거래정지는 KIS 전용 상태 필드 파싱 전까지 false로 유지한다.
+- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산해 orderability 응답에 반영한다. `tradingHalted=true`이면 `TRADING_HALTED`로 주문 가능 여부를 차단한다.
 - KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다.
 - 과거 시세는 `/api/v1/market/stocks/{stockCode}/history`에서 공동 응답 envelope으로 조회하고, 운영 수집은 `/api/v1/market/history/collect` 또는 scheduler로 실행한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.

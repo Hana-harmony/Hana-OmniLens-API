@@ -16,6 +16,7 @@ public record Orderability(
         BigDecimal predictedForeignLimitExhaustionRate,
         LocalDate foreignOwnershipBaseDate,
         boolean viActive,
+        boolean singlePriceTrading,
         String priceLimitState,
         boolean tradingHalted,
         Instant checkedAt,
