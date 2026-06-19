@@ -86,7 +86,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - 이 API는 현지 거래소의 자체 mock ledger 주문 전 확인용이며 실제 주문, 체결, 정산, KIS 모의투자 주문을 수행하지 않는다.
 - BUY 요청은 KRX 외국인보유량 cache의 한도소진율과 요청 수량을 이용해 예상 한도소진율을 계산하고, 100% 이상이면 `FOREIGN_LIMIT_EXCEEDED`로 차단한다.
 - SELL 요청은 외국인 한도소진율이 100% 이상이어도 한도 초과 사유로 차단하지 않는다.
-- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단한다. 아직 KIS VI/거래정지 전용 상태 필드는 별도 파싱 전이므로 `viActive=false`, `tradingHalted=false`로 응답하며 `source`에서 사용한 데이터 경계를 확인한다.
+- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
 
 ## 헬스체크
 - `GET /actuator/health`
