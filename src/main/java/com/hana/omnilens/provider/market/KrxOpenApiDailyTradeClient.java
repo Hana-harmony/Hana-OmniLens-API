@@ -8,6 +8,7 @@ import java.util.stream.StreamSupport;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -65,6 +66,12 @@ public class KrxOpenApiDailyTradeClient {
                         .build())
                 .header("AUTH_KEY", properties.requiredAuthKey())
                 .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
+                    if (response.getStatusCode().value() == 401) {
+                        throw new IllegalStateException(
+                                "KRX Open API auth key is invalid or not approved for daily trade service");
+                    }
+                })
                 .body(JsonNode.class));
 
         JsonNode items = root == null ? null : root.path("OutBlock_1");

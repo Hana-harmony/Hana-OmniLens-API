@@ -37,10 +37,6 @@ omnilens:
       base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
       client-id: ${NAVER_NEWS_CLIENT_ID}
       client-secret: ${NAVER_NEWS_CLIENT_SECRET}
-    papago-translation:
-      base-url: ${PAPAGO_TRANSLATION_BASE_URL:https://openapi.naver.com}
-      client-id: ${PAPAGO_TRANSLATION_CLIENT_ID:}
-      client-secret: ${PAPAGO_TRANSLATION_CLIENT_SECRET:}
     deep-l-translation:
       base-url: ${DEEPL_TRANSLATION_BASE_URL:https://api-free.deepl.com}
       api-key: ${DEEPL_API_KEY:}

@@ -118,6 +118,7 @@ class KisRealtimeSessionRunnerTest {
                 null,
                 null,
                 null,
+                null,
                 new ExternalProviderProperties.Kis(
                         URI.create("https://kis.example"),
                         URI.create("wss://kis.example/ws"),
@@ -125,7 +126,6 @@ class KisRealtimeSessionRunnerTest {
                         "app-secret",
                         "access-token",
                         "approval-key"),
-                null,
                 null);
     }
 

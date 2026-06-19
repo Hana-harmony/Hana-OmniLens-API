@@ -59,10 +59,8 @@ docker compose -f compose.local.yml up -d
 - `KIS_BASE_URL`: KIS 모의투자 REST endpoint 주소. 기본값은 `https://openapivts.koreainvestment.com:29443`이다.
 - `KIS_WEBSOCKET_URL`: KIS 모의투자 WebSocket endpoint 주소. 기본값은 `ws://ops.koreainvestment.com:31000`이다.
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.
-- `PAPAGO_TRANSLATION_CLIENT_ID`: Papago NMT API Client ID. 없으면 번역 실패 시 원문 제목으로 fallback한다.
-- `PAPAGO_TRANSLATION_CLIENT_SECRET`: Papago NMT API Client Secret.
 - `DEEPL_TRANSLATION_BASE_URL`: DeepL 번역 endpoint 주소. 기본값은 `https://api-free.deepl.com`이다.
-- `DEEPL_API_KEY`: DeepL 번역 API key. 없거나 실패하면 Papago, 이후 원문 제목으로 fallback한다.
+- `DEEPL_API_KEY`: DeepL 번역 API key. 없거나 실패하면 원문 제목으로 fallback한다.
 - `OMNILENS_RATE_LIMIT_ENABLED`: API key fingerprint 단위 rate limit 활성화 여부. 기본값은 `true`이다.
 - `OMNILENS_RATE_LIMIT_CAPACITY`: bucket 최대 요청 수. 기본값은 `120`이다.
 - `OMNILENS_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
@@ -122,10 +120,8 @@ HEALTHCHECK_SCHEME=https
 
 - `KIS_ACCOUNT_NUMBER`: KIS 계좌번호
 - `KIS_APP_KEY`, `KIS_APP_SECRET`: KIS Open API credential
-- `EXIMBANK_API_KEY`: 한국수출입은행 환율 API credential
 - `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API credential
 - `OPEN_DART_API_KEY`: OpenDART API credential
-- `PAPAGO_CLIENT_ID`, `PAPAGO_CLIENT_SECRET`: Papago 번역 credential
 - `DEEPL_API_KEY`: DeepL 번역 credential
 - `TAX_OCR_PROVIDER_KEY`: 세무 OCR/문서 검증 공급자를 사용할 경우 credential
 

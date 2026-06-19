@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.net.URI;
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -111,5 +113,26 @@ class KrxOpenApiDailyTradeClientTest {
         assertThatThrownBy(() -> client.findKospiDailyTrades(LocalDate.of(2025, 6, 4)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.krx-open-api.auth-key");
+    }
+
+    @Test
+    void findKospiDailyTradesFailsClosedWhenAuthKeyIsUnauthorized() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        KrxOpenApiDailyTradeClient client = new KrxOpenApiDailyTradeClient(
+                builder,
+                new KrxOpenApiProperties(URI.create("https://data-dbg.krx.example"), "unauthorized-key"),
+                ProviderTestResilience.disabled());
+
+        server.expect(requestTo(containsString("/svc/apis/sto/stk_bydd_trd")))
+                .andExpect(header("AUTH_KEY", "unauthorized-key"))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED).body("""
+                        {"respMsg":"Unauthorized API Call","respCode":"401"}
+                        """));
+
+        assertThatThrownBy(() -> client.findKospiDailyTrades(LocalDate.of(2025, 6, 4)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("KRX Open API auth key is invalid");
+        server.verify();
     }
 }

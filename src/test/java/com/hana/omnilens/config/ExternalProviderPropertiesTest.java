@@ -20,7 +20,6 @@ class ExternalProviderPropertiesTest {
                 .isEqualTo("https://openapivts.koreainvestment.com:29443");
         assertThat(properties.kis().websocketUrl().toString())
                 .isEqualTo("ws://ops.koreainvestment.com:31000");
-        assertThat(properties.papagoTranslation().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
         assertThat(properties.deepLTranslation().baseUrl().toString()).isEqualTo("https://api-free.deepl.com");
 
         assertThatThrownBy(() -> properties.naverNews().requiredClientSecret())
@@ -29,9 +28,6 @@ class ExternalProviderPropertiesTest {
         assertThatThrownBy(() -> properties.kis().requiredApprovalKey())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.kis.approval-key");
-        assertThatThrownBy(() -> properties.papagoTranslation().requiredClientSecret())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("omnilens.providers.papago-translation.client-secret");
         assertThatThrownBy(() -> properties.deepLTranslation().requiredApiKey())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.deep-l-translation.api-key");

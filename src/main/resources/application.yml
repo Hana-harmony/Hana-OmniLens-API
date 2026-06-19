@@ -45,10 +45,6 @@ omnilens:
       base-url: https://openapi.naver.com
       client-id: ""
       client-secret: ""
-    papago-translation:
-      base-url: https://openapi.naver.com
-      client-id: ""
-      client-secret: ""
     deep-l-translation:
       base-url: https://api-free.deepl.com
       api-key: ""

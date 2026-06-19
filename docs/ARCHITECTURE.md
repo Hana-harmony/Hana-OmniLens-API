@@ -21,15 +21,14 @@
 
 ## 외부 시스템
 - KIS Open API: 현재가, 실시간 체결가, 실시간 호가
-- KRX: 과거 일별 OHLCV, 거래대금, 전일 외국인 보유율과 한도소진율
+- KRX Open API: 과거 일별 OHLCV, 거래대금
 - FX provider: 실시간/준실시간 환율
-- 한국수출입은행: 고시 환율 fallback
 - Naver News Search: 뉴스 제목, snippet, 원문 링크
 - OpenDART: 공시 제목, 유형, 제출시각, 원문 링크
 - Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석
 
 ## 현재 구현 상태
-- KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX 과거 일별매매정보, KRX 외국인보유량, FX 환율, 한국수출입은행 고시 환율 fallback, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
+- KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX Open API 과거 일별매매정보, Frankfurter FX 환율, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
 - `MarketDataService`가 표준 응답 구조와 현지 통화 환산 로직을 제공한다.
 - `GET /api/v1/market/quotes`는 stockCodes가 있으면 요청 순서의 다건 snapshot을, 없으면 종목 마스터 기반 전체 snapshot을 반환한다.
 - `POST /api/v1/market/history/collect`는 KRX KOSPI/KOSDAQ/KONEX 일별매매정보를 수집해 `market_daily_price`에 upsert한다.
