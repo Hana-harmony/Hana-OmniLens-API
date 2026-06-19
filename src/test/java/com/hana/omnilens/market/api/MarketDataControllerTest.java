@@ -101,6 +101,34 @@ class MarketDataControllerTest {
     }
 
     @Test
+    void stockDetailApiReturnsQuoteAndOrderabilityContract() throws Exception {
+        mockMvc.perform(get("/api/v1/market/stocks/005930/detail")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("currency", "USD")
+                        .param("fxRate", "0.00072"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data.stockName", equalTo("삼성전자")))
+                .andExpect(jsonPath("$.data.stockNameEn", equalTo("Samsung Electronics")))
+                .andExpect(jsonPath("$.data.market", equalTo("KOSPI")))
+                .andExpect(jsonPath("$.data.currentPriceKrw").exists())
+                .andExpect(jsonPath("$.data.localCurrency", equalTo("USD")))
+                .andExpect(jsonPath("$.data.localCurrencyPrice").exists())
+                .andExpect(jsonPath("$.data.foreignOwnedQuantity").exists())
+                .andExpect(jsonPath("$.data.foreignOwnershipRate").exists())
+                .andExpect(jsonPath("$.data.predictedForeignOwnershipRateMin").exists())
+                .andExpect(jsonPath("$.data.predictedForeignOwnershipRateMax").exists())
+                .andExpect(jsonPath("$.data.predictedForeignLimitExhaustionRateMin").exists())
+                .andExpect(jsonPath("$.data.predictedForeignLimitExhaustionRateMax").exists())
+                .andExpect(jsonPath("$.data.viActive", equalTo(false)))
+                .andExpect(jsonPath("$.data.singlePriceTrading", equalTo(false)))
+                .andExpect(jsonPath("$.data.priceLimitState", equalTo("NORMAL")))
+                .andExpect(jsonPath("$.data.tradingHalted", equalTo(false)))
+                .andExpect(jsonPath("$.data.orderable", equalTo(true)));
+    }
+
+    @Test
     void bulkQuoteApiReturnsRequestedStocksInCommonEnvelope() throws Exception {
         mockMvc.perform(get("/api/v1/market/quotes")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
