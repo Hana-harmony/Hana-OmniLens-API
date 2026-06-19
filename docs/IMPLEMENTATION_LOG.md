@@ -1,9 +1,9 @@
 # 구현 기록
 
-## 2026-06-19 KRX 외국인보유량 provider 복구
-- 외국인보유량은 주문 가능 여부 판단에 필요한 핵심 데이터이므로 KRX 외국인보유량 provider를 복구했다.
-- `/api/v1/market/stocks/{stockCode}/foreign-ownership/refresh`에서 종목 마스터의 ISIN으로 KRX snapshot을 조회하고 `ForeignOwnershipSnapshotCache`에 저장한다.
-- KRX 응답이 비어 있거나 실패하면 기존 cache를 덮어쓰지 않아 quote와 orderability fallback 동작을 유지한다.
+## 2026-06-19 KIS 외국인보유량 provider 정정
+- 외국인보유량은 KIS 현재가 응답의 `frgn_hldn_qty`, `hts_frgn_ehrt`, `lstn_stcn`에서 산출하도록 정정했다.
+- `/api/v1/market/stocks/{stockCode}/foreign-ownership/refresh`는 KIS 현재가를 조회해 `ForeignOwnershipSnapshotCache`에 저장한다.
+- KIS 응답이 비어 있거나 실패하면 기존 cache를 덮어쓰지 않아 quote와 orderability fallback 동작을 유지한다.
 
 ## 2026-06-03 하네스 구축
 - Spring Boot 3.5.14, Java 17, Gradle Wrapper 기반 API 프로젝트 생성
@@ -38,9 +38,9 @@
 - 로컬 실제 키가 있어도 테스트가 외부망을 타지 않도록 컨트롤러 테스트에서 provider key를 비움
 - 서비스 단위 테스트로 provider 성공, provider 실패 fallback, 종목 마스터 검색을 검증
 
-## 2026-06-04 KRX 외국인보유량 snapshot 연결
-- KRX 화면 데이터 API 의존성은 제거하고, KRX 인증키 기반 Open API client만 유지한다.
-- 외국인보유량은 live 화면 데이터 호출 없이 cache 또는 기본 fallback 값만 사용한다.
+## 2026-06-04 KIS 외국인보유량 snapshot 연결
+- 외국인보유량은 KIS 현재가 REST 응답에서 수집하고, KRX 화면 데이터 API 의존성은 두지 않는다.
+- 외국인보유량 cache 또는 기본 fallback 값으로 quote/orderability 응답 구조를 유지한다.
 
 ## 2026-06-04 Hannah-Montana-AI 분석 클라이언트
 - 내부 FastAPI 서비스 `POST /api/v1/alerts/analyze` 호출용 `HannahAiAnalysisClient` 추가
@@ -161,18 +161,17 @@
 - 시장 API는 잘못된 종목코드, 통화코드, 환율, 빈 검색어를 거부하는 테스트를 추가했다.
 - 알림 API는 잘못된 알림 payload, nested stock universe, 수집 limit과 종목코드를 거부하는 테스트를 추가했다.
 
-## 2026-06-04 KRX 외국인보유량 재시도와 캐시
-- KRX 외국인보유량 조회가 특정 기준일 장애로 실패해도 최근 7일 탐색을 계속하도록 수정했다.
-- KRX snapshot 조회에 성공하면 `ForeignOwnershipSnapshotCache`에 저장한다.
-- KRX provider가 전체 기간에서 장애 또는 무응답이면 캐시된 전일 확정 snapshot을 quote 응답에 사용한다.
-- 캐시 사용 시 source는 `KRX_FOREIGN_OWNERSHIP_CACHE` suffix로 표시해 live provider와 구분한다.
-- 단위 테스트로 첫 기준일 장애 후 이전 기준일 재시도, KRX 전체 장애 시 캐시 fallback을 검증했다.
+## 2026-06-04 KIS 외국인보유량 캐시
+- KIS 현재가 응답의 외국인보유량 필드를 `ForeignOwnershipSnapshotCache`에 저장한다.
+- KIS provider가 장애 또는 무응답이면 캐시된 snapshot을 quote 응답에 사용한다.
+- 캐시 사용 시 source는 `KIS_FOREIGN_OWNERSHIP_CACHE` suffix로 표시해 live provider와 구분한다.
+- 단위 테스트로 KIS snapshot 저장과 provider 장애 시 캐시 fallback을 검증했다.
 
 ## 2026-06-04 KIS 현재가 REST provider 연결
 - KIS Open API 국내주식 현재가 endpoint `GET /uapi/domestic-stock/v1/quotations/inquire-price` 계약을 `KisCurrentPriceClient`로 격리했다.
 - 요청 header는 `authorization`, `appkey`, `appsecret`, `tr_id=FHKST01010100`으로 고정했다.
 - 요청 query는 `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD={stockCode}`로 고정했다.
-- KIS 응답의 `stck_prpr`, `prdy_ctrt`, `acml_vol`, `hts_kor_isnm`을 `KisCurrentPriceSnapshot`으로 변환한다.
+- KIS 응답의 `stck_prpr`, `prdy_ctrt`, `acml_vol`, `hts_kor_isnm`, `frgn_hldn_qty`, `hts_frgn_ehrt`, `lstn_stcn`을 `KisCurrentPriceSnapshot`으로 변환한다.
 - `MarketDataService`는 KIS 현재가를 가격 provider 1순위로 사용하고, KIS 미설정·장애·무응답 시 공공데이터 전일 snapshot과 mock fallback 순서로 quote 응답 구조를 유지한다.
 - quote `source`는 `KIS_OPEN_API`, `PUBLIC_DATA_STOCK_SECURITIES`, `MOCK_MARKET_DATA`와 KRX suffix를 조합해 데이터 출처를 표시한다.
 - KIS app key, app secret, access token은 env placeholder로만 관리하고, 테스트 fixture에는 가짜 값만 사용한다.
@@ -278,9 +277,9 @@
 ## 2026-06-04 Redis 기반 외국인 보유율 cache
 - `ForeignOwnershipSnapshotCache` 구현을 설정 기반 bean으로 전환했다.
 - 기본 모드는 Redis이며 `FOREIGN_OWNERSHIP_CACHE_MODE`, `FOREIGN_OWNERSHIP_CACHE_TTL`로 조정한다.
-- `RedisForeignOwnershipSnapshotCache`는 `omnilens:market:foreign-ownership:{stockCode}` key에 KRX snapshot JSON을 TTL 저장한다.
+- `RedisForeignOwnershipSnapshotCache`는 `omnilens:market:foreign-ownership:{stockCode}` key에 KIS 외국인보유량 snapshot JSON을 TTL 저장한다.
 - Redis 조회·저장 장애 또는 payload 역직렬화 실패 시 `InMemoryForeignOwnershipSnapshotCache` fallback을 사용한다.
-- Redis 저장 성공 후에도 fallback cache를 갱신해 KRX/Redis 일시 장애 시 마지막 성공 snapshot을 같은 프로세스에서 계속 사용할 수 있게 했다.
+- Redis 저장 성공 후에도 fallback cache를 갱신해 KIS/Redis 일시 장애 시 마지막 성공 snapshot을 같은 프로세스에서 계속 사용할 수 있게 했다.
 - 단위 테스트로 TTL 저장, Redis payload 조회, Redis 장애 fallback, properties 기본값을 검증했다.
 
 ## 2026-06-04 외부 provider resilience policy
@@ -289,7 +288,7 @@
 - `ExternalProviderResiliencePolicy`는 provider 이름별 circuit state를 관리하고 `RestClientException` 계열 장애만 재시도한다.
 - 재시도 기본값은 2회, backoff 기본값은 150ms다.
 - circuit breaker 기본값은 연속 실패 5회 후 30초 open이다.
-- Naver News, OpenDART, Papago, KIS 현재가, 공공데이터 주식시세, KRX 외국인보유량, 한국수출입은행 환율, Hannah-Montana-AI 내부 분석 호출에 정책을 적용했다.
+- Naver News, OpenDART, Papago, KIS 현재가와 외국인보유량, 공공데이터 주식시세, 한국수출입은행 환율, Hannah-Montana-AI 내부 분석 호출에 정책을 적용했다.
 - Hannah-Montana-AI 호출에는 별도 서비스 토큰을 추가하지 않고 내부 네트워크 호출 모델을 유지했다.
 - `application-prod.yml`은 `PROVIDER_*` placeholder를 사용하고, CI/CD가 기본값 포함 `application-prod.env`를 자동 생성한다.
 - 단위 테스트로 retry 성공, circuit open, 비네트워크 예외 no-retry, properties 기본값을 검증했다.
@@ -335,12 +334,12 @@
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
-- 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KRX 외국인보유량 cache, 요청 수량, KIS 실시간 체결 누적 거래량으로 예상 한도소진율 min/base/max를 계산한다. 차단 여부는 보수적인 max 한도소진율이 100% 이상인지로 판단한다.
+- 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KIS 외국인보유량 cache, 요청 수량, KIS 실시간 체결 누적 거래량으로 예상 한도소진율 min/base/max를 계산한다. 차단 여부는 보수적인 max 한도소진율이 100% 이상인지로 판단한다.
 - KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산해 orderability 응답에 반영한다. `tradingHalted=true`이면 `TRADING_HALTED`로 주문 가능 여부를 차단한다.
 - KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다.
 - 과거 시세는 `/api/v1/market/stocks/{stockCode}/history`에서 공동 응답 envelope으로 조회하고, 운영 수집은 `/api/v1/market/history/collect` 또는 scheduler로 실행한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
-- 외국인 보유수량, 외국인 지분율, 한도소진율은 KRX 외국인보유량 refresh로 저장한 snapshot cache를 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
+- 외국인 보유수량, 외국인 지분율, 한도소진율은 KIS 현재가 refresh로 저장한 snapshot cache를 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
 - 외국인 보유율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
 - 현지 통화 환산가는 quote 요청의 `fxRate`, Frankfurter 또는 협력사 입력 환율 캐시, `1` fallback 순서로 선택한 환율에 `currentPriceKrw`를 곱해 계산한다.
 - 환율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.

@@ -26,7 +26,7 @@ import com.hana.omnilens.market.application.ForeignOwnershipRefreshResult;
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.MarketDailyPriceRepository;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 
 @SpringBootTest(properties = {
         "omnilens.security.api-key-enabled=true",
@@ -261,19 +261,19 @@ class MarketDataControllerTest {
     }
 
     @Test
-    void foreignOwnershipRefreshApiStoresKrxSnapshotInCache() throws Exception {
+    void foreignOwnershipRefreshApiStoresKisSnapshotInCache() throws Exception {
         when(foreignOwnershipRefreshService.refresh("005930", LocalDate.of(2025, 6, 4)))
                 .thenReturn(new ForeignOwnershipRefreshResult(
                         "005930",
                         LocalDate.of(2025, 6, 4),
-                        Optional.of(new KrxForeignOwnershipSnapshot(
+                        Optional.of(new ForeignOwnershipSnapshot(
                                 "005930",
                                 3_642_091_300L,
                                 new BigDecimal("54.19"),
                                 6_720_000_000L,
                                 new BigDecimal("54.21"),
                                 LocalDate.of(2025, 6, 4))),
-                        "KRX_FOREIGN_OWNERSHIP"));
+                        "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP"));
 
         mockMvc.perform(post("/api/v1/market/stocks/005930/foreign-ownership/refresh")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -287,7 +287,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.foreignOwnershipRate", equalTo(54.19)))
                 .andExpect(jsonPath("$.data.foreignLimitQuantity", equalTo(6_720_000_000L)))
                 .andExpect(jsonPath("$.data.foreignLimitExhaustionRate", equalTo(54.21)))
-                .andExpect(jsonPath("$.data.source", equalTo("KRX_FOREIGN_OWNERSHIP")));
+                .andExpect(jsonPath("$.data.source", equalTo("KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP")));
     }
 
     @Test

@@ -18,7 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 
 class RedisForeignOwnershipSnapshotCacheTest {
 
@@ -76,7 +76,7 @@ class RedisForeignOwnershipSnapshotCacheTest {
                         """);
 
         assertThat(cache.find("005930")).isPresent();
-        KrxForeignOwnershipSnapshot snapshot = cache.find("005930").orElseThrow();
+        ForeignOwnershipSnapshot snapshot = cache.find("005930").orElseThrow();
         assertThat(snapshot.foreignOwnedQuantity()).isEqualTo(3_642_091_300L);
         assertThat(snapshot.foreignOwnershipRate()).isEqualByComparingTo("54.19");
         assertThat(snapshot.baseDate()).isEqualTo(LocalDate.of(2026, 6, 3));
@@ -100,8 +100,8 @@ class RedisForeignOwnershipSnapshotCacheTest {
                 .isEqualByComparingTo("54.21");
     }
 
-    private KrxForeignOwnershipSnapshot snapshot() {
-        return new KrxForeignOwnershipSnapshot(
+    private ForeignOwnershipSnapshot snapshot() {
+        return new ForeignOwnershipSnapshot(
                 "005930",
                 3_642_091_300L,
                 new BigDecimal("54.19"),

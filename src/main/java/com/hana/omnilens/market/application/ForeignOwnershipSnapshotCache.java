@@ -2,11 +2,11 @@ package com.hana.omnilens.market.application;
 
 import java.util.Optional;
 
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 
 public interface ForeignOwnershipSnapshotCache {
 
-    Optional<KrxForeignOwnershipSnapshot> find(String stockCode);
+    Optional<ForeignOwnershipSnapshot> find(String stockCode);
 
-    void put(KrxForeignOwnershipSnapshot snapshot);
+    void put(ForeignOwnershipSnapshot snapshot);
 }

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 
 @Component
 public class ForeignOwnershipPredictionEngine {
@@ -32,7 +32,7 @@ public class ForeignOwnershipPredictionEngine {
     public ForeignOwnershipPrediction predict(
             String side,
             long quantity,
-            Optional<KrxForeignOwnershipSnapshot> ownershipSnapshot,
+            Optional<ForeignOwnershipSnapshot> ownershipSnapshot,
             Optional<KisRealtimeTradeTick> realtimeTradeTick) {
         if (ownershipSnapshot.isEmpty()) {
             return new ForeignOwnershipPrediction(
@@ -48,7 +48,7 @@ public class ForeignOwnershipPredictionEngine {
                     "FOREIGN_OWNERSHIP_PREDICTOR_NO_SNAPSHOT");
         }
 
-        KrxForeignOwnershipSnapshot snapshot = ownershipSnapshot.orElseThrow();
+        ForeignOwnershipSnapshot snapshot = ownershipSnapshot.orElseThrow();
         BigDecimal orderImpactRate = orderImpactRate(side, quantity, snapshot.foreignLimitQuantity());
         BigDecimal baseRate = snapshot.foreignLimitExhaustionRate()
                 .add(orderImpactRate)
@@ -68,8 +68,8 @@ public class ForeignOwnershipPredictionEngine {
                 clock.instant(),
                 realtimeTradeTick.isPresent() ? "REALTIME_VOLUME_ADJUSTED" : "SNAPSHOT_ONLY",
                 realtimeTradeTick.isPresent()
-                        ? "KRX_FOREIGN_OWNERSHIP_CACHE+KIS_WEBSOCKET_TRADE_VOLUME"
-                        : "KRX_FOREIGN_OWNERSHIP_CACHE");
+                        ? "KIS_FOREIGN_OWNERSHIP_CACHE+KIS_WEBSOCKET_TRADE_VOLUME"
+                        : "KIS_FOREIGN_OWNERSHIP_CACHE");
     }
 
     private BigDecimal orderImpactRate(String side, long quantity, long foreignLimitQuantity) {
