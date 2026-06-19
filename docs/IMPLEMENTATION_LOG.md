@@ -1,5 +1,11 @@
 # 구현 기록
 
+## 2026-06-19 하네스·문서 최신화
+- KIS 실시간 체결가·호가 WebSocket은 가격, 호가, 누적 거래량, VI/단일가/거래정지 상태 전용으로 정리했다.
+- 외국인 보유수량, 보유율, 한도소진율은 KIS 현재가 REST snapshot과 Redis/in-memory cache에서 공급한다고 명시했다.
+- 외국인 한도 사전 차단은 snapshot, 주문 수량 영향도, KIS 실시간 누적 거래량 보정 기반이며 외국인 보유량 다일자 시계열 학습 모델은 구현 범위가 아님을 문서화했다.
+- Papago와 한국수출입은행 환율 provider는 레거시 제거 상태이며, 번역은 DeepL, 환율은 Frankfurter 기준으로 정리했다.
+
 ## 2026-06-19 KIS 외국인보유량 provider 정정
 - 외국인보유량은 KIS 현재가 응답의 `frgn_hldn_qty`, `hts_frgn_ehrt`, `lstn_stcn`에서 산출하도록 정정했다.
 - `/api/v1/market/stocks/{stockCode}/foreign-ownership/refresh`는 KIS 현재가를 조회해 `ForeignOwnershipSnapshotCache`에 저장한다.
