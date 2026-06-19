@@ -49,11 +49,9 @@ docker compose -f compose.local.yml up -d
 - KRX 외국인보유량 provider 요청·응답 매핑
 - 시장 데이터 quote의 KRX 외국인 보유수량·지분율·한도소진율 반영
 - 외국인 보유율 예측 engine의 snapshot-only, 실시간 거래량 조정, snapshot 부재 fallback
-- KRX 외국인보유량 날짜 재시도와 장애 시 전일 캐시 fallback
 - Redis 외국인 보유율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - 협력사 입력 환율 저장과 quote의 환율 캐시 fallback
-- 한국수출입은행 환율 provider 요청·응답 매핑과 cache refresh
-- `deal_bas_r`의 `KRW -> 현지통화` 변환 및 `JPY(100)` 단위 처리
+- Frankfurter 환율 provider 요청·응답 매핑과 cache refresh
 - 환율 refresh scheduler의 disabled no-op, 기준일 offset, 통화별 장애 격리
 - Redis 환율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - quote 요청 `fxRate`가 저장된 환율보다 우선되는 계산 계약
@@ -62,9 +60,8 @@ docker compose -f compose.local.yml up -d
 - 과거 시세 history API의 공동 응답 envelope과 OHLCV/거래대금 payload
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
-- Papago NMT 번역 요청 계약과 응답 매핑
 - DeepL 번역 요청 계약과 응답 매핑
-- 알림 제목 번역 DeepL 우선, Papago fallback, 번역 장애 시 원문 fallback
+- 알림 제목 번역 DeepL 우선, 번역 장애 시 원문 fallback
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 외부 provider 공통 timeout 설정 기본값
 - 외부 provider 재시도, circuit open, 비네트워크 예외 no-retry 정책
