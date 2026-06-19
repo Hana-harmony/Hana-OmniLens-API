@@ -59,6 +59,14 @@ class DeploymentProfileGuardrailTest {
     }
 
     @Test
+    void localComposeBindsHannahAiUrlToSpringConfigurationProperty() throws IOException {
+        String compose = read("compose.local.yml");
+
+        assertThat(compose).contains("OMNILENS_AI_HANNAH_BASE_URL: http://host.docker.internal:8000");
+        assertThat(compose).doesNotContain("PROVIDERS_AI_HANNAH_BASE_URL");
+    }
+
+    @Test
     void githubActionsDeploysProdOnlyFromMainThroughGhcr() throws IOException {
         String workflow = read(".github/workflows/ci.yml");
 

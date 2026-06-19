@@ -11,7 +11,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: omnilens-local-password
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
-      PROVIDERS_AI_HANNAH_BASE_URL: http://host.docker.internal:8000
+      OMNILENS_AI_HANNAH_BASE_URL: http://host.docker.internal:8000
     ports:
       - "8080:8080"
     depends_on:
