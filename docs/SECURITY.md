@@ -56,6 +56,7 @@
 - `OPEN_DART_API_KEY`: OpenDART 공시검색 API 인증키
 - `PAPAGO_TRANSLATION_CLIENT_ID`: Papago NMT API Client ID
 - `PAPAGO_TRANSLATION_CLIENT_SECRET`: Papago NMT API Client Secret
+- `DEEPL_API_KEY`: DeepL translation API key
 - `OMNILENS_SIGNATURE_SECRET`: 협력사 요청 서명 검증용 HMAC secret
 - `SERVER_SSL_KEY_STORE_PASSWORD`: 서버 TLS keystore 비밀번호
 - `SERVER_SSL_TRUST_STORE_PASSWORD`: 협력사 client certificate CA truststore 비밀번호

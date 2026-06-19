@@ -176,6 +176,13 @@
 - 번역 키 미설정, Papago 장애, 빈 번역 결과는 알림 발행을 막지 않고 원문 제목으로 fallback한다.
 - 단위 테스트로 Papago 요청 계약, 번역 성공, 번역 실패 fallback, 분석 후 발행 payload의 번역 제목 반영을 검증했다.
 
+## 2026-06-19 DeepL 알림 제목 번역 fallback chain
+- DeepL `POST /v2/translate` 계약을 `DeepLTranslationClient`로 격리했다.
+- 요청 header는 `Authorization: DeepL-Auth-Key {apiKey}`로 고정하고, 요청 body는 `source_lang=KO`, `target_lang=EN-US`, `text={원문 제목}` form payload로 전송한다.
+- 운영 설정은 `DEEPL_TRANSLATION_BASE_URL`, `DEEPL_API_KEY` 환경변수 슬롯만 추가하고, 실제 값은 커밋하지 않는다.
+- `AlertTitleTranslationService`는 DeepL을 먼저 시도하고, DeepL 키 미설정·장애·빈 결과 시 Papago를 시도한 뒤, Papago도 실패하면 원문 제목으로 fallback한다.
+- 단위 테스트로 DeepL 요청 계약, DeepL 우선 번역, Papago fallback, 전체 provider 실패 시 원문 fallback을 검증했다.
+
 ## 2026-06-04 HMAC 요청 서명 인증
 - `omnilens.security.signature.enabled`가 켜진 경우 보호 API 요청에 HMAC-SHA256 서명을 요구한다.
 - canonical string은 `METHOD`, `URI_WITH_QUERY`, `TIMESTAMP`, `NONCE`, `SHA256_BODY_HEX`를 줄바꿈으로 연결한다.

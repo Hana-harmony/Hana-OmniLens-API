@@ -68,6 +68,7 @@ class OpenDartDisclosureClientTest {
                         URI.create("https://opendart.fss.or.kr"),
                         "dart-api-key"),
                 null,
+                null,
                 null);
     }
 }

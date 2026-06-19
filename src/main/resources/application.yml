@@ -49,6 +49,9 @@ omnilens:
       base-url: https://openapi.naver.com
       client-id: ""
       client-secret: ""
+    deep-l-translation:
+      base-url: https://api-free.deepl.com
+      api-key: ""
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: ""
