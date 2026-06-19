@@ -44,7 +44,10 @@ class KisCurrentPriceClientTest {
                             "hts_kor_isnm": "삼성전자",
                             "stck_prpr": "81200",
                             "prdy_ctrt": "1.87",
-                            "acml_vol": "15500000"
+                            "acml_vol": "15500000",
+                            "frgn_hldn_qty": "3,642,091,300",
+                            "hts_frgn_ehrt": "54.21",
+                            "lstn_stcn": "5,969,782,550"
                           }
                         }
                         """, APPLICATION_JSON));
@@ -56,6 +59,10 @@ class KisCurrentPriceClientTest {
         assertThat(snapshot.orElseThrow().currentPriceKrw()).isEqualByComparingTo("81200");
         assertThat(snapshot.orElseThrow().changeRate()).isEqualByComparingTo("1.87");
         assertThat(snapshot.orElseThrow().volume()).isEqualTo(15_500_000L);
+        assertThat(snapshot.orElseThrow().foreignOwnedQuantity()).isEqualTo(3_642_091_300L);
+        assertThat(snapshot.orElseThrow().foreignOwnershipRate()).isEqualByComparingTo("61.008777");
+        assertThat(snapshot.orElseThrow().foreignLimitQuantity()).isEqualTo(6_718_486_073L);
+        assertThat(snapshot.orElseThrow().foreignLimitExhaustionRate()).isEqualByComparingTo("54.21");
         server.verify();
     }
 

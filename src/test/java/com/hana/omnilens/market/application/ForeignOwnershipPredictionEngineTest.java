@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 
 class ForeignOwnershipPredictionEngineTest {
 
@@ -63,7 +63,7 @@ class ForeignOwnershipPredictionEngineTest {
         assertThat(prediction.maxForeignLimitExhaustionRate()).isEqualByComparingTo("100.500000");
         assertThat(prediction.observedIntradayVolume()).isEqualTo(500L);
         assertThat(prediction.confidenceLevel()).isEqualTo("REALTIME_VOLUME_ADJUSTED");
-        assertThat(prediction.source()).isEqualTo("KRX_FOREIGN_OWNERSHIP_CACHE+KIS_WEBSOCKET_TRADE_VOLUME");
+        assertThat(prediction.source()).isEqualTo("KIS_FOREIGN_OWNERSHIP_CACHE+KIS_WEBSOCKET_TRADE_VOLUME");
     }
 
     @Test
@@ -81,8 +81,8 @@ class ForeignOwnershipPredictionEngineTest {
         assertThat(prediction.source()).isEqualTo("FOREIGN_OWNERSHIP_PREDICTOR_NO_SNAPSHOT");
     }
 
-    private KrxForeignOwnershipSnapshot snapshot() {
-        return new KrxForeignOwnershipSnapshot(
+    private ForeignOwnershipSnapshot snapshot() {
+        return new ForeignOwnershipSnapshot(
                 "005930",
                 990L,
                 new BigDecimal("49.50"),

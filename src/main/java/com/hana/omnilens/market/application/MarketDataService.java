@@ -19,11 +19,11 @@ import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockSummary;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockSecuritiesClient;
 
@@ -133,12 +133,12 @@ public class MarketDataService {
                 fxLookup.fxRateTime(),
                 fxLookup.fxRateSource(),
                 fxLookup.stale(),
-                foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(3642091300L),
-                foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignOwnershipRate)
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(3642091300L),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnershipRate)
                         .orElse(new BigDecimal("54.19")),
-                foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate)
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate)
                         .orElse(new BigDecimal("54.19")),
-                foreignOwnership.snapshot().map(KrxForeignOwnershipSnapshot::baseDate)
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::baseDate)
                         .orElse(priceLookup.baseDate()
                                 .orElse(LocalDate.now(clock).minusDays(1))),
                 Instant.now(clock),
@@ -198,9 +198,9 @@ public class MarketDataService {
         StockSummary stock = getStock(stockCode);
         PriceLookup priceLookup = latestPriceSnapshot(stockCode);
         ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock);
-        Optional<KrxForeignOwnershipSnapshot> snapshot = foreignOwnership.snapshot();
+        Optional<ForeignOwnershipSnapshot> snapshot = foreignOwnership.snapshot();
         BigDecimal currentForeignLimitExhaustionRate = snapshot
-                .map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate)
+                .map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate)
                 .orElse(BigDecimal.ZERO);
         BigDecimal predictedForeignLimitExhaustionRate = predictedForeignLimitExhaustionRate(
                 side,
@@ -227,7 +227,7 @@ public class MarketDataService {
                 currentForeignLimitExhaustionRate,
                 predictedForeignLimitExhaustionRate,
                 foreignOwnershipPrediction,
-                snapshot.map(KrxForeignOwnershipSnapshot::baseDate).orElse(null),
+                snapshot.map(ForeignOwnershipSnapshot::baseDate).orElse(null),
                 marketStatus.viActive(),
                 marketStatus.singlePriceTrading(),
                 marketStatus.priceLimitState(),
@@ -287,7 +287,10 @@ public class MarketDataService {
         try {
             Optional<KisCurrentPriceSnapshot> kisSnapshot = kisCurrentPriceClient.findCurrentPrice(stockCode);
             if (kisSnapshot.isPresent()) {
-                return PriceLookup.kis(kisSnapshot.orElseThrow(), LocalDate.now(clock));
+                LocalDate baseDate = LocalDate.now(clock);
+                KisCurrentPriceSnapshot snapshot = kisSnapshot.orElseThrow();
+                snapshot.foreignOwnershipSnapshot(baseDate).ifPresent(foreignOwnershipSnapshotCache::put);
+                return PriceLookup.kis(snapshot, baseDate);
             }
         } catch (RuntimeException exception) {
             // KIS 인증 또는 일시 장애가 있어도 공공데이터 snapshot으로 시세 응답을 유지한다.
@@ -322,11 +325,11 @@ public class MarketDataService {
     private BigDecimal predictedForeignLimitExhaustionRate(
             String side,
             long quantity,
-            Optional<KrxForeignOwnershipSnapshot> snapshot) {
+            Optional<ForeignOwnershipSnapshot> snapshot) {
         if (!"BUY".equals(side) || snapshot.isEmpty() || snapshot.orElseThrow().foreignLimitQuantity() <= 0) {
-            return snapshot.map(KrxForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(BigDecimal.ZERO);
+            return snapshot.map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(BigDecimal.ZERO);
         }
-        KrxForeignOwnershipSnapshot ownership = snapshot.orElseThrow();
+        ForeignOwnershipSnapshot ownership = snapshot.orElseThrow();
         BigDecimal quantityRate = BigDecimal.valueOf(quantity)
                 .multiply(BigDecimal.valueOf(100))
                 .divide(BigDecimal.valueOf(ownership.foreignLimitQuantity()), 6, RoundingMode.HALF_UP);
@@ -379,25 +382,25 @@ public class MarketDataService {
 
     private String source(PriceSource priceSource, ForeignOwnershipSource foreignOwnershipSource) {
         if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
-            return "KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP_CACHE";
+            return "KIS_WEBSOCKET_TRADE+KIS_FOREIGN_OWNERSHIP_CACHE";
         }
         if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE) {
             return "KIS_WEBSOCKET_TRADE";
         }
         if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
-            return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE";
+            return "KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE";
         }
         if (priceSource == PriceSource.KIS_OPEN_API) {
             return "KIS_OPEN_API";
         }
         if (priceSource == PriceSource.PUBLIC_DATA && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
-            return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE";
+            return "PUBLIC_DATA_STOCK_SECURITIES+KIS_FOREIGN_OWNERSHIP_CACHE";
         }
         if (priceSource == PriceSource.PUBLIC_DATA) {
             return "PUBLIC_DATA_STOCK_SECURITIES";
         }
         if (foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
-            return "MOCK_MARKET_DATA+KRX_FOREIGN_OWNERSHIP_CACHE";
+            return "MOCK_MARKET_DATA+KIS_FOREIGN_OWNERSHIP_CACHE";
         }
         return "MOCK_MARKET_DATA";
     }
@@ -464,10 +467,10 @@ public class MarketDataService {
     }
 
     private record ForeignOwnershipLookup(
-            Optional<KrxForeignOwnershipSnapshot> snapshot,
+            Optional<ForeignOwnershipSnapshot> snapshot,
             ForeignOwnershipSource source
     ) {
-        private static ForeignOwnershipLookup cache(KrxForeignOwnershipSnapshot snapshot) {
+        private static ForeignOwnershipLookup cache(ForeignOwnershipSnapshot snapshot) {
             return new ForeignOwnershipLookup(Optional.of(snapshot), ForeignOwnershipSource.CACHE);
         }
 

@@ -1238,7 +1238,7 @@ components:
           format: date-time
         source:
           type: string
-          description: Data source chain, for example KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP, KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP, or PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE.
+          description: Data source chain, for example KIS_WEBSOCKET_TRADE+KIS_FOREIGN_OWNERSHIP_CACHE, KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE, or PUBLIC_DATA_STOCK_SECURITIES+KIS_FOREIGN_OWNERSHIP_CACHE.
     Orderability:
       type: object
       required:

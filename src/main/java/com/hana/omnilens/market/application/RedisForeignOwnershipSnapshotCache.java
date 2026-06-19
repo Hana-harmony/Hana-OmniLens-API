@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 
 public class RedisForeignOwnershipSnapshotCache implements ForeignOwnershipSnapshotCache {
 
@@ -33,7 +33,7 @@ public class RedisForeignOwnershipSnapshotCache implements ForeignOwnershipSnaps
     }
 
     @Override
-    public Optional<KrxForeignOwnershipSnapshot> find(String stockCode) {
+    public Optional<ForeignOwnershipSnapshot> find(String stockCode) {
         try {
             String payload = redisTemplate.opsForValue().get(redisKey(stockCode));
             if (payload == null) {
@@ -46,7 +46,7 @@ public class RedisForeignOwnershipSnapshotCache implements ForeignOwnershipSnaps
     }
 
     @Override
-    public void put(KrxForeignOwnershipSnapshot snapshot) {
+    public void put(ForeignOwnershipSnapshot snapshot) {
         try {
             redisTemplate.opsForValue().set(
                     redisKey(snapshot.stockCode()),
@@ -59,10 +59,10 @@ public class RedisForeignOwnershipSnapshotCache implements ForeignOwnershipSnaps
         fallbackCache.put(snapshot);
     }
 
-    private KrxForeignOwnershipSnapshot toSnapshot(String payload) throws JsonProcessingException {
+    private ForeignOwnershipSnapshot toSnapshot(String payload) throws JsonProcessingException {
         RedisForeignOwnershipSnapshot snapshot =
                 objectMapper.readValue(payload, RedisForeignOwnershipSnapshot.class);
-        return new KrxForeignOwnershipSnapshot(
+        return new ForeignOwnershipSnapshot(
                 snapshot.stockCode(),
                 snapshot.foreignOwnedQuantity(),
                 snapshot.foreignOwnershipRate(),
@@ -84,7 +84,7 @@ public class RedisForeignOwnershipSnapshotCache implements ForeignOwnershipSnaps
             LocalDate baseDate
     ) {
 
-        private static RedisForeignOwnershipSnapshot from(KrxForeignOwnershipSnapshot snapshot) {
+        private static RedisForeignOwnershipSnapshot from(ForeignOwnershipSnapshot snapshot) {
             return new RedisForeignOwnershipSnapshot(
                     snapshot.stockCode(),
                     snapshot.foreignOwnedQuantity(),

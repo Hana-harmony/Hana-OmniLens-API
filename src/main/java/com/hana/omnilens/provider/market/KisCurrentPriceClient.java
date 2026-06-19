@@ -1,6 +1,7 @@
 package com.hana.omnilens.provider.market;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -66,6 +67,57 @@ public class KisCurrentPriceClient {
                 output.path("hts_kor_isnm").asText(""),
                 new BigDecimal(currentPrice),
                 new BigDecimal(output.path("prdy_ctrt").asText("0")),
-                output.path("acml_vol").asLong()));
+                output.path("acml_vol").asLong(),
+                parseLong(output.path("frgn_hldn_qty").asText("")),
+                foreignOwnershipRate(output),
+                foreignLimitQuantity(output),
+                parseDecimal(output.path("hts_frgn_ehrt").asText(""))));
+    }
+
+    private static BigDecimal foreignOwnershipRate(JsonNode output) {
+        Long foreignOwnedQuantity = parseLong(output.path("frgn_hldn_qty").asText(""));
+        Long listedShares = parseLong(output.path("lstn_stcn").asText(""));
+        if (foreignOwnedQuantity == null || listedShares == null || listedShares <= 0) {
+            return null;
+        }
+        return BigDecimal.valueOf(foreignOwnedQuantity)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(listedShares), 6, RoundingMode.HALF_UP);
+    }
+
+    private static Long foreignLimitQuantity(JsonNode output) {
+        Long foreignOwnedQuantity = parseLong(output.path("frgn_hldn_qty").asText(""));
+        BigDecimal foreignLimitExhaustionRate = parseDecimal(output.path("hts_frgn_ehrt").asText(""));
+        if (foreignOwnedQuantity == null || foreignLimitExhaustionRate == null
+                || foreignLimitExhaustionRate.signum() <= 0) {
+            return null;
+        }
+        return BigDecimal.valueOf(foreignOwnedQuantity)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(foreignLimitExhaustionRate, 0, RoundingMode.HALF_UP)
+                .longValue();
+    }
+
+    private static Long parseLong(String value) {
+        String normalized = normalizeNumeric(value);
+        if (normalized.isBlank()) {
+            return null;
+        }
+        return Long.parseLong(normalized);
+    }
+
+    private static BigDecimal parseDecimal(String value) {
+        String normalized = normalizeNumeric(value);
+        if (normalized.isBlank()) {
+            return null;
+        }
+        return new BigDecimal(normalized);
+    }
+
+    private static String normalizeNumeric(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace(",", "").replace("%", "").trim();
     }
 }

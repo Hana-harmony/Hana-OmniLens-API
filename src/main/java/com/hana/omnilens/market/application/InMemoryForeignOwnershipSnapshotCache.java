@@ -4,19 +4,19 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 
 public class InMemoryForeignOwnershipSnapshotCache implements ForeignOwnershipSnapshotCache {
 
-    private final Map<String, KrxForeignOwnershipSnapshot> snapshots = new ConcurrentHashMap<>();
+    private final Map<String, ForeignOwnershipSnapshot> snapshots = new ConcurrentHashMap<>();
 
     @Override
-    public Optional<KrxForeignOwnershipSnapshot> find(String stockCode) {
+    public Optional<ForeignOwnershipSnapshot> find(String stockCode) {
         return Optional.ofNullable(snapshots.get(stockCode));
     }
 
     @Override
-    public void put(KrxForeignOwnershipSnapshot snapshot) {
+    public void put(ForeignOwnershipSnapshot snapshot) {
         snapshots.put(snapshot.stockCode(), snapshot);
     }
 }

@@ -46,8 +46,8 @@ docker compose -f compose.local.yml up -d
 - raw `/ws/market/quotes` WebSocket quote tick 수신과 replay 요청
 - 시장 데이터 quote의 KIS 현재가 우선 사용과 공공데이터 fallback
 - 공공데이터 주식시세 provider 성공·fallback
-- KRX 외국인보유량 provider 요청·응답 매핑
-- 시장 데이터 quote의 KRX 외국인 보유수량·지분율·한도소진율 반영
+- KIS 현재가 provider의 외국인 보유수량·소진율 응답 매핑
+- 시장 데이터 quote의 KIS 외국인 보유수량·지분율·한도소진율 반영
 - 외국인 보유율 예측 engine의 snapshot-only, 실시간 거래량 조정, snapshot 부재 fallback
 - Redis 외국인 보유율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - 협력사 입력 환율 저장과 quote의 환율 캐시 fallback

@@ -112,7 +112,7 @@ public class MarketDataController {
     }
 
     @PostMapping("/stocks/{stockCode}/foreign-ownership/refresh")
-    @Operation(summary = "Refresh KRX foreign ownership snapshot cache for one Korean stock")
+    @Operation(summary = "Refresh KIS foreign ownership snapshot cache for one Korean stock")
     public ApiResponse<ForeignOwnershipRefreshResponse> refreshForeignOwnership(
             @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
             @RequestParam(required = false) LocalDate baseDate) {

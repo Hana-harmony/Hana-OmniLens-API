@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshResult;
-import com.hana.omnilens.provider.market.KrxForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 
 public record ForeignOwnershipRefreshResponse(
         String stockCode,
@@ -33,7 +33,7 @@ public record ForeignOwnershipRefreshResponse(
 
     private static ForeignOwnershipRefreshResponse fromSnapshot(
             ForeignOwnershipRefreshResult result,
-            KrxForeignOwnershipSnapshot snapshot) {
+            ForeignOwnershipSnapshot snapshot) {
         return new ForeignOwnershipRefreshResponse(
                 result.stockCode(),
                 result.baseDate(),
