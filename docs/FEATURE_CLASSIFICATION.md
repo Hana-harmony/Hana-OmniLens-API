@@ -26,7 +26,7 @@ Hana-OmniLens-API는 실제 주문 명령을 받지 않는다. 대신 현지 거
 | 아이디/비밀번호 회원가입, mock USD 계좌 생성, 달러 충전 | Stock-exchange-BE | Done |
 | KIS 모의투자 API가 아닌 자체 mock ledger 기반 가짜 매수·매도 | Stock-exchange-BE | Done |
 | 매도 실현손익을 세무 환급/선지급 입력 데이터로 연결 | Stock-exchange-BE | Done |
-| 외국인 한도 게이지, VI/상·하한가 배지, 주문 제한 팝업 | Stock-exchange-FE | Planned |
+| 외국인 한도 게이지, VI/상·하한가 배지, 주문 제한 팝업 | Stock-exchange-FE | Partial |
 
 ## 2. 한국 주식 정보 취득 및 분석
 
@@ -42,7 +42,7 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 | 분석·번역 완료 이벤트 WebSocket 송신 | Hana-OmniLens-API | Done |
 | Alert REST API 공동 응답 envelope | Hana-OmniLens-API | Done |
 | 이벤트 수신, 저장, 보유/관심종목 대상자 매칭, 푸시 발송 | Stock-exchange-BE | Done |
-| 종목별 K-News 피드, 통합 알림함, 원문 링크 UI | Stock-exchange-FE | Planned |
+| 종목별 K-News 피드, 통합 알림함, 원문 링크 UI | Stock-exchange-FE | Done |
 
 ## 3. 최종투자자별 세무 전산화 및 환급금 선지급
 
@@ -55,7 +55,7 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 | 한국·홍콩 조세조약 케이스 판정 | Hana-OmniLens-API | Planned |
 | 환급금 선지급 산정, 수수료, 사후 환수 상태 계약 | Hana-OmniLens-API | Partial |
 | 분기별 경정청구 배치 상태 조회 | Hana-OmniLens-API | Planned |
-| 서류 업로드, 상태 타임라인, 환급 신청, 입금 완료 UI | Stock-exchange-FE | Planned |
+| 서류 업로드, 상태 타임라인, 환급 신청, 입금 완료 UI | Stock-exchange-FE | Partial |
 
 ## 기존 기획에서 보존할 항목
 
