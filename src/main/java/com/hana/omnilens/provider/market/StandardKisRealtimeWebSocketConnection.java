@@ -8,6 +8,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -16,6 +18,8 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 @Component
 public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSocketConnection {
+
+    private static final Logger log = LoggerFactory.getLogger(StandardKisRealtimeWebSocketConnection.class);
 
     private final ObjectMapper objectMapper;
     private final StandardWebSocketClient webSocketClient;
@@ -35,7 +39,18 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             URI websocketUrl,
             List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer) {
-        webSocketClient.execute(new Handler(subscriptionFrames, messageConsumer), websocketUrl.toString());
+        log.info(
+                "Connecting KIS realtime websocket url={} subscriptionFrameCount={}",
+                websocketUrl,
+                subscriptionFrames.size());
+        webSocketClient.execute(new Handler(subscriptionFrames, messageConsumer), websocketUrl.toString())
+                .whenComplete((session, exception) -> {
+                    if (exception != null) {
+                        log.warn("KIS realtime websocket connection failed: {}", exception.toString());
+                    } else {
+                        log.info("KIS realtime websocket connected sessionId={}", session.getId());
+                    }
+                });
     }
 
     private class Handler extends TextWebSocketHandler {
@@ -53,10 +68,15 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             for (KisRealtimeSubscriptionFrame frame : subscriptionFrames) {
                 session.sendMessage(new TextMessage(serialize(frame)));
             }
+            log.info(
+                    "KIS realtime websocket subscription frames sent sessionId={} subscriptionFrameCount={}",
+                    session.getId(),
+                    subscriptionFrames.size());
         }
 
         @Override
         protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+            log.debug("KIS realtime websocket message received sessionId={}", session.getId());
             messageConsumer.accept(message.getPayload());
         }
     }

@@ -1,6 +1,7 @@
 package com.hana.omnilens.market.api;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -27,6 +29,8 @@ import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.MarketDailyPriceRepository;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.KisCurrentPriceClient;
+import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 
 @SpringBootTest(properties = {
         "omnilens.security.api-key-enabled=true",
@@ -46,6 +50,15 @@ class MarketDataControllerTest {
 
     @MockitoBean
     private ForeignOwnershipRefreshService foreignOwnershipRefreshService;
+
+    @MockitoBean
+    private KisCurrentPriceClient kisCurrentPriceClient;
+
+    @BeforeEach
+    void setUpKisMarketData() {
+        when(kisCurrentPriceClient.findCurrentPrice(anyString()))
+                .thenAnswer(invocation -> Optional.of(kisSnapshot(invocation.getArgument(0))));
+    }
 
     @Test
     void stockDetailReturnsSeededStockMasterRow() throws Exception {
@@ -97,7 +110,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.fxRate", equalTo(7.2E-4)))
                 .andExpect(jsonPath("$.data.fxRateSource", equalTo("PARTNER_REQUEST")))
                 .andExpect(jsonPath("$.data.fxStale", equalTo(false)))
-                .andExpect(jsonPath("$.data.source", equalTo("MOCK_MARKET_DATA")));
+                .andExpect(jsonPath("$.data.source", equalTo("KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE")));
     }
 
     @Test
@@ -123,7 +136,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.predictedForeignLimitExhaustionRateMax").exists())
                 .andExpect(jsonPath("$.data.viActive", equalTo(false)))
                 .andExpect(jsonPath("$.data.singlePriceTrading", equalTo(false)))
-                .andExpect(jsonPath("$.data.priceLimitState", equalTo("NORMAL")))
+                .andExpect(jsonPath("$.data.priceLimitState", equalTo("UNKNOWN")))
                 .andExpect(jsonPath("$.data.tradingHalted", equalTo(false)))
                 .andExpect(jsonPath("$.data.orderable", equalTo(true)));
     }
@@ -216,7 +229,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.foreignOwnershipPrediction.confidenceLevel").exists())
                 .andExpect(jsonPath("$.data.viActive", equalTo(false)))
                 .andExpect(jsonPath("$.data.singlePriceTrading", equalTo(false)))
-                .andExpect(jsonPath("$.data.priceLimitState", equalTo("NORMAL")))
+                .andExpect(jsonPath("$.data.priceLimitState", equalTo("UNKNOWN")))
                 .andExpect(jsonPath("$.data.tradingHalted", equalTo(false)));
     }
 
@@ -346,5 +359,18 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data[0].stockCode", equalTo("086790")))
                 .andExpect(jsonPath("$.data[0].stockName", equalTo("하나금융지주")))
                 .andExpect(jsonPath("$.data[0].market", equalTo("KOSPI")));
+    }
+
+    private KisCurrentPriceSnapshot kisSnapshot(String stockCode) {
+        return new KisCurrentPriceSnapshot(
+                stockCode,
+                "삼성전자",
+                new BigDecimal("78500"),
+                new BigDecimal("1.42"),
+                12_193_000L,
+                3_642_091_300L,
+                new BigDecimal("54.19"),
+                6_720_000_000L,
+                new BigDecimal("54.19"));
     }
 }

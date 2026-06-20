@@ -17,53 +17,51 @@ import org.springframework.web.client.RestClient;
 import com.hana.omnilens.config.ExternalProviderProperties;
 import com.hana.omnilens.provider.ProviderTestResilience;
 
-class KisCurrentPriceClientTest {
+class KisRestOrderBookClientTest {
 
     @Test
-    void findCurrentPriceUsesKisDomesticStockQuoteContract() {
+    void findOrderBookUsesKisDomesticOrderBookContract() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        KisCurrentPriceClient client = new KisCurrentPriceClient(
+        KisRestOrderBookClient client = new KisRestOrderBookClient(
                 builder,
                 properties(),
                 new KisAccessTokenProvider(builder, properties(), ProviderTestResilience.disabled()),
                 ProviderTestResilience.disabled());
 
-        server.expect(requestTo(containsString("/uapi/domestic-stock/v1/quotations/inquire-price")))
+        server.expect(requestTo(containsString("/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn")))
                 .andExpect(requestTo(containsString("FID_COND_MRKT_DIV_CODE=J")))
                 .andExpect(requestTo(containsString("FID_INPUT_ISCD=005930")))
                 .andExpect(header("authorization", "Bearer kis-access-token"))
                 .andExpect(header("appkey", "kis-app-key"))
                 .andExpect(header("appsecret", "kis-app-secret"))
-                .andExpect(header("tr_id", "FHKST01010100"))
+                .andExpect(header("tr_id", "FHKST01010200"))
                 .andRespond(withSuccess("""
                         {
                           "rt_cd": "0",
                           "msg_cd": "MCA00000",
-                          "output": {
-                            "stck_shrn_iscd": "005930",
-                            "hts_kor_isnm": "삼성전자",
-                            "stck_prpr": "81200",
-                            "prdy_ctrt": "1.87",
-                            "acml_vol": "15500000",
-                            "frgn_hldn_qty": "3,642,091,300",
-                            "hts_frgn_ehrt": "54.21",
-                            "lstn_stcn": "5,969,782,550"
+                          "output1": {
+                            "askp1": "354,000",
+                            "askp2": "354500",
+                            "bidp1": "353500",
+                            "bidp2": "353000",
+                            "askp_rsqn1": "1,066,476",
+                            "askp_rsqn2": "1200",
+                            "bidp_rsqn1": "210884",
+                            "bidp_rsqn2": "3300"
                           }
                         }
                         """, APPLICATION_JSON));
 
-        Optional<KisCurrentPriceSnapshot> snapshot = client.findCurrentPrice("005930");
+        Optional<KisRestOrderBookSnapshot> snapshot = client.findOrderBook("005930");
 
         assertThat(snapshot).isPresent();
-        assertThat(snapshot.orElseThrow().stockName()).isEqualTo("삼성전자");
-        assertThat(snapshot.orElseThrow().currentPriceKrw()).isEqualByComparingTo("81200");
-        assertThat(snapshot.orElseThrow().changeRate()).isEqualByComparingTo("1.87");
-        assertThat(snapshot.orElseThrow().volume()).isEqualTo(15_500_000L);
-        assertThat(snapshot.orElseThrow().foreignOwnedQuantity()).isEqualTo(3_642_091_300L);
-        assertThat(snapshot.orElseThrow().foreignOwnershipRate()).isEqualByComparingTo("61.008777");
-        assertThat(snapshot.orElseThrow().foreignLimitQuantity()).isEqualTo(6_718_486_073L);
-        assertThat(snapshot.orElseThrow().foreignLimitExhaustionRate()).isEqualByComparingTo("54.21");
+        assertThat(snapshot.orElseThrow().asks()).hasSize(2);
+        assertThat(snapshot.orElseThrow().bids()).hasSize(2);
+        assertThat(snapshot.orElseThrow().asks().get(0).priceKrw()).isEqualByComparingTo("354000");
+        assertThat(snapshot.orElseThrow().asks().get(0).quantity()).isEqualTo(1_066_476L);
+        assertThat(snapshot.orElseThrow().bids().get(0).priceKrw()).isEqualByComparingTo("353500");
+        assertThat(snapshot.orElseThrow().bids().get(0).quantity()).isEqualTo(210_884L);
         server.verify();
     }
 

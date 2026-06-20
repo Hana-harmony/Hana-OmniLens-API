@@ -1,6 +1,7 @@
 package com.hana.omnilens.market.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +23,8 @@ import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
+import com.hana.omnilens.provider.market.KisRestOrderBookClient;
+import com.hana.omnilens.provider.market.KisRestOrderBookSnapshot;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockSecuritiesClient;
@@ -48,6 +51,7 @@ class MarketDataServiceTest {
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        cache.put(foreignOwnershipSnapshot());
         when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(
                 new KisCurrentPriceSnapshot(
                         "005930",
@@ -63,7 +67,32 @@ class MarketDataServiceTest {
         assertThat(quote.changeRate()).isEqualByComparingTo("1.87");
         assertThat(quote.volume()).isEqualTo(15_500_000L);
         assertThat(quote.market()).isEqualTo("KOSPI");
-        assertThat(quote.source()).isEqualTo("KIS_OPEN_API");
+        assertThat(quote.source()).isEqualTo("KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE");
+    }
+
+    @Test
+    void getQuoteRetriesKisCurrentPriceOnceWhenRateLimited() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930"))
+                .thenThrow(new IllegalStateException("EGW00201"))
+                .thenReturn(Optional.of(kisSnapshotWithForeignOwnership()));
+
+        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
+
+        assertThat(quote.currentPriceKrw()).isEqualByComparingTo("81200");
+        assertThat(quote.source()).isEqualTo("KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE");
     }
 
     @Test
@@ -129,6 +158,7 @@ class MarketDataServiceTest {
                         "00126380")));
         when(kisCurrentPriceClient.findCurrentPrice("005930")).thenThrow(
                 new IllegalStateException("kis is not configured"));
+        cache.put(foreignOwnershipSnapshot());
         when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.of(
                 new PublicDataStockPriceSnapshot(
                         "005930",
@@ -145,14 +175,14 @@ class MarketDataServiceTest {
         assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("57.6720");
         assertThat(quote.changeRate()).isEqualByComparingTo("2.11");
         assertThat(quote.volume()).isEqualTo(9_800_000L);
-        assertThat(quote.foreignOwnedQuantity()).isEqualTo(3_642_091_300L);
-        assertThat(quote.foreignOwnershipRate()).isEqualByComparingTo("54.19");
-        assertThat(quote.foreignLimitExhaustionRate()).isEqualByComparingTo("54.19");
-        assertThat(quote.source()).isEqualTo("PUBLIC_DATA_STOCK_SECURITIES");
+        assertThat(quote.foreignOwnedQuantity()).isEqualTo(3_400_000_000L);
+        assertThat(quote.foreignOwnershipRate()).isEqualByComparingTo("51.01");
+        assertThat(quote.foreignLimitExhaustionRate()).isEqualByComparingTo("50.99");
+        assertThat(quote.source()).isEqualTo("PUBLIC_DATA_STOCK_SECURITIES+KIS_FOREIGN_OWNERSHIP_CACHE");
     }
 
     @Test
-    void getQuoteFallsBackWhenProviderIsUnavailable() {
+    void getQuoteFailsWhenProviderIsUnavailable() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
@@ -179,11 +209,9 @@ class MarketDataServiceTest {
         when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
                 .thenThrow(new IllegalStateException("provider is not configured"));
 
-        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
-
-        assertThat(quote.currentPriceKrw()).isEqualByComparingTo("78500");
-        assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("56.5200");
-        assertThat(quote.source()).isEqualTo("MOCK_MARKET_DATA");
+        assertThatThrownBy(() -> service.getQuote("005930", "USD", new BigDecimal("0.00072")))
+                .isInstanceOf(MarketDataUnavailableException.class)
+                .hasMessageContaining("No live provider price");
     }
 
     @Test
@@ -210,8 +238,13 @@ class MarketDataServiceTest {
                 LocalDate.of(2025, 6, 2)));
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(stock));
-        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
-        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(
+                new KisCurrentPriceSnapshot(
+                        "005930",
+                        "삼성전자",
+                        new BigDecimal("81200"),
+                        new BigDecimal("1.87"),
+                        15_500_000L)));
 
         MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
 
@@ -219,7 +252,7 @@ class MarketDataServiceTest {
         assertThat(quote.foreignOwnershipRate()).isEqualByComparingTo("51.01");
         assertThat(quote.foreignLimitExhaustionRate()).isEqualByComparingTo("50.99");
         assertThat(quote.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 2));
-        assertThat(quote.source()).isEqualTo("MOCK_MARKET_DATA+KIS_FOREIGN_OWNERSHIP_CACHE");
+        assertThat(quote.source()).isEqualTo("KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE");
     }
 
     @Test
@@ -238,15 +271,12 @@ class MarketDataServiceTest {
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
-        when(kisCurrentPriceClient.findCurrentPrice("005930"))
-                .thenThrow(new IllegalStateException("kis is not configured"));
-        when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
-                .thenThrow(new IllegalStateException("provider is not configured"));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership()));
         service.updateExchangeRate("USD", new BigDecimal("0.00072"));
 
         MarketQuote quote = service.getQuote("005930", "USD", null);
 
-        assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("56.5200");
+        assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("58.4640");
         assertThat(exchangeRateCache.find("USD")).isPresent();
     }
 
@@ -266,15 +296,12 @@ class MarketDataServiceTest {
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
-        when(kisCurrentPriceClient.findCurrentPrice("005930"))
-                .thenThrow(new IllegalStateException("kis is not configured"));
-        when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
-                .thenThrow(new IllegalStateException("provider is not configured"));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership()));
         service.updateExchangeRate("USD", new BigDecimal("0.00072"));
 
         MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00080"));
 
-        assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("62.8000");
+        assertThat(quote.localCurrencyPrice()).isEqualByComparingTo("64.9600");
     }
 
     @Test
@@ -293,8 +320,7 @@ class MarketDataServiceTest {
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
-        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
-        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership()));
         service.updateExchangeRate("USD", new BigDecimal("0.00072"));
 
         MarketQuote quote = service.getQuote("005930", "USD", null);
@@ -303,6 +329,28 @@ class MarketDataServiceTest {
         assertThat(quote.fxRateTime()).isEqualTo(Instant.parse("2025-06-04T00:00:00Z"));
         assertThat(quote.fxRateSource()).isEqualTo("EXCHANGE_RATE_CACHE");
         assertThat(quote.fxStale()).isFalse();
+    }
+
+    @Test
+    void getQuoteFailsWhenExchangeRateIsMissingAndNoRequestRateIsProvided() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership()));
+
+        assertThatThrownBy(() -> service.getQuote("005930", "USD", null))
+                .isInstanceOf(MarketDataUnavailableException.class)
+                .hasMessageContaining("No FX provider or partner exchange rate");
     }
 
     @Test
@@ -329,10 +377,8 @@ class MarketDataServiceTest {
         when(repository.findAll(10)).thenReturn(List.of(skHynix, samsungElectronics()));
         when(repository.findByCode("000660")).thenReturn(Optional.of(skHynix));
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
-        when(kisCurrentPriceClient.findCurrentPrice("000660")).thenReturn(Optional.empty());
-        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
-        when(client.findPrice("000660", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
-        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(kisCurrentPriceClient.findCurrentPrice("000660")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership("000660")));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership("005930")));
 
         List<MarketQuote> quotes = service.getQuotes(List.of(), "KOSPI", "USD", new BigDecimal("0.00072"), 10);
 
@@ -363,10 +409,8 @@ class MarketDataServiceTest {
 
         when(repository.findByCode("000660")).thenReturn(Optional.of(skHynix));
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
-        when(kisCurrentPriceClient.findCurrentPrice("000660")).thenReturn(Optional.empty());
-        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
-        when(client.findPrice("000660", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
-        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(kisCurrentPriceClient.findCurrentPrice("000660")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership("000660")));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership("005930")));
 
         List<MarketQuote> quotes = service.getQuotes(
                 List.of("000660", "005930", "000660"),
@@ -383,17 +427,19 @@ class MarketDataServiceTest {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
         RealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
         MarketDataService service = new MarketDataService(
                 client,
                 kisCurrentPriceClient,
                 repository,
-                new InMemoryForeignOwnershipSnapshotCache(),
+                cache,
                 new InMemoryExchangeRateCache(),
                 realtimeCache,
                 FIXED_CLOCK);
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        cache.put(foreignOwnershipSnapshot());
         realtimeCache.putTrade(new KisRealtimeTradeTick(
                 "005930",
                 "093000",
@@ -410,7 +456,7 @@ class MarketDataServiceTest {
         assertThat(quote.currentPriceKrw()).isEqualByComparingTo("81500");
         assertThat(quote.changeRate()).isEqualByComparingTo("1.92");
         assertThat(quote.volume()).isEqualTo(16_200_000L);
-        assertThat(quote.source()).isEqualTo("KIS_WEBSOCKET_TRADE");
+        assertThat(quote.source()).isEqualTo("KIS_WEBSOCKET_TRADE+KIS_FOREIGN_OWNERSHIP_CACHE");
     }
 
     @Test
@@ -440,6 +486,87 @@ class MarketDataServiceTest {
         assertThat(orderBook.asks().get(0).priceKrw()).isEqualByComparingTo("81600");
         assertThat(orderBook.bids().get(0).quantity()).isEqualTo(1800L);
         assertThat(orderBook.source()).isEqualTo("KIS_WEBSOCKET_ORDERBOOK");
+    }
+
+    @Test
+    void getOrderBookFallsBackToKisRestOrderBookWhenRealtimeCacheIsEmpty() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        KisRestOrderBookClient kisRestOrderBookClient = mock(KisRestOrderBookClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(kisRestOrderBookClient.findOrderBook("005930")).thenReturn(Optional.of(new KisRestOrderBookSnapshot(
+                "005930",
+                List.of(new KisRestOrderBookSnapshot.Level(new BigDecimal("81600"), 1200L)),
+                List.of(new KisRestOrderBookSnapshot.Level(new BigDecimal("81400"), 1800L)))));
+
+        OrderBook orderBook = service.getOrderBook("005930");
+
+        assertThat(orderBook.asks()).hasSize(1);
+        assertThat(orderBook.asks().get(0).priceKrw()).isEqualByComparingTo("81600");
+        assertThat(orderBook.bids().get(0).quantity()).isEqualTo(1800L);
+        assertThat(orderBook.source()).isEqualTo("KIS_REST_ORDERBOOK");
+    }
+
+    @Test
+    void getOrderBookRetriesKisRestOrderBookOnceWhenRateLimited() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        KisRestOrderBookClient kisRestOrderBookClient = mock(KisRestOrderBookClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(kisRestOrderBookClient.findOrderBook("005930"))
+                .thenThrow(new IllegalStateException("EGW00201"))
+                .thenReturn(Optional.of(new KisRestOrderBookSnapshot(
+                        "005930",
+                        List.of(new KisRestOrderBookSnapshot.Level(new BigDecimal("81600"), 1200L)),
+                        List.of(new KisRestOrderBookSnapshot.Level(new BigDecimal("81400"), 1800L)))));
+
+        OrderBook orderBook = service.getOrderBook("005930");
+
+        assertThat(orderBook.source()).isEqualTo("KIS_REST_ORDERBOOK");
+        assertThat(orderBook.asks().get(0).priceKrw()).isEqualByComparingTo("81600");
+    }
+
+    @Test
+    void getOrderBookFailsWhenRealtimeAndRestProvidersAreUnavailable() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        KisRestOrderBookClient kisRestOrderBookClient = mock(KisRestOrderBookClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(kisRestOrderBookClient.findOrderBook("005930")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getOrderBook("005930"))
+                .isInstanceOf(MarketDataUnavailableException.class)
+                .hasMessageContaining("No KIS order book provider data");
     }
 
     @Test
@@ -483,10 +610,10 @@ class MarketDataServiceTest {
                 .isEqualByComparingTo("101.050000");
         assertThat(orderability.foreignOwnershipPrediction().confidenceLevel()).isEqualTo("SNAPSHOT_ONLY");
         assertThat(orderability.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 3));
-        assertThat(orderability.priceLimitState()).isEqualTo("NORMAL");
+        assertThat(orderability.priceLimitState()).isEqualTo("UNKNOWN");
         assertThat(orderability.viActive()).isFalse();
         assertThat(orderability.source())
-                .isEqualTo("ORDERABILITY_MOCK_MARKET_DATA+KIS_FOREIGN_OWNERSHIP_CACHE+MARKET_STATUS_FALLBACK");
+                .isEqualTo("ORDERABILITY_MARKET_DATA_UNAVAILABLE+MARKET_STATUS_UNAVAILABLE");
     }
 
     @Test
@@ -683,5 +810,32 @@ class MarketDataServiceTest {
                 "KOSPI",
                 "KR7005930003",
                 "00126380");
+    }
+
+    private KisCurrentPriceSnapshot kisSnapshotWithForeignOwnership() {
+        return kisSnapshotWithForeignOwnership("005930");
+    }
+
+    private KisCurrentPriceSnapshot kisSnapshotWithForeignOwnership(String stockCode) {
+        return new KisCurrentPriceSnapshot(
+                stockCode,
+                "삼성전자",
+                new BigDecimal("81200"),
+                new BigDecimal("1.87"),
+                15_500_000L,
+                3_642_091_300L,
+                new BigDecimal("61.008777"),
+                6_718_486_073L,
+                new BigDecimal("54.21"));
+    }
+
+    private ForeignOwnershipSnapshot foreignOwnershipSnapshot() {
+        return new ForeignOwnershipSnapshot(
+                "005930",
+                3_400_000_000L,
+                new BigDecimal("51.01"),
+                6_720_000_000L,
+                new BigDecimal("50.99"),
+                LocalDate.of(2025, 6, 2));
     }
 }

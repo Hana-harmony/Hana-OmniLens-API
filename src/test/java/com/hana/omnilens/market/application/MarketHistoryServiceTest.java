@@ -17,26 +17,32 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.hana.omnilens.config.MarketHistoryCollectionProperties;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.market.domain.StockSummary;
+import com.hana.omnilens.provider.market.KisDailyChartPrice;
+import com.hana.omnilens.provider.market.KisDailyChartPriceClient;
 import com.hana.omnilens.provider.market.KrxOpenApiDailyTrade;
 import com.hana.omnilens.provider.market.KrxOpenApiDailyTradeClient;
 
 class MarketHistoryServiceTest {
 
     private final KrxOpenApiDailyTradeClient krxClient = mock(KrxOpenApiDailyTradeClient.class);
+    private final KisDailyChartPriceClient kisDailyChartPriceClient = mock(KisDailyChartPriceClient.class);
     private final MarketDailyPriceRepository dailyPriceRepository = mock(MarketDailyPriceRepository.class);
     private final StockMasterRepository stockMasterRepository = mock(StockMasterRepository.class);
     private final MarketHistoryService service = new MarketHistoryService(
             krxClient,
+            kisDailyChartPriceClient,
             dailyPriceRepository,
             stockMasterRepository,
+            defaultCollectionProperties(),
             Clock.fixed(Instant.parse("2025-06-05T00:00:00Z"), ZoneId.of("Asia/Seoul")));
 
     @Test
     void collectDailyHistorySavesKrxRowsForSupportedStocks() {
         LocalDate baseDate = LocalDate.of(2025, 6, 4);
-        when(krxClient.findAllDailyTrades(baseDate)).thenReturn(List.of(
+        when(krxClient.findDailyTrades("KOSPI", baseDate)).thenReturn(List.of(
                 new KrxOpenApiDailyTrade(
                         baseDate,
                         "KR7005930003",
@@ -63,6 +69,8 @@ class MarketHistoryServiceTest {
                         BigDecimal.ZERO,
                         1L,
                         BigDecimal.ONE)));
+        when(krxClient.findDailyTrades("KOSDAQ", baseDate)).thenReturn(List.of());
+        when(krxClient.findDailyTrades("KONEX", baseDate)).thenReturn(List.of());
         when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(new StockSummary(
                 "005930",
                 "삼성전자",
@@ -89,5 +97,158 @@ class MarketHistoryServiceTest {
         assertThat(saved.source()).isEqualTo("KRX_OPEN_API_DAILY_TRADE");
         assertThat(result.requestedCount()).isEqualTo(2);
         assertThat(result.savedCount()).isEqualTo(1);
+        assertThat(result.status()).isEqualTo("SUCCESS");
+        assertThat(result.marketResults()).hasSize(3);
+        assertThat(result.marketResults().get(0).market()).isEqualTo("KOSPI");
+        assertThat(result.marketResults().get(0).status()).isEqualTo("SUCCESS");
+    }
+
+    @Test
+    void collectDailyHistoryReturnsFailedMarketResultWhenKrxProviderFails() {
+        LocalDate baseDate = LocalDate.of(2025, 6, 4);
+        when(krxClient.findDailyTrades("KOSPI", baseDate))
+                .thenThrow(new IllegalStateException("KRX provider unavailable"));
+        when(krxClient.findDailyTrades("KOSDAQ", baseDate)).thenReturn(List.of());
+        when(krxClient.findDailyTrades("KONEX", baseDate)).thenReturn(List.of());
+
+        MarketHistoryCollectionResult result = service.collectDailyHistory(baseDate);
+
+        assertThat(result.requestedCount()).isZero();
+        assertThat(result.savedCount()).isZero();
+        assertThat(result.status()).isEqualTo("PARTIAL_FAILED");
+        assertThat(result.marketResults()).extracting(MarketHistoryCollectionResult.MarketResult::market)
+                .containsExactly("KOSPI", "KOSDAQ", "KONEX", "KIS_DAILY_CHART");
+        assertThat(result.marketResults().get(0).status()).isEqualTo("FAILED");
+        assertThat(result.marketResults().get(0).errorMessage()).contains("KRX provider unavailable");
+    }
+
+    @Test
+    void collectDailyHistoryFallsBackToKisDailyChartWhenKrxProviderFails() {
+        LocalDate baseDate = LocalDate.of(2025, 6, 4);
+        StockSummary stock = new StockSummary(
+                "005930",
+                "삼성전자",
+                "Samsung Electronics",
+                "KOSPI",
+                "KR7005930003",
+                "00126380");
+        when(krxClient.findDailyTrades("KOSPI", baseDate))
+                .thenThrow(new IllegalStateException("KRX provider unavailable"));
+        when(krxClient.findDailyTrades("KOSDAQ", baseDate))
+                .thenThrow(new IllegalStateException("KRX provider unavailable"));
+        when(krxClient.findDailyTrades("KONEX", baseDate))
+                .thenThrow(new IllegalStateException("KRX provider unavailable"));
+        when(stockMasterRepository.findAll(2_000)).thenReturn(List.of(stock));
+        when(kisDailyChartPriceClient.findDailyPrices("005930", baseDate, baseDate)).thenReturn(List.of(
+                new KisDailyChartPrice(
+                        baseDate,
+                        new BigDecimal("57900"),
+                        new BigDecimal("58900"),
+                        new BigDecimal("57500"),
+                        new BigDecimal("58700"),
+                        new BigDecimal("1.91"),
+                        19_123_456L,
+                        new BigDecimal("1122334455000"))));
+        when(dailyPriceRepository.upsertAll(anyList())).thenReturn(1);
+
+        MarketHistoryCollectionResult result = service.collectDailyHistory(baseDate);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<MarketDailyPrice>> captor = ArgumentCaptor.forClass(List.class);
+        verify(dailyPriceRepository).upsertAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
+        assertThat(captor.getValue().get(0).stockCode()).isEqualTo("005930");
+        assertThat(captor.getValue().get(0).source()).isEqualTo("KIS_DAILY_ITEM_CHART_PRICE");
+        assertThat(result.requestedCount()).isEqualTo(1);
+        assertThat(result.savedCount()).isEqualTo(1);
+        assertThat(result.source()).isEqualTo("KRX_OPEN_API_DAILY_TRADE+KIS_DAILY_ITEM_CHART_PRICE");
+        assertThat(result.status()).isEqualTo("PARTIAL_FAILED");
+        assertThat(result.marketResults()).extracting(MarketHistoryCollectionResult.MarketResult::market)
+                .containsExactly("KOSPI", "KOSDAQ", "KONEX", "KIS_DAILY_CHART");
+        assertThat(result.marketResults().get(3).status()).isEqualTo("SUCCESS");
+    }
+
+    @Test
+    void collectDailyHistoryUsesKisDailyChartAsPrimaryProviderWhenConfigured() {
+        LocalDate baseDate = LocalDate.of(2025, 6, 4);
+        StockSummary stock = new StockSummary(
+                "005930",
+                "삼성전자",
+                "Samsung Electronics",
+                "KOSPI",
+                "KR7005930003",
+                "00126380");
+        MarketHistoryService kisPrimaryService = new MarketHistoryService(
+                krxClient,
+                kisDailyChartPriceClient,
+                dailyPriceRepository,
+                stockMasterRepository,
+                new MarketHistoryCollectionProperties(
+                        true,
+                        86_400_000L,
+                        1,
+                        MarketHistoryCollectionProperties.Provider.KIS_DAILY_CHART),
+                Clock.fixed(Instant.parse("2025-06-05T00:00:00Z"), ZoneId.of("Asia/Seoul")));
+        when(stockMasterRepository.findAll(2_000)).thenReturn(List.of(stock));
+        when(kisDailyChartPriceClient.findDailyPrices("005930", baseDate, baseDate)).thenReturn(List.of(
+                new KisDailyChartPrice(
+                        baseDate,
+                        new BigDecimal("57900"),
+                        new BigDecimal("58900"),
+                        new BigDecimal("57500"),
+                        new BigDecimal("58700"),
+                        new BigDecimal("1.91"),
+                        19_123_456L,
+                        new BigDecimal("1122334455000"))));
+        when(dailyPriceRepository.upsertAll(anyList())).thenReturn(1);
+
+        MarketHistoryCollectionResult result = kisPrimaryService.collectDailyHistory(baseDate);
+
+        assertThat(result.source()).isEqualTo("KIS_DAILY_ITEM_CHART_PRICE");
+        assertThat(result.status()).isEqualTo("SUCCESS");
+        assertThat(result.marketResults()).extracting(MarketHistoryCollectionResult.MarketResult::market)
+                .containsExactly("KIS_DAILY_CHART");
+        assertThat(result.requestedCount()).isEqualTo(1);
+        assertThat(result.savedCount()).isEqualTo(1);
+    }
+
+    @Test
+    void getHistoryFallsBackToKisDailyChartWhenKrxRepositoryIsEmpty() {
+        LocalDate from = LocalDate.of(2025, 6, 1);
+        LocalDate to = LocalDate.of(2025, 6, 4);
+        StockSummary stock = new StockSummary(
+                "005930",
+                "삼성전자",
+                "Samsung Electronics",
+                "KOSPI",
+                "KR7005930003",
+                "00126380");
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(dailyPriceRepository.findByStockCode("005930", from, to, 10)).thenReturn(List.of());
+        when(kisDailyChartPriceClient.findDailyPrices("005930", from, to)).thenReturn(List.of(
+                new KisDailyChartPrice(
+                        LocalDate.of(2025, 6, 4),
+                        new BigDecimal("57900"),
+                        new BigDecimal("58900"),
+                        new BigDecimal("57500"),
+                        new BigDecimal("58700"),
+                        new BigDecimal("1.91"),
+                        19_123_456L,
+                        new BigDecimal("1122334455000"))));
+        when(dailyPriceRepository.upsertAll(anyList())).thenReturn(1);
+
+        List<MarketDailyPrice> prices = service.getHistory("005930", from, to, 10);
+
+        assertThat(prices).hasSize(1);
+        assertThat(prices.get(0).source()).isEqualTo("KIS_DAILY_ITEM_CHART_PRICE");
+        verify(dailyPriceRepository).upsertAll(anyList());
+    }
+
+    private static MarketHistoryCollectionProperties defaultCollectionProperties() {
+        return new MarketHistoryCollectionProperties(
+                true,
+                86_400_000L,
+                1,
+                MarketHistoryCollectionProperties.Provider.KRX_OPEN_API_WITH_KIS_BACKUP);
     }
 }

@@ -5,6 +5,7 @@
 - 이 파일은 gitignore 대상이다.
 - 현재 워크스페이스에는 실제 로컬 파일을 생성해 둔다.
 - 새 환경에서 파일이 없으면 예시 파일을 복사해 개인 로컬 값으로 수정한다.
+- Docker Compose 로컬 실행은 이 파일을 컨테이너에 read-only mount하고, 이미지는 민감값 없이 빌드한다.
 
 ```bash
 docker compose -f compose.local.yml up -d
@@ -34,6 +35,9 @@ docker compose -f compose.local.yml up -d
 - `REDIS_PORT`: 운영 Redis 포트
 - `REDIS_PASSWORD`: 운영 Redis 비밀번호
 - `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 API 인증키
+- `KIS_APP_KEY`: KIS 현재가, 외국인 보유량, 일봉 보강, REST 호가 호출용 App Key
+- `KIS_APP_SECRET`: KIS 현재가, 외국인 보유량, 일봉 보강, REST 호가 호출용 App Secret
+- `KRX_OPEN_API_AUTH_KEY`: KRX 일별매매정보 수집용 인증키
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART API 인증키
@@ -53,6 +57,7 @@ docker compose -f compose.local.yml up -d
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
 - `KRX_OPEN_API_BASE_URL`: KRX Open API 실제 호출 endpoint 주소. 기본값은 `https://data-dbg.krx.co.kr`이다.
 - `KRX_OPEN_API_AUTH_KEY`: KRX Open API `AUTH_KEY` 헤더로 전달하는 인증키다.
+- `MARKET_HISTORY_COLLECTION_PROVIDER`: 일봉 수집 provider. `KRX_OPEN_API_WITH_KIS_BACKUP`, `KRX_OPEN_API`, `KIS_DAILY_CHART` 중 하나이며, KRX egress가 막힌 환경은 `KIS_DAILY_CHART`를 사용한다.
 - `MARKET_HISTORY_COLLECTION_ENABLED`: KRX 과거 일별 시세 수집 scheduler 활성화 여부. 기본값은 `false`이다.
 - `MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS`: KRX 과거 시세 수집 scheduler 주기. 기본값은 `86400000`이다.
 - `MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS`: KRX 과거 시세 수집 기준일 offset. 기본값은 `1`이다.
