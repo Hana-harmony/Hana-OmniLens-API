@@ -1653,28 +1653,28 @@ components:
             - "null"
           minimum: 0
           maximum: 1
-          description: Event tag confidence propagated from Hannah-Montana-AI.
+          description: Event tag confidence propagated from Hannah-Montana-AI for observation and UI display only. It is not an automatic blocking decision.
         sentimentConfidence:
           type:
             - number
             - "null"
           minimum: 0
           maximum: 1
-          description: Sentiment confidence propagated from Hannah-Montana-AI.
+          description: Sentiment confidence propagated from Hannah-Montana-AI for observation and UI display only. It is not an automatic blocking decision.
         importanceConfidence:
           type:
             - number
             - "null"
           minimum: 0
           maximum: 1
-          description: Importance confidence propagated from Hannah-Montana-AI.
+          description: Importance confidence propagated from Hannah-Montana-AI for observation and UI display only. It is not an automatic blocking decision.
         stockMatchConfidence:
           type:
             - number
             - "null"
           minimum: 0
           maximum: 1
-          description: Stock mapping confidence propagated from Hannah-Montana-AI.
+          description: Stock mapping confidence propagated from Hannah-Montana-AI for observation and UI display only. It is not an automatic blocking decision.
     AlertGlossaryTerm:
       type: object
       required:
