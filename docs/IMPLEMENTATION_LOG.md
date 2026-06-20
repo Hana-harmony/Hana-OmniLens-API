@@ -157,6 +157,7 @@
 
 ## 2026-06-20 AI confidence 메타데이터 전파
 - Hannah AI 응답의 `event_confidence`, `sentiment_confidence`, `importance_confidence`, `stock_match_confidence`를 `AlertEvent`로 전파한다.
+- AI confidence는 품질 관측과 UI 표시용 메타데이터로만 전파하며, OmniLens는 해당 값만으로 알림을 자동 차단하지 않는다.
 - static OpenAPI, Hannah client 계약 테스트, 분석 후 발행 테스트, WebSocket 계약 테스트에서 confidence 전파를 검증한다.
 
 ## 2026-06-04 AI duplicateKey 기반 수집 중복 방지
