@@ -12,6 +12,7 @@ permissions:
 
 env:
   PROD_APP_DIR: /opt/hana-omnilens-api
+  DOCKER_BUILD_RECORD_UPLOAD: false
 
 jobs:
   test:
@@ -22,7 +23,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
       - name: Gradle 검증
         run: ./gradlew test --no-daemon
 
