@@ -72,9 +72,7 @@ public class AlertAnalysisPublishingService {
                 analysis.eventConfidence(),
                 analysis.sentimentConfidence(),
                 analysis.importanceConfidence(),
-                analysis.stockMatchConfidence(),
-                Boolean.TRUE.equals(analysis.reviewRequired()),
-                analysis.reviewReasons() == null ? List.of() : analysis.reviewReasons());
+                analysis.stockMatchConfidence());
     }
 
     public AlertEvent publishAnalyzed(AlertPublishRequest request) {

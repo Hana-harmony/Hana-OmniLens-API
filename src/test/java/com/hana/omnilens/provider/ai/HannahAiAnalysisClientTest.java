@@ -66,9 +66,7 @@ class HannahAiAnalysisClientTest {
                             "event_confidence": 0.91,
                             "sentiment_confidence": 0.89,
                             "importance_confidence": 0.93,
-                            "stock_match_confidence": 1.0,
-                            "review_required": false,
-                            "review_reasons": []
+                            "stock_match_confidence": 1.0
                           },
                           "timestamp": "2026-06-20T00:00:00Z"
                         }
@@ -95,8 +93,6 @@ class HannahAiAnalysisClientTest {
         assertThat(response.modelVersion()).isEqualTo("financial-keyword-baseline-2026-06-04");
         assertThat(response.eventConfidence()).isEqualTo(0.91);
         assertThat(response.stockMatchConfidence()).isEqualTo(1.0);
-        assertThat(response.reviewRequired()).isFalse();
-        assertThat(response.reviewReasons()).isEmpty();
         server.verify();
     }
 }

@@ -33,8 +33,6 @@ public record AlertPublishRequest(
         Double eventConfidence,
         Double sentimentConfidence,
         Double importanceConfidence,
-        Double stockMatchConfidence,
-        boolean reviewRequired,
-        List<String> reviewReasons
+        Double stockMatchConfidence
 ) {
 }
