@@ -155,10 +155,9 @@
 - 직접 알림 발행 API도 동일 필드를 선택값으로 허용해 협력사 내부 재처리 이벤트가 번역 품질 메타를 유지할 수 있게 한다.
 - `analyze-and-publish`, `collect-and-publish`, WebSocket 계약 테스트에서 금융 용어집과 품질 플래그 전파를 검증한다.
 
-## 2026-06-20 AI confidence와 검수 플래그 전파
-- Hannah AI 응답의 `event_confidence`, `sentiment_confidence`, `importance_confidence`, `stock_match_confidence`, `review_required`, `review_reasons`를 `AlertEvent`로 전파한다.
-- 협력사 downstream은 `reviewRequired=false`인 이벤트만 자동 발송 후보로 사용하고, review 사유가 있는 이벤트는 사람 검수 또는 fallback 큐로 보낼 수 있다.
-- static OpenAPI, Hannah client 계약 테스트, 분석 후 발행 테스트, WebSocket 계약 테스트에서 confidence와 검수 플래그 전파를 검증한다.
+## 2026-06-20 AI confidence 메타데이터 전파
+- Hannah AI 응답의 `event_confidence`, `sentiment_confidence`, `importance_confidence`, `stock_match_confidence`를 `AlertEvent`로 전파한다.
+- static OpenAPI, Hannah client 계약 테스트, 분석 후 발행 테스트, WebSocket 계약 테스트에서 confidence 전파를 검증한다.
 
 ## 2026-06-04 AI duplicateKey 기반 수집 중복 방지
 - provider 원문 URL dedupe 이후 Hannah AI가 생성한 `duplicateKey`를 한 번 더 dedupe 기준으로 사용한다.

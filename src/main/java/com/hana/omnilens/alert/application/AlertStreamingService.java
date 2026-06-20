@@ -45,8 +45,6 @@ public class AlertStreamingService {
                 request.sentimentConfidence(),
                 request.importanceConfidence(),
                 request.stockMatchConfidence(),
-                request.reviewRequired(),
-                request.reviewReasons() == null ? List.of() : request.reviewReasons(),
                 Instant.now());
 
         messagingTemplate.convertAndSend("/topic/partners/" + request.partnerId() + "/alerts", event);

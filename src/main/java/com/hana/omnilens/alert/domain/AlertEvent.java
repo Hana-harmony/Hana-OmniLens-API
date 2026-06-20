@@ -28,8 +28,6 @@ public record AlertEvent(
         Double sentimentConfidence,
         Double importanceConfidence,
         Double stockMatchConfidence,
-        boolean reviewRequired,
-        List<String> reviewReasons,
         Instant createdAt
 ) {
 }
