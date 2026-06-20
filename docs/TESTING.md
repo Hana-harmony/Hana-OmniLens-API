@@ -28,6 +28,7 @@ docker compose -f compose.local.yml up -d
 - mTLS 활성화 시 보호 API의 client certificate 필수 검증과 health endpoint 예외
 - Redis 기반 HMAC nonce `SETNX` TTL 저장과 duplicate nonce 거부
 - Redis/in-memory/unavailable HMAC nonce store 설정 선택
+- Testcontainers Redis 실제 연결 기반 HMAC nonce, 알림 dedupe, 환율 cache, 외국인 보유율 cache 통합 검증
 - correlation id 응답 헤더 echo/generation
 - 보안 감사 로그의 API key fingerprint masking
 - health endpoint 공개
@@ -86,6 +87,3 @@ docker compose -f compose.local.yml up -d
 - tax refund case sync API의 공동 응답 envelope, 입력 validation, 환급/선지급 상태 판정
 - tax treaty case classification API의 CASE_01 판정, 수동 검토 사유, 입력 validation
 - tax rectification batch status API의 분기 window, 진행 상태, case count, path variable validation
-
-## 추가 예정
-- Redis integration testcontainer 기반 연결 테스트

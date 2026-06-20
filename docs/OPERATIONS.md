@@ -213,4 +213,4 @@ PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION=30s
 ```
 
 ## 운영 전 보강
-- Redis integration testcontainer 기반 연결 테스트
+- 없음. 신규 운영 보강은 `docs/ROADMAP.md`의 다음 milestone으로 추가한다.
