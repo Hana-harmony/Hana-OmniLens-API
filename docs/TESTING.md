@@ -18,6 +18,8 @@ docker compose -f compose.local.yml up -d
 - API key 해시 미설정 시 `503`
 - DB active partner credential 인증 성공
 - inactive partner credential 거부
+- bootstrap 운영 키 기반 협력사 API key rotation, 기존 키 비활성화, 새 키 1회 반환
+- DB credential 기반 rotation API 호출 거부
 - 인증 partner와 요청 partner 불일치 시 알림 API `403`
 - API key rate limit 초과 시 `429`와 `Retry-After`
 - HMAC 요청 서명 성공

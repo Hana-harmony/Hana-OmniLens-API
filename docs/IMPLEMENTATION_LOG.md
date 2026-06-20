@@ -1,6 +1,9 @@
 # 구현 기록
 
 ## 2026-06-19 하네스·문서 최신화
+- 협력사별 API key rotation API를 추가했다. bootstrap 운영 키로만 호출할 수 있고, 서버가 새 256-bit key를 생성해 응답에서 한 번만 반환하며 DB에는 SHA-256 hash만 저장한다.
+- rotation 시 같은 partner의 기존 활성 credential은 같은 트랜잭션에서 비활성화한다. DB credential로 인증된 협력사 요청은 rotation API를 호출할 수 없다.
+- 배포 workflow에서 제거된 Papago/한국수출입은행 secret 주입을 삭제해 DeepL/Frankfurter 기준 운영 설정과 맞췄다.
 - KIS 실시간 체결가·호가 WebSocket은 가격, 호가, 누적 거래량, VI/단일가/거래정지 상태 전용으로 정리했다.
 - 외국인 보유수량, 보유율, 한도소진율은 KIS 현재가 REST snapshot과 Redis/in-memory cache에서 공급한다고 명시했다.
 - 외국인 한도 사전 차단은 snapshot, 주문 수량 영향도, KIS 실시간 누적 거래량 보정 기반이며 외국인 보유량 다일자 시계열 학습 모델은 구현 범위가 아님을 문서화했다.
@@ -189,12 +192,8 @@
 - 단위 테스트로 KIS 요청 헤더·쿼리·응답 매핑, MarketDataService의 KIS 우선 사용, 공공데이터 fallback을 검증했다.
 
 ## 2026-06-04 Papago NMT 알림 제목 번역
-- Papago NMT `POST /v1/papago/n2mt` 계약을 `PapagoTranslationClient`로 격리했다.
-- 요청 header는 `X-Naver-Client-Id`, `X-Naver-Client-Secret`으로 고정하고, 요청 body는 `source=ko`, `target=en`, `text={원문 제목}` form payload로 전송한다.
-- 운영 설정은 `PAPAGO_TRANSLATION_CLIENT_ID`, `PAPAGO_TRANSLATION_CLIENT_SECRET` 환경변수 슬롯만 추가하고, 실제 값은 커밋하지 않는다.
-- `AlertAnalysisPublishingService`가 Hannah-Montana-AI 분석 결과의 원문 제목을 번역해 `translatedTitle`에 넣도록 연결했다.
-- 번역 키 미설정, Papago 장애, 빈 번역 결과는 알림 발행을 막지 않고 원문 제목으로 fallback한다.
-- 단위 테스트로 Papago 요청 계약, 번역 성공, 번역 실패 fallback, 분석 후 발행 payload의 번역 제목 반영을 검증했다.
+- 폐기된 초기 구현 이력이다. 현재 번역 provider는 DeepL이며 Papago credential slot과 runtime adapter는 운영 경로에서 제거됐다.
+- smoke report에는 Papago를 `legacy_disabled` 상태로만 기록한다.
 
 ## 2026-06-19 DeepL 알림 제목 번역 fallback chain
 - DeepL `POST /v2/translate` 계약을 `DeepLTranslationClient`로 격리했다.
@@ -276,11 +275,8 @@
 - 단위 테스트로 요청 query, 응답 매핑, provider 미응답 시 cache 미변경을 검증했다.
 
 ## 2026-06-04 한국수출입은행 환율 refresh scheduler
-- `ExchangeRateRefreshProperties`를 추가해 `enabled`, `fixedDelayMs`, `baseDateOffsetDays`, `currencies`를 설정으로 분리했다.
-- 기본값은 disabled이며 통화 목록이 비어 있으면 외부 provider를 호출하지 않는다.
-- 활성화 시 한국 시간 기준 오늘에서 `baseDateOffsetDays`를 뺀 날짜로 설정 통화를 순회 refresh한다.
-- 한 통화의 provider 장애는 warn log로 격리하고 다음 통화 refresh를 계속한다.
-- 단위 테스트로 disabled no-op, 통화코드 정규화, 기준일 offset, 통화별 장애 격리를 검증했다.
+- 폐기된 초기 구현 이력이다. 현재 환율 provider는 Frankfurter이며 한국수출입은행 credential slot과 runtime adapter는 운영 경로에서 제거됐다.
+- `ExchangeRateRefreshProperties`와 refresh scheduler는 Frankfurter provider와 Redis/in-memory cache 갱신에 사용한다.
 
 ## 2026-06-04 Redis 기반 환율 cache
 - `ExchangeRateCacheProperties`를 추가해 환율 cache 저장소를 `redis`와 `in-memory` 모드로 전환할 수 있게 했다.
@@ -304,7 +300,7 @@
 - `ExternalProviderResiliencePolicy`는 provider 이름별 circuit state를 관리하고 `RestClientException` 계열 장애만 재시도한다.
 - 재시도 기본값은 2회, backoff 기본값은 150ms다.
 - circuit breaker 기본값은 연속 실패 5회 후 30초 open이다.
-- Naver News, OpenDART, Papago, KIS 현재가와 외국인보유량, 공공데이터 주식시세, 한국수출입은행 환율, Hannah-Montana-AI 내부 분석 호출에 정책을 적용했다.
+- Naver News, OpenDART, DeepL, KIS 현재가와 외국인보유량, 공공데이터 주식시세, Frankfurter 환율, Hannah-Montana-AI 내부 분석 호출에 정책을 적용했다.
 - Hannah-Montana-AI 호출에는 별도 서비스 토큰을 추가하지 않고 내부 네트워크 호출 모델을 유지했다.
 - `application-prod.yml`은 `PROVIDER_*` placeholder를 사용하고, CI/CD가 기본값 포함 `application-prod.env`를 자동 생성한다.
 - 단위 테스트로 retry 성공, circuit open, 비네트워크 예외 no-retry, properties 기본값을 검증했다.

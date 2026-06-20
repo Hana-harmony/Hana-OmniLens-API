@@ -166,10 +166,19 @@ EXCHANGE_RATE_REFRESH_CURRENCIES=USD,JPY
 - `active=false` credential은 인증에 사용할 수 없다.
 - DB credential로 인증된 요청은 알림 API의 `partnerId`와 인증된 `partner_id`가 일치해야 한다.
 - `OMNILENS_API_KEY_SHA256` bootstrap 키는 초기 운영과 비상 복구용 fallback으로 유지한다.
+- 협력사별 key rotation은 bootstrap 운영 키로 `POST /api/v1/security/partners/{partnerId}/credentials/rotate`를 호출한다.
+- rotation API는 서버가 새 256-bit API key를 생성해 응답에서 한 번만 반환하고, DB에는 SHA-256 hash만 저장한다.
+- 같은 partner의 기존 활성 credential은 같은 트랜잭션에서 `active=false`로 전환되므로 기존 키는 즉시 폐기된다.
+- DB credential로 인증된 협력사 요청은 rotation API를 호출할 수 없다.
 
 ```sql
 INSERT INTO partner_api_credential (api_key_sha256, partner_id, active)
 VALUES ('{sha256_hex_of_raw_api_key}', 'partner-a', TRUE);
+```
+
+```bash
+curl -X POST http://localhost:8080/api/v1/security/partners/partner-a/credentials/rotate \
+  -H "X-HANA-OMNILENS-API-KEY: ${BOOTSTRAP_API_KEY}"
 ```
 
 ## Audit Log & Correlation ID
@@ -204,4 +213,4 @@ PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION=30s
 ```
 
 ## 운영 전 보강
-- 협력사별 key rotation 자동화
+- Redis integration testcontainer 기반 연결 테스트

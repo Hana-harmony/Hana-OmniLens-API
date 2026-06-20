@@ -36,6 +36,7 @@
 ## M4 운영 하드닝
 - 협력사별 rate limit 완료
 - 협력사별 API key registry와 partnerId 접근 제한 완료
+- bootstrap 운영 키 기반 협력사별 API key rotation 완료
 - WebSocket topic authorization 세분화 완료
 - 서명 기반 인증과 Redis nonce replay 방어 완료
 - mTLS client certificate gate 완료

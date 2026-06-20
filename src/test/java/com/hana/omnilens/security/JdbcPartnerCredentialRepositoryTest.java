@@ -69,4 +69,25 @@ class JdbcPartnerCredentialRepositoryTest {
 
         assertThat(repository.existsAnyActive()).isTrue();
     }
+
+    @Test
+    void rotateDeactivatesExistingPartnerKeysAndStoresNewActiveHash() {
+        jdbcTemplate.update(
+                """
+                INSERT INTO partner_api_credential (api_key_sha256, partner_id, active)
+                VALUES (?, ?, TRUE)
+                """,
+                "old-hash",
+                "partner-a");
+
+        int deactivatedCount = repository.rotate("partner-a", "new-hash");
+
+        assertThat(deactivatedCount).isEqualTo(1);
+        assertThat(repository.findActiveByApiKeySha256("old-hash")).isEmpty();
+        assertThat(repository.findActiveByApiKeySha256("new-hash"))
+                .isPresent()
+                .get()
+                .extracting("partnerId", "apiKeySha256")
+                .containsExactly("partner-a", "new-hash");
+    }
 }

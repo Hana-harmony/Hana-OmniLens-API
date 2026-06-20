@@ -20,6 +20,13 @@ public class PartnerAuthorizationService {
         }
     }
 
+    public void assertBootstrapAccess() {
+        String authenticatedPartnerId = authenticatedPartnerId();
+        if (StringUtils.hasText(authenticatedPartnerId)) {
+            throw new PartnerAccessDeniedException(authenticatedPartnerId, "bootstrap");
+        }
+    }
+
     private String authenticatedPartnerId() {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
             HttpServletRequest request = attributes.getRequest();

@@ -32,6 +32,9 @@
 - 서버 DB에는 `SHA-256(apiKey)` 결과만 `partner_api_credential.api_key_sha256`에 저장한다.
 - 키 폐기는 row 삭제보다 `active=false` 전환을 우선 사용해 감사 추적을 남긴다.
 - bootstrap 전역 키는 운영 초기 credential 등록과 비상 복구용으로만 사용하고 상시 협력사 호출은 DB credential을 사용한다.
+- 협력사별 key rotation은 bootstrap 운영 키로 `POST /api/v1/security/partners/{partnerId}/credentials/rotate`를 호출한다.
+- rotation 응답의 `apiKey`는 새 원문 키가 노출되는 유일한 시점이다. 운영자는 즉시 협력사 Secret Manager에 저장하고 로그나 티켓 본문에 남기지 않는다.
+- rotation 시 기존 활성 credential은 같은 트랜잭션에서 비활성화된다.
 
 ## 시크릿 관리
 - `application-local.yml`은 커밋하지 않는다.
@@ -72,7 +75,6 @@
 - 별도 서비스 토큰 헤더는 사용하지 않는다.
 
 ## 향후 강화
-- 협력사별 key rotation 자동화
 - abuse detection
 - 감사 로그 무결성 보장
 - 세무 서류/환급 상태 접근 권한 분리
