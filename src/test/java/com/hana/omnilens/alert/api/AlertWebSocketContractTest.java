@@ -92,6 +92,10 @@ class AlertWebSocketContractTest {
         assertThat(partnerEvent.translationQualityFlags()).containsExactly("FINANCIAL_GLOSSARY_APPLIED");
         assertThat(partnerEvent.duplicateKey()).isEqualTo("manual-duplicate");
         assertThat(partnerEvent.modelVersion()).isEqualTo("manual-publisher");
+        assertThat(partnerEvent.eventConfidence()).isEqualTo(0.91);
+        assertThat(partnerEvent.stockMatchConfidence()).isEqualTo(1.0);
+        assertThat(partnerEvent.reviewRequired()).isFalse();
+        assertThat(partnerEvent.reviewReasons()).isEmpty();
         assertThat(stockEvent.alertId()).isEqualTo(partnerEvent.alertId());
 
         if (session.isConnected()) {
@@ -213,6 +217,12 @@ class AlertWebSocketContractTest {
         payload.put("translationQualityFlags", List.of("FINANCIAL_GLOSSARY_APPLIED"));
         payload.put("duplicateKey", "manual-duplicate");
         payload.put("modelVersion", "manual-publisher");
+        payload.put("eventConfidence", 0.91);
+        payload.put("sentimentConfidence", 0.89);
+        payload.put("importanceConfidence", 0.93);
+        payload.put("stockMatchConfidence", 1.0);
+        payload.put("reviewRequired", false);
+        payload.put("reviewReasons", List.of());
         return payload;
     }
 

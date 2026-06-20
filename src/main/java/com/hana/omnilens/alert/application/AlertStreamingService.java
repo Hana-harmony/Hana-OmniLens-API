@@ -41,6 +41,12 @@ public class AlertStreamingService {
                 request.translationQualityFlags() == null ? List.of() : request.translationQualityFlags(),
                 request.duplicateKey(),
                 request.modelVersion(),
+                request.eventConfidence(),
+                request.sentimentConfidence(),
+                request.importanceConfidence(),
+                request.stockMatchConfidence(),
+                request.reviewRequired(),
+                request.reviewReasons() == null ? List.of() : request.reviewReasons(),
                 Instant.now());
 
         messagingTemplate.convertAndSend("/topic/partners/" + request.partnerId() + "/alerts", event);

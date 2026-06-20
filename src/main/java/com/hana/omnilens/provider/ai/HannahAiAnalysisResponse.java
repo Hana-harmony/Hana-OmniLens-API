@@ -19,6 +19,12 @@ public record HannahAiAnalysisResponse(
         @JsonProperty("glossary_terms") List<HannahAiGlossaryTerm> glossaryTerms,
         @JsonProperty("translation_quality_flags") List<String> translationQualityFlags,
         @JsonProperty("duplicate_key") String duplicateKey,
-        @JsonProperty("model_version") String modelVersion
+        @JsonProperty("model_version") String modelVersion,
+        @JsonProperty("event_confidence") Double eventConfidence,
+        @JsonProperty("sentiment_confidence") Double sentimentConfidence,
+        @JsonProperty("importance_confidence") Double importanceConfidence,
+        @JsonProperty("stock_match_confidence") Double stockMatchConfidence,
+        @JsonProperty("review_required") Boolean reviewRequired,
+        @JsonProperty("review_reasons") List<String> reviewReasons
 ) {
 }
