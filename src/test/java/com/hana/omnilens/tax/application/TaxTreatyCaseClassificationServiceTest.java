@@ -22,10 +22,10 @@ class TaxTreatyCaseClassificationServiceTest {
             new TaxTreatyCaseClassificationService(FIXED_CLOCK);
 
     @Test
-    void classifiesHongKongListedStockCase01() {
+    void classifiesUnitedStatesListedStockCase01() {
         TaxTreatyCaseClassificationResponse response = service.classify(request(
-                "HK",
-                "HK",
+                "US",
+                "US",
                 true,
                 "0.20",
                 true,
@@ -34,18 +34,18 @@ class TaxTreatyCaseClassificationServiceTest {
         assertThat(response.caseId()).isEqualTo("TAX-CASE-1");
         assertThat(response.treatyCaseType()).isEqualTo("CASE_01");
         assertThat(response.eligibleForTreatyBenefit()).isTrue();
-        assertThat(response.classificationReasons()).containsExactly("KR_HK_LISTED_STOCK_TREATY_CASE_01");
+        assertThat(response.classificationReasons()).containsExactly("KR_US_LISTED_STOCK_TREATY_CASE_01");
         assertThat(response.requiredNextActions()).containsExactly("PROCEED_TAX_REFUND_STATUS_SYNC");
         assertThat(response.classifiedAt()).isEqualTo(Instant.parse("2026-06-19T00:00:00Z"));
-        assertThat(response.modelVersion()).isEqualTo("kr-hk-treaty-case-classifier-v1");
+        assertThat(response.modelVersion()).isEqualTo("kr-us-treaty-case-classifier-v1");
         assertThat(response.source()).isEqualTo("HANA_TAX_TREATY_RULE_ENGINE");
     }
 
     @Test
     void classifiesManualReviewWhenOwnershipRateExceedsTreatyBoundary() {
         TaxTreatyCaseClassificationResponse response = service.classify(request(
-                "HK",
-                "HK",
+                "US",
+                "US",
                 true,
                 "25.00",
                 true,
@@ -60,8 +60,8 @@ class TaxTreatyCaseClassificationServiceTest {
     @Test
     void requiresDocumentVerificationBeforeCase01() {
         TaxTreatyCaseClassificationResponse response = service.classify(request(
-                "HK",
-                "HK",
+                "US",
+                "US",
                 true,
                 "0.20",
                 false,
