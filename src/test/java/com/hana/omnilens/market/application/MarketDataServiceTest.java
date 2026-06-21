@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
+import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
@@ -617,6 +618,52 @@ class MarketDataServiceTest {
     }
 
     @Test
+    void getOrderabilityKeepsTimeSeriesRiskAsPredictionWithoutBlocking() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        InMemoryForeignOwnershipDailySnapshotRepository dailySnapshotRepository =
+                new InMemoryForeignOwnershipDailySnapshotRepository();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                null,
+                repository,
+                cache,
+                dailySnapshotRepository,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                new ForeignOwnershipPredictionEngine(FIXED_CLOCK),
+                FIXED_CLOCK);
+        cache.put(new ForeignOwnershipSnapshot(
+                "005930",
+                995L,
+                new BigDecimal("49.75"),
+                1_000L,
+                new BigDecimal("99.5000"),
+                LocalDate.of(2025, 6, 4)));
+        dailySnapshotRepository.upsert(foreignOwnershipDailySnapshot(LocalDate.of(2025, 5, 31), "98.0000"));
+        dailySnapshotRepository.upsert(foreignOwnershipDailySnapshot(LocalDate.of(2025, 6, 1), "98.5000"));
+        dailySnapshotRepository.upsert(foreignOwnershipDailySnapshot(LocalDate.of(2025, 6, 2), "98.9000"));
+        dailySnapshotRepository.upsert(foreignOwnershipDailySnapshot(LocalDate.of(2025, 6, 3), "99.2000"));
+        dailySnapshotRepository.upsert(foreignOwnershipDailySnapshot(LocalDate.of(2025, 6, 4), "99.5000"));
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+
+        Orderability orderability = service.getOrderability("005930", "BUY", 1);
+
+        assertThat(orderability.predictedForeignLimitExhaustionRate()).isEqualByComparingTo("99.600000");
+        assertThat(orderability.foreignOwnershipPrediction().maxForeignLimitExhaustionRate())
+                .isGreaterThan(new BigDecimal("100.0000"));
+        assertThat(orderability.foreignOwnershipPrediction().confidenceLevel()).isEqualTo("TIME_SERIES_ADJUSTED");
+        assertThat(orderability.foreignLimitExceeded()).isFalse();
+        assertThat(orderability.orderable()).isTrue();
+    }
+
+    @Test
     void getOrderabilityAllowsSellEvenWhenForeignLimitIsExhausted() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
@@ -837,5 +884,17 @@ class MarketDataServiceTest {
                 6_720_000_000L,
                 new BigDecimal("50.99"),
                 LocalDate.of(2025, 6, 2));
+    }
+
+    private ForeignOwnershipDailySnapshot foreignOwnershipDailySnapshot(LocalDate baseDate, String exhaustionRate) {
+        return new ForeignOwnershipDailySnapshot(
+                "005930",
+                baseDate,
+                995L,
+                new BigDecimal("49.75"),
+                1_000L,
+                new BigDecimal(exhaustionRate),
+                "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP",
+                FIXED_CLOCK.instant());
     }
 }

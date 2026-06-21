@@ -45,6 +45,7 @@ public class MarketDataService {
     private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofSeconds(30);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
     private static final int KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS = 3;
+    private static final int FOREIGN_OWNERSHIP_HISTORY_LIMIT = 30;
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
@@ -233,6 +234,9 @@ public class MarketDataService {
                 quote.foreignOwnershipRate(),
                 prediction.minForeignLimitExhaustionRate(),
                 prediction.maxForeignLimitExhaustionRate(),
+                prediction.confidenceLevel(),
+                prediction.confidenceScore(),
+                prediction.modelVersion(),
                 quote.foreignOwnershipBaseDate(),
                 orderability.viActive(),
                 orderability.singlePriceTrading(),
@@ -347,13 +351,15 @@ public class MarketDataService {
                 side,
                 quantity,
                 snapshot);
+        List<ForeignOwnershipDailySnapshot> history = foreignOwnershipHistory(stockCode, snapshot);
         ForeignOwnershipPrediction foreignOwnershipPrediction = foreignOwnershipPredictionEngine.predict(
                 side,
                 quantity,
                 snapshot,
-                realtimeMarketDataCache.latestTrade(stockCode));
+                realtimeMarketDataCache.latestTrade(stockCode),
+                history);
         boolean foreignLimitExceeded = "BUY".equals(side)
-                && foreignOwnershipPrediction.maxForeignLimitExhaustionRate().compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
+                && predictedForeignLimitExhaustionRate.compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
         MarketStatus marketStatus = latestMarketStatus(stockCode);
         String blockedReason = blockedReason(foreignLimitExceeded, marketStatus.tradingHalted());
 
@@ -497,6 +503,13 @@ public class MarketDataService {
         return foreignOwnershipSnapshotCache.find(stock.stockCode())
                 .map(ForeignOwnershipLookup::cache)
                 .orElseGet(ForeignOwnershipLookup::empty);
+    }
+
+    private List<ForeignOwnershipDailySnapshot> foreignOwnershipHistory(
+            String stockCode,
+            Optional<ForeignOwnershipSnapshot> snapshot) {
+        LocalDate to = snapshot.map(ForeignOwnershipSnapshot::baseDate).orElse(LocalDate.now(clock));
+        return foreignOwnershipDailySnapshotRepository.findRecent(stockCode, to, FOREIGN_OWNERSHIP_HISTORY_LIMIT);
     }
 
     private void storeForeignOwnershipSnapshot(ForeignOwnershipSnapshot snapshot) {
