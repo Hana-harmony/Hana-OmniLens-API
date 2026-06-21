@@ -1349,6 +1349,9 @@ components:
         - predictedForeignOwnershipRateMax
         - predictedForeignLimitExhaustionRateMin
         - predictedForeignLimitExhaustionRateMax
+        - foreignOwnershipPredictionConfidenceLevel
+        - foreignOwnershipPredictionConfidenceScore
+        - foreignOwnershipPredictionModelVersion
         - foreignOwnershipBaseDate
         - viActive
         - singlePriceTrading
@@ -1403,6 +1406,17 @@ components:
           type: number
         predictedForeignLimitExhaustionRateMax:
           type: number
+        foreignOwnershipPredictionConfidenceLevel:
+          type: string
+          description: Confidence band of the time-series based foreign ownership prediction. This is display metadata and is not a standalone blocking rule.
+        foreignOwnershipPredictionConfidenceScore:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence score of the prediction model for observation and UI display only.
+        foreignOwnershipPredictionModelVersion:
+          type: string
+          description: Foreign ownership prediction model version.
         foreignOwnershipBaseDate:
           type: string
           format: date
@@ -1503,8 +1517,13 @@ components:
         - orderImpactRate
         - intradayUncertaintyRate
         - observedIntradayVolume
+        - trendDailyChangeRate
+        - historyObservationCount
+        - historyWindowDays
         - calculatedAt
         - confidenceLevel
+        - confidenceScore
+        - modelVersion
         - source
       properties:
         minForeignLimitExhaustionRate:
@@ -1512,10 +1531,10 @@ components:
           description: Lower bound of the predicted foreign ownership limit exhaustion rate.
         baseForeignLimitExhaustionRate:
           type: number
-          description: Snapshot rate plus the simulated order impact.
+          description: Snapshot rate plus simulated order impact and time-series trend adjustment.
         maxForeignLimitExhaustionRate:
           type: number
-          description: Conservative upper bound used for BUY blocking.
+          description: Upper risk boundary for warning and display. BUY blocking uses predictedForeignLimitExhaustionRate, not this confidence boundary by itself.
         orderImpactRate:
           type: number
           description: Percentage-point impact of the requested mock order quantity.
@@ -1525,6 +1544,15 @@ components:
         observedIntradayVolume:
           type: integer
           format: int64
+        trendDailyChangeRate:
+          type: number
+          description: Average daily percentage-point change from recent foreign ownership limit-exhaustion snapshots.
+        historyObservationCount:
+          type: integer
+          format: int32
+        historyWindowDays:
+          type: integer
+          format: int32
         baseDate:
           type:
             - string
@@ -1536,9 +1564,19 @@ components:
         confidenceLevel:
           type: string
           enum:
+            - TIME_SERIES_REALTIME_ADJUSTED
+            - TIME_SERIES_ADJUSTED
+            - LIMITED_TIME_SERIES
             - REALTIME_VOLUME_ADJUSTED
             - SNAPSHOT_ONLY
             - NO_SNAPSHOT
+        confidenceScore:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Prediction confidence for observation and UI display only. It is not an automatic blocking decision.
+        modelVersion:
+          type: string
         source:
           type: string
           description: Data source chain used by the prediction engine.
