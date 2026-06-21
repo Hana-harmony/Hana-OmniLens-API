@@ -1309,7 +1309,7 @@ components:
           description: Time when the applied FX rate was supplied or cached.
         fxRateSource:
           type: string
-          description: PARTNER_REQUEST, EXCHANGE_RATE_CACHE, or FX_FALLBACK.
+          description: PARTNER_REQUEST or EXCHANGE_RATE_CACHE. Missing FX data returns MARKET_002 instead of a synthetic rate.
         fxStale:
           type: boolean
           description: true when the quote used fallback FX metadata.
@@ -1567,7 +1567,7 @@ components:
           format: date-time
         source:
           type: string
-          description: Data source, for example KIS_WEBSOCKET_ORDERBOOK or MOCK_KIS_WEBSOCKET.
+          description: Data source, for example KIS_WEBSOCKET_ORDERBOOK or KIS_REST_ORDERBOOK.
     OrderBookLevel:
       type: object
       required:

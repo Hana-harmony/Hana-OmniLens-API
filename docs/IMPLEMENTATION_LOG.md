@@ -186,8 +186,8 @@
 - 요청 header는 `authorization`, `appkey`, `appsecret`, `tr_id=FHKST01010100`으로 고정했다.
 - 요청 query는 `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD={stockCode}`로 고정했다.
 - KIS 응답의 `stck_prpr`, `prdy_ctrt`, `acml_vol`, `hts_kor_isnm`, `frgn_hldn_qty`, `hts_frgn_ehrt`, `lstn_stcn`을 `KisCurrentPriceSnapshot`으로 변환한다.
-- `MarketDataService`는 KIS 현재가를 가격 provider 1순위로 사용하고, KIS 미설정·장애·무응답 시 공공데이터 전일 snapshot과 mock fallback 순서로 quote 응답 구조를 유지한다.
-- quote `source`는 `KIS_OPEN_API`, `PUBLIC_DATA_STOCK_SECURITIES`, `MOCK_MARKET_DATA`와 KRX suffix를 조합해 데이터 출처를 표시한다.
+- `MarketDataService`는 KIS 현재가를 가격 provider 1순위로 사용하고, KIS 미설정·장애·무응답 시 공공데이터 전일 snapshot을 사용한다. 실제 가격 provider, KIS 외국인 보유량 snapshot, 또는 FX cache가 없으면 가짜값 대신 `MARKET_002`로 실패한다.
+- quote `source`는 `KIS_OPEN_API`, `PUBLIC_DATA_STOCK_SECURITIES`와 KIS 외국인 보유량 cache suffix를 조합해 데이터 출처를 표시한다.
 - KIS app key, app secret, access token은 env placeholder로만 관리하고, 테스트 fixture에는 가짜 값만 사용한다.
 - 단위 테스트로 KIS 요청 헤더·쿼리·응답 매핑, MarketDataService의 KIS 우선 사용, 공공데이터 fallback을 검증했다.
 
@@ -348,17 +348,36 @@
 - GitHub Actions 배포 job은 `main` push, production environment, GHCR image push/pull 흐름을 유지하도록 검증한다.
 - 배포 script는 원격 서버의 `application-prod.env`, `deploy-prod.env`, `compose.prod.yml`만 사용하고 local profile 파일을 참조하지 않는다.
 
+## 2026-06-20 KRX 장애 시 KIS 일봉 보강 수집
+- `POST /api/v1/market/history/collect`는 KRX KOSPI/KOSDAQ/KONEX 중 하나라도 실패하면 종목 마스터 대상 KIS 일봉 chart API로 같은 기준일 데이터를 보강 저장한다.
+- KRX 시장별 실패는 `marketResults`에 그대로 남기고, KIS 보강 저장에 성공하면 응답 `source`를 `KRX_OPEN_API_DAILY_TRADE+KIS_DAILY_ITEM_CHART_PRICE`로 반환한다.
+- KIS 일봉 보강은 provider 초당 제한을 넘지 않도록 종목별 1.2초 호출 간격과 `EGW00201` 응답 재시도를 적용한다.
+- 로컬 smoke에서 KRX 3개 시장은 read timeout으로 실패했고, KIS 일봉 보강은 2026-06-19 기준 30개 종목 요청·30개 저장에 성공했다.
+- 단위 테스트로 KRX 시장 실패 격리, KIS 일봉 보강 저장, 저장 row 공백 시 history 조회 보강 계약을 검증했다.
+
+## 2026-06-20 히스토리 수집 provider 선택
+- `MARKET_HISTORY_COLLECTION_PROVIDER`를 추가해 `KRX_OPEN_API_WITH_KIS_BACKUP`, `KRX_OPEN_API`, `KIS_DAILY_CHART` 중 하나로 일봉 수집 provider를 선택한다.
+- KRX TLS handshake는 성공하지만 HTTP request 이후 응답이 없는 egress 환경에서는 `KIS_DAILY_CHART`를 primary 실 provider로 사용해 mock 없이 수집을 성공시킨다.
+- 로컬 compose smoke는 `KIS_DAILY_CHART`로 실행하고, KRX 직접망이 허용된 배포 환경은 `KRX_OPEN_API_WITH_KIS_BACKUP` 기본값을 사용할 수 있다.
+- KIS 일봉 수집 직후 quote/orderbook smoke가 이어질 때 `EGW00201` 초당 제한이 발생할 수 있어 KIS REST 호가는 backoff를 두고 최대 3회 재시도한다.
+
+## 2026-06-20 시장 데이터 가짜 fallback 제거
+- quote는 가격 provider, KIS 외국인 보유량 snapshot, FX cache 중 하나라도 없으면 `MARKET_002`로 실패하며 더 이상 `MOCK_MARKET_DATA` 가격·외국인 보유량·FX `1`을 반환하지 않는다.
+- KIS 현재가가 `EGW00201` 초당 제한을 반환하면 1회 backoff 후 재시도한다.
+- orderbook은 KIS 실시간 호가 cache와 KIS REST 호가 snapshot이 모두 없으면 `MARKET_002`로 실패하며 `MOCK_KIS_WEBSOCKET` 호가를 반환하지 않는다.
+- WebSocket quote replay도 환율 cache와 KIS 외국인 보유량 snapshot이 준비된 실제 시장 데이터 계약으로 검증한다.
+
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
-- 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot, fallback 데이터 순서로 표준 응답 구조를 유지한다.
+- 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot 순서로 실제 provider 가격을 사용한다. 실제 가격 provider, KIS 외국인 보유량 snapshot, FX cache가 없으면 가짜값 대신 `MARKET_002`로 실패한다.
 - 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KIS 외국인보유량 cache, 요청 수량, KIS 실시간 체결 누적 거래량으로 예상 한도소진율 min/base/max를 계산한다. 차단 여부는 보수적인 max 한도소진율이 100% 이상인지로 판단한다.
-- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산해 orderability 응답에 반영한다. `tradingHalted=true`이면 `TRADING_HALTED`로 주문 가능 여부를 차단한다.
-- KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다.
+- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산해 orderability 응답에 반영한다. 실시간 상태 tick이 없으면 `priceLimitState=UNKNOWN`, source `MARKET_STATUS_UNAVAILABLE`로 반환한다. `tradingHalted=true`이면 `TRADING_HALTED`로 주문 가능 여부를 차단한다.
+- KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다. KRX 수집 실패 시 KIS 일봉 chart API로 기준일 데이터를 실 provider 보강 저장한다.
 - 과거 시세는 `/api/v1/market/stocks/{stockCode}/history`에서 공동 응답 envelope으로 조회하고, 운영 수집은 `/api/v1/market/history/collect` 또는 scheduler로 실행한다.
-- 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 mock 호가 snapshot으로 응답 구조를 유지한다.
-- 외국인 보유수량, 외국인 지분율, 한도소진율은 KIS 현재가 refresh로 저장한 snapshot cache를 우선 사용하고 장애 시 fallback 데이터로 응답 구조를 유지한다.
+- 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 KIS REST 호가 snapshot을 사용한다. 두 provider가 모두 실패하면 `MARKET_002`로 실패한다.
+- 외국인 보유수량, 외국인 지분율, 한도소진율은 KIS 현재가 refresh로 저장한 snapshot cache를 사용한다. snapshot이 없으면 가짜 기본값을 반환하지 않고 `MARKET_002`로 실패한다.
 - 외국인 보유율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
-- 현지 통화 환산가는 quote 요청의 `fxRate`, Frankfurter 또는 협력사 입력 환율 캐시, `1` fallback 순서로 선택한 환율에 `currentPriceKrw`를 곱해 계산한다.
+- 현지 통화 환산가는 quote 요청의 `fxRate` 또는 Frankfurter/협력사 입력 환율 캐시에 저장된 환율에 `currentPriceKrw`를 곱해 계산한다. 둘 다 없으면 `MARKET_002`로 실패한다.
 - 환율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
 - validation 실패 응답은 `400 Bad Request`와 ProblemDetail body로 통일한다.
 - 알림 이벤트는 `/api/v1/alerts/events`로 수신한 뒤 `/topic/partners/{partnerId}/alerts`, `/topic/stocks/{stockCode}/alerts`로 전송한다.

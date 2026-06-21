@@ -5,13 +5,16 @@ import java.time.Instant;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
 import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
-class KisAccessTokenProvider {
+@Component
+public class KisAccessTokenProvider {
 
     private final RestClient restClient;
     private final ExternalProviderProperties.Kis properties;
@@ -21,11 +24,12 @@ class KisAccessTokenProvider {
     private String cachedToken = "";
     private Instant expiresAt = Instant.EPOCH;
 
-    KisAccessTokenProvider(
+    @Autowired
+    public KisAccessTokenProvider(
             RestClient.Builder restClientBuilder,
-            ExternalProviderProperties.Kis properties,
+            ExternalProviderProperties properties,
             ExternalProviderResiliencePolicy resiliencePolicy) {
-        this(restClientBuilder, properties, resiliencePolicy, Clock.systemUTC());
+        this(restClientBuilder, properties.kis(), resiliencePolicy, Clock.systemUTC());
     }
 
     KisAccessTokenProvider(

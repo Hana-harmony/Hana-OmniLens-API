@@ -3,15 +3,20 @@ package com.hana.omnilens.market.application;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
@@ -25,35 +30,38 @@ import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
+import com.hana.omnilens.provider.market.KisRestOrderBookClient;
+import com.hana.omnilens.provider.market.KisRestOrderBookSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockSecuritiesClient;
 
 @Service
 public class MarketDataService {
 
-    private static final StockSummary DEFAULT_STOCK = new StockSummary(
-            "005930",
-            "삼성전자",
-            "Samsung Electronics",
-            "KOSPI",
-            "KR7005930003",
-            "00126380");
+    private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private static final BigDecimal FOREIGN_LIMIT_BLOCK_RATE = new BigDecimal("100.0000");
+    private static final Duration PRICE_CACHE_TTL = Duration.ofSeconds(2);
+    private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofSeconds(30);
+    private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
+    private static final int KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS = 3;
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
     private final KisCurrentPriceClient kisCurrentPriceClient;
+    private final KisRestOrderBookClient kisRestOrderBookClient;
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
     private final ExchangeRateCache exchangeRateCache;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
     private final ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine;
     private final Clock clock;
+    private final Map<String, CachedPriceLookup> priceLookupCache = new ConcurrentHashMap<>();
 
     @Autowired
     public MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
             KisCurrentPriceClient kisCurrentPriceClient,
+            KisRestOrderBookClient kisRestOrderBookClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             ExchangeRateCache exchangeRateCache,
@@ -62,6 +70,7 @@ public class MarketDataService {
         this(
                 publicDataStockSecuritiesClient,
                 kisCurrentPriceClient,
+                kisRestOrderBookClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 exchangeRateCache,
@@ -81,6 +90,28 @@ public class MarketDataService {
         this(
                 publicDataStockSecuritiesClient,
                 kisCurrentPriceClient,
+                null,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                exchangeRateCache,
+                realtimeMarketDataCache,
+                new ForeignOwnershipPredictionEngine(clock),
+                clock);
+    }
+
+    MarketDataService(
+            PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
+            KisRestOrderBookClient kisRestOrderBookClient,
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            Clock clock) {
+        this(
+                publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 exchangeRateCache,
@@ -98,8 +129,31 @@ public class MarketDataService {
             RealtimeMarketDataCache realtimeMarketDataCache,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
             Clock clock) {
+        this(
+                publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
+                null,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                exchangeRateCache,
+                realtimeMarketDataCache,
+                foreignOwnershipPredictionEngine,
+                clock);
+    }
+
+    MarketDataService(
+            PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
+            KisRestOrderBookClient kisRestOrderBookClient,
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
+            Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.kisCurrentPriceClient = kisCurrentPriceClient;
+        this.kisRestOrderBookClient = kisRestOrderBookClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
         this.exchangeRateCache = exchangeRateCache;
@@ -110,11 +164,15 @@ public class MarketDataService {
 
     public MarketQuote getQuote(String stockCode, String localCurrency, BigDecimal fxRate) {
         PriceLookup priceLookup = latestPriceSnapshot(stockCode);
-        StockSummary stock = stockMasterRepository.findByCode(stockCode).orElse(DEFAULT_STOCK);
+        StockSummary stock = getStock(stockCode);
         ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock);
 
         BigDecimal currentPrice = priceLookup.currentPriceKrw()
-                .orElse(new BigDecimal("78500"));
+                .orElseThrow(() -> new MarketDataUnavailableException(
+                        "No live provider price is available for stockCode=" + stockCode));
+        ForeignOwnershipSnapshot ownership = foreignOwnership.snapshot()
+                .orElseThrow(() -> new MarketDataUnavailableException(
+                        "No KIS foreign ownership snapshot is available for stockCode=" + stockCode));
         FxLookup fxLookup = resolveFxRate(localCurrency, fxRate);
         BigDecimal localPrice = currentPrice.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
 
@@ -134,14 +192,10 @@ public class MarketDataService {
                 fxLookup.fxRateTime(),
                 fxLookup.fxRateSource(),
                 fxLookup.stale(),
-                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(3642091300L),
-                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnershipRate)
-                        .orElse(new BigDecimal("54.19")),
-                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate)
-                        .orElse(new BigDecimal("54.19")),
-                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::baseDate)
-                        .orElse(priceLookup.baseDate()
-                                .orElse(LocalDate.now(clock).minusDays(1))),
+                ownership.foreignOwnedQuantity(),
+                ownership.foreignOwnershipRate(),
+                ownership.foreignLimitExhaustionRate(),
+                ownership.baseDate(),
                 Instant.now(clock),
                 source(priceLookup.source(), foreignOwnership.source()))
         ;
@@ -215,16 +269,61 @@ public class MarketDataService {
                     Instant.now(clock),
                     "KIS_WEBSOCKET_ORDERBOOK");
         }
+        Optional<OrderBook> restOrderBook = latestRestOrderBook(stockCode);
+        if (restOrderBook.isPresent()) {
+            return restOrderBook.orElseThrow();
+        }
+        throw new MarketDataUnavailableException("No KIS order book provider data is available for stockCode=" + stockCode);
+    }
+
+    private Optional<OrderBook> latestRestOrderBook(String stockCode) {
+        if (kisRestOrderBookClient == null) {
+            return Optional.empty();
+        }
+        try {
+            return findKisRestOrderBook(stockCode)
+                    .map(snapshot -> toOrderBook(stockCode, snapshot, "KIS_REST_ORDERBOOK"));
+        } catch (RuntimeException exception) {
+            // 실시간 cache가 없는 장외 상황에서도 호가 REST 장애만으로 시장 API 전체를 중단하지 않는다.
+            log.warn("KIS REST orderbook lookup failed for stockCode={}: {}", stockCode, exception.toString());
+            return Optional.empty();
+        }
+    }
+
+    private Optional<KisRestOrderBookSnapshot> findKisRestOrderBook(String stockCode) {
+        RuntimeException lastRateLimitException = null;
+        for (int attempt = 1; attempt <= KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS; attempt++) {
+            try {
+                return kisRestOrderBookClient.findOrderBook(stockCode);
+            } catch (RuntimeException exception) {
+                if (!isKisRateLimitError(exception)) {
+                    throw exception;
+                }
+                lastRateLimitException = exception;
+                if (attempt == KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS) {
+                    break;
+                }
+                log.warn("KIS REST orderbook lookup rate limited for stockCode={}, retrying attempt={}/{}",
+                        stockCode, attempt + 1, KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS);
+                pause(KIS_RATE_LIMIT_RETRY_DELAY.multipliedBy(attempt));
+            }
+        }
+        throw lastRateLimitException == null
+                ? new IllegalStateException("KIS REST orderbook lookup failed")
+                : lastRateLimitException;
+    }
+
+    private OrderBook toOrderBook(String stockCode, KisRestOrderBookSnapshot snapshot, String source) {
         return new OrderBook(
                 stockCode,
-                List.of(
-                        new OrderBook.OrderBookLevel(new BigDecimal("78600"), 1200L),
-                        new OrderBook.OrderBookLevel(new BigDecimal("78700"), 2100L)),
-                List.of(
-                        new OrderBook.OrderBookLevel(new BigDecimal("78500"), 1800L),
-                        new OrderBook.OrderBookLevel(new BigDecimal("78400"), 2600L)),
-                Instant.now(),
-                "MOCK_KIS_WEBSOCKET");
+                snapshot.asks().stream()
+                        .map(level -> new OrderBook.OrderBookLevel(level.priceKrw(), level.quantity()))
+                        .toList(),
+                snapshot.bids().stream()
+                        .map(level -> new OrderBook.OrderBookLevel(level.priceKrw(), level.quantity()))
+                        .toList(),
+                Instant.now(clock),
+                source);
     }
 
     public Orderability getOrderability(String stockCode, String side, long quantity) {
@@ -293,7 +392,8 @@ public class MarketDataService {
                         snapshot.updatedAt(),
                         "EXCHANGE_RATE_CACHE",
                         false))
-                .orElseGet(() -> new FxLookup(BigDecimal.ONE, Instant.now(clock), "FX_FALLBACK", true));
+                .orElseThrow(() -> new MarketDataUnavailableException(
+                        "No FX provider or partner exchange rate is available for currency=" + localCurrency));
     }
 
     private List<String> resolveStockCodes(List<String> stockCodes) {
@@ -317,20 +417,55 @@ public class MarketDataService {
         if (realtimeTrade.isPresent()) {
             return PriceLookup.realtime(realtimeTrade.orElseThrow());
         }
+        Optional<PriceLookup> freshCachedPrice = cachedPrice(stockCode, PRICE_CACHE_TTL);
+        if (freshCachedPrice.isPresent()) {
+            return freshCachedPrice.orElseThrow();
+        }
         try {
-            Optional<KisCurrentPriceSnapshot> kisSnapshot = kisCurrentPriceClient.findCurrentPrice(stockCode);
+            Optional<KisCurrentPriceSnapshot> kisSnapshot = findKisCurrentPrice(stockCode);
             if (kisSnapshot.isPresent()) {
                 LocalDate baseDate = LocalDate.now(clock);
                 KisCurrentPriceSnapshot snapshot = kisSnapshot.orElseThrow();
                 snapshot.foreignOwnershipSnapshot(baseDate).ifPresent(foreignOwnershipSnapshotCache::put);
-                return PriceLookup.kis(snapshot, baseDate);
+                PriceLookup priceLookup = PriceLookup.kis(snapshot, baseDate);
+                priceLookupCache.put(stockCode, new CachedPriceLookup(priceLookup, Instant.now(clock)));
+                return priceLookup;
             }
         } catch (RuntimeException exception) {
             // KIS 인증 또는 일시 장애가 있어도 공공데이터 snapshot으로 시세 응답을 유지한다.
+            log.warn("KIS current price lookup failed for stockCode={}: {}", stockCode, exception.toString());
+            Optional<PriceLookup> staleCachedPrice = cachedPrice(stockCode, PRICE_CACHE_STALE_TTL);
+            if (staleCachedPrice.isPresent()) {
+                return staleCachedPrice.orElseThrow();
+            }
         }
         return latestPublicDataSnapshot(stockCode)
                 .map(PriceLookup::publicData)
                 .orElseGet(PriceLookup::empty);
+    }
+
+    private Optional<KisCurrentPriceSnapshot> findKisCurrentPrice(String stockCode) {
+        try {
+            return kisCurrentPriceClient.findCurrentPrice(stockCode);
+        } catch (RuntimeException exception) {
+            if (!isKisRateLimitError(exception)) {
+                throw exception;
+            }
+            log.warn("KIS current price lookup rate limited for stockCode={}, retrying once", stockCode);
+            pause(KIS_RATE_LIMIT_RETRY_DELAY);
+            return kisCurrentPriceClient.findCurrentPrice(stockCode);
+        }
+    }
+
+    private Optional<PriceLookup> cachedPrice(String stockCode, Duration ttl) {
+        CachedPriceLookup cached = priceLookupCache.get(stockCode);
+        if (cached == null) {
+            return Optional.empty();
+        }
+        if (cached.cachedAt().plus(ttl).isBefore(Instant.now(clock))) {
+            return Optional.empty();
+        }
+        return Optional.of(cached.priceLookup());
     }
 
     private Optional<PublicDataStockPriceSnapshot> latestPublicDataSnapshot(String stockCode) {
@@ -389,7 +524,7 @@ public class MarketDataService {
                         priceLimitState(tick),
                         activeStatusCode(tick.tradingHaltCode()),
                         "KIS_WEBSOCKET_TRADE_STATUS"))
-                .orElse(MarketStatus.normalFallback());
+                .orElse(MarketStatus.unavailable());
     }
 
     private boolean activeStatusCode(String value) {
@@ -432,10 +567,21 @@ public class MarketDataService {
         if (priceSource == PriceSource.PUBLIC_DATA) {
             return "PUBLIC_DATA_STOCK_SECURITIES";
         }
-        if (foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
-            return "MOCK_MARKET_DATA+KIS_FOREIGN_OWNERSHIP_CACHE";
+        return "MARKET_DATA_UNAVAILABLE";
+    }
+
+    private static boolean isKisRateLimitError(RuntimeException exception) {
+        String message = exception.getMessage();
+        return message != null && message.contains("EGW00201");
+    }
+
+    private static void pause(Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("KIS current price retry interrupted", exception);
         }
-        return "MOCK_MARKET_DATA";
     }
 
     private record PriceLookup(
@@ -492,6 +638,12 @@ public class MarketDataService {
         }
     }
 
+    private record CachedPriceLookup(
+            PriceLookup priceLookup,
+            Instant cachedAt
+    ) {
+    }
+
     private enum PriceSource {
         KIS_WEBSOCKET_TRADE,
         KIS_OPEN_API,
@@ -532,8 +684,8 @@ public class MarketDataService {
             boolean tradingHalted,
             String source
     ) {
-        private static MarketStatus normalFallback() {
-            return new MarketStatus(false, false, "NORMAL", false, "MARKET_STATUS_FALLBACK");
+        private static MarketStatus unavailable() {
+            return new MarketStatus(false, false, "UNKNOWN", false, "MARKET_STATUS_UNAVAILABLE");
         }
     }
 }

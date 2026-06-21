@@ -100,6 +100,7 @@ omnilens:
       enabled: false
       fixed-delay-ms: 86400000
       base-date-offset-days: 1
+      provider: KRX_OPEN_API_WITH_KIS_BACKUP
   alert:
     dedupe:
       mode: redis

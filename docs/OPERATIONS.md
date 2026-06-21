@@ -16,7 +16,8 @@ docker compose -f compose.local.yml down
 - `src/main/resources/application-local.yml`은 gitignore 대상이다.
 - 이 워크스페이스에는 로컬 DB, Redis, CORS, API key 설정을 담은 실제 `application-local.yml`을 둔다.
 - 새 환경에서 파일이 없으면 `application-local.example.yml`을 복사해 만든다.
-- 로컬에서는 환경 변수 없이 실행한다.
+- 로컬 Docker Compose는 `application-local.yml`을 이미지에 굽지 않고 `/app/config/application-local.yml`로 읽기 전용 마운트한다.
+- 로컬 JVM 실행은 profile 기본값 `local`로 `src/main/resources/application-local.yml`을 읽는다.
 
 ## 운영 설정
 - `src/main/resources/application-prod.yml`은 커밋되는 실제 운영 profile 설정 파일이다.
@@ -61,6 +62,7 @@ curl http://localhost:8080/api/v1/alerts/watchlists/partner-a \
 - 기본값은 `KIS_REALTIME_ENABLED=false`이다.
 - 활성화하면 `KIS_REALTIME_STOCK_CODES`의 종목마다 KIS 실시간 체결과 호가를 구독한다.
 - 수신 메시지는 실시간 cache에 저장되고 quote/orderbook 응답에서 우선 사용된다.
+- 장외, 휴장, 초기 구동 등으로 실시간 호가 cache가 비어 있으면 orderbook API는 KIS REST 호가 snapshot을 사용한다.
 - KIS 체결 tick 수신 시 `/ws/market/quotes` raw WebSocket 연결에도 `MarketQuote` JSON을 송신한다.
 - 협력사는 `{"type":"QUOTE_STREAM_REPLAY","currency":"USD","after":"..."}` 메시지로 현재 quote snapshot replay를 요청할 수 있다.
 
@@ -73,7 +75,13 @@ KIS_REALTIME_STOCK_CODES=005930,000660
 - 기본값은 `MARKET_HISTORY_COLLECTION_ENABLED=false`다.
 - 활성화하면 설정된 주기마다 전일 기준 KOSPI/KOSDAQ/KONEX 일별매매정보를 KRX Open API에서 수집해 DB에 upsert한다.
 - 수동 운영 수집은 `POST /api/v1/market/history/collect?baseDate=YYYY-MM-DD`로 실행한다.
+- 수집 응답은 전체/시장별 상태를 포함한다. KRX provider timeout이 발생해도 서비스 500으로 전파하지 않고 실패 시장과 오류 메시지를 `marketResults`에 남긴다.
+- `MARKET_HISTORY_COLLECTION_PROVIDER`는 `KRX_OPEN_API_WITH_KIS_BACKUP`, `KRX_OPEN_API`, `KIS_DAILY_CHART` 중 하나다. KRX egress가 허용되지 않는 로컬 smoke 환경은 `KIS_DAILY_CHART`를 사용해 KIS 일봉 chart API를 primary 실 provider로 수집한다.
+- `KRX_OPEN_API_WITH_KIS_BACKUP`에서 KRX 시장 호출이 하나라도 실패하면 종목 마스터 기준으로 KIS 일봉 chart API를 순차 호출해 해당 기준일 데이터를 보강 저장한다. 이 경우 응답 `source`는 `KRX_OPEN_API_DAILY_TRADE+KIS_DAILY_ITEM_CHART_PRICE`가 되고, KRX 시장 실패가 남아 있으면 전체 `status`는 `PARTIAL_FAILED`다.
+- `KIS_DAILY_CHART` 모드의 응답 `source`는 `KIS_DAILY_ITEM_CHART_PRICE`이며, KIS 수집 결과만으로 `SUCCESS`, `PARTIAL_FAILED`, `FAILED`를 판단한다.
+- KIS 일봉 수집은 provider 초당 제한을 넘지 않도록 종목별 호출 간격을 1.2초로 둔다. 제한 응답은 짧게 대기 후 재시도한다.
 - 차트 조회는 `GET /api/v1/market/stocks/{stockCode}/history?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=365`를 사용한다.
+- 저장된 KRX row가 없을 때는 KIS 일봉 chart API를 호출해 해당 종목의 일봉을 저장하고 반환한다.
 - Stock-exchange-BE는 KRX를 직접 호출하지 않고 이 history API를 호출해 앱 차트 응답으로 재가공한다.
 
 ```text
@@ -89,7 +97,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - KIS 실시간 체결가·호가 WebSocket에는 외국인 보유수량, 보유율, 한도소진율 필드가 없다. 외국인 한도 정보는 KIS 현재가 REST snapshot refresh와 Redis/in-memory cache로 공급한다.
 - 현재 예측은 snapshot, 주문 수량 영향도, KIS 실시간 누적 거래량 보정 기반이다. 외국인 보유량 다일자 시계열 저장·학습 모델은 아직 구현 범위가 아니다.
 - SELL 요청은 외국인 한도소진율이 100% 이상이어도 한도 초과 사유로 차단하지 않는다.
-- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
+- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 실시간 상태 tick이 아직 없으면 `priceLimitState=UNKNOWN`, source `MARKET_STATUS_UNAVAILABLE`로 반환한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
 
 ## 헬스체크
 - `GET /actuator/health`

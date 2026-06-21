@@ -92,6 +92,7 @@ omnilens:
       enabled: ${MARKET_HISTORY_COLLECTION_ENABLED:false}
       fixed-delay-ms: ${MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS:86400000}
       base-date-offset-days: ${MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS:1}
+      provider: ${MARKET_HISTORY_COLLECTION_PROVIDER:KRX_OPEN_API_WITH_KIS_BACKUP}
   alert:
     dedupe:
       mode: ${ALERT_DEDUPE_MODE:redis}

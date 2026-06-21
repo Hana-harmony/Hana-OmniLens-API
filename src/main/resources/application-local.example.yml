@@ -89,6 +89,7 @@ omnilens:
       enabled: false
       fixed-delay-ms: 86400000
       base-date-offset-days: 1
+      provider: KIS_DAILY_CHART
   alert:
     dedupe:
       mode: redis

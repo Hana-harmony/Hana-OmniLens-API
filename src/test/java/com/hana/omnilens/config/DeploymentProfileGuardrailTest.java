@@ -63,6 +63,8 @@ class DeploymentProfileGuardrailTest {
         String compose = read("compose.local.yml");
 
         assertThat(compose).contains("OMNILENS_AI_HANNAH_BASE_URL: http://host.docker.internal:8000");
+        assertThat(compose).contains("SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/application-local.yml");
+        assertThat(compose).contains("./src/main/resources/application-local.yml:/app/config/application-local.yml:ro");
         assertThat(compose).doesNotContain("PROVIDERS_AI_HANNAH_BASE_URL");
     }
 
