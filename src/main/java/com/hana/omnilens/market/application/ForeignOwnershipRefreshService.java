@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 
+import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.ProviderCircuitOpenException;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
@@ -26,17 +27,20 @@ public class ForeignOwnershipRefreshService {
     private final KisCurrentPriceClient kisCurrentPriceClient;
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
+    private final ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository;
     private final Clock clock;
 
     @Autowired
     public ForeignOwnershipRefreshService(
             KisCurrentPriceClient kisCurrentPriceClient,
             StockMasterRepository stockMasterRepository,
-            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache) {
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository) {
         this(
                 kisCurrentPriceClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
+                foreignOwnershipDailySnapshotRepository,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -44,10 +48,12 @@ public class ForeignOwnershipRefreshService {
             KisCurrentPriceClient kisCurrentPriceClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
             Clock clock) {
         this.kisCurrentPriceClient = kisCurrentPriceClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
+        this.foreignOwnershipDailySnapshotRepository = foreignOwnershipDailySnapshotRepository;
         this.clock = clock;
     }
 
@@ -56,8 +62,21 @@ public class ForeignOwnershipRefreshService {
                 .orElseThrow(() -> new StockMasterNotFoundException(stockCode));
         LocalDate resolvedBaseDate = baseDate == null ? LocalDate.now(clock).minusDays(1) : baseDate;
         Optional<ForeignOwnershipSnapshot> snapshot = findSnapshot(stock, resolvedBaseDate);
-        snapshot.ifPresent(foreignOwnershipSnapshotCache::put);
+        snapshot.ifPresent(this::storeSnapshot);
         return new ForeignOwnershipRefreshResult(stock.stockCode(), resolvedBaseDate, snapshot, SOURCE);
+    }
+
+    private void storeSnapshot(ForeignOwnershipSnapshot snapshot) {
+        foreignOwnershipSnapshotCache.put(snapshot);
+        foreignOwnershipDailySnapshotRepository.upsert(new ForeignOwnershipDailySnapshot(
+                snapshot.stockCode(),
+                snapshot.baseDate(),
+                snapshot.foreignOwnedQuantity(),
+                snapshot.foreignOwnershipRate(),
+                snapshot.foreignLimitQuantity(),
+                snapshot.foreignLimitExhaustionRate(),
+                SOURCE,
+                clock.instant()));
     }
 
     private Optional<ForeignOwnershipSnapshot> findSnapshot(StockSummary stock, LocalDate baseDate) {
