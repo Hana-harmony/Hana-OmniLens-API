@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
@@ -26,6 +27,11 @@ import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.StockDetail;
 import com.hana.omnilens.market.domain.StockSummary;
+import com.hana.omnilens.provider.ProviderCircuitOpenException;
+import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipHistoryPoint;
+import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipPredictionClient;
+import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipPredictionRequest;
+import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipPredictionResponse;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
@@ -56,6 +62,7 @@ public class MarketDataService {
     private final ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository;
     private final ExchangeRateCache exchangeRateCache;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
+    private final HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient;
     private final ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine;
     private final Clock clock;
     private final Map<String, CachedPriceLookup> priceLookupCache = new ConcurrentHashMap<>();
@@ -70,6 +77,7 @@ public class MarketDataService {
             ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
             ExchangeRateCache exchangeRateCache,
             RealtimeMarketDataCache realtimeMarketDataCache,
+            HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine) {
         this(
                 publicDataStockSecuritiesClient,
@@ -80,6 +88,7 @@ public class MarketDataService {
                 foreignOwnershipDailySnapshotRepository,
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                hannahAiForeignOwnershipPredictionClient,
                 foreignOwnershipPredictionEngine,
                 Clock.system(KOREA_ZONE));
     }
@@ -101,6 +110,7 @@ public class MarketDataService {
                 new InMemoryForeignOwnershipDailySnapshotRepository(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                null,
                 new ForeignOwnershipPredictionEngine(clock),
                 clock);
     }
@@ -123,6 +133,7 @@ public class MarketDataService {
                 new InMemoryForeignOwnershipDailySnapshotRepository(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                null,
                 new ForeignOwnershipPredictionEngine(clock),
                 clock);
     }
@@ -145,6 +156,7 @@ public class MarketDataService {
                 new InMemoryForeignOwnershipDailySnapshotRepository(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                null,
                 foreignOwnershipPredictionEngine,
                 clock);
     }
@@ -158,6 +170,7 @@ public class MarketDataService {
             ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
             ExchangeRateCache exchangeRateCache,
             RealtimeMarketDataCache realtimeMarketDataCache,
+            HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
             Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
@@ -168,6 +181,7 @@ public class MarketDataService {
         this.foreignOwnershipDailySnapshotRepository = foreignOwnershipDailySnapshotRepository;
         this.exchangeRateCache = exchangeRateCache;
         this.realtimeMarketDataCache = realtimeMarketDataCache;
+        this.hannahAiForeignOwnershipPredictionClient = hannahAiForeignOwnershipPredictionClient;
         this.foreignOwnershipPredictionEngine = foreignOwnershipPredictionEngine;
         this.clock = clock;
     }
@@ -352,11 +366,12 @@ public class MarketDataService {
                 quantity,
                 snapshot);
         List<ForeignOwnershipDailySnapshot> history = foreignOwnershipHistory(stockCode, snapshot);
-        ForeignOwnershipPrediction foreignOwnershipPrediction = foreignOwnershipPredictionEngine.predict(
+        Optional<KisRealtimeTradeTick> realtimeTradeTick = realtimeMarketDataCache.latestTrade(stockCode);
+        ForeignOwnershipPrediction foreignOwnershipPrediction = foreignOwnershipPrediction(
                 side,
                 quantity,
                 snapshot,
-                realtimeMarketDataCache.latestTrade(stockCode),
+                realtimeTradeTick,
                 history);
         boolean foreignLimitExceeded = "BUY".equals(side)
                 && predictedForeignLimitExhaustionRate.compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
@@ -497,6 +512,91 @@ public class MarketDataService {
             }
         }
         return Optional.empty();
+    }
+
+    private ForeignOwnershipPrediction foreignOwnershipPrediction(
+            String side,
+            long quantity,
+            Optional<ForeignOwnershipSnapshot> snapshot,
+            Optional<KisRealtimeTradeTick> realtimeTradeTick,
+            List<ForeignOwnershipDailySnapshot> history) {
+        if (hannahAiForeignOwnershipPredictionClient == null || snapshot.isEmpty()) {
+            return fallbackForeignOwnershipPrediction(side, quantity, snapshot, realtimeTradeTick, history);
+        }
+        try {
+            return toForeignOwnershipPrediction(hannahAiForeignOwnershipPredictionClient.predict(
+                    toHannahAiForeignOwnershipPredictionRequest(
+                            side,
+                            quantity,
+                            snapshot.orElseThrow(),
+                            realtimeTradeTick,
+                            history)));
+        } catch (ProviderCircuitOpenException | RestClientException | IllegalStateException exception) {
+            log.warn("Hannah AI foreign ownership prediction failed for stockCode={}, falling back: {}",
+                    snapshot.orElseThrow().stockCode(),
+                    exception.toString());
+            return fallbackForeignOwnershipPrediction(side, quantity, snapshot, realtimeTradeTick, history);
+        }
+    }
+
+    private ForeignOwnershipPrediction fallbackForeignOwnershipPrediction(
+            String side,
+            long quantity,
+            Optional<ForeignOwnershipSnapshot> snapshot,
+            Optional<KisRealtimeTradeTick> realtimeTradeTick,
+            List<ForeignOwnershipDailySnapshot> history) {
+        return foreignOwnershipPredictionEngine.predict(side, quantity, snapshot, realtimeTradeTick, history);
+    }
+
+    private HannahAiForeignOwnershipPredictionRequest toHannahAiForeignOwnershipPredictionRequest(
+            String side,
+            long quantity,
+            ForeignOwnershipSnapshot snapshot,
+            Optional<KisRealtimeTradeTick> realtimeTradeTick,
+            List<ForeignOwnershipDailySnapshot> history) {
+        return new HannahAiForeignOwnershipPredictionRequest(
+                snapshot.stockCode(),
+                side,
+                quantity,
+                snapshot.foreignOwnedQuantity(),
+                snapshot.foreignOwnershipRate(),
+                snapshot.foreignLimitQuantity(),
+                snapshot.foreignLimitExhaustionRate(),
+                snapshot.baseDate(),
+                realtimeTradeTick.map(KisRealtimeTradeTick::accumulatedVolume).orElse(0L),
+                history.stream()
+                        .map(this::toHannahAiForeignOwnershipHistoryPoint)
+                        .toList());
+    }
+
+    private HannahAiForeignOwnershipHistoryPoint toHannahAiForeignOwnershipHistoryPoint(
+            ForeignOwnershipDailySnapshot snapshot) {
+        return new HannahAiForeignOwnershipHistoryPoint(
+                snapshot.baseDate(),
+                snapshot.foreignOwnedQuantity(),
+                snapshot.foreignOwnershipRate(),
+                snapshot.foreignLimitQuantity(),
+                snapshot.foreignLimitExhaustionRate());
+    }
+
+    private ForeignOwnershipPrediction toForeignOwnershipPrediction(
+            HannahAiForeignOwnershipPredictionResponse response) {
+        return new ForeignOwnershipPrediction(
+                response.minForeignLimitExhaustionRate(),
+                response.baseForeignLimitExhaustionRate(),
+                response.maxForeignLimitExhaustionRate(),
+                response.orderImpactRate(),
+                response.intradayUncertaintyRate(),
+                response.observedIntradayVolume(),
+                response.trendDailyChangeRate(),
+                response.historyObservationCount(),
+                response.historyWindowDays(),
+                response.baseDate(),
+                response.calculatedAt(),
+                response.confidenceLevel(),
+                response.confidenceScore(),
+                response.modelVersion(),
+                response.source());
     }
 
     private ForeignOwnershipLookup latestForeignOwnershipSnapshot(StockSummary stock) {
