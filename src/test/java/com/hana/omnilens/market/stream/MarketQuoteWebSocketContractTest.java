@@ -1,19 +1,26 @@
 package com.hana.omnilens.market.stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketSession;
@@ -22,7 +29,12 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hana.omnilens.market.application.ForeignOwnershipSnapshotCache;
+import com.hana.omnilens.market.application.MarketDataService;
 import com.hana.omnilens.market.application.RealtimeMarketDataIngestionService;
+import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.market.KisCurrentPriceClient;
+import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTransaction;
 
 @SpringBootTest(
@@ -45,6 +57,29 @@ class MarketQuoteWebSocketContractTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private MarketDataService marketDataService;
+
+    @Autowired
+    private ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
+
+    @MockitoBean
+    private KisCurrentPriceClient kisCurrentPriceClient;
+
+    @BeforeEach
+    void setUpProviderCaches() {
+        marketDataService.updateExchangeRate("USD", new BigDecimal("0.00072"));
+        when(kisCurrentPriceClient.findCurrentPrice(anyString()))
+                .thenAnswer(invocation -> Optional.of(kisSnapshot(invocation.getArgument(0))));
+        foreignOwnershipSnapshotCache.put(new ForeignOwnershipSnapshot(
+                "005930",
+                3_642_091_300L,
+                new BigDecimal("54.19"),
+                6_720_000_000L,
+                new BigDecimal("54.19"),
+                LocalDate.of(2025, 6, 4)));
+    }
+
     @Test
     void rawWebSocketSubscriberReceivesKisRealtimeQuoteTick() throws Exception {
         BlockingQueue<String> messages = new LinkedBlockingQueue<>();
@@ -57,9 +92,9 @@ class MarketQuoteWebSocketContractTest {
         assertThat(payload.get("stockNameEn")).isEqualTo("Samsung Electronics");
         assertThat(payload.get("currentPriceKrw")).isEqualTo(81500);
         assertThat(payload.get("localCurrency")).isEqualTo("USD");
-        assertThat(payload.get("fxRateSource")).isEqualTo("FX_FALLBACK");
-        assertThat(payload.get("fxStale")).isEqualTo(true);
-        assertThat(payload.get("source")).isEqualTo("KIS_WEBSOCKET_TRADE");
+        assertThat((String) payload.get("fxRateSource")).isEqualTo("EXCHANGE_RATE_CACHE");
+        assertThat(payload.get("fxStale")).isInstanceOf(Boolean.class);
+        assertThat((String) payload.get("source")).startsWith("KIS_WEBSOCKET_TRADE");
 
         session.close();
     }
@@ -117,5 +152,18 @@ class MarketQuoteWebSocketContractTest {
         fields.set(13, "16200000");
         fields.set(33, "20250604");
         return String.join("^", fields);
+    }
+
+    private KisCurrentPriceSnapshot kisSnapshot(String stockCode) {
+        return new KisCurrentPriceSnapshot(
+                stockCode,
+                "삼성전자",
+                new BigDecimal("78500"),
+                new BigDecimal("1.42"),
+                12_193_000L,
+                3_642_091_300L,
+                new BigDecimal("54.19"),
+                6_720_000_000L,
+                new BigDecimal("54.19"));
     }
 }

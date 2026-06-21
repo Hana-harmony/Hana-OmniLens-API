@@ -45,22 +45,27 @@ docker compose -f compose.local.yml up -d
 - KIS WebSocket raw message ingestion과 실시간 cache 저장
 - KIS WebSocket session runner의 disabled no-op, 구독 frame 생성, 수신 메시지 cache 반영
 - 시장 데이터 quote/orderbook의 KIS 실시간 cache 우선 사용
+- KIS REST 호가 snapshot 요청·응답 매핑과 실시간 호가 cache 공백 시 orderbook fallback
 - orderability의 KIS 실시간 체결 기반 상·하한가, VI, 단일가, 거래정지 상태 반영
 - raw `/ws/market/quotes` WebSocket quote tick 수신과 replay 요청
-- 시장 데이터 quote의 KIS 현재가 우선 사용과 공공데이터 fallback
-- 공공데이터 주식시세 provider 성공·fallback
+- 시장 데이터 quote의 KIS 현재가 우선 사용, `EGW00201` 1회 재시도, 공공데이터 보강, provider 부재 시 `MARKET_002` 실패
+- 공공데이터 주식시세 provider 성공·provider 부재 실패
 - KIS 현재가 provider의 외국인 보유수량·소진율 응답 매핑
 - 시장 데이터 quote의 KIS 외국인 보유수량·지분율·한도소진율 반영
 - 외국인 보유율 예측 engine의 snapshot-only, 실시간 거래량 조정, snapshot 부재 fallback
 - KIS 실시간 체결가·호가 WebSocket payload에는 외국인 보유량 필드가 없고, 외국인 한도 정보는 KIS 현재가 REST snapshot cache에서만 공급되는지 문서 계약 검증
 - Redis 외국인 보유율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
-- 협력사 입력 환율 저장과 quote의 환율 캐시 fallback
+- 협력사 입력 환율 저장, Frankfurter 환율 cache 사용, 환율 부재 시 `MARKET_002` 실패
 - Frankfurter 환율 provider 요청·응답 매핑과 cache refresh
 - 환율 refresh scheduler의 disabled no-op, 기준일 offset, 통화별 장애 격리
 - Redis 환율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - quote 요청 `fxRate`가 저장된 환율보다 우선되는 계산 계약
 - KRX KOSPI/KOSDAQ/KONEX 일별매매정보 provider 요청·응답 매핑
-- KRX 과거 시세 수집 service의 stock master 필터링과 DB 저장 계약
+- KRX 과거 시세 수집 service의 stock master 필터링, 시장별 실패 격리, DB 저장 계약
+- KRX 수집 실패 시 KIS 일봉 chart API로 기준일 데이터를 보강 저장하는 계약과 provider rate limit pacing
+- `KIS_DAILY_CHART` provider 모드에서 KRX를 호출하지 않고 KIS 일봉 chart API만으로 수집 성공을 반환하는 계약
+- 저장된 KRX row가 없을 때 KIS 일봉 chart API로 history를 보강하는 계약
+- KIS REST 현재가와 호가 API가 `EGW00201` 초당 제한을 반환하면 backoff 후 재시도하는 계약
 - 과거 시세 history API의 공동 응답 envelope과 OHLCV/거래대금 payload
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑

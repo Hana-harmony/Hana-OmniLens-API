@@ -5,6 +5,7 @@ services:
     container_name: hana-omnilens-api
     environment:
       SPRING_PROFILES_ACTIVE: local
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/application-local.yml
       OMNILENS_SECURITY_API_KEY_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/omnilens
       SPRING_DATASOURCE_USERNAME: omnilens
@@ -12,6 +13,14 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
       OMNILENS_AI_HANNAH_BASE_URL: http://host.docker.internal:8000
+      OMNILENS_MARKET_EXCHANGE_RATE_REFRESH_ENABLED: "true"
+      OMNILENS_MARKET_EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS: "300000"
+      OMNILENS_MARKET_EXCHANGE_RATE_REFRESH_CURRENCIES: USD
+      OMNILENS_MARKET_KIS_REALTIME_ENABLED: "true"
+      OMNILENS_MARKET_KIS_REALTIME_STOCK_CODES: "005930"
+      OMNILENS_MARKET_HISTORY_COLLECTION_PROVIDER: KIS_DAILY_CHART
+    volumes:
+      - ./src/main/resources/application-local.yml:/app/config/application-local.yml:ro
     ports:
       - "8080:8080"
     depends_on:

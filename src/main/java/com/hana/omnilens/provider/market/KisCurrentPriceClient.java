@@ -25,12 +25,13 @@ public class KisCurrentPriceClient {
     public KisCurrentPriceClient(
             RestClient.Builder restClientBuilder,
             ExternalProviderProperties properties,
+            KisAccessTokenProvider accessTokenProvider,
             ExternalProviderResiliencePolicy resiliencePolicy) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.kis().baseUrl().toString())
                 .build();
         this.kisProperties = properties.kis();
-        this.accessTokenProvider = new KisAccessTokenProvider(restClientBuilder, this.kisProperties, resiliencePolicy);
+        this.accessTokenProvider = accessTokenProvider;
         this.resiliencePolicy = resiliencePolicy;
     }
 

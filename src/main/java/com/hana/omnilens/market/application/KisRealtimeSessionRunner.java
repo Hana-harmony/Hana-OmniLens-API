@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
@@ -18,6 +20,8 @@ import com.hana.omnilens.provider.market.KisRealtimeApprovalKeyProvider;
 
 @Component
 public class KisRealtimeSessionRunner {
+
+    private static final Logger log = LoggerFactory.getLogger(KisRealtimeSessionRunner.class);
 
     private final KisRealtimeProperties kisRealtimeProperties;
     private final ExternalProviderProperties externalProviderProperties;
@@ -44,12 +48,18 @@ public class KisRealtimeSessionRunner {
     @EventListener(ApplicationReadyEvent.class)
     public void start() {
         if (!kisRealtimeProperties.enabled()) {
+            log.info("KIS realtime session runner is disabled");
             return;
         }
         if (kisRealtimeProperties.stockCodes().isEmpty()) {
+            log.warn("KIS realtime session runner is enabled but stock code list is empty");
             return;
         }
         List<KisRealtimeSubscriptionFrame> frames = subscriptionFrames();
+        log.info(
+                "Starting KIS realtime session for stockCodes={} subscriptionFrameCount={}",
+                kisRealtimeProperties.stockCodes(),
+                frames.size());
         webSocketConnection.connect(
                 externalProviderProperties.kis().websocketUrl(),
                 frames,
