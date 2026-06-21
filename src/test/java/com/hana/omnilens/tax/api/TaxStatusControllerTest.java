@@ -87,8 +87,8 @@ class TaxStatusControllerTest {
                                 {
                                   "caseId": "TAX-CASE-1",
                                   "taxYear": 2026,
-                                  "treatyCountry": "HK",
-                                  "investorResidencyCountry": "HK",
+                                  "treatyCountry": "US",
+                                  "investorResidencyCountry": "US",
                                   "incomeTypes": ["DIVIDEND", "SELL"],
                                   "allListedMarketTrade": true,
                                   "maxOwnershipRatePercent": "0.20",
@@ -104,9 +104,9 @@ class TaxStatusControllerTest {
                 .andExpect(jsonPath("$.data.caseId", equalTo("TAX-CASE-1")))
                 .andExpect(jsonPath("$.data.treatyCaseType", equalTo("CASE_01")))
                 .andExpect(jsonPath("$.data.eligibleForTreatyBenefit", equalTo(true)))
-                .andExpect(jsonPath("$.data.classificationReasons[0]", equalTo("KR_HK_LISTED_STOCK_TREATY_CASE_01")))
+                .andExpect(jsonPath("$.data.classificationReasons[0]", equalTo("KR_US_LISTED_STOCK_TREATY_CASE_01")))
                 .andExpect(jsonPath("$.data.requiredNextActions[0]", equalTo("PROCEED_TAX_REFUND_STATUS_SYNC")))
-                .andExpect(jsonPath("$.data.modelVersion", equalTo("kr-hk-treaty-case-classifier-v1")))
+                .andExpect(jsonPath("$.data.modelVersion", equalTo("kr-us-treaty-case-classifier-v1")))
                 .andExpect(jsonPath("$.data.source", equalTo("HANA_TAX_TREATY_RULE_ENGINE")));
     }
 
@@ -120,7 +120,7 @@ class TaxStatusControllerTest {
                                   "caseId": "",
                                   "taxYear": 2019,
                                   "treatyCountry": "hkg",
-                                  "investorResidencyCountry": "HK",
+                                  "investorResidencyCountry": "usa",
                                   "incomeTypes": [],
                                   "allListedMarketTrade": true,
                                   "maxOwnershipRatePercent": "101.00",

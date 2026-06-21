@@ -15,7 +15,7 @@ import com.hana.omnilens.tax.domain.TaxTreatyCaseClassificationResponse;
 @Service
 public class TaxTreatyCaseClassificationService {
 
-    private static final String MODEL_VERSION = "kr-hk-treaty-case-classifier-v1";
+    private static final String MODEL_VERSION = "kr-us-treaty-case-classifier-v1";
     private static final String SOURCE = "HANA_TAX_TREATY_RULE_ENGINE";
     private static final BigDecimal CASE_01_MAX_OWNERSHIP_RATE = new BigDecimal("25.0");
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
@@ -37,7 +37,7 @@ public class TaxTreatyCaseClassificationService {
                 request.caseId(),
                 eligible ? "CASE_01" : "CASE_REVIEW_REQUIRED",
                 eligible,
-                eligible ? List.of("KR_HK_LISTED_STOCK_TREATY_CASE_01") : reasons,
+                eligible ? List.of("KR_US_LISTED_STOCK_TREATY_CASE_01") : reasons,
                 requiredNextActions(reasons),
                 Instant.now(clock),
                 MODEL_VERSION,
@@ -46,8 +46,8 @@ public class TaxTreatyCaseClassificationService {
 
     private List<String> classificationReasons(TaxTreatyCaseClassificationRequest request) {
         List<String> reasons = new ArrayList<>();
-        if (!"HK".equals(request.treatyCountry()) || !"HK".equals(request.investorResidencyCountry())) {
-            reasons.add("NON_HK_TREATY_RESIDENCY");
+        if (!"US".equals(request.treatyCountry()) || !"US".equals(request.investorResidencyCountry())) {
+            reasons.add("NON_US_TREATY_RESIDENCY");
         }
         if (!request.allListedMarketTrade()) {
             reasons.add("NON_LISTED_MARKET_TRADE");
@@ -81,7 +81,7 @@ public class TaxTreatyCaseClassificationService {
         }
         if (reasons.contains("OWNERSHIP_RATE_25_PERCENT_OR_MORE")
                 || reasons.contains("NON_LISTED_MARKET_TRADE")
-                || reasons.contains("NON_HK_TREATY_RESIDENCY")) {
+                || reasons.contains("NON_US_TREATY_RESIDENCY")) {
             actions.add("MANUAL_TAX_LEGAL_REVIEW");
         }
         if (actions.isEmpty()) {

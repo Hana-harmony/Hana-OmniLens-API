@@ -88,10 +88,10 @@ paths:
       tags:
         - Tax
       operationId: classifyTaxRefundCase
-      summary: Classify a Korea-Hong Kong tax treaty refund case.
+      summary: Classify a Korea-United States tax treaty refund case.
       description: >
         Classifies whether a partner tax refund case satisfies the demo CASE_01
-        Korea-Hong Kong listed stock treaty boundary. This endpoint does not
+        Korea-United States listed stock treaty boundary. This endpoint does not
         perform legal review, submit filings, or execute payments.
       requestBody:
         required: true
@@ -1095,11 +1095,11 @@ components:
         treatyCountry:
           type: string
           pattern: "^[A-Z]{2}$"
-          example: HK
+          example: US
         investorResidencyCountry:
           type: string
           pattern: "^[A-Z]{2}$"
-          example: HK
+          example: US
         incomeTypes:
           type: array
           minItems: 1
