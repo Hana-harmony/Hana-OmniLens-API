@@ -11,9 +11,14 @@ public record ForeignOwnershipPrediction(
         BigDecimal orderImpactRate,
         BigDecimal intradayUncertaintyRate,
         long observedIntradayVolume,
+        BigDecimal trendDailyChangeRate,
+        int historyObservationCount,
+        int historyWindowDays,
         LocalDate baseDate,
         Instant calculatedAt,
         String confidenceLevel,
+        BigDecimal confidenceScore,
+        String modelVersion,
         String source
 ) {
 }

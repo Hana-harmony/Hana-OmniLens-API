@@ -93,9 +93,10 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 ## 주문 가능 여부 boundary
 - `GET /api/v1/market/stocks/{stockCode}/orderability?side=BUY&quantity=1`를 사용한다.
 - 이 API는 현지 거래소의 자체 mock ledger 주문 전 확인용이며 실제 주문, 체결, 정산, KIS 모의투자 주문을 수행하지 않는다.
-- BUY 요청은 KIS 외국인보유량 cache의 한도소진율, 요청 수량, KIS 실시간 체결 누적 거래량을 이용해 `foreignOwnershipPrediction`의 min/base/max 한도소진율, 주문 영향도, 당일 불확실성, 신뢰도, 산출 source를 계산한다. 차단 여부는 보수적인 max 한도소진율이 100% 이상인지로 판단한다.
+- BUY 요청은 KIS 외국인보유량 cache의 한도소진율, 요청 수량, 최근 외국인 보유 일별 시계열, KIS 실시간 체결 누적 거래량을 이용해 `foreignOwnershipPrediction`의 min/base/max 한도소진율, 주문 영향도, 시계열 추세, 불확실성, 신뢰도, 산출 source를 계산한다.
+- 외국인 한도 차단은 현재 snapshot에 주문수량 영향을 더한 확정 한도소진율이 100% 이상일 때만 수행한다. 시계열 추세, max boundary, confidence score는 경고와 화면 표시용이며 단독 차단 조건으로 쓰지 않는다.
 - KIS 실시간 체결가·호가 WebSocket에는 외국인 보유수량, 보유율, 한도소진율 필드가 없다. 외국인 한도 정보는 KIS 현재가 REST snapshot refresh와 Redis/in-memory cache로 공급한다.
-- 현재 예측은 snapshot, 주문 수량 영향도, KIS 실시간 누적 거래량 보정 기반이다. 외국인 보유량 다일자 시계열 저장·학습 모델은 아직 구현 범위가 아니다.
+- 현재 예측은 snapshot, 주문 수량 영향도, 최근 일별 시계열 평균 변화율과 변동성, KIS 실시간 누적 거래량 보정 기반이다.
 - SELL 요청은 외국인 한도소진율이 100% 이상이어도 한도 초과 사유로 차단하지 않는다.
 - KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 실시간 상태 tick이 아직 없으면 `priceLimitState=UNKNOWN`, source `MARKET_STATUS_UNAVAILABLE`로 반환한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
 

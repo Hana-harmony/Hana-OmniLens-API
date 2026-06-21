@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.client.RestClientException;
 
+import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
@@ -26,11 +27,14 @@ class ForeignOwnershipRefreshServiceTest {
     private final KisCurrentPriceClient kisCurrentPriceClient = org.mockito.Mockito.mock(KisCurrentPriceClient.class);
     private final StockMasterRepository stockMasterRepository = org.mockito.Mockito.mock(StockMasterRepository.class);
     private final ForeignOwnershipSnapshotCache cache = org.mockito.Mockito.mock(ForeignOwnershipSnapshotCache.class);
+    private final ForeignOwnershipDailySnapshotRepository dailySnapshotRepository =
+            org.mockito.Mockito.mock(ForeignOwnershipDailySnapshotRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2025-06-05T00:00:00Z"), ZoneOffset.UTC);
     private final ForeignOwnershipRefreshService service = new ForeignOwnershipRefreshService(
             kisCurrentPriceClient,
             stockMasterRepository,
             cache,
+            dailySnapshotRepository,
             clock);
 
     @Test
@@ -45,6 +49,12 @@ class ForeignOwnershipRefreshServiceTest {
         assertThat(result.snapshot()).contains(snapshot);
         assertThat(result.source()).isEqualTo("KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP");
         verify(cache).put(snapshot);
+        ArgumentCaptor<ForeignOwnershipDailySnapshot> dailySnapshotCaptor =
+                ArgumentCaptor.forClass(ForeignOwnershipDailySnapshot.class);
+        verify(dailySnapshotRepository).upsert(dailySnapshotCaptor.capture());
+        assertThat(dailySnapshotCaptor.getValue().stockCode()).isEqualTo("005930");
+        assertThat(dailySnapshotCaptor.getValue().baseDate()).isEqualTo(LocalDate.of(2025, 6, 4));
+        assertThat(dailySnapshotCaptor.getValue().foreignLimitExhaustionRate()).isEqualByComparingTo("54.2100");
     }
 
     @Test
@@ -70,6 +80,7 @@ class ForeignOwnershipRefreshServiceTest {
         assertThat(result.refreshed()).isFalse();
         assertThat(result.snapshot()).isEmpty();
         verify(cache, never()).put(org.mockito.Mockito.any());
+        verify(dailySnapshotRepository, never()).upsert(org.mockito.Mockito.any());
     }
 
     @Test
@@ -82,6 +93,7 @@ class ForeignOwnershipRefreshServiceTest {
         assertThat(result.refreshed()).isFalse();
         assertThat(result.snapshot()).isEmpty();
         verify(cache, never()).put(org.mockito.Mockito.any());
+        verify(dailySnapshotRepository, never()).upsert(org.mockito.Mockito.any());
     }
 
     private StockSummary stock() {

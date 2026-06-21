@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
+import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
@@ -44,6 +45,7 @@ public class MarketDataService {
     private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofSeconds(30);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
     private static final int KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS = 3;
+    private static final int FOREIGN_OWNERSHIP_HISTORY_LIMIT = 30;
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
@@ -51,6 +53,7 @@ public class MarketDataService {
     private final KisRestOrderBookClient kisRestOrderBookClient;
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
+    private final ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository;
     private final ExchangeRateCache exchangeRateCache;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
     private final ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine;
@@ -64,6 +67,7 @@ public class MarketDataService {
             KisRestOrderBookClient kisRestOrderBookClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
             ExchangeRateCache exchangeRateCache,
             RealtimeMarketDataCache realtimeMarketDataCache,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine) {
@@ -73,6 +77,7 @@ public class MarketDataService {
                 kisRestOrderBookClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
+                foreignOwnershipDailySnapshotRepository,
                 exchangeRateCache,
                 realtimeMarketDataCache,
                 foreignOwnershipPredictionEngine,
@@ -93,6 +98,7 @@ public class MarketDataService {
                 null,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
+                new InMemoryForeignOwnershipDailySnapshotRepository(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
                 new ForeignOwnershipPredictionEngine(clock),
@@ -114,6 +120,7 @@ public class MarketDataService {
                 kisRestOrderBookClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
+                new InMemoryForeignOwnershipDailySnapshotRepository(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
                 new ForeignOwnershipPredictionEngine(clock),
@@ -135,6 +142,7 @@ public class MarketDataService {
                 null,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
+                new InMemoryForeignOwnershipDailySnapshotRepository(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
                 foreignOwnershipPredictionEngine,
@@ -147,6 +155,7 @@ public class MarketDataService {
             KisRestOrderBookClient kisRestOrderBookClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
             ExchangeRateCache exchangeRateCache,
             RealtimeMarketDataCache realtimeMarketDataCache,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
@@ -156,6 +165,7 @@ public class MarketDataService {
         this.kisRestOrderBookClient = kisRestOrderBookClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
+        this.foreignOwnershipDailySnapshotRepository = foreignOwnershipDailySnapshotRepository;
         this.exchangeRateCache = exchangeRateCache;
         this.realtimeMarketDataCache = realtimeMarketDataCache;
         this.foreignOwnershipPredictionEngine = foreignOwnershipPredictionEngine;
@@ -224,6 +234,9 @@ public class MarketDataService {
                 quote.foreignOwnershipRate(),
                 prediction.minForeignLimitExhaustionRate(),
                 prediction.maxForeignLimitExhaustionRate(),
+                prediction.confidenceLevel(),
+                prediction.confidenceScore(),
+                prediction.modelVersion(),
                 quote.foreignOwnershipBaseDate(),
                 orderability.viActive(),
                 orderability.singlePriceTrading(),
@@ -338,13 +351,15 @@ public class MarketDataService {
                 side,
                 quantity,
                 snapshot);
+        List<ForeignOwnershipDailySnapshot> history = foreignOwnershipHistory(stockCode, snapshot);
         ForeignOwnershipPrediction foreignOwnershipPrediction = foreignOwnershipPredictionEngine.predict(
                 side,
                 quantity,
                 snapshot,
-                realtimeMarketDataCache.latestTrade(stockCode));
+                realtimeMarketDataCache.latestTrade(stockCode),
+                history);
         boolean foreignLimitExceeded = "BUY".equals(side)
-                && foreignOwnershipPrediction.maxForeignLimitExhaustionRate().compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
+                && predictedForeignLimitExhaustionRate.compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
         MarketStatus marketStatus = latestMarketStatus(stockCode);
         String blockedReason = blockedReason(foreignLimitExceeded, marketStatus.tradingHalted());
 
@@ -426,7 +441,7 @@ public class MarketDataService {
             if (kisSnapshot.isPresent()) {
                 LocalDate baseDate = LocalDate.now(clock);
                 KisCurrentPriceSnapshot snapshot = kisSnapshot.orElseThrow();
-                snapshot.foreignOwnershipSnapshot(baseDate).ifPresent(foreignOwnershipSnapshotCache::put);
+                snapshot.foreignOwnershipSnapshot(baseDate).ifPresent(this::storeForeignOwnershipSnapshot);
                 PriceLookup priceLookup = PriceLookup.kis(snapshot, baseDate);
                 priceLookupCache.put(stockCode, new CachedPriceLookup(priceLookup, Instant.now(clock)));
                 return priceLookup;
@@ -488,6 +503,26 @@ public class MarketDataService {
         return foreignOwnershipSnapshotCache.find(stock.stockCode())
                 .map(ForeignOwnershipLookup::cache)
                 .orElseGet(ForeignOwnershipLookup::empty);
+    }
+
+    private List<ForeignOwnershipDailySnapshot> foreignOwnershipHistory(
+            String stockCode,
+            Optional<ForeignOwnershipSnapshot> snapshot) {
+        LocalDate to = snapshot.map(ForeignOwnershipSnapshot::baseDate).orElse(LocalDate.now(clock));
+        return foreignOwnershipDailySnapshotRepository.findRecent(stockCode, to, FOREIGN_OWNERSHIP_HISTORY_LIMIT);
+    }
+
+    private void storeForeignOwnershipSnapshot(ForeignOwnershipSnapshot snapshot) {
+        foreignOwnershipSnapshotCache.put(snapshot);
+        foreignOwnershipDailySnapshotRepository.upsert(new ForeignOwnershipDailySnapshot(
+                snapshot.stockCode(),
+                snapshot.baseDate(),
+                snapshot.foreignOwnedQuantity(),
+                snapshot.foreignOwnershipRate(),
+                snapshot.foreignLimitQuantity(),
+                snapshot.foreignLimitExhaustionRate(),
+                "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP",
+                Instant.now(clock)));
     }
 
     private BigDecimal predictedForeignLimitExhaustionRate(

@@ -370,12 +370,13 @@
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot 순서로 실제 provider 가격을 사용한다. 실제 가격 provider, KIS 외국인 보유량 snapshot, FX cache가 없으면 가짜값 대신 `MARKET_002`로 실패한다.
-- 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KIS 외국인보유량 cache, 요청 수량, KIS 실시간 체결 누적 거래량으로 예상 한도소진율 min/base/max를 계산한다. 차단 여부는 보수적인 max 한도소진율이 100% 이상인지로 판단한다.
+- 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KIS 외국인보유량 cache, 요청 수량, 최근 일별 시계열, KIS 실시간 체결 누적 거래량으로 예상 한도소진율 min/base/max를 계산한다. 차단은 현재 snapshot에 주문수량 영향을 더한 확정 한도소진율이 100% 이상일 때만 수행하고, 시계열 max boundary와 confidence score는 경고/표시용으로만 사용한다.
 - KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산해 orderability 응답에 반영한다. 실시간 상태 tick이 없으면 `priceLimitState=UNKNOWN`, source `MARKET_STATUS_UNAVAILABLE`로 반환한다. `tradingHalted=true`이면 `TRADING_HALTED`로 주문 가능 여부를 차단한다.
 - KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다. KRX 수집 실패 시 KIS 일봉 chart API로 기준일 데이터를 실 provider 보강 저장한다.
 - 과거 시세는 `/api/v1/market/stocks/{stockCode}/history`에서 공동 응답 envelope으로 조회하고, 운영 수집은 `/api/v1/market/history/collect` 또는 scheduler로 실행한다.
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 KIS REST 호가 snapshot을 사용한다. 두 provider가 모두 실패하면 `MARKET_002`로 실패한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KIS 현재가 refresh로 저장한 snapshot cache를 사용한다. snapshot이 없으면 가짜 기본값을 반환하지 않고 `MARKET_002`로 실패한다.
+- KIS 현재가 refresh로 수집한 외국인 보유 snapshot은 `foreign_ownership_daily_snapshot`에도 저장해 최근 추세와 변동성을 예측 engine 입력으로 사용한다.
 - 외국인 보유율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
 - 현지 통화 환산가는 quote 요청의 `fxRate` 또는 Frankfurter/협력사 입력 환율 캐시에 저장된 환율에 `currentPriceKrw`를 곱해 계산한다. 둘 다 없으면 `MARKET_002`로 실패한다.
 - 환율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
