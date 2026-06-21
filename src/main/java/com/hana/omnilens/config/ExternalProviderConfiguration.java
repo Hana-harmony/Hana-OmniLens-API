@@ -16,6 +16,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
         ExchangeRateRefreshProperties.class,
         ExchangeRateCacheProperties.class,
         ForeignOwnershipCacheProperties.class,
+        ForeignOwnershipRefreshProperties.class,
         ExternalProviderResilienceProperties.class,
         FrankfurterProperties.class,
         KrxOpenApiProperties.class

@@ -88,6 +88,14 @@ omnilens:
     foreign-ownership-cache:
       mode: redis
       ttl: 24h
+    foreign-ownership-refresh:
+      enabled: false
+      fixed-delay-ms: 86400000
+      initial-delay-ms: 60000
+      request-delay-ms: 1200
+      base-date-offset-days: 1
+      stock-limit: 2500
+      stock-codes: []
     kis-realtime:
       enabled: false
       stock-codes: []

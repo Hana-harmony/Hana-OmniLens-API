@@ -26,6 +26,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshResult;
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
+import com.hana.omnilens.market.application.ForeignOwnershipCollectionResult;
 import com.hana.omnilens.market.application.MarketDailyPriceRepository;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
@@ -334,6 +335,50 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.foreignLimitQuantity", equalTo(6_720_000_000L)))
                 .andExpect(jsonPath("$.data.foreignLimitExhaustionRate", equalTo(54.21)))
                 .andExpect(jsonPath("$.data.source", equalTo("KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP")));
+    }
+
+    @Test
+    void foreignOwnershipCollectApiRefreshesRequestedStocks() throws Exception {
+        when(foreignOwnershipRefreshService.collect(
+                LocalDate.of(2025, 6, 4),
+                List.of("005930", "000660"),
+                100,
+                1_200L))
+                .thenReturn(new ForeignOwnershipCollectionResult(
+                        LocalDate.of(2025, 6, 4),
+                        2,
+                        1,
+                        1,
+                        "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP",
+                        "PARTIAL",
+                        List.of(
+                                new ForeignOwnershipCollectionResult.StockResult(
+                                        "005930",
+                                        true,
+                                        "REFRESHED",
+                                        null),
+                                new ForeignOwnershipCollectionResult.StockResult(
+                                        "000660",
+                                        false,
+                                        "PROVIDER_EMPTY",
+                                        "KIS current price did not include foreign ownership snapshot"))));
+
+        mockMvc.perform(post("/api/v1/market/foreign-ownership/collect")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("baseDate", "2025-06-04")
+                        .param("stockCodes", "005930", "000660")
+                        .param("limit", "100")
+                        .param("requestDelayMs", "1200"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.baseDate", equalTo("2025-06-04")))
+                .andExpect(jsonPath("$.data.requestedCount", equalTo(2)))
+                .andExpect(jsonPath("$.data.refreshedCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.failedCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.status", equalTo("PARTIAL")))
+                .andExpect(jsonPath("$.data.stockResults[0].stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data.stockResults[0].refreshed", equalTo(true)))
+                .andExpect(jsonPath("$.data.stockResults[1].status", equalTo("PROVIDER_EMPTY")));
     }
 
     @Test

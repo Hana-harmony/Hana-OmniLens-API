@@ -80,6 +80,14 @@ omnilens:
     foreign-ownership-cache:
       mode: ${FOREIGN_OWNERSHIP_CACHE_MODE:redis}
       ttl: ${FOREIGN_OWNERSHIP_CACHE_TTL:24h}
+    foreign-ownership-refresh:
+      enabled: ${FOREIGN_OWNERSHIP_REFRESH_ENABLED:true}
+      fixed-delay-ms: ${FOREIGN_OWNERSHIP_REFRESH_FIXED_DELAY_MS:86400000}
+      initial-delay-ms: ${FOREIGN_OWNERSHIP_REFRESH_INITIAL_DELAY_MS:60000}
+      request-delay-ms: ${FOREIGN_OWNERSHIP_REFRESH_REQUEST_DELAY_MS:1200}
+      base-date-offset-days: ${FOREIGN_OWNERSHIP_REFRESH_BASE_DATE_OFFSET_DAYS:1}
+      stock-limit: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT:2500}
+      stock-codes: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES:}
     kis-realtime:
       enabled: ${KIS_REALTIME_ENABLED:false}
       stock-codes: ${KIS_REALTIME_STOCK_CODES:}
