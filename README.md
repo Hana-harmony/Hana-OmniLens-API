@@ -5,7 +5,7 @@
 ## 범위
 - Real-time Korea Market Data and Orderability API
 - Foreign Ownership Limit and VI/Price Limit Status API
-- Watchlist News and Disclosure Intelligence API
+- Market-wide News and Disclosure Intelligence API
 - Tax Refund Status and Advance Payout Integration API
 - 실제 주문 실행, 체결, 정산, 환전, 최종투자자 계정 관리는 현지 거래소·브로커 영역으로 둔다.
 
@@ -26,7 +26,7 @@ curl http://localhost:8080/actuator/health
 
 로컬 설정 파일 `src/main/resources/application-local.yml`은 gitignore 대상이다. 운영 설정 파일 `src/main/resources/application-prod.yml`은 실제 파일로 커밋하고, 민감값은 GitHub Secrets로 생성한 원격 서버 env 파일에서 주입한다.
 
-알림은 수동 `collect-and-publish` 호출뿐 아니라 설정 기반 협력사 watchlist 스케줄러로도 수집·분석·WebSocket 발행할 수 있다.
+알림 v1은 수동 `collect-and-publish` 호출과 협력사 watchlist 스케줄러로 수집·분석·WebSocket 발행한다. v2는 전체 한국 종목 universe를 shard 단위로 수집하고, 전문/이미지/원문 링크를 영속 저장한 뒤 REST 목록·상세와 WebSocket 이벤트로 협력사에 제공하는 것을 기준 계약으로 둔다.
 협력사별 API key는 원문을 저장하지 않고 DB에 SHA-256 해시와 `partnerId`로 묶어 관리한다.
 
 ## API 계약
@@ -56,7 +56,8 @@ curl http://localhost:8080/actuator/health
 - 주문 관련 기능은 실제 주문 API가 아니라 외국인 투자 한도, 당일 예측 지분율 min/base/max boundary, VI 발동, 상·하한가 상태를 현지 MTS 주문/종목 화면에 제공하는 의사결정 지원 API다.
 - `GET /api/v1/market/stocks/{stockCode}/detail`은 Stock-exchange-BE 종목 상세 화면용으로 quote, 현지통화 가격, KIS 외국인 보유 snapshot, 한도소진율 예측, VI/단일가/상·하한가/거래정지 flags를 한 응답으로 제공한다.
 - `GET /api/v1/market/stocks/{stockCode}/orderability`는 협력사 거래소가 자체 mock ledger 주문 전 확인할 외국인 한도 min/base/max 예측, VI, 상·하한가, 거래정지 상태를 공동 응답 형식으로 제공한다. 이 API는 실제 주문이나 KIS 모의투자 주문을 실행하지 않는다.
-- 뉴스·공시는 Naver News Search와 OpenDART를 수집하고, Hannah-Montana-AI 분석 결과와 DeepL 번역 결과를 함께 WebSocket 이벤트로 송신한다. Papago는 레거시 provider로 제거되어 smoke report에서 `legacy_disabled`로만 기록한다.
+- 뉴스 v1은 Naver News Search의 제목, snippet, 원문 링크를 발견 데이터로 수집한다. Naver Search는 기사 전문과 이미지 URL을 보장하지 않으므로 v2 전문/이미지는 라이선스가 있는 원문 provider, 허용된 원문 파서, 또는 공시 원문처럼 재배포 가능한 출처로만 수집한다.
+- 뉴스·공시 v2 응답은 원문 제목, 번역 제목, What/Why/Impact 3줄 요약, 요약 번역, 전문 원문/번역, 이미지 URL 목록, 원문 링크, 중복 클러스터 키, AI confidence를 포함한다. DeepL은 번역 provider이며 Papago는 레거시 provider로 제거되어 smoke report에서 `legacy_disabled`로만 기록한다.
 - 세무 기능은 최종투자자별 서류/OCR/케이스 판정/환급금 선지급 상태를 현지 거래소 백엔드에 제공하는 연동 계약으로 관리한다. `POST /api/v1/tax/refund-cases/classify`는 한국·미국 조세조약 CASE_01 경계를 판정하고, `POST /api/v1/tax/refund-cases/sync`는 현지 거래소 mock 매도 실현손익 기반 tax case를 받아 환급/선지급 상태를 공동 응답 형식으로 반환한다. `GET /api/v1/tax/rectification-batches/{taxYear}/quarters/{quarter}`는 분기별 경정청구 배치 진행 상태를 조회한다.
 
 ## 문서

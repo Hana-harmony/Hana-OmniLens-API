@@ -34,11 +34,13 @@ Hana-OmniLens-API는 수집, 번역 공급자 연동, 협력사 전송을 담당
 
 | 기능 | 책임 | 상태 |
 | --- | --- | --- |
-| Naver News Search 수집 | Hana-OmniLens-API | Done |
+| Naver News Search 발견 데이터 수집 | Hana-OmniLens-API | Done: 제목, snippet, 링크, 발행시각 기준 |
 | OpenDART 공시 수집 | Hana-OmniLens-API | Done |
 | 종목 매핑, 이벤트 분류, 감성, 중요도, 중복 제거, 금융 용어 normalization과 번역 품질 플래그 | Hannah-Montana-AI | Done: audited gold readiness pass, 운영 gold/drift 보강 지속 |
-| DeepL 전문 번역 어댑터 | Hana-OmniLens-API | Done |
-| 분석·번역 완료 이벤트 WebSocket 송신 | Hana-OmniLens-API | Done |
+| DeepL 제목 번역 어댑터 | Hana-OmniLens-API | Done |
+| 전문·이미지 수집, What/Why/Impact 요약, 제목·요약·전문 번역 | Hana-OmniLens-API, Hannah-Montana-AI | Planned |
+| 전체 종목 뉴스·공시 DB 저장과 REST 목록·상세 API | Hana-OmniLens-API | Planned |
+| 분석·번역 완료 이벤트 WebSocket 송신 | Hana-OmniLens-API | Done for v1, v2 저장 이벤트 송신 Planned |
 | Alert REST API 공동 응답 envelope | Hana-OmniLens-API | Done |
 | 이벤트 수신, 저장, 보유/관심종목 대상자 매칭, 푸시 발송 | Stock-exchange-BE | Done |
 | 종목별 K-News 피드, 통합 알림함, 원문 링크 UI | Stock-exchange-FE | Done |

@@ -14,6 +14,11 @@ public record AlertAnalysisPublishRequest(
         @NotBlank @Pattern(regexp = "NEWS|DISCLOSURE") String sourceType,
         @NotBlank @Size(max = 300) String title,
         @Size(max = 1000) String snippet,
+        @Size(max = 20000) String content,
+        List<@Size(max = 1000) String> imageUrls,
+        @Size(max = 1000) String canonicalUrl,
+        @Size(max = 128) String contentHash,
+        @Size(max = 80) String sourceLicensePolicy,
         @NotBlank @Size(max = 500) String originalUrl,
         @NotNull Instant publishedAt,
         @Valid List<StockCandidateRequest> stockUniverse
