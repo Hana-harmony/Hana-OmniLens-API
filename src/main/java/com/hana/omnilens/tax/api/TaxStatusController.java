@@ -51,7 +51,7 @@ public class TaxStatusController {
     }
 
     @PostMapping("/refund-cases/classify")
-    @Operation(summary = "Classify a Korea-Hong Kong tax treaty refund case")
+    @Operation(summary = "Classify a Korea-United States tax treaty refund case")
     public ApiResponse<TaxTreatyCaseClassificationResponse> classifyRefundCase(
             @Valid @RequestBody TaxTreatyCaseClassificationRequest request) {
         return ApiResponse.success(taxTreatyCaseClassificationService.classify(request));

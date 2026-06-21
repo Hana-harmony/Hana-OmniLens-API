@@ -404,8 +404,8 @@
 - 세무 상태 sync는 `POST /api/v1/tax/refund-cases/sync`에서 현지 거래소 tax case를 받아 예상 환급액과 선지급 요청/가능 여부로 `NO_REFUNDABLE_PROFIT`, `REFUND_APPROVED`, `ADVANCE_PAID`, `RECAPTURE_RISK`, `SYNCED_WITH_HANA` 상태를 반환한다. 실제 신고 제출, 지급, OCR/법무 판정은 수행하지 않는다.
 
 ## 2026-06-19 tax treaty case classification
-- `POST /api/v1/tax/refund-cases/classify`를 추가해 한국·홍콩 조세조약 CASE_01 경계를 공동 응답 envelope으로 제공한다.
-- 홍콩 거주, 상장주식 장내거래, 25% 미만 지분율, 거주자증명서/제한세율신청서 검증 완료 조건을 모두 만족하면 `CASE_01`로 판정한다.
+- `POST /api/v1/tax/refund-cases/classify`를 추가해 한국·미국 조세조약 CASE_01 경계를 공동 응답 envelope으로 제공한다.
+- 미국 거주, 상장주식 장내거래, 25% 미만 지분율, 거주자증명서/제한세율신청서 검증 완료 조건을 모두 만족하면 `CASE_01`로 판정한다.
 - 조건 미충족 시 `CASE_REVIEW_REQUIRED`와 수동 검토/서류 검증 next action을 반환한다. 실제 법무 최종판정, 신고 제출, 지급 실행은 수행하지 않는다.
 
 ## 2026-06-19 tax rectification batch status
