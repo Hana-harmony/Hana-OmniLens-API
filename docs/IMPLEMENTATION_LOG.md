@@ -420,3 +420,13 @@
 
 ## 외부 연동 예정
 - 협력사 watchlist를 DB에서 관리하는 저장소를 추가한다.
+## 2026-06-21 뉴스·공시 인텔리전스 v2 보강 계약
+- v1 완료 범위를 Naver News Search 제목/snippet 기반 watchlist 알림으로 명확히 분리했다.
+- v2 목표를 전체 종목 shard 수집, 전문·이미지 권리 확인 수집, DB 이벤트 저장소, What/Why/Impact 요약, 제목·요약·전문 DeepL 번역, REST 목록·상세, WebSocket 저장 이벤트 송신으로 정의했다.
+- Naver News Search는 기사 전문과 이미지 URL을 보장하지 않으므로 발견 데이터로만 사용하고, 재배포 권리가 불확실한 본문은 저장·응답하지 않는 정책을 문서화했다.
+
+## 2026-06-21 뉴스·공시 v2 이벤트 저장소와 REST 조회
+- `alert_event` 테이블을 추가해 alert payload JSON과 stock/source/duplicate/cluster metadata를 영속 저장한다.
+- `AlertEvent`에 What/Why/Impact summary lines, translated summary, original/translated content, image URL, content availability, cluster key를 추가했다.
+- `GET /api/v1/alerts/stocks/{stockCode}/events`와 `GET /api/v1/alerts/events/{alertId}`로 협력사 백엔드가 종목 상세 News 탭 목록·상세를 조회할 수 있게 했다.
+- 이벤트 발행은 DB 저장 후 기존 partner/stock WebSocket topic으로 같은 v2 payload를 송신한다.

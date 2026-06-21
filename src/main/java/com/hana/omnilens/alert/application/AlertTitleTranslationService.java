@@ -19,6 +19,14 @@ public class AlertTitleTranslationService {
     }
 
     public String translateTitle(String originalTitle) {
+        return translateOrFallback(originalTitle);
+    }
+
+    public String translateText(String originalText) {
+        return translateOrFallback(originalText);
+    }
+
+    private String translateOrFallback(String originalTitle) {
         if (!StringUtils.hasText(originalTitle)) {
             return "";
         }
@@ -33,7 +41,7 @@ public class AlertTitleTranslationService {
         try {
             return deepLTranslationClient.translateKoToEn(originalTitle);
         } catch (RuntimeException exception) {
-            LOGGER.warn("DeepL alert title translation failed. Falling back to original title: {}",
+            LOGGER.warn("DeepL alert translation failed. Falling back to original text: {}",
                     exception.getClass().getSimpleName());
             return "";
         }

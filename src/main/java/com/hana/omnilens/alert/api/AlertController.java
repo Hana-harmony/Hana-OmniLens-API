@@ -5,14 +5,18 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import org.springframework.validation.annotation.Validated;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
+import com.hana.omnilens.alert.application.AlertEventRepository;
 import com.hana.omnilens.alert.application.AlertAnalysisPublishingService;
 import com.hana.omnilens.alert.application.AlertProviderCollectionService;
 import com.hana.omnilens.alert.application.AlertStreamingService;
@@ -34,18 +38,21 @@ public class AlertController {
     private final AlertProviderCollectionService alertProviderCollectionService;
     private final PartnerWatchlistService partnerWatchlistService;
     private final PartnerAuthorizationService partnerAuthorizationService;
+    private final AlertEventRepository alertEventRepository;
 
     public AlertController(
             AlertStreamingService alertStreamingService,
             AlertAnalysisPublishingService alertAnalysisPublishingService,
             AlertProviderCollectionService alertProviderCollectionService,
             PartnerWatchlistService partnerWatchlistService,
-            PartnerAuthorizationService partnerAuthorizationService) {
+            PartnerAuthorizationService partnerAuthorizationService,
+            AlertEventRepository alertEventRepository) {
         this.alertStreamingService = alertStreamingService;
         this.alertAnalysisPublishingService = alertAnalysisPublishingService;
         this.alertProviderCollectionService = alertProviderCollectionService;
         this.partnerWatchlistService = partnerWatchlistService;
         this.partnerAuthorizationService = partnerAuthorizationService;
+        this.alertEventRepository = alertEventRepository;
     }
 
     @GetMapping("/watchlists/{partnerId}")
@@ -68,6 +75,24 @@ public class AlertController {
     public ApiResponse<AlertEvent> publish(@Valid @RequestBody AlertPublishRequest request) {
         partnerAuthorizationService.assertPartnerAccess(request.partnerId());
         return ApiResponse.success(alertStreamingService.publish(request));
+    }
+
+    @GetMapping("/events/{alertId}")
+    @Operation(summary = "Get stored news or disclosure event detail")
+    public ApiResponse<AlertEvent> getEvent(@PathVariable @Size(min = 1, max = 80) String alertId) {
+        return ApiResponse.success(alertEventRepository.findByAlertId(alertId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "alert event not found")));
+    }
+
+    @GetMapping("/stocks/{stockCode}/events")
+    @Operation(summary = "List stored news and disclosure events for a stock")
+    public ApiResponse<AlertEventListResponse> listStockEvents(
+            @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
+            @RequestParam(defaultValue = "20") int limit) {
+        int effectiveLimit = Math.max(1, Math.min(limit, 100));
+        return ApiResponse.success(new AlertEventListResponse(
+                stockCode,
+                alertEventRepository.findByStockCode(stockCode, effectiveLimit)));
     }
 
     @PostMapping("/analyze-and-publish")

@@ -178,6 +178,11 @@ public class AlertProviderCollectionService {
                     sourceType,
                     title,
                     snippet,
+                    "",
+                    List.of(),
+                    originalUrl,
+                    "",
+                    sourceType.equals("DISCLOSURE") ? "OFFICIAL_DISCLOSURE" : "DISCOVERY_ONLY",
                     originalUrl,
                     publishedAt,
                     List.of(new AlertAnalysisPublishRequest.StockCandidateRequest(
