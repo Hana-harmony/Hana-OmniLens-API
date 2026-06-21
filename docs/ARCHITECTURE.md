@@ -25,7 +25,7 @@
 - FX provider: 실시간/준실시간 환율
 - Naver News Search: 뉴스 제목, snippet, 원문 링크
 - OpenDART: 공시 제목, 유형, 제출시각, 원문 링크
-- Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석
+- Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석, 외국인 보유 시계열 예측 boundary 산출
 
 ## 현재 구현 상태
 - KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX Open API 과거 일별매매정보, Frankfurter FX 환율, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
@@ -43,6 +43,7 @@
 - `MarketQuoteWebSocketHandler`는 raw WebSocket `/ws/market/quotes`에서 인증된 협력사 연결을 관리하고, `RealtimeMarketDataIngestionService`가 KIS 체결 tick을 수신하면 KRW/현지통화/FX metadata가 포함된 `MarketQuote` JSON을 송신한다.
 - 협력사가 `QUOTE_STREAM_REPLAY` 메시지를 보내면 현재 quote snapshot을 요청 통화 기준으로 재송신한다.
 - `MarketDataService`는 KIS 현재가 REST에서 수집한 외국인보유량 snapshot이 있으면 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다. KIS 실시간 체결가·호가 WebSocket은 가격·호가·상태 전용이며 외국인 보유량 필드를 제공하지 않는다.
+- 주문 가능 여부 boundary는 Hannah-Montana-AI 외국인 보유 시계열 예측 API를 우선 호출하고, AI 장애 시 OmniLens 내부 deterministic 시계열 엔진으로 fallback한다. 차단은 AI confidence가 아니라 현재 snapshot에 주문수량 영향을 더한 확정 한도소진율 기준으로만 수행한다.
 - KRX 수집은 KOSPI/KOSDAQ/KONEX 시장별 실패를 격리해 `SUCCESS`, `PARTIAL_FAILED`, `FAILED` 상태와 시장별 오류를 반환한다. `KRX_OPEN_API_WITH_KIS_BACKUP` 모드는 KRX 실패 시 KIS 일봉 chart API를 실 provider 백업으로 사용하고, `KIS_DAILY_CHART` 모드는 KIS 결과만으로 전체 상태를 계산한다.
 - 협력사 입력 환율은 `ExchangeRateCache`에 `KRW -> 현지통화` 표시용 환율로 저장하고, quote 요청에 `fxRate`가 없을 때 현지 통화 환산가 계산에 사용한다.
 - `ExchangeRateCache`는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.

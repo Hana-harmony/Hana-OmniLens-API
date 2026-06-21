@@ -52,7 +52,8 @@ docker compose -f compose.local.yml up -d
 - 공공데이터 주식시세 provider 성공·provider 부재 실패
 - KIS 현재가 provider의 외국인 보유수량·소진율 응답 매핑
 - 시장 데이터 quote의 KIS 외국인 보유수량·지분율·한도소진율 반영
-- 외국인 보유율 예측 engine의 snapshot-only, 실시간 거래량 조정, 시계열 추세 보정, snapshot 부재 fallback
+- Hannah-Montana-AI 외국인 보유 시계열 예측 클라이언트 계약과 장애 시 내부 예측 engine fallback
+- 외국인 보유율 내부 예측 engine의 snapshot-only, 실시간 거래량 조정, 시계열 추세 보정, snapshot 부재 fallback
 - KIS 실시간 체결가·호가 WebSocket payload에는 외국인 보유량 필드가 없고, 외국인 한도 정보는 KIS 현재가 REST snapshot cache에서만 공급되는지 문서 계약 검증
 - Redis 외국인 보유율 cache TTL 저장, payload 조회, 장애 시 in-memory fallback
 - 협력사 입력 환율 저장, Frankfurter 환율 cache 사용, 환율 부재 시 `MARKET_002` 실패
