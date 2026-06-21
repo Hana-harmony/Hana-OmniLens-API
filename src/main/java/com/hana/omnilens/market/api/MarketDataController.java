@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hana.omnilens.common.api.ApiResponse;
+import com.hana.omnilens.market.application.ForeignOwnershipCollectionResult;
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.MarketDataService;
 import com.hana.omnilens.market.application.MarketHistoryService;
@@ -128,6 +129,18 @@ public class MarketDataController {
             @RequestParam(required = false) LocalDate baseDate) {
         return ApiResponse.success(ForeignOwnershipRefreshResponse.from(
                 foreignOwnershipRefreshService.refresh(stockCode, baseDate)));
+    }
+
+    @PostMapping("/foreign-ownership/collect")
+    @Operation(summary = "Collect KIS foreign ownership daily snapshots for all or requested Korean stocks")
+    public ApiResponse<ForeignOwnershipCollectionResponse> collectForeignOwnership(
+            @RequestParam(required = false) LocalDate baseDate,
+            @RequestParam(required = false) @Size(max = 500) List<@Pattern(regexp = "\\d{6}") String> stockCodes,
+            @RequestParam(defaultValue = "2500") @Min(1) @Max(2500) int limit,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(60000) long requestDelayMs) {
+        ForeignOwnershipCollectionResult result =
+                foreignOwnershipRefreshService.collect(baseDate, stockCodes, limit, requestDelayMs);
+        return ApiResponse.success(ForeignOwnershipCollectionResponse.from(result));
     }
 
     @GetMapping("/stocks/search")

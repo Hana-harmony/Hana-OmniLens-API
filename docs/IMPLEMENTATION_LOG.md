@@ -377,6 +377,7 @@
 - 호가 응답은 KIS 실시간 호가 cache를 우선 사용하고, 없으면 KIS REST 호가 snapshot을 사용한다. 두 provider가 모두 실패하면 `MARKET_002`로 실패한다.
 - 외국인 보유수량, 외국인 지분율, 한도소진율은 KIS 현재가 refresh로 저장한 snapshot cache를 사용한다. snapshot이 없으면 가짜 기본값을 반환하지 않고 `MARKET_002`로 실패한다.
 - KIS 현재가 refresh로 수집한 외국인 보유 snapshot은 `foreign_ownership_daily_snapshot`에도 저장해 최근 추세와 변동성을 예측 engine 입력으로 사용한다.
+- `POST /api/v1/market/foreign-ownership/collect`와 `ForeignOwnershipRefreshScheduler`는 `stock_master` 또는 지정 종목 목록을 순회해 KIS 외국인 보유 snapshot을 일별 DB history로 누적한다. scheduler는 initial delay와 request delay로 KIS 호출 제한을 피하고, provider empty/failure는 종목 단위로 격리해 전체 batch를 `PARTIAL`로 반환한다.
 - 외국인 보유율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.
 - 현지 통화 환산가는 quote 요청의 `fxRate` 또는 Frankfurter/협력사 입력 환율 캐시에 저장된 환율에 `currentPriceKrw`를 곱해 계산한다. 둘 다 없으면 `MARKET_002`로 실패한다.
 - 환율 cache는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 in-memory fallback으로 전환한다.

@@ -442,6 +442,65 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/market/foreign-ownership/collect:
+    post:
+      tags:
+        - Market Data
+      operationId: collectForeignOwnership
+      summary: Collect KIS foreign ownership daily snapshots.
+      description: >
+        Operational endpoint used by scheduled jobs or administrators to collect
+        KIS current-price foreign ownership snapshots and upsert them into
+        foreign_ownership_daily_snapshot for Hannah time-series prediction.
+      parameters:
+        - name: baseDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: stockCodes
+          in: query
+          required: false
+          schema:
+            type: array
+            maxItems: 500
+            items:
+              type: string
+              pattern: "^\\d{6}$"
+          style: form
+          explode: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2500
+            default: 2500
+        - name: requestDelayMs
+          in: query
+          required: false
+          description: Delay between per-stock provider calls for KIS quota control.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            maximum: 60000
+            default: 0
+      responses:
+        "200":
+          description: Foreign ownership collection result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForeignOwnershipCollectionApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/exchange-rates/{currency}:
     put:
       tags:
@@ -852,6 +911,15 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/MarketHistoryCollectionResponse"
+    ForeignOwnershipCollectionApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/ForeignOwnershipCollectionResponse"
     ExchangeRateApiResponse:
       allOf:
         - $ref: "#/components/schemas/ApiResponseBase"
@@ -1196,6 +1264,63 @@ components:
         source:
           type: string
           example: KRX_OPEN_API_DAILY_TRADE
+    ForeignOwnershipCollectionResponse:
+      type: object
+      required:
+        - baseDate
+        - requestedCount
+        - refreshedCount
+        - failedCount
+        - source
+        - status
+        - stockResults
+      properties:
+        baseDate:
+          type: string
+          format: date
+        requestedCount:
+          type: integer
+        refreshedCount:
+          type: integer
+        failedCount:
+          type: integer
+        source:
+          type: string
+          example: KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP
+        status:
+          type: string
+          enum:
+            - SUCCESS
+            - PARTIAL
+            - FAILED
+            - EMPTY
+        stockResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForeignOwnershipCollectionStockResult"
+    ForeignOwnershipCollectionStockResult:
+      type: object
+      required:
+        - stockCode
+        - refreshed
+        - status
+      properties:
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        refreshed:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - REFRESHED
+            - PROVIDER_EMPTY
+            - STOCK_NOT_FOUND
+            - FAILED
+        errorMessage:
+          type:
+            - string
+            - "null"
     MarketDailyPrice:
       type: object
       required:

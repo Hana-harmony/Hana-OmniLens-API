@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -94,6 +95,56 @@ class ForeignOwnershipRefreshServiceTest {
         assertThat(result.snapshot()).isEmpty();
         verify(cache, never()).put(org.mockito.Mockito.any());
         verify(dailySnapshotRepository, never()).upsert(org.mockito.Mockito.any());
+    }
+
+    @Test
+    void collectRefreshesStockMasterUniverseAndIsolatesProviderEmptyResults() {
+        StockSummary samsung = stock();
+        StockSummary hynix = new StockSummary(
+                "000660",
+                "SK하이닉스",
+                "SK hynix",
+                "KOSPI",
+                "KR7000660001",
+                "00164779");
+        when(stockMasterRepository.findAll(2)).thenReturn(List.of(hynix, samsung));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshot()));
+        when(kisCurrentPriceClient.findCurrentPrice("000660")).thenReturn(Optional.empty());
+
+        ForeignOwnershipCollectionResult result = service.collect(LocalDate.of(2025, 6, 4), List.of(), 2);
+
+        assertThat(result.baseDate()).isEqualTo(LocalDate.of(2025, 6, 4));
+        assertThat(result.requestedCount()).isEqualTo(2);
+        assertThat(result.refreshedCount()).isEqualTo(1);
+        assertThat(result.failedCount()).isEqualTo(1);
+        assertThat(result.status()).isEqualTo("PARTIAL");
+        assertThat(result.stockResults())
+                .extracting(ForeignOwnershipCollectionResult.StockResult::stockCode)
+                .containsExactly("000660", "005930");
+        assertThat(result.stockResults())
+                .extracting(ForeignOwnershipCollectionResult.StockResult::status)
+                .containsExactly("PROVIDER_EMPTY", "REFRESHED");
+        verify(cache).put(snapshot(LocalDate.of(2025, 6, 4)));
+    }
+
+    @Test
+    void collectReportsUnknownRequestedStockWithoutStoppingKnownStocks() {
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock()));
+        when(stockMasterRepository.findByCode("999999")).thenReturn(Optional.empty());
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshot()));
+
+        ForeignOwnershipCollectionResult result = service.collect(
+                LocalDate.of(2025, 6, 4),
+                List.of("999999", "005930", "005930"),
+                100);
+
+        assertThat(result.requestedCount()).isEqualTo(2);
+        assertThat(result.refreshedCount()).isEqualTo(1);
+        assertThat(result.failedCount()).isEqualTo(1);
+        assertThat(result.status()).isEqualTo("PARTIAL");
+        assertThat(result.stockResults())
+                .extracting(ForeignOwnershipCollectionResult.StockResult::status)
+                .containsExactly("STOCK_NOT_FOUND", "REFRESHED");
     }
 
     private StockSummary stock() {

@@ -97,6 +97,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - 외국인 한도 차단은 현재 snapshot에 주문수량 영향을 더한 확정 한도소진율이 100% 이상일 때만 수행한다. 시계열 추세, max boundary, confidence score는 경고와 화면 표시용이며 단독 차단 조건으로 쓰지 않는다.
 - KIS 실시간 체결가·호가 WebSocket에는 외국인 보유수량, 보유율, 한도소진율 필드가 없다. 외국인 한도 정보는 KIS 현재가 REST snapshot refresh와 Redis/in-memory cache로 공급한다.
 - Hannah 호출 실패, circuit open, 비정상 envelope 응답 시에는 OmniLens 내부 deterministic 시계열 엔진으로 fallback해 응답 계약과 주문 전 확인 흐름을 유지한다.
+- 외국인 보유 일별 history는 `POST /api/v1/market/foreign-ownership/collect`와 `ForeignOwnershipRefreshScheduler`가 KIS 현재가 snapshot을 종목별로 수집해 `foreign_ownership_daily_snapshot`에 upsert한다.
 - SELL 요청은 외국인 한도소진율이 100% 이상이어도 한도 초과 사유로 차단하지 않는다.
 - KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 실시간 상태 tick이 아직 없으면 `priceLimitState=UNKNOWN`, source `MARKET_STATUS_UNAVAILABLE`로 반환한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
 
@@ -161,6 +162,23 @@ EXCHANGE_RATE_REFRESH_ENABLED=true
 EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS=300000
 EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS=0
 EXCHANGE_RATE_REFRESH_CURRENCIES=USD,JPY
+```
+
+## 외국인 보유량 일별 refresh scheduler
+- 운영 기본값은 `FOREIGN_OWNERSHIP_REFRESH_ENABLED=true`이며, 매일 `FOREIGN_OWNERSHIP_REFRESH_BASE_DATE_OFFSET_DAYS`만큼 이전 기준일의 KIS 현재가 외국인 보유 snapshot을 수집한다.
+- 수집 대상은 `FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES`가 있으면 해당 종목만, 비어 있으면 `stock_master` 기준 최대 `FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT`개 종목이다.
+- 기동 직후 대량 호출을 피하기 위해 `FOREIGN_OWNERSHIP_REFRESH_INITIAL_DELAY_MS` 동안 대기하고, KIS 초당 호출 제한을 넘지 않도록 `FOREIGN_OWNERSHIP_REFRESH_REQUEST_DELAY_MS` 간격으로 종목별 요청을 처리한다.
+- 한 종목의 KIS provider empty/failure는 전체 batch를 중단하지 않고 `PARTIAL` 결과로 격리한다.
+- 수동 운영 수집은 `POST /api/v1/market/foreign-ownership/collect?baseDate=YYYY-MM-DD&limit=2500&requestDelayMs=1200` 또는 `stockCodes=005930&stockCodes=000660`으로 실행한다.
+
+```text
+FOREIGN_OWNERSHIP_REFRESH_ENABLED=true
+FOREIGN_OWNERSHIP_REFRESH_FIXED_DELAY_MS=86400000
+FOREIGN_OWNERSHIP_REFRESH_INITIAL_DELAY_MS=60000
+FOREIGN_OWNERSHIP_REFRESH_REQUEST_DELAY_MS=1200
+FOREIGN_OWNERSHIP_REFRESH_BASE_DATE_OFFSET_DAYS=1
+FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT=2500
+FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES=
 ```
 
 ## Rate Limit
