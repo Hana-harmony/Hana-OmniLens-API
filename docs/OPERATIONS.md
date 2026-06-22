@@ -36,7 +36,8 @@ docker compose -f compose.local.yml down
 - 기본값은 `omnilens.alert.scheduler.enabled=false`이다.
 - 스케줄러를 켜면 설정 또는 DB에 저장된 협력사 watchlist마다 Naver 뉴스와 OpenDART 공시를 수집하고 Hannah-Montana-AI 분석 후 WebSocket으로 발행한다.
 - 위 경로는 v1 watchlist 알림이다. v2 운영 경로는 전체 `stock_master`를 shard로 나누어 신규 뉴스·공시를 수집하고, 처리 결과를 DB에 저장한 뒤 REST 목록·상세와 WebSocket 이벤트로 제공한다.
-- Naver News Search는 제목, snippet, 링크 발견용으로만 취급한다. 기사 전문과 이미지 URL은 라이선스/약관/robots 정책이 확인된 provider 또는 공시 원문에서만 수집하며, 권리가 불확실한 본문은 저장·재배포하지 않는다.
+- Naver News Search는 제목, snippet, 링크 발견용으로 사용하고, 사용 허가된 원문 URL에서 기사 전문과 대표 이미지 URL을 추가 수집한다. 저장 허가가 없는 provider를 추가할 때는 원문 저장을 비활성화하고 hash/요약만 남기는 별도 정책을 적용한다.
+- OpenDART는 공시 목록 검색 뒤 `rcept_no` document 원문을 내려받아 본문을 정제하고, 공시 전문을 분석·번역·REST 상세 응답에 포함한다.
 - 신규 여부는 URL TTL만으로 판단하지 않는다. canonical URL, normalized title, content hash, Hannah duplicate key, 시간창 기반 cluster key를 함께 사용하고, 재처리 idempotency key를 저장한다.
 - DeepL 번역은 제목, What/Why/Impact 요약, 전문을 분리해 chunk/cache 단위로 처리한다. provider 장애 시 원문과 번역 실패 상태를 함께 반환하고 이벤트 발행은 중단하지 않는다.
 - watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
