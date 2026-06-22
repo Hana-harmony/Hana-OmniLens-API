@@ -7,6 +7,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,8 +25,11 @@ import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.disclosure.OpenDartDisclosure;
 import com.hana.omnilens.provider.disclosure.OpenDartDisclosureClient;
+import com.hana.omnilens.provider.disclosure.OpenDartDisclosureDocument;
 import com.hana.omnilens.provider.news.NaverNewsArticle;
 import com.hana.omnilens.provider.news.NaverNewsClient;
+import com.hana.omnilens.provider.news.OriginalArticleClient;
+import com.hana.omnilens.provider.news.OriginalArticleContent;
 
 @Service
 public class AlertProviderCollectionService {
@@ -33,6 +37,7 @@ public class AlertProviderCollectionService {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final NaverNewsClient naverNewsClient;
+    private final OriginalArticleClient originalArticleClient;
     private final OpenDartDisclosureClient openDartDisclosureClient;
     private final StockMasterRepository stockMasterRepository;
     private final AlertAnalysisPublishingService alertAnalysisPublishingService;
@@ -42,12 +47,14 @@ public class AlertProviderCollectionService {
     @Autowired
     public AlertProviderCollectionService(
             NaverNewsClient naverNewsClient,
+            OriginalArticleClient originalArticleClient,
             OpenDartDisclosureClient openDartDisclosureClient,
             StockMasterRepository stockMasterRepository,
             AlertAnalysisPublishingService alertAnalysisPublishingService,
             AlertDedupeStore alertDedupeStore) {
         this(
                 naverNewsClient,
+                originalArticleClient,
                 openDartDisclosureClient,
                 stockMasterRepository,
                 alertAnalysisPublishingService,
@@ -57,12 +64,14 @@ public class AlertProviderCollectionService {
 
     AlertProviderCollectionService(
             NaverNewsClient naverNewsClient,
+            OriginalArticleClient originalArticleClient,
             OpenDartDisclosureClient openDartDisclosureClient,
             StockMasterRepository stockMasterRepository,
             AlertAnalysisPublishingService alertAnalysisPublishingService,
             AlertDedupeStore alertDedupeStore,
             Clock clock) {
         this.naverNewsClient = naverNewsClient;
+        this.originalArticleClient = originalArticleClient;
         this.openDartDisclosureClient = openDartDisclosureClient;
         this.stockMasterRepository = stockMasterRepository;
         this.alertAnalysisPublishingService = alertAnalysisPublishingService;
@@ -113,12 +122,16 @@ public class AlertProviderCollectionService {
         List<NaverNewsArticle> articles = naverNewsClient.search(stock.stockName(), request.effectiveNewsDisplay());
         counters.collectedNewsCount += articles.size();
         for (NaverNewsArticle article : articles) {
+            CollectedContent fullContent = originalArticleClient.fetch(article.originalUrl())
+                    .map(CollectedContent::fromArticle)
+                    .orElseGet(() -> CollectedContent.discoveryOnly(article.originalUrl()));
             publishCollectedAlert(
                     request.partnerId(),
                     stock,
                     "NEWS",
                     article.title(),
                     article.snippet(),
+                    fullContent,
                     article.originalUrl(),
                     article.publishedAt(),
                     counters,
@@ -143,12 +156,16 @@ public class AlertProviderCollectionService {
                 endDate);
         counters.collectedDisclosureCount += disclosures.size();
         for (OpenDartDisclosure disclosure : disclosures) {
+            CollectedContent fullContent = optionalDocument(disclosure.receiptNumber())
+                    .map(CollectedContent::fromDisclosure)
+                    .orElseGet(() -> CollectedContent.officialDisclosure(disclosure.originalUrl()));
             publishCollectedAlert(
                     request.partnerId(),
                     stock,
                     "DISCLOSURE",
                     disclosure.corporationName() + " " + disclosure.reportName(),
                     disclosure.reportName(),
+                    fullContent,
                     disclosure.originalUrl(),
                     disclosure.receivedAt().atStartOfDay(KOREA_ZONE).toInstant(),
                     counters,
@@ -162,6 +179,7 @@ public class AlertProviderCollectionService {
             String sourceType,
             String title,
             String snippet,
+            CollectedContent fullContent,
             String originalUrl,
             Instant publishedAt,
             CollectionCounters counters,
@@ -178,11 +196,11 @@ public class AlertProviderCollectionService {
                     sourceType,
                     title,
                     snippet,
-                    "",
-                    List.of(),
-                    originalUrl,
-                    "",
-                    sourceType.equals("DISCLOSURE") ? "OFFICIAL_DISCLOSURE" : "DISCOVERY_ONLY",
+                    fullContent.content(),
+                    fullContent.imageUrls(),
+                    fullContent.canonicalUrl(),
+                    fullContent.contentHash(),
+                    fullContent.sourceLicensePolicy(),
                     originalUrl,
                     publishedAt,
                     List.of(new AlertAnalysisPublishRequest.StockCandidateRequest(
@@ -207,6 +225,45 @@ public class AlertProviderCollectionService {
             return null;
         }
         return partnerId + ":AI:" + request.sourceType() + ":" + request.duplicateKey();
+    }
+
+    private Optional<OpenDartDisclosureDocument> optionalDocument(String receiptNumber) {
+        Optional<OpenDartDisclosureDocument> document = openDartDisclosureClient.fetchDocumentContent(receiptNumber);
+        return document == null ? Optional.empty() : document;
+    }
+
+    private record CollectedContent(
+            String content,
+            List<String> imageUrls,
+            String canonicalUrl,
+            String contentHash,
+            String sourceLicensePolicy
+    ) {
+        private static CollectedContent fromArticle(OriginalArticleContent content) {
+            return new CollectedContent(
+                    content.content(),
+                    content.imageUrls(),
+                    content.canonicalUrl(),
+                    content.contentHash(),
+                    content.sourceLicensePolicy());
+        }
+
+        private static CollectedContent fromDisclosure(OpenDartDisclosureDocument document) {
+            return new CollectedContent(
+                    document.content(),
+                    List.of(),
+                    "",
+                    document.contentHash(),
+                    document.sourceLicensePolicy());
+        }
+
+        private static CollectedContent discoveryOnly(String originalUrl) {
+            return new CollectedContent("", List.of(), originalUrl, "", "DISCOVERY_ONLY");
+        }
+
+        private static CollectedContent officialDisclosure(String originalUrl) {
+            return new CollectedContent("", List.of(), originalUrl, "", "OFFICIAL_DISCLOSURE");
+        }
     }
 
     private static class CollectionCounters {
