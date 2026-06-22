@@ -1,5 +1,11 @@
 # 구현 기록
 
+## 2026-06-22 실제 원문 전문 수집·번역 경로
+- Naver News Search 발견 URL에서 사용 허가된 기사 원문 HTML을 fetch해 본문, canonical URL, 대표 이미지 URL, content hash를 추출한다.
+- OpenDART `document.xml` 접수번호 원문을 zip/XML 양쪽으로 처리해 공시 전문을 정제하고 Hannah 분석 입력으로 전달한다.
+- DeepL 번역 서비스는 제목뿐 아니라 What/Why/Impact 요약과 전문을 chunk 단위로 번역하고 SHA-256 cache로 중복 호출을 줄인다.
+- 수집 발행 경로는 전문이 있으면 `FULL_TEXT`, `originalContent`, `translatedContent`, `imageUrls`, `sourceLicensePolicy`, `contentHash`를 포함해 DB/REST/WebSocket 이벤트로 저장한다.
+
 ## 2026-06-19 하네스·문서 최신화
 - 협력사별 API key rotation API를 추가했다. bootstrap 운영 키로만 호출할 수 있고, 서버가 새 256-bit key를 생성해 응답에서 한 번만 반환하며 DB에는 SHA-256 hash만 저장한다.
 - rotation 시 같은 partner의 기존 활성 credential은 같은 트랜잭션에서 비활성화한다. DB credential로 인증된 협력사 요청은 rotation API를 호출할 수 없다.

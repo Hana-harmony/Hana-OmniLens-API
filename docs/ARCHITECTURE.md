@@ -23,8 +23,8 @@
 - KIS Open API: 현재가, 실시간 체결가, 실시간 호가
 - KRX Open API: 과거 일별 OHLCV, 거래대금
 - FX provider: 실시간/준실시간 환율
-- Naver News Search: 뉴스 제목, snippet, 원문 링크. 기사 전문과 이미지 URL은 보장하지 않으므로 v2에서는 발견 데이터로만 사용한다.
-- OpenDART: 공시 제목, 유형, 제출시각, 원문 링크
+- Naver News Search: 뉴스 제목, snippet, 원문 링크 발견. 사용 허가된 원문 URL은 API 서버가 fetch해 전문과 대표 이미지 URL을 정제한다.
+- OpenDART: 공시 제목, 유형, 제출시각, 원문 링크, 접수번호 기반 document 전문
 - Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석, 외국인 보유 시계열 예측 boundary 산출
 
 ## 현재 구현 상태
@@ -55,5 +55,5 @@
 - 알림 스케줄러는 설정 파일 watchlist와 DB watchlist를 협력사별로 병합해 같은 수집·분석·발행 경로를 재사용한다.
 - 뉴스·공시 중복 재발행 방지는 Redis TTL 기반 dedupe를 기본으로 사용하고, Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.
 - v2에서는 watchlist 수집 경로와 별도로 전체 종목 shard 스케줄러를 둔다. 처리된 뉴스·공시는 DB 이벤트 저장소에 먼저 저장하고, canonical URL/content hash/AI duplicate key/cluster key로 중복을 줄인 뒤 REST 목록·상세와 WebSocket 이벤트를 같은 저장 레코드에서 만든다.
-- 전문과 이미지 URL은 Naver Search row에서 직접 얻는 값이 아니다. 허용된 원문 provider 또는 공시 원문에서 수집하고, 재배포 권리가 불확실하면 전문 저장·응답 대신 요약과 원문 링크만 제공한다.
+- 전문과 이미지 URL은 Naver Search row에서 직접 얻는 값이 아니다. 사용 허가된 원문 URL 또는 공시 원문에서 수집하고, 전문을 저장한 뒤 동일 레코드에서 REST 목록·상세와 WebSocket payload를 만든다.
 - WebSocket subscription 계약 테스트가 실제 STOMP client로 topic 수신과 협력사 topic 권한을 검증한다.

@@ -140,11 +140,11 @@ public class AlertAnalysisPublishingService {
     }
 
     private String contentAvailability(HannahAiAnalysisResponse analysis, AlertAnalysisPublishRequest request) {
-        if (StringUtils.hasText(analysis.contentAvailability())) {
-            return analysis.contentAvailability();
-        }
         if (StringUtils.hasText(analysis.originalContent()) || StringUtils.hasText(request.content())) {
             return "FULL_TEXT";
+        }
+        if (StringUtils.hasText(analysis.contentAvailability())) {
+            return analysis.contentAvailability();
         }
         return "SUMMARY_ONLY";
     }

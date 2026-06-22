@@ -16,6 +16,7 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,8 +34,11 @@ import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
 import com.hana.omnilens.provider.ai.HannahAiGlossaryTerm;
 import com.hana.omnilens.provider.disclosure.OpenDartDisclosure;
 import com.hana.omnilens.provider.disclosure.OpenDartDisclosureClient;
+import com.hana.omnilens.provider.disclosure.OpenDartDisclosureDocument;
 import com.hana.omnilens.provider.news.NaverNewsArticle;
 import com.hana.omnilens.provider.news.NaverNewsClient;
+import com.hana.omnilens.provider.news.OriginalArticleClient;
+import com.hana.omnilens.provider.news.OriginalArticleContent;
 
 @SpringBootTest(properties = {
         "omnilens.security.api-key-enabled=true",
@@ -56,6 +60,9 @@ class AlertControllerTest {
 
     @MockitoBean
     private NaverNewsClient naverNewsClient;
+
+    @MockitoBean
+    private OriginalArticleClient originalArticleClient;
 
     @MockitoBean
     private OpenDartDisclosureClient openDartDisclosureClient;
@@ -254,6 +261,20 @@ class AlertControllerTest {
                         "주요사항보고서",
                         java.time.LocalDate.of(2026, 6, 4),
                         "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260604000123")));
+        when(originalArticleClient.fetch("https://news.example.com/1"))
+                .thenReturn(Optional.of(new OriginalArticleContent(
+                        "삼성전자는 AI 서버 투자 확대로 반도체 실적 개선 기대가 커졌다.",
+                        List.of("https://news.example.com/images/1.jpg"),
+                        "https://news.example.com/1",
+                        "news-content-hash",
+                        "licensed_naver_original_full_text_v1")));
+        when(originalArticleClient.fetch("https://news.example.com/2"))
+                .thenReturn(Optional.empty());
+        when(openDartDisclosureClient.fetchDocumentContent("20260604000123"))
+                .thenReturn(Optional.of(new OpenDartDisclosureDocument(
+                        "삼성전자 주요사항보고서 전문이다. 자기주식 취득과 소각 결정으로 주주환원 영향이 있다.",
+                        "disclosure-content-hash",
+                        "opendart_public_disclosure_text_v1")));
         when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
             return new HannahAiAnalysisResponse(
@@ -278,6 +299,8 @@ class AlertControllerTest {
                     1.0);
         });
         when(alertTitleTranslationService.translateTitle(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(alertTitleTranslationService.translateText(any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
@@ -306,7 +329,17 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.events[0].translationQualityFlags[0]",
                         equalTo("FINANCIAL_GLOSSARY_APPLIED")))
                 .andExpect(jsonPath("$.data.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
-                .andExpect(jsonPath("$.data.events[1].sourceType", equalTo("DISCLOSURE")));
+                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
+                .andExpect(jsonPath("$.data.events[0].originalContent",
+                        equalTo("삼성전자는 AI 서버 투자 확대로 반도체 실적 개선 기대가 커졌다.")))
+                .andExpect(jsonPath("$.data.events[0].translatedContent",
+                        equalTo("삼성전자는 AI 서버 투자 확대로 반도체 실적 개선 기대가 커졌다.")))
+                .andExpect(jsonPath("$.data.events[0].imageUrls[0]",
+                        equalTo("https://news.example.com/images/1.jpg")))
+                .andExpect(jsonPath("$.data.events[1].sourceType", equalTo("DISCLOSURE")))
+                .andExpect(jsonPath("$.data.events[1].contentAvailability", equalTo("FULL_TEXT")))
+                .andExpect(jsonPath("$.data.events[1].originalContent",
+                        equalTo("삼성전자 주요사항보고서 전문이다. 자기주식 취득과 소각 결정으로 주주환원 영향이 있다.")));
     }
 
     @Test
