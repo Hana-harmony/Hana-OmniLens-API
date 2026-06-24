@@ -13,12 +13,14 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import com.hana.omnilens.config.StockMasterSeedProperties;
 import com.hana.omnilens.market.domain.StockSummary;
 
 @Component
+@Order(0)
 public class StockMasterSeedLoader implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(StockMasterSeedLoader.class);

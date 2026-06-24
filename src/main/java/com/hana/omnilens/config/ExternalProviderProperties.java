@@ -98,6 +98,7 @@ public record ExternalProviderProperties(
     public record Kis(
             URI baseUrl,
             URI websocketUrl,
+            String accountNumber,
             String appKey,
             String appSecret,
             String accessToken,
@@ -105,8 +106,9 @@ public record ExternalProviderProperties(
 
         private static Kis defaults() {
             return new Kis(
-                    URI.create("https://openapivts.koreainvestment.com:29443"),
-                    URI.create("ws://ops.koreainvestment.com:31000"),
+                    URI.create("https://openapi.koreainvestment.com:9443"),
+                    URI.create("ws://ops.koreainvestment.com:21000"),
+                    "",
                     "",
                     "",
                     "",
@@ -118,6 +120,7 @@ public record ExternalProviderProperties(
             return new Kis(
                     baseUrl == null ? defaults.baseUrl() : baseUrl,
                     websocketUrl == null ? defaults.websocketUrl() : websocketUrl,
+                    accountNumber == null ? "" : accountNumber,
                     appKey == null ? "" : appKey,
                     appSecret == null ? "" : appSecret,
                     accessToken == null ? "" : accessToken,

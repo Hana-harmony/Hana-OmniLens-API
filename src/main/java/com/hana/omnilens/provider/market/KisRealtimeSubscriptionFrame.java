@@ -11,7 +11,9 @@ public record KisRealtimeSubscriptionFrame(
             String approvalKey,
             @JsonProperty("tr_type")
             String trType,
-            String custtype
+            String custtype,
+            @JsonProperty("content-type")
+            String contentType
     ) {
     }
 

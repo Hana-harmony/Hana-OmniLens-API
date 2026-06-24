@@ -97,6 +97,44 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
                 });
     }
 
+    void upsertAll(List<StockSummary> stocks) {
+        for (StockSummary stock : stocks) {
+            Optional<StockSummary> existing = findByCode(stock.stockCode());
+            if (existing.isPresent()) {
+                update(stock, existing.get());
+            } else {
+                insertAll(List.of(stock));
+            }
+        }
+    }
+
+    private void update(StockSummary stock, StockSummary existing) {
+        String stockNameEn = stock.stockNameEn().equals(stock.stockName())
+                && !existing.stockNameEn().equals(existing.stockName())
+                ? existing.stockNameEn()
+                : stock.stockNameEn();
+        String dartCorpCode = stock.dartCorpCode().isBlank()
+                ? existing.dartCorpCode()
+                : stock.dartCorpCode();
+
+        jdbcTemplate.update(
+                """
+                UPDATE stock_master
+                SET stock_name = ?,
+                    stock_name_en = ?,
+                    market = ?,
+                    isin_code = ?,
+                    dart_corp_code = ?
+                WHERE stock_code = ?
+                """,
+                stock.stockName(),
+                stockNameEn,
+                stock.market(),
+                stock.isinCode(),
+                dartCorpCode,
+                stock.stockCode());
+    }
+
     private static class StockSummaryRowMapper implements RowMapper<StockSummary> {
 
         @Override

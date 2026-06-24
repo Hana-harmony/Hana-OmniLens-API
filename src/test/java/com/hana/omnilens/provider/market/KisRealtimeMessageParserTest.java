@@ -52,6 +52,44 @@ class KisRealtimeMessageParserTest {
     }
 
     @Test
+    void parseTradeTickMapsKisAfterHoursTradePayload() {
+        Optional<KisRealtimeTradeTick> tick = parser.parseTradeTick(kisFrame(
+                KisRealtimeTransaction.AFTER_HOURS_TRADE,
+                afterHoursTradePayload()));
+
+        assertThat(tick).isPresent();
+        assertThat(tick.orElseThrow().stockCode()).isEqualTo("005930");
+        assertThat(tick.orElseThrow().tradeTime()).isEqualTo("160000");
+        assertThat(tick.orElseThrow().currentPriceKrw()).isEqualByComparingTo("82300");
+        assertThat(tick.orElseThrow().changeRate()).isEqualByComparingTo("2.20");
+        assertThat(tick.orElseThrow().askPrice1Krw()).isEqualByComparingTo("82400");
+        assertThat(tick.orElseThrow().bidPrice1Krw()).isEqualByComparingTo("82200");
+        assertThat(tick.orElseThrow().executionVolume()).isEqualTo(500L);
+        assertThat(tick.orElseThrow().accumulatedVolume()).isEqualTo(17_000_000L);
+        assertThat(tick.orElseThrow().businessDate()).isEqualTo(LocalDate.of(2025, 6, 4));
+        assertThat(tick.orElseThrow().viStatusCode()).isEmpty();
+        assertThat(tick.orElseThrow().singlePriceTradingCode()).isEqualTo("Y");
+        assertThat(tick.orElseThrow().tradingHaltCode()).isEqualTo("N");
+    }
+
+    @Test
+    void parseOrderBookMapsKisAfterHoursOrderBookPayload() {
+        Optional<KisRealtimeOrderBookSnapshot> orderBook = parser.parseOrderBook(kisFrame(
+                KisRealtimeTransaction.AFTER_HOURS_ORDERBOOK,
+                afterHoursOrderBookPayload()));
+
+        assertThat(orderBook).isPresent();
+        assertThat(orderBook.orElseThrow().stockCode()).isEqualTo("005930");
+        assertThat(orderBook.orElseThrow().marketTime()).isEqualTo("160001");
+        assertThat(orderBook.orElseThrow().asks()).hasSize(9);
+        assertThat(orderBook.orElseThrow().asks().get(0).priceKrw()).isEqualByComparingTo("82400");
+        assertThat(orderBook.orElseThrow().asks().get(0).quantity()).isEqualTo(700L);
+        assertThat(orderBook.orElseThrow().bids().get(0).priceKrw()).isEqualByComparingTo("82200");
+        assertThat(orderBook.orElseThrow().bids().get(0).quantity()).isEqualTo(900L);
+        assertThat(orderBook.orElseThrow().accumulatedVolume()).isEqualTo(17_000_000L);
+    }
+
+    @Test
     void parseIgnoresOtherTransactions() {
         assertThat(parser.parseTradeTick(kisFrame(KisRealtimeTransaction.ORDERBOOK, orderBookPayload()))).isEmpty();
         assertThat(parser.parseOrderBook(kisFrame(KisRealtimeTransaction.TRADE, tradePayload()))).isEmpty();
@@ -89,6 +127,35 @@ class KisRealtimeMessageParserTest {
             fields.set(33 + index, String.valueOf(1800 + index));
         }
         fields.set(53, "16200000");
+        return String.join("^", fields);
+    }
+
+    private String afterHoursTradePayload() {
+        ArrayList<String> fields = new ArrayList<>(Collections.nCopies(41, "0"));
+        fields.set(0, "005930");
+        fields.set(1, "160000");
+        fields.set(2, "82300");
+        fields.set(5, "2.20");
+        fields.set(10, "82400");
+        fields.set(11, "82200");
+        fields.set(12, "500");
+        fields.set(13, "17000000");
+        fields.set(33, "20250604");
+        fields.set(35, "N");
+        return String.join("^", fields);
+    }
+
+    private String afterHoursOrderBookPayload() {
+        ArrayList<String> fields = new ArrayList<>(Collections.nCopies(54, "0"));
+        fields.set(0, "005930");
+        fields.set(1, "160001");
+        for (int index = 0; index < 9; index++) {
+            fields.set(3 + index, String.valueOf(82400 + (index * 100)));
+            fields.set(12 + index, String.valueOf(82200 - (index * 100)));
+            fields.set(21 + index, String.valueOf(700 + index));
+            fields.set(30 + index, String.valueOf(900 + index));
+        }
+        fields.set(49, "17000000");
         return String.join("^", fields);
     }
 }
