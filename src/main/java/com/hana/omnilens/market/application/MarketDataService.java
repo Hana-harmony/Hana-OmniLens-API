@@ -190,6 +190,8 @@ public class MarketDataService {
         PriceLookup priceLookup = latestPriceSnapshot(stockCode);
         StockSummary stock = getStock(stockCode);
         ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock);
+        Optional<KisRealtimeTradeTick> afterHoursTrade = realtimeMarketDataCache.latestTrade(stockCode)
+                .filter(KisRealtimeTradeTick::afterHours);
 
         BigDecimal currentPrice = priceLookup.currentPriceKrw()
                 .orElseThrow(() -> new MarketDataUnavailableException(
@@ -199,6 +201,10 @@ public class MarketDataService {
                         "No KIS foreign ownership snapshot is available for stockCode=" + stockCode));
         FxLookup fxLookup = resolveFxRate(localCurrency, fxRate);
         BigDecimal localPrice = currentPrice.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal afterHoursPriceKrw = afterHoursTrade.map(KisRealtimeTradeTick::currentPriceKrw).orElse(null);
+        BigDecimal afterHoursLocalCurrencyPrice = afterHoursPriceKrw == null
+                ? null
+                : afterHoursPriceKrw.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
 
         return new MarketQuote(
                 stockCode,
@@ -209,6 +215,12 @@ public class MarketDataService {
                 priceLookup.changeRate().orElse(new BigDecimal("1.42")),
                 priceLookup.volume().orElse(12193000L),
                 currentPrice,
+                afterHoursTrade.map(KisRealtimeTradeTick::marketSession).orElse(priceLookup.marketSession()),
+                afterHoursPriceKrw,
+                afterHoursLocalCurrencyPrice,
+                afterHoursTrade.map(KisRealtimeTradeTick::changeRate).orElse(null),
+                afterHoursTrade.map(KisRealtimeTradeTick::accumulatedVolume).orElse(null),
+                afterHoursTrade.map(tick -> Instant.now(clock)).orElse(null),
                 "KRW",
                 localPrice,
                 localCurrency,
@@ -444,7 +456,7 @@ public class MarketDataService {
 
     private PriceLookup latestPriceSnapshot(String stockCode) {
         Optional<KisRealtimeTradeTick> realtimeTrade = realtimeMarketDataCache.latestTrade(stockCode);
-        if (realtimeTrade.isPresent()) {
+        if (realtimeTrade.isPresent() && !realtimeTrade.orElseThrow().afterHours()) {
             return PriceLookup.realtime(realtimeTrade.orElseThrow());
         }
         Optional<PriceLookup> freshCachedPrice = cachedPrice(stockCode, PRICE_CACHE_TTL);
@@ -652,13 +664,23 @@ public class MarketDataService {
     }
 
     private MarketStatus latestMarketStatus(String stockCode) {
-        return realtimeMarketDataCache.latestTrade(stockCode)
-                .map(tick -> new MarketStatus(
+        Optional<KisRealtimeTradeTick> realtimeTrade = realtimeMarketDataCache.latestTrade(stockCode);
+        if (realtimeTrade.isPresent()) {
+            KisRealtimeTradeTick tick = realtimeTrade.orElseThrow();
+            return new MarketStatus(
                         activeStatusCode(tick.viStatusCode()),
                         activeStatusCode(tick.singlePriceTradingCode()),
                         priceLimitState(tick),
                         activeStatusCode(tick.tradingHaltCode()),
-                        "KIS_WEBSOCKET_TRADE_STATUS"))
+                        "KIS_WEBSOCKET_TRADE_STATUS");
+        }
+        return latestRestOrderBook(stockCode)
+                .map(orderBook -> new MarketStatus(
+                        false,
+                        false,
+                        priceLimitState(orderBook),
+                        false,
+                        "KIS_REST_ORDERBOOK_STATUS_FALLBACK"))
                 .orElse(MarketStatus.unavailable());
     }
 
@@ -681,6 +703,23 @@ public class MarketDataService {
             return "LOWER_LIMIT";
         }
         return "NORMAL";
+    }
+
+    private String priceLimitState(OrderBook orderBook) {
+        boolean hasAsk = hasPositivePriceAndQuantity(orderBook.asks());
+        boolean hasBid = hasPositivePriceAndQuantity(orderBook.bids());
+        if (!hasAsk && hasBid) {
+            return "UPPER_LIMIT";
+        }
+        if (!hasBid && hasAsk) {
+            return "LOWER_LIMIT";
+        }
+        return "NORMAL";
+    }
+
+    private boolean hasPositivePriceAndQuantity(List<OrderBook.OrderBookLevel> levels) {
+        return levels.stream()
+                .anyMatch(level -> level.priceKrw().signum() > 0 && level.quantity() > 0);
     }
 
     private String source(PriceSource priceSource, ForeignOwnershipSource foreignOwnershipSource) {
@@ -726,6 +765,7 @@ public class MarketDataService {
             Optional<BigDecimal> changeRate,
             Optional<Long> volume,
             Optional<LocalDate> baseDate,
+            String marketSession,
             PriceSource source
     ) {
         private static PriceLookup realtime(KisRealtimeTradeTick tick) {
@@ -736,6 +776,7 @@ public class MarketDataService {
                     Optional.of(tick.changeRate()),
                     Optional.of(tick.accumulatedVolume()),
                     Optional.of(tick.businessDate()),
+                    tick.marketSession(),
                     PriceSource.KIS_WEBSOCKET_TRADE);
         }
 
@@ -747,6 +788,7 @@ public class MarketDataService {
                     Optional.of(snapshot.changeRate()),
                     Optional.of(snapshot.volume()),
                     Optional.of(baseDate),
+                    KisRealtimeTradeTick.REGULAR_SESSION,
                     PriceSource.KIS_OPEN_API);
         }
 
@@ -758,6 +800,7 @@ public class MarketDataService {
                     Optional.of(snapshot.changeRate()),
                     Optional.of(snapshot.volume()),
                     Optional.of(snapshot.baseDate()),
+                    KisRealtimeTradeTick.REGULAR_SESSION,
                     PriceSource.PUBLIC_DATA);
         }
 
@@ -769,6 +812,7 @@ public class MarketDataService {
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
+                    KisRealtimeTradeTick.REGULAR_SESSION,
                     PriceSource.NONE);
         }
     }

@@ -25,7 +25,8 @@ public class KisRealtimeSubscriptionFrameFactory {
                 new KisRealtimeSubscriptionFrame.Header(
                         approvalKey,
                         subscriptionType.code(),
-                        "P"),
+                        "P",
+                        "utf-8"),
                 new KisRealtimeSubscriptionFrame.Body(
                         new KisRealtimeSubscriptionFrame.Input(
                                 transaction.trId(),

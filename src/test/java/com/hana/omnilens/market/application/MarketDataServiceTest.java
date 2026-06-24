@@ -622,6 +622,40 @@ class MarketDataServiceTest {
     }
 
     @Test
+    void getOrderabilityUsesRestOrderBookForPriceLimitStatusWhenRealtimeStatusIsUnavailable() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        KisRestOrderBookClient kisRestOrderBookClient = mock(KisRestOrderBookClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                repository,
+                cache,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+        cache.put(foreignOwnershipSnapshot());
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+        when(kisRestOrderBookClient.findOrderBook("005930")).thenReturn(Optional.of(new KisRestOrderBookSnapshot(
+                "005930",
+                List.of(new KisRestOrderBookSnapshot.Level(BigDecimal.ZERO, 0L)),
+                List.of(new KisRestOrderBookSnapshot.Level(new BigDecimal("81500"), 1800L)))));
+
+        Orderability orderability = service.getOrderability("005930", "BUY", 1);
+
+        assertThat(orderability.priceLimitState()).isEqualTo("UPPER_LIMIT");
+        assertThat(orderability.viActive()).isFalse();
+        assertThat(orderability.source())
+                .isEqualTo("ORDERABILITY_MARKET_DATA_UNAVAILABLE+KIS_REST_ORDERBOOK_STATUS_FALLBACK");
+    }
+
+    @Test
     void getOrderabilityKeepsTimeSeriesRiskAsPredictionWithoutBlocking() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
