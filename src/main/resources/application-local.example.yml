@@ -40,8 +40,9 @@ omnilens:
       base-url: https://data-dbg.krx.co.kr
       auth-key: "replace-with-krx-open-api-auth-key"
     kis:
-      base-url: https://openapivts.koreainvestment.com:29443
-      websocket-url: ws://ops.koreainvestment.com:31000
+      base-url: https://openapi.koreainvestment.com:9443
+      websocket-url: ws://ops.koreainvestment.com:21000
+      account-number: "replace-with-kis-account-number"
       app-key: "replace-with-kis-app-key"
       app-secret: "replace-with-kis-app-secret"
       access-token: ""
@@ -67,6 +68,7 @@ omnilens:
       seed:
         enabled: true
         location: classpath:data/stock-master-seed.csv
+        kis-master-sync-enabled: true
     exchange-rate-cache:
       mode: redis
       ttl: 24h
@@ -77,6 +79,10 @@ omnilens:
       enabled: false
       stock-codes:
         - "005930"
+      stock-limit: 20
+      shard-size: 40
+      order-book-enabled: true
+      after-hours-enabled: true
         - "000660"
     exchange-rate-refresh:
       enabled: false
@@ -109,6 +115,7 @@ omnilens:
 providers:
   kis:
     base-url: https://openapi.koreainvestment.com:9443
+    websocket-url: ws://ops.koreainvestment.com:21000
     account-number: ""
     app-key: ""
     app-secret: ""

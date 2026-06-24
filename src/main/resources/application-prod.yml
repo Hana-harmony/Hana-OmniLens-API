@@ -47,8 +47,9 @@ omnilens:
       base-url: ${KRX_OPEN_API_BASE_URL:https://data-dbg.krx.co.kr}
       auth-key: ${KRX_OPEN_API_AUTH_KEY:}
     kis:
-      base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}
-      websocket-url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:31000}
+      base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
+      websocket-url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}
+      account-number: ${KIS_ACCOUNT_NUMBER:}
       app-key: ${KIS_APP_KEY:}
       app-secret: ${KIS_APP_SECRET:}
       access-token: ${KIS_ACCESS_TOKEN:}
@@ -74,6 +75,7 @@ omnilens:
       seed:
         enabled: ${STOCK_MASTER_SEED_ENABLED:true}
         location: ${STOCK_MASTER_SEED_LOCATION:classpath:data/stock-master-seed.csv}
+        kis-master-sync-enabled: ${STOCK_MASTER_KIS_SYNC_ENABLED:true}
     exchange-rate-cache:
       mode: ${EXCHANGE_RATE_CACHE_MODE:redis}
       ttl: ${EXCHANGE_RATE_CACHE_TTL:24h}
@@ -91,6 +93,10 @@ omnilens:
     kis-realtime:
       enabled: ${KIS_REALTIME_ENABLED:false}
       stock-codes: ${KIS_REALTIME_STOCK_CODES:}
+      stock-limit: ${KIS_REALTIME_STOCK_LIMIT:5000}
+      shard-size: ${KIS_REALTIME_SHARD_SIZE:40}
+      order-book-enabled: ${KIS_REALTIME_ORDER_BOOK_ENABLED:false}
+      after-hours-enabled: ${KIS_REALTIME_AFTER_HOURS_ENABLED:false}
     exchange-rate-refresh:
       enabled: ${EXCHANGE_RATE_REFRESH_ENABLED:false}
       fixed-delay-ms: ${EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS:300000}

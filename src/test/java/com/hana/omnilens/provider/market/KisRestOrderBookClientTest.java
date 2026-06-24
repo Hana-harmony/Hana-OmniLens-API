@@ -74,6 +74,7 @@ class KisRestOrderBookClientTest {
                 new ExternalProviderProperties.Kis(
                         URI.create("https://openapi.koreainvestment.com:9443"),
                         URI.create("wss://openapi.koreainvestment.com:9443/tryitout"),
+                        "00000000",
                         "kis-app-key",
                         "kis-app-secret",
                         "kis-access-token",

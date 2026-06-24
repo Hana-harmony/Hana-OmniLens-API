@@ -26,6 +26,7 @@ class KisRealtimeSubscriptionFrameFactoryTest {
         assertThat(json.at("/header/approval_key").asText()).isEqualTo("approval-key");
         assertThat(json.at("/header/tr_type").asText()).isEqualTo("1");
         assertThat(json.at("/header/custtype").asText()).isEqualTo("P");
+        assertThat(json.at("/header/content-type").asText()).isEqualTo("utf-8");
         assertThat(json.at("/body/input/tr_id").asText()).isEqualTo("H0STCNT0");
         assertThat(json.at("/body/input/tr_key").asText()).isEqualTo("005930");
     }

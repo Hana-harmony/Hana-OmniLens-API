@@ -2,6 +2,8 @@ package com.hana.omnilens.market.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.DefaultApplicationArguments;
@@ -19,6 +21,9 @@ class JdbcStockMasterRepositoryTest {
 
     @Autowired
     private StockMasterRepository repository;
+
+    @Autowired
+    private JdbcStockMasterRepository jdbcRepository;
 
     @Autowired
     private StockMasterSeedLoader seedLoader;
@@ -57,5 +62,21 @@ class JdbcStockMasterRepositoryTest {
 
         Integer after = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_master", Integer.class);
         assertThat(after).isEqualTo(before);
+    }
+
+    @Test
+    void upsertKeepsExistingEnglishNameWhenKisMasterHasOnlyKoreanName() {
+        jdbcRepository.upsertAll(List.of(new com.hana.omnilens.market.domain.StockSummary(
+                "005930",
+                "삼성전자",
+                "삼성전자",
+                "KOSPI",
+                "KR7005930003",
+                "")));
+
+        assertThat(repository.findByCode("005930")).isPresent()
+                .get()
+                .extracting("stockNameEn")
+                .isEqualTo("Samsung Electronics");
     }
 }
