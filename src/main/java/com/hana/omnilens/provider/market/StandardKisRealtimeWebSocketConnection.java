@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -34,8 +35,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
     private static final Logger log = LoggerFactory.getLogger(StandardKisRealtimeWebSocketConnection.class);
     private static final int KIS_MESSAGE_BUFFER_SIZE_BYTES = 1024 * 1024;
     private static final int MAX_RECONNECT_DELAY_SECONDS = 30;
-    private static final int MAX_FAST_RECONNECT_ATTEMPTS = 6;
-    private static final int GATEWAY_COOLDOWN_SECONDS = 15 * 60;
+    private static final int RECONNECT_JITTER_BOUND_SECONDS = 5;
     private static final long SUBSCRIPTION_FRAME_DELAY_MILLIS = 120;
 
     private final ObjectMapper objectMapper;
@@ -177,9 +177,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer,
             int reconnectAttempt) {
-        long delaySeconds = reconnectAttempt > MAX_FAST_RECONNECT_ATTEMPTS
-                ? GATEWAY_COOLDOWN_SECONDS
-                : Math.min(1L << Math.min(reconnectAttempt - 1, 5), MAX_RECONNECT_DELAY_SECONDS);
+        long delaySeconds = reconnectDelaySeconds(reconnectAttempt);
         log.info(
                 "Scheduling KIS realtime websocket reconnect delay={}s reconnectAttempt={} subscriptionFrameCount={}",
                 delaySeconds,
@@ -189,6 +187,15 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
                 () -> connect(websocketUrl, subscriptionFrames, messageConsumer, reconnectAttempt),
                 delaySeconds,
                 TimeUnit.SECONDS);
+    }
+
+    static long reconnectDelaySeconds(int reconnectAttempt) {
+        long exponentialDelaySeconds = Math.min(
+                1L << Math.min(Math.max(reconnectAttempt - 1, 0), 5),
+                MAX_RECONNECT_DELAY_SECONDS);
+        long jitterBoundSeconds = Math.min(RECONNECT_JITTER_BOUND_SECONDS, exponentialDelaySeconds);
+        long jitterSeconds = ThreadLocalRandom.current().nextLong(jitterBoundSeconds + 1);
+        return Math.min(MAX_RECONNECT_DELAY_SECONDS, exponentialDelaySeconds + jitterSeconds);
     }
 
     private void logKisMessage(WebSocketSession session, String payload) {

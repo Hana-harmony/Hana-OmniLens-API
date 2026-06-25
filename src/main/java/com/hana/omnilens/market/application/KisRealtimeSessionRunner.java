@@ -88,16 +88,18 @@ public class KisRealtimeSessionRunner {
             return;
         }
         List<String> stockCodes = realtimeStockCodes();
-        if (stockCodes.isEmpty()) {
-            log.warn("KIS realtime session runner is enabled but realtime stock universe is empty");
+        List<String> indexCodes = kisRealtimeProperties.indexCodes();
+        if (stockCodes.isEmpty() && indexCodes.isEmpty()) {
+            log.warn("KIS realtime session runner is enabled but realtime universe is empty");
             return;
         }
         try {
             String approvalKey = approvalKeyProvider.approvalKey();
-            List<KisRealtimeSubscriptionFrame> frames = subscriptionFrames(approvalKey, stockCodes);
+            List<KisRealtimeSubscriptionFrame> frames = subscriptionFrames(approvalKey, stockCodes, indexCodes);
             log.info(
-                    "Starting KIS realtime session stockCount={} subscriptionFrameCount={} subscriptionLimit={} orderBookEnabled={} afterHoursEnabled={} marketSession={}",
+                    "Starting KIS realtime session stockCount={} indexCount={} subscriptionFrameCount={} subscriptionLimit={} orderBookEnabled={} afterHoursEnabled={} marketSession={}",
                     stockCodes.size(),
+                    indexCodes.size(),
                     frames.size(),
                     subscriptionFrameLimit(),
                     kisRealtimeProperties.orderBookEnabled(),
@@ -114,6 +116,13 @@ public class KisRealtimeSessionRunner {
     }
 
     List<KisRealtimeSubscriptionFrame> subscriptionFrames(String approvalKey, List<String> stockCodes) {
+        return subscriptionFrames(approvalKey, stockCodes, kisRealtimeProperties.indexCodes());
+    }
+
+    List<KisRealtimeSubscriptionFrame> subscriptionFrames(
+            String approvalKey,
+            List<String> stockCodes,
+            List<String> indexCodes) {
         List<KisRealtimeSubscriptionFrame> frames = new ArrayList<>();
         int subscriptionFrameLimit = subscriptionFrameLimit();
         MarketSession marketSession = currentMarketSession();
@@ -145,9 +154,19 @@ public class KisRealtimeSessionRunner {
                 frames.add(frameFactory.create(
                         approvalKey,
                         KisRealtimeTransaction.ORDERBOOK,
-                        KisRealtimeSubscriptionType.SUBSCRIBE,
-                        stockCode));
+                    KisRealtimeSubscriptionType.SUBSCRIBE,
+                    stockCode));
             }
+        }
+        for (String indexCode : indexCodes) {
+            if (frames.size() >= subscriptionFrameLimit) {
+                break;
+            }
+            frames.add(frameFactory.create(
+                    approvalKey,
+                    KisRealtimeTransaction.INDEX_TRADE,
+                    KisRealtimeSubscriptionType.SUBSCRIBE,
+                    indexCode));
         }
         return List.copyOf(frames);
     }

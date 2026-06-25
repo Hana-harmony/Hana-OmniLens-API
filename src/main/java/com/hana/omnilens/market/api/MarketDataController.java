@@ -27,6 +27,7 @@ import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.MarketDataService;
 import com.hana.omnilens.market.application.MarketHistoryService;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
+import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
@@ -87,6 +88,12 @@ public class MarketDataController {
             @RequestParam(required = false) @DecimalMin("0.000001") BigDecimal fxRate,
             @RequestParam(defaultValue = "500") @Min(1) @Max(2000) int limit) {
         return ApiResponse.success(marketDataService.getQuotes(stockCodes, market, currency, fxRate, limit));
+    }
+
+    @GetMapping("/indices")
+    @Operation(summary = "Get realtime Korean market index snapshots")
+    public ApiResponse<List<MarketIndexQuote>> getIndices() {
+        return ApiResponse.success(marketDataService.getIndices());
     }
 
     @GetMapping("/stocks/{stockCode}/orderbook")

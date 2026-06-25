@@ -22,6 +22,7 @@ import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
+import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
@@ -289,6 +290,26 @@ public class MarketDataService {
         return resolvedStockCodes.stream()
                 .map(stockCode -> getQuote(stockCode, localCurrency, fxRate))
                 .filter(quote -> normalizedMarket == null || normalizedMarket.equals(quote.market()))
+                .toList();
+    }
+
+    public List<MarketIndexQuote> getIndices() {
+        return realtimeMarketDataCache.latestIndices().stream()
+                .map(tick -> new MarketIndexQuote(
+                        tick.indexCode(),
+                        tick.indexName(),
+                        tick.market(),
+                        tick.currentValue(),
+                        tick.changeSign(),
+                        tick.changeValue(),
+                        tick.changeRate(),
+                        tick.accumulatedVolume(),
+                        tick.accumulatedTradingValue(),
+                        tick.openValue(),
+                        tick.highValue(),
+                        tick.lowValue(),
+                        tick.marketDataTime(),
+                        tick.source()))
                 .toList();
     }
 

@@ -11,6 +11,7 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 import com.hana.omnilens.market.stream.MarketQuoteWebSocketHandler;
+import com.hana.omnilens.market.stream.MarketIndexWebSocketHandler;
 
 @Configuration
 @EnableWebSocket
@@ -20,14 +21,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSoc
     private final PartnerWebSocketHandshakeInterceptor partnerWebSocketHandshakeInterceptor;
     private final PartnerTopicAuthorizationInterceptor partnerTopicAuthorizationInterceptor;
     private final MarketQuoteWebSocketHandler marketQuoteWebSocketHandler;
+    private final MarketIndexWebSocketHandler marketIndexWebSocketHandler;
 
     public WebSocketConfig(
             PartnerWebSocketHandshakeInterceptor partnerWebSocketHandshakeInterceptor,
             PartnerTopicAuthorizationInterceptor partnerTopicAuthorizationInterceptor,
-            MarketQuoteWebSocketHandler marketQuoteWebSocketHandler) {
+            MarketQuoteWebSocketHandler marketQuoteWebSocketHandler,
+            MarketIndexWebSocketHandler marketIndexWebSocketHandler) {
         this.partnerWebSocketHandshakeInterceptor = partnerWebSocketHandshakeInterceptor;
         this.partnerTopicAuthorizationInterceptor = partnerTopicAuthorizationInterceptor;
         this.marketQuoteWebSocketHandler = marketQuoteWebSocketHandler;
+        this.marketIndexWebSocketHandler = marketIndexWebSocketHandler;
     }
 
     @Override
@@ -45,6 +49,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSoc
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(marketQuoteWebSocketHandler, "/ws/market/quotes")
+                .addInterceptors(partnerWebSocketHandshakeInterceptor);
+        registry.addHandler(marketIndexWebSocketHandler, "/ws/market/indices")
                 .addInterceptors(partnerWebSocketHandshakeInterceptor);
     }
 
