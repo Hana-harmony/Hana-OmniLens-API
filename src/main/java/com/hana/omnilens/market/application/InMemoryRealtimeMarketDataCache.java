@@ -2,6 +2,8 @@ package com.hana.omnilens.market.application;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
+import com.hana.omnilens.provider.market.KisRealtimeIndexTick;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
 
 @Component
@@ -16,6 +19,7 @@ public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache 
 
     private final Map<String, CachedTradeTick> tradeTicks = new ConcurrentHashMap<>();
     private final Map<String, KisRealtimeOrderBookSnapshot> orderBooks = new ConcurrentHashMap<>();
+    private final Map<String, KisRealtimeIndexTick> indices = new ConcurrentHashMap<>();
     private final Clock clock;
 
     public InMemoryRealtimeMarketDataCache() {
@@ -41,6 +45,13 @@ public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache 
     }
 
     @Override
+    public List<KisRealtimeIndexTick> latestIndices() {
+        return indices.values().stream()
+                .sorted(Comparator.comparing(KisRealtimeIndexTick::indexCode))
+                .toList();
+    }
+
+    @Override
     public void putTrade(KisRealtimeTradeTick tradeTick) {
         tradeTicks.compute(tradeTick.stockCode(), (stockCode, cached) -> {
             if (cached != null && sameTrade(cached.tick(), tradeTick)) {
@@ -54,6 +65,11 @@ public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache 
     @Override
     public void putOrderBook(KisRealtimeOrderBookSnapshot orderBookSnapshot) {
         orderBooks.put(orderBookSnapshot.stockCode(), orderBookSnapshot);
+    }
+
+    @Override
+    public void putIndex(KisRealtimeIndexTick indexTick) {
+        indices.put(indexTick.indexCode(), indexTick);
     }
 
     private boolean sameTrade(KisRealtimeTradeTick left, KisRealtimeTradeTick right) {

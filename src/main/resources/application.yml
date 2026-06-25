@@ -101,6 +101,7 @@ omnilens:
     kis-realtime:
       enabled: false
       stock-codes: []
+      index-codes: []
       stock-limit: 5000
       shard-size: 40
       order-book-enabled: false
