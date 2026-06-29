@@ -29,8 +29,10 @@ import com.hana.omnilens.market.application.ForeignOwnershipModelTrainingService
 import com.hana.omnilens.market.application.ForeignOwnershipPredictionPrecomputeResult;
 import com.hana.omnilens.market.application.ForeignOwnershipPredictionPrecomputeService;
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
+import com.hana.omnilens.market.application.GlobalPeerMatchService;
 import com.hana.omnilens.market.application.MarketDataService;
 import com.hana.omnilens.market.application.MarketHistoryService;
+import com.hana.omnilens.market.domain.GlobalPeerMatchResponse;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.market.domain.MarketIntradayPrice;
@@ -58,6 +60,7 @@ public class MarketDataController {
     private final ForeignOwnershipModelTrainingService foreignOwnershipModelTrainingService;
     private final ForeignOwnershipPredictionPrecomputeService foreignOwnershipPredictionPrecomputeService;
     private final OnDemandKisRealtimeSubscriptionService onDemandKisRealtimeSubscriptionService;
+    private final GlobalPeerMatchService globalPeerMatchService;
 
     public MarketDataController(
             MarketDataService marketDataService,
@@ -65,13 +68,15 @@ public class MarketDataController {
             ForeignOwnershipRefreshService foreignOwnershipRefreshService,
             ForeignOwnershipModelTrainingService foreignOwnershipModelTrainingService,
             ForeignOwnershipPredictionPrecomputeService foreignOwnershipPredictionPrecomputeService,
-            OnDemandKisRealtimeSubscriptionService onDemandKisRealtimeSubscriptionService) {
+            OnDemandKisRealtimeSubscriptionService onDemandKisRealtimeSubscriptionService,
+            GlobalPeerMatchService globalPeerMatchService) {
         this.marketDataService = marketDataService;
         this.marketHistoryService = marketHistoryService;
         this.foreignOwnershipRefreshService = foreignOwnershipRefreshService;
         this.foreignOwnershipModelTrainingService = foreignOwnershipModelTrainingService;
         this.foreignOwnershipPredictionPrecomputeService = foreignOwnershipPredictionPrecomputeService;
         this.onDemandKisRealtimeSubscriptionService = onDemandKisRealtimeSubscriptionService;
+        this.globalPeerMatchService = globalPeerMatchService;
     }
 
     @GetMapping("/stocks/{stockCode}")
@@ -95,6 +100,13 @@ public class MarketDataController {
             @RequestParam(defaultValue = "USD") @Pattern(regexp = "[A-Z]{3}") String currency,
             @RequestParam(required = false) @DecimalMin("0.000001") BigDecimal fxRate) {
         return ApiResponse.success(marketDataService.getStockDetail(stockCode, currency, fxRate));
+    }
+
+    @GetMapping("/stocks/{stockCode}/global-peers")
+    @Operation(summary = "국내 주식 글로벌 피어 매칭 조회")
+    public ApiResponse<GlobalPeerMatchResponse> getGlobalPeers(
+            @PathVariable @Pattern(regexp = "\\d{6}") String stockCode) {
+        return ApiResponse.success(globalPeerMatchService.match(stockCode));
     }
 
     @GetMapping("/quotes")
