@@ -161,7 +161,7 @@ EXCHANGE_RATE_CACHE_TTL=24h
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`는 종목 상세 화면의 피어 종목 보기 요청에 사용한다.
 - OmniLens는 `stock_master`의 종목코드, 한글명, 영문명, 시장구분을 Hannah `POST /api/v1/market/global-peers/match`로 전달한다.
 - Hannah 응답은 headline, summary, primary peer, 후보 peer 목록, confidence, model version을 그대로 전달한다.
-- 각 peer의 섹터, 산업, 사업모델, 규모 버킷, 매칭 근거 배열은 프론트 피어 설명 팝업에서 바로 사용할 수 있도록 응답에 보존한다.
+- 각 peer의 섹터, 산업, 사업모델, 규모 버킷, 시가총액, 매출, 영업이익, 순이익, 재무 데이터 출처, 재무 유사도, 매칭 근거 배열은 프론트 피어 설명 팝업에서 바로 사용할 수 있도록 응답에 보존한다.
 - Hannah 장애 또는 circuit open 시 OmniLens는 anchor fallback을 사용한다. 알테오젠 `196170`은 `HALO` Halozyme Therapeutics fallback을 제공한다.
 
 ```text

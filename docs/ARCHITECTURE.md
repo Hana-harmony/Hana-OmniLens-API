@@ -45,7 +45,7 @@
 - 협력사가 `QUOTE_STREAM_REPLAY` 메시지를 보내면 현재 quote snapshot을 요청 통화 기준으로 재송신한다.
 - `MarketDataService`는 KRX 외국인보유량 cache에 snapshot이 있으면 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다. KIS 실시간 체결가·호가 WebSocket은 가격·호가·상태 전용이며 외국인 보유량 필드를 제공하지 않는다.
 - 주문 가능 여부 boundary는 KRX snapshot상 외국인 취득한도 제한 종목일 때만 외국인 보유 시계열 예측을 사용한다. 장전 batch가 Hannah-Montana-AI 모델로 금일 예측을 선계산해 cache에 저장하고, API 요청은 cache hit를 우선 반환한다. cache miss 또는 AI 장애 시 OmniLens 내부 시계열 엔진으로 fallback한다. 제한이 없는 종목은 `FOREIGN_LIMIT_NOT_APPLICABLE`로 반환한다. 외국인 한도 예측은 주문 차단 조건이 아니라 프론트 사전 고지용 경고 신호로만 사용한다.
-- `GET /api/v1/market/stocks/{stockCode}/global-peers`는 종목 master metadata를 Hannah-Montana-AI 글로벌 피어 모델에 전달해 외국인 투자자용 peer popup copy, 미국 상장 peer 목록, 섹터·산업·사업모델·규모 기반 매칭 근거를 반환한다. Hannah 장애 시 검증된 anchor 종목은 OmniLens fallback copy로 응답을 유지한다.
+- `GET /api/v1/market/stocks/{stockCode}/global-peers`는 종목 master metadata를 Hannah-Montana-AI 글로벌 피어 모델에 전달해 외국인 투자자용 peer popup copy, 미국 상장 peer 목록, 섹터·산업·사업모델·규모·재무 기반 매칭 근거를 반환한다. Hannah 장애 시 검증된 anchor 종목은 OmniLens fallback copy로 응답을 유지한다.
 - KRX 수집은 KOSPI/KOSDAQ/KONEX 시장별 실패를 격리해 `SUCCESS`, `PARTIAL_FAILED`, `FAILED` 상태와 시장별 오류를 반환한다. `KRX_OPEN_API_WITH_KIS_BACKUP` 모드는 KRX 실패 시 KIS 일봉 chart API를 실 provider 백업으로 사용하고, `KIS_DAILY_CHART` 모드는 KIS 결과만으로 전체 상태를 계산한다.
 - 협력사 입력 환율은 `ExchangeRateCache`에 `KRW -> 현지통화` 표시용 환율로 저장하고, quote 요청에 `fxRate`가 없을 때 현지 통화 환산가 계산에 사용한다.
 - `ExchangeRateCache`는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.

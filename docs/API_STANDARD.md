@@ -64,5 +64,5 @@
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`
 - 종목 상세 화면에서 피어 종목 보기 버튼을 눌렀을 때 호출하는 API다.
 - 응답은 headline, summary, primary peer, peers, confidence, model version, source를 포함한다.
-- 각 peer는 `sector`, `industry`, `businessModel`, `scaleBucket`, `matchedFactors`, `rationale`을 포함한다.
+- 각 peer는 `sector`, `industry`, `businessModel`, `scaleBucket`, `marketCapUsd`, `revenueUsd`, `operatingIncomeUsd`, `netIncomeUsd`, `financialDataSource`, `financialSimilarityScore`, `matchedFactors`, `rationale`을 포함한다.
 - 정상 경로는 Hannah-Montana-AI 글로벌 피어 모델이며, AI 장애 시 검증된 anchor fallback만 제한적으로 사용한다.

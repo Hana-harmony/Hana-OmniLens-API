@@ -184,6 +184,13 @@ class MarketDataControllerTest {
                                 "Biotechnology",
                                 "Biotech platform licensing",
                                 "MID_CAP",
+                                2025,
+                                null,
+                                new BigDecimal("1396611000"),
+                                new BigDecimal("469006000"),
+                                new BigDecimal("316889000"),
+                                "SEC_COMPANYFACTS",
+                                new BigDecimal("0.9996"),
                                 List.of("Sector: both are Health Care companies."),
                                 "Both companies are biotech platform providers."),
                         List.of(new HannahAiGlobalPeerMatch(
@@ -198,12 +205,19 @@ class MarketDataControllerTest {
                                 "Biotechnology",
                                 "Biotech platform licensing",
                                 "MID_CAP",
+                                2025,
+                                null,
+                                new BigDecimal("1396611000"),
+                                new BigDecimal("469006000"),
+                                new BigDecimal("316889000"),
+                                "SEC_COMPANYFACTS",
+                                new BigDecimal("0.9996"),
                                 List.of("Sector: both are Health Care companies."),
                                 "Both companies are biotech platform providers.")),
                         new BigDecimal("0.4911"),
                         "MEDIUM",
                         "global-peer-tfidf-test",
-                        "HANNAH_GLOBAL_PEER_TFIDF"));
+                        "HANNAH_GLOBAL_PEER_TFIDF+FUNDAMENTALS"));
 
         mockMvc.perform(get("/api/v1/market/stocks/196170/global-peers")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
@@ -214,12 +228,14 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.primaryPeer.sector", equalTo("Health Care")))
                 .andExpect(jsonPath("$.data.primaryPeer.industry", equalTo("Biotechnology")))
                 .andExpect(jsonPath("$.data.primaryPeer.scaleBucket", equalTo("MID_CAP")))
+                .andExpect(jsonPath("$.data.primaryPeer.revenueUsd", equalTo(1396611000)))
+                .andExpect(jsonPath("$.data.primaryPeer.financialDataSource", equalTo("SEC_COMPANYFACTS")))
                 .andExpect(jsonPath("$.data.primaryPeer.matchedFactors[0]")
                         .value("Sector: both are Health Care companies."))
                 .andExpect(jsonPath("$.data.headline")
                         .value("Alteogen Is The 'Halozyme Therapeutics' of South Korea — "
                                 + "A Global Biotech Platform Leader"))
-                .andExpect(jsonPath("$.data.source", equalTo("HANNAH_GLOBAL_PEER_TFIDF")));
+                .andExpect(jsonPath("$.data.source", equalTo("HANNAH_GLOBAL_PEER_TFIDF+FUNDAMENTALS")));
     }
 
     @Test

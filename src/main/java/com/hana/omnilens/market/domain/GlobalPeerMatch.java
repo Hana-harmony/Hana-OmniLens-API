@@ -15,6 +15,13 @@ public record GlobalPeerMatch(
         String industry,
         String businessModel,
         String scaleBucket,
+        Integer fiscalYear,
+        BigDecimal marketCapUsd,
+        BigDecimal revenueUsd,
+        BigDecimal operatingIncomeUsd,
+        BigDecimal netIncomeUsd,
+        String financialDataSource,
+        BigDecimal financialSimilarityScore,
         List<String> matchedFactors,
         String rationale
 ) {

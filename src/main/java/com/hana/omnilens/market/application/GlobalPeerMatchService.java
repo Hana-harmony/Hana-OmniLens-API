@@ -82,6 +82,13 @@ public class GlobalPeerMatchService {
                 peer.industry(),
                 peer.businessModel(),
                 peer.scaleBucket(),
+                peer.fiscalYear(),
+                peer.marketCapUsd(),
+                peer.revenueUsd(),
+                peer.operatingIncomeUsd(),
+                peer.netIncomeUsd(),
+                peer.financialDataSource(),
+                peer.financialSimilarityScore(),
                 peer.matchedFactors(),
                 peer.rationale());
     }
@@ -100,6 +107,13 @@ public class GlobalPeerMatchService {
                     "Biotechnology",
                     "Biotech platform licensing",
                     "MID_CAP",
+                    2025,
+                    null,
+                    new BigDecimal("1396611000"),
+                    new BigDecimal("469006000"),
+                    new BigDecimal("316889000"),
+                    "SEC_COMPANYFACTS",
+                    new BigDecimal("0.9996"),
                     List.of(
                             "Sector: both are Health Care companies.",
                             "Industry: both operate in Biotechnology.",
@@ -135,6 +149,13 @@ public class GlobalPeerMatchService {
                 "Unclassified",
                 "Operating company",
                 "UNKNOWN",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "",
+                null,
                 List.of("Hannah AI peer model is unavailable, so no explainable peer factors were produced."),
                 "Hannah AI peer model is unavailable, so OmniLens returned a low-confidence fallback.");
         return new GlobalPeerMatchResponse(
