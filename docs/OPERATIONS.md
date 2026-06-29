@@ -98,12 +98,19 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 ## 주문 가능 여부 boundary
 - `GET /api/v1/market/stocks/{stockCode}/orderability?side=BUY&quantity=1`를 사용한다.
 - 이 API는 현지 거래소의 자체 mock ledger 주문 전 확인용이며 실제 주문, 체결, 정산, KIS 모의투자 주문을 수행하지 않는다.
-- BUY 요청은 KIS 외국인보유량 cache의 한도소진율, 요청 수량, 최근 외국인 보유 일별 시계열, KIS 실시간 체결 누적 거래량을 Hannah-Montana-AI `POST /api/v1/market/foreign-ownership/predict`에 전달해 `foreignOwnershipPrediction`의 min/base/max 한도소진율, 주문 영향도, 시계열 추세, 불확실성, 신뢰도, 산출 source를 계산한다.
-- 외국인 한도 차단은 현재 snapshot에 주문수량 영향을 더한 확정 한도소진율이 100% 이상일 때만 수행한다. 시계열 추세, max boundary, confidence score는 경고와 화면 표시용이며 단독 차단 조건으로 쓰지 않는다.
-- KIS 실시간 체결가·호가 WebSocket에는 외국인 보유수량, 보유율, 한도소진율 필드가 없다. 외국인 한도 정보는 KIS 현재가 REST snapshot refresh와 Redis/in-memory cache로 공급한다.
+- BUY 요청은 KRX 외국인보유량 cache의 현재 snapshot 종목코드가 외국인 취득한도 제한 법령 allowlist에 있을 때만 외국인 한도 예측을 붙인다. 비제한 종목은 ratio가 높아도 한도 경고 ML 대상이 아니다.
+- SBS, KNN, 티비씨처럼 KRX가 외국인 보유/한도/소진율을 모두 0으로 반환하는 0% 취득불허 종목은 Hannah를 호출하지 않고 confidence `FOREIGN_LIMIT_ZERO_NOT_ACQUIRABLE`, model version `foreign-ownership-zero-limit-v1`로 경고한다.
+- 제한 종목은 최근 외국인 보유 일별 시계열로 금일 외국인 취득 수량이 한도에 도달할 가능성을 min/base/max 한도소진율로 계산한다. 요청 수량과 KIS 실시간 누적 거래량은 외국인 한도 예측식에 반영하지 않는다.
+- 제한이 없는 종목은 Hannah를 호출하지 않고 confidence `FOREIGN_LIMIT_NOT_APPLICABLE`, model version `foreign-ownership-unrestricted-v1`로 현재 snapshot 값을 반환한다.
+- 외국인 한도 예측은 주문 차단 조건이 아니다. `foreignLimitExceeded=true`는 BUY 주문이 체결되지 않을 수 있음을 프론트에서 미리 고지하기 위한 경고 신호이며, `orderable=false`는 거래정지 같은 시장 상태 차단에만 사용한다.
+- KIS 실시간 체결가·호가 WebSocket에는 외국인 보유수량, 보유율, 한도소진율 필드가 없다. 외국인 한도 정보는 KRX Data Marketplace snapshot refresh와 Redis/in-memory cache로 공급한다.
+- 제한 종목 예측은 장전 batch가 Redis/in-memory `ForeignOwnershipPredictionCache`에 선계산한다. 모바일 거래소의 `orderability/detail` 요청은 cache를 먼저 읽고, cache miss일 때만 Hannah-Montana-AI `POST /api/v1/market/foreign-ownership/predict`를 호출한다.
 - Hannah 호출 실패, circuit open, 비정상 envelope 응답 시에는 OmniLens 내부 deterministic 시계열 엔진으로 fallback해 응답 계약과 주문 전 확인 흐름을 유지한다.
-- 외국인 보유 일별 history는 `POST /api/v1/market/foreign-ownership/collect`와 `ForeignOwnershipRefreshScheduler`가 KIS 현재가 snapshot을 종목별로 수집해 `foreign_ownership_daily_snapshot`에 upsert한다.
-- SELL 요청은 외국인 한도소진율이 100% 이상이어도 한도 초과 사유로 차단하지 않는다.
+- 외국인 보유 일별 history는 `POST /api/v1/market/foreign-ownership/collect`, `POST /api/v1/market/foreign-ownership/backfill`, `ForeignOwnershipRefreshScheduler`가 `foreign_ownership_daily_snapshot`에 upsert한다. 기본 수집 대상은 현재 상장 외국인 취득한도 제한 32종목 allowlist이며, `stockCodes`를 명시한 수동 요청만 별도 종목을 조회한다.
+- KIS 현재가는 전일 증분 snapshot 수집에 사용하지 않는다. 초기 1년+ 과거 백필과 이후 누락일 보강은 `KRX_SCRAPING_ENABLED=true`, `KRX_ID`, `KRX_PW`가 설정된 경우 KRX Data Marketplace 로그인 기반 `MDCSTAT03702` provider로 수행한다. provider가 비어 있으면 현재 snapshot을 과거 날짜로 복제하지 않는다.
+- 새 전일 snapshot이 저장되면 스케줄러가 제한 종목 전체 history를 Hannah `POST /api/v1/market/foreign-ownership/model/retrain`으로 전송한다. Hannah는 quality gate를 통과한 모델만 promote하고 reload한다.
+- 재학습 호출 이후 `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_ENABLED=true`와 `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_TRIGGER_AFTER_REFRESH=true`이면 제한 종목 금일 예측을 즉시 선계산해 cache에 저장한다. 따라서 장중 모바일 요청은 대부분 미리 계산된 결과만 조회한다.
+- SELL 요청은 외국인 한도소진율이 100% 이상이어도 외국인 한도 경고를 만들지 않는다.
 - KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 실시간 상태 tick이 아직 없으면 `priceLimitState=UNKNOWN`, source `MARKET_STATUS_UNAVAILABLE`로 반환한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
 
 ## 헬스체크
@@ -143,6 +150,8 @@ EXCHANGE_RATE_CACHE_TTL=24h
 - 단건 조회 `GET /api/v1/market/stocks/{stockCode}`는 `StockSummary`를 `data`에 담은 공동 응답 envelope으로 반환한다.
 - 기본 seed 파일은 `classpath:data/stock-master-seed.csv`이다.
 - seed loader는 테이블이 비어 있을 때만 실행되며, 이미 적재된 데이터가 있으면 건너뛴다.
+- KIS master sync는 KIS master zip의 상품그룹 `ST` row만 주식으로 upsert한다. tail 내부의 임의 Y/N flag를 ETP 판정에 쓰지 않는다.
+- KIS master sync 이후 외국인 보유량 수집을 실행해야 한다. 새로 보강된 종목은 `foreign_ownership_daily_snapshot`에 history가 없으므로 KRX Data Marketplace 백필이 끝나기 전까지 제한 종목 산출에서 누락될 수 있다.
 - 운영에서 seed 위치를 바꿀 때는 `STOCK_MASTER_SEED_LOCATION`을 사용한다.
 - seed 적재를 끄려면 `STOCK_MASTER_SEED_ENABLED=false`로 설정한다.
 - seed 파일은 종목코드, 한글명, 영문명, 시장구분, ISIN, OpenDART 고유번호 순서로 관리한다.
@@ -170,20 +179,33 @@ EXCHANGE_RATE_REFRESH_CURRENCIES=USD,JPY
 ```
 
 ## 외국인 보유량 일별 refresh scheduler
-- 운영 기본값은 `FOREIGN_OWNERSHIP_REFRESH_ENABLED=true`이며, 매일 `FOREIGN_OWNERSHIP_REFRESH_BASE_DATE_OFFSET_DAYS`만큼 이전 기준일의 KIS 현재가 외국인 보유 snapshot을 수집한다.
-- 수집 대상은 `FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES`가 있으면 해당 종목만, 비어 있으면 `stock_master` 기준 최대 `FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT`개 종목이다.
-- 기동 직후 대량 호출을 피하기 위해 `FOREIGN_OWNERSHIP_REFRESH_INITIAL_DELAY_MS` 동안 대기하고, KIS 초당 호출 제한을 넘지 않도록 `FOREIGN_OWNERSHIP_REFRESH_REQUEST_DELAY_MS` 간격으로 종목별 요청을 처리한다.
-- 한 종목의 KIS provider empty/failure는 전체 batch를 중단하지 않고 `PARTIAL` 결과로 격리한다.
-- 수동 운영 수집은 `POST /api/v1/market/foreign-ownership/collect?baseDate=YYYY-MM-DD&limit=2500&requestDelayMs=1200` 또는 `stockCodes=005930&stockCodes=000660`으로 실행한다.
+- 운영 기본값은 `FOREIGN_OWNERSHIP_REFRESH_ENABLED=true`이며, `FOREIGN_OWNERSHIP_REFRESH_CRON` 기준 평일 장전 08:10 KST에 KRX Data Marketplace 외국인 보유 snapshot 누락분을 수집한다.
+- 수집 대상은 `FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES`가 있으면 해당 종목만, 비어 있으면 현재 상장 외국인 취득한도 제한 32종목 allowlist 기준 최대 `FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT`개 종목이다.
+- 스케줄러는 전일 snapshot 수집 후 `FOREIGN_OWNERSHIP_REFRESH_BACKFILL_LOOKBACK_DAYS` 범위에서 이미 저장된 날짜를 제외하고 비어 있는 평일만 backfill provider에 요청한다. 초기 운영은 기본 400일 lookback으로 1년+를 채우고, 이후에는 날짜가 넘어갈 때 비어 있는 최근 1일만 저장된다.
+- KRX 요청 제한을 넘지 않도록 `FOREIGN_OWNERSHIP_REFRESH_REQUEST_DELAY_MS` 간격으로 종목별 요청을 처리한다.
+- 한 종목의 KRX provider empty/failure는 전체 batch를 중단하지 않고 `PARTIAL` 결과로 격리한다.
+- 수동 전일 snapshot 수집은 `POST /api/v1/market/foreign-ownership/collect?baseDate=YYYY-MM-DD&limit=5000&requestDelayMs=1200` 또는 `stockCodes=005930&stockCodes=000660`으로 실행한다.
+- 수동 누락 백필은 `POST /api/v1/market/foreign-ownership/backfill?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD&limit=5000&requestDelayMs=1200`로 실행한다.
+- 수동 모델 재학습은 `POST /api/v1/market/foreign-ownership/model/retrain`으로 실행한다. 이 API는 OmniLens DB의 제한 종목 전체 외국인 보유 history를 export해 Hannah에 전달한다.
+- 수동 예측 선계산은 `POST /api/v1/market/foreign-ownership/predictions/precompute`로 실행한다. 이 API는 현재 KRX snapshot과 DB history를 사용해 제한 종목 금일 예측을 cache에 저장한다.
 
 ```text
 FOREIGN_OWNERSHIP_REFRESH_ENABLED=true
-FOREIGN_OWNERSHIP_REFRESH_FIXED_DELAY_MS=86400000
-FOREIGN_OWNERSHIP_REFRESH_INITIAL_DELAY_MS=60000
+FOREIGN_OWNERSHIP_REFRESH_CRON="0 10 8 * * MON-FRI"
 FOREIGN_OWNERSHIP_REFRESH_REQUEST_DELAY_MS=1200
 FOREIGN_OWNERSHIP_REFRESH_BASE_DATE_OFFSET_DAYS=1
-FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT=2500
+FOREIGN_OWNERSHIP_REFRESH_BACKFILL_LOOKBACK_DAYS=400
+FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT=5000
+KRX_SCRAPING_ENABLED=true
+KRX_ID=<secret>
+KRX_PW=<secret>
 FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES=
+FOREIGN_OWNERSHIP_MODEL_TRAINING_ENABLED=true
+FOREIGN_OWNERSHIP_MODEL_TRAINING_TRIGGER_AFTER_REFRESH=true
+FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_ENABLED=true
+FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_TRIGGER_AFTER_REFRESH=true
+FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_STOCK_LIMIT=5000
+HANNAH_AI_MAINTENANCE_TOKEN=<server-secret>
 ```
 
 ## Rate Limit

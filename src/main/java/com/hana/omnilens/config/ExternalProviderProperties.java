@@ -13,6 +13,7 @@ public record ExternalProviderProperties(
         OpenDart openDart,
         Krx krx,
         Kis kis,
+        Kis realKis,
         DeepLTranslation deepLTranslation
 ) {
 
@@ -23,7 +24,18 @@ public record ExternalProviderProperties(
         openDart = openDart == null ? OpenDart.defaults() : openDart.withDefaults();
         krx = krx == null ? Krx.defaults() : krx.withDefaults();
         kis = kis == null ? Kis.defaults() : kis.withDefaults();
+        realKis = realKis == null ? Kis.defaults() : realKis.withDefaults();
         deepLTranslation = deepLTranslation == null ? DeepLTranslation.defaults() : deepLTranslation.withDefaults();
+    }
+
+    public ExternalProviderProperties(
+            PublicData publicData,
+            NaverNews naverNews,
+            OpenDart openDart,
+            Krx krx,
+            Kis kis,
+            DeepLTranslation deepLTranslation) {
+        this(publicData, naverNews, openDart, krx, kis, null, deepLTranslation);
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -84,14 +96,43 @@ public record ExternalProviderProperties(
         }
     }
 
-    public record Krx(URI baseUrl) {
+    public record Krx(
+            URI baseUrl,
+            boolean scrapingEnabled,
+            String id,
+            String password,
+            String loginPath,
+            String foreignOwnershipHistoryBld) {
 
         private static Krx defaults() {
-            return new Krx(URI.create("https://data.krx.co.kr"));
+            return new Krx(
+                    URI.create("https://data.krx.co.kr"),
+                    true,
+                    "",
+                    "",
+                    "/contents/MDC/COMS/client/MDCCOMS001D1.cmd",
+                    "dbms/MDC/STAT/standard/MDCSTAT03702");
         }
 
         private Krx withDefaults() {
-            return new Krx(baseUrl == null ? defaults().baseUrl() : baseUrl);
+            Krx defaults = defaults();
+            return new Krx(
+                    baseUrl == null ? defaults.baseUrl() : baseUrl,
+                    scrapingEnabled,
+                    id == null ? "" : id,
+                    password == null ? "" : password,
+                    StringUtils.hasText(loginPath) ? loginPath : defaults.loginPath(),
+                    StringUtils.hasText(foreignOwnershipHistoryBld)
+                            ? foreignOwnershipHistoryBld
+                            : defaults.foreignOwnershipHistoryBld());
+        }
+
+        public String requiredId() {
+            return requireSecret(id, "omnilens.providers.krx.id");
+        }
+
+        public String requiredPassword() {
+            return requireSecret(password, "omnilens.providers.krx.password");
         }
     }
 

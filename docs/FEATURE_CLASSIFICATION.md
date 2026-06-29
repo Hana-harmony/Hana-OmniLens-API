@@ -16,9 +16,9 @@ Hana-OmniLens-API는 실제 주문 명령을 받지 않는다. 대신 현지 거
 | KRX 모든 국내 주식 과거 시세 수집과 DB 저장 | Hana-OmniLens-API | Done |
 | 과거 시세 chart REST API | Hana-OmniLens-API | Done |
 | KIS 종목 마스터 파일 파싱, 종목 마스터 DB 적재 | Hana-OmniLens-API | Done |
-| KIS 현재가 REST 기반 외국인 보유수량, 보유율, 한도소진율 snapshot cache | Hana-OmniLens-API | Done |
+| KRX Data Marketplace 기반 외국인 보유수량, 보유율, 한도소진율 snapshot cache | Hana-OmniLens-API | Done |
 | 당일 외국인 한도소진율 주문 전 예측 boundary | Hana-OmniLens-API | Done |
-| snapshot, 주문 영향도, KIS 실시간 누적 거래량 기반 당일 외국인 한도 min/max 예측 engine | Hana-OmniLens-API, Predict Engine | Done |
+| 외국인 보유 snapshot과 일별 시계열 기반 당일 한도 도달 경고 engine | Hana-OmniLens-API, Predict Engine | Done |
 | KIS 실시간 체결 기반 상·하한가 상태 감지 | Hana-OmniLens-API | Done |
 | VI 발동, 단일가 매매, 거래정지 전용 상태 감지 | Hana-OmniLens-API | Done |
 | 종목 상세/주문 상태 JSON API | Hana-OmniLens-API | Done |

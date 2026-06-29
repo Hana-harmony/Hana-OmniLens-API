@@ -40,7 +40,7 @@ public class KisStockMasterFileParser {
         if (!STOCK_CODE.matcher(stockCode).matches()
                 || !ISIN_CODE.matcher(isinCode).matches()
                 || stockName.isBlank()
-                || isEtp(market, tail)) {
+                || !isStockIssueGroup(tail)) {
             return java.util.Optional.empty();
         }
 
@@ -54,8 +54,8 @@ public class KisStockMasterFileParser {
                 ""));
     }
 
-    private boolean isEtp(KisStockMasterMarket market, String tail) {
-        int offset = market.etpFlagOffset();
-        return offset >= 0 && tail.length() > offset && tail.charAt(offset) == 'Y';
+    private boolean isStockIssueGroup(String tail) {
+        // KIS master의 상품그룹은 tail 시작부에 있으며 ST만 주식으로 수집한다.
+        return tail.stripLeading().startsWith("ST");
     }
 }

@@ -35,7 +35,7 @@ class JdbcStockMasterRepositoryTest {
     void seedLoadsStockMasterRowsIntoDatabase() {
         Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_master", Integer.class);
 
-        assertThat(count).isNotNull().isGreaterThanOrEqualTo(30);
+        assertThat(count).isNotNull().isGreaterThanOrEqualTo(34);
         assertThat(repository.findByCode("005930")).isPresent()
                 .get()
                 .extracting("stockName", "stockNameEn", "market", "isinCode", "dartCorpCode")
@@ -48,10 +48,37 @@ class JdbcStockMasterRepositoryTest {
     }
 
     @Test
+    void seedContainsForeignOwnershipRestrictedIndustryCandidates() {
+        assertThat(repository.findByCode("003490")).isPresent()
+                .get()
+                .extracting("stockName", "market", "isinCode", "dartCorpCode")
+                .containsExactly("대한항공", "KOSPI", "KR7003490000", "00113526");
+        assertThat(repository.findByCode("030200")).isPresent()
+                .get()
+                .extracting("stockName", "market", "isinCode", "dartCorpCode")
+                .containsExactly("KT", "KOSPI", "KR7030200000", "00190321");
+        assertThat(repository.findByCode("034120")).isPresent()
+                .get()
+                .extracting("stockName", "market", "isinCode", "dartCorpCode")
+                .containsExactly("SBS", "KOSPI", "KR7034120006", "00130772");
+        assertThat(repository.findByCode("036460")).isPresent()
+                .get()
+                .extracting("stockName", "market", "isinCode", "dartCorpCode")
+                .containsExactly("한국가스공사", "KOSPI", "KR7036460004", "00261285");
+    }
+
+    @Test
     void searchMatchesCodeKoreanNameAndEnglishNameFromDatabase() {
         assertThat(repository.search("086790")).extracting("stockName").containsExactly("하나금융지주");
         assertThat(repository.search("하이닉스")).extracting("stockCode").containsExactly("000660");
         assertThat(repository.search("energy")).extracting("stockCode").contains("373220");
+    }
+
+    @Test
+    void findAllUsesSeedPriorityForMarketCapTopUniverse() {
+        assertThat(repository.findAll(5))
+                .extracting("stockCode")
+                .containsExactly("005930", "000660", "373220", "207940", "005380");
     }
 
     @Test

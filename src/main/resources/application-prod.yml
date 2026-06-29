@@ -43,6 +43,13 @@ omnilens:
     open-dart:
       base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
       api-key: ${OPEN_DART_API_KEY}
+    krx:
+      base-url: ${KRX_BASE_URL:https://data.krx.co.kr}
+      scraping-enabled: ${KRX_SCRAPING_ENABLED:true}
+      id: ${KRX_ID:}
+      password: ${KRX_PW:}
+      login-path: ${KRX_LOGIN_PATH:/contents/MDC/COMS/client/MDCCOMS001D1.cmd}
+      foreign-ownership-history-bld: ${KRX_FOREIGN_OWNERSHIP_HISTORY_BLD:dbms/MDC/STAT/standard/MDCSTAT03702}
     krx-open-api:
       base-url: ${KRX_OPEN_API_BASE_URL:https://data-dbg.krx.co.kr}
       auth-key: ${KRX_OPEN_API_AUTH_KEY:}
@@ -54,6 +61,14 @@ omnilens:
       app-secret: ${KIS_APP_SECRET:}
       access-token: ${KIS_ACCESS_TOKEN:}
       approval-key: ${KIS_APPROVAL_KEY:}
+    real-kis:
+      base-url: ${KIS_REAL_BASE_URL:https://openapi.koreainvestment.com:9443}
+      websocket-url: ${KIS_REAL_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}
+      account-number: ${KIS_REAL_ACCOUNT_NUMBER:}
+      app-key: ${KIS_REAL_APP_KEY:}
+      app-secret: ${KIS_REAL_APP_SECRET:}
+      access-token: ${KIS_REAL_ACCESS_TOKEN:}
+      approval-key: ${KIS_REAL_APPROVAL_KEY:}
     frankfurter:
       base-url: ${FRANKFURTER_BASE_URL:https://api.frankfurter.dev}
     resilience:
@@ -86,10 +101,26 @@ omnilens:
       enabled: ${FOREIGN_OWNERSHIP_REFRESH_ENABLED:true}
       fixed-delay-ms: ${FOREIGN_OWNERSHIP_REFRESH_FIXED_DELAY_MS:86400000}
       initial-delay-ms: ${FOREIGN_OWNERSHIP_REFRESH_INITIAL_DELAY_MS:60000}
+      cron: "${FOREIGN_OWNERSHIP_REFRESH_CRON:0 10 8 * * MON-FRI}"
       request-delay-ms: ${FOREIGN_OWNERSHIP_REFRESH_REQUEST_DELAY_MS:1200}
       base-date-offset-days: ${FOREIGN_OWNERSHIP_REFRESH_BASE_DATE_OFFSET_DAYS:1}
-      stock-limit: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT:2500}
+      backfill-lookback-days: ${FOREIGN_OWNERSHIP_REFRESH_BACKFILL_LOOKBACK_DAYS:400}
+      stock-limit: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT:5000}
       stock-codes: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES:}
+    foreign-ownership-model-training:
+      enabled: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_ENABLED:true}
+      trigger-after-refresh: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_TRIGGER_AFTER_REFRESH:true}
+      connect-timeout: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_CONNECT_TIMEOUT:2s}
+      read-timeout: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_READ_TIMEOUT:20m}
+      maintenance-token: ${HANNAH_AI_MAINTENANCE_TOKEN:}
+      minimum-promotable-stock-count: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_MIN_STOCK_COUNT:29}
+      minimum-promotable-history-days: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_MIN_HISTORY_DAYS:2500}
+      minimum-promotable-observations: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_MIN_OBSERVATIONS:50000}
+      max-model-training-samples: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_MAX_SAMPLES:250000}
+    foreign-ownership-prediction-precompute:
+      enabled: ${FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_ENABLED:true}
+      trigger-after-refresh: ${FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_TRIGGER_AFTER_REFRESH:true}
+      stock-limit: ${FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_STOCK_LIMIT:5000}
     kis-realtime:
       enabled: ${KIS_REALTIME_ENABLED:false}
       stock-codes: ${KIS_REALTIME_STOCK_CODES:}

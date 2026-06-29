@@ -117,6 +117,20 @@ public class JdbcMarketDailyPriceRepository implements MarketDailyPriceRepositor
                 limit);
     }
 
+    @Override
+    public List<LocalDate> findTradingDates(LocalDate from, LocalDate to) {
+        return jdbcTemplate.query(
+                """
+                SELECT DISTINCT trade_date
+                FROM market_daily_price
+                WHERE trade_date BETWEEN ? AND ?
+                ORDER BY trade_date ASC
+                """,
+                (resultSet, rowNum) -> resultSet.getObject("trade_date", LocalDate.class),
+                from,
+                to);
+    }
+
     private static class MarketDailyPriceRowMapper implements RowMapper<MarketDailyPrice> {
 
         @Override
