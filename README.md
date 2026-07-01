@@ -43,6 +43,8 @@ curl http://localhost:8080/actuator/health
 - `GET /api/v1/market/news`
 - `GET /api/v1/market/news/{newsId}`
 - `POST /api/v1/market/news/collect`
+- `POST /api/v1/korean-financial-terms/explain`
+- `GET /api/v1/korean-financial-terms/stats`
 - `GET /api/v1/market/stocks/search?query=삼성`
 - `WS /ws/market/quotes` raw JSON quote stream
 - `POST /api/v1/alerts/events`
@@ -62,6 +64,7 @@ curl http://localhost:8080/actuator/health
 - `GET /api/v1/market/stocks/{stockCode}/orderability`는 협력사 거래소가 자체 mock ledger 주문 전 확인할 외국인 한도 min/base/max 예측, VI, 상·하한가, 거래정지 상태를 공동 응답 형식으로 제공한다. 이 API는 실제 주문이나 KIS 모의투자 주문을 실행하지 않는다.
 - 뉴스·공시는 Naver News Search와 OpenDART를 수집하고, Hannah-Montana-AI 분석 결과와 DeepL 번역 결과를 함께 WebSocket 이벤트로 송신한다. Naver News Search는 발견 데이터로 사용하고, 사용 허가된 원문 링크에서 기사 전문과 대표 이미지 URL을 추가 수집해 Hannah가 제목·snippet·전문을 함께 분석한다.
 - 한국 증시 시장뉴스는 종목별 뉴스·공시와 분리된 `/api/v1/market/news` REST 계약으로 제공하며, Naver 시장 키워드 검색과 원문 보강 결과를 `market_news_event`에 저장한다.
+- 한국 금융 용어 해설은 Hannah-Montana-AI 사전/RAG 결과를 사용하고, 검증된 해설은 TTL cache로 재사용하며 클릭 통계는 salted hash 기반으로 집계한다.
 - Naver Search 자체는 기사 전문과 이미지 URL을 보장하지 않으므로 v2 전문/이미지는 라이선스가 있는 원문 provider, 허용된 원문 파서, 또는 OpenDART document처럼 재배포 가능한 출처로만 수집한다.
 - OpenDART 공시는 목록 검색 뒤 접수번호의 원문 document를 내려받아 XML/HTML 본문을 정제하고, 공시 전문을 Hannah 분석과 DeepL 전문 번역 입력으로 사용한다.
 - 뉴스·공시 v2 응답은 원문 제목, 번역 제목, What/Why/Impact 3줄 요약, 요약 번역, 전문 원문/번역, 이미지 URL 목록, 원문 링크, 중복 클러스터 키, AI confidence를 포함한다. DeepL은 번역 provider이며 Papago는 레거시 provider로 제거되어 smoke report에서 `legacy_disabled`로만 기록한다.

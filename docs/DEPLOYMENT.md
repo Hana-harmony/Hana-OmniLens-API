@@ -55,6 +55,7 @@ docker compose -f compose.local.yml up -d
 - `SERVER_SSL_TRUST_STORE_BASE64`: 협력사 client certificate CA truststore 파일을 base64 인코딩한 값. CI/CD가 원격 서버 `tls/` 디렉터리에 자동 생성한다.
 - `HEALTHCHECK_SCHEME`: 컨테이너 healthcheck scheme. TLS 활성화 시 `https`로 설정한다.
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
+- `OMNILENS_TERM_ANALYTICS_HASH_SALT`: 한국 금융 용어 클릭 로그의 사용자/세션 식별자 salted hash에 사용하는 salt다. 운영에서는 GitHub Secrets 또는 서버 env로만 주입한다.
 - `KRX_OPEN_API_BASE_URL`: KRX Open API 실제 호출 endpoint 주소. 기본값은 `https://data-dbg.krx.co.kr`이다.
 - `KRX_OPEN_API_AUTH_KEY`: KRX Open API `AUTH_KEY` 헤더로 전달하는 인증키다.
 - `KRX_SCRAPING_ENABLED`: KRX Data Marketplace 로그인 기반 외국인 보유량 백필 활성화 여부. 기본값은 `true`이다.

@@ -85,6 +85,9 @@ omnilens:
   ai:
     hannah:
       base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}
+  term:
+    analytics:
+      hash-salt: ${OMNILENS_TERM_ANALYTICS_HASH_SALT}
   market:
     stock-master:
       seed:

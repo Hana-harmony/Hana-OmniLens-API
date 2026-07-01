@@ -47,12 +47,13 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_HOST: ${{ secrets.REDIS_HOST }}
           REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          OMNILENS_TERM_ANALYTICS_HASH_SALT: ${{ secrets.OMNILENS_TERM_ANALYTICS_HASH_SALT }}
         run: |
           missing=()
           for name in \
             PROD_HOST PROD_USER PROD_SSH_KEY GHCR_TOKEN SERVER_PORT \
             OMNILENS_API_KEY_SHA256 DB_URL DB_USERNAME DB_PASSWORD \
-            REDIS_HOST REDIS_PORT
+            REDIS_HOST REDIS_PORT OMNILENS_TERM_ANALYTICS_HASH_SALT
           do
             if [ -z "${!name}" ]; then
               missing+=("$name")
@@ -116,6 +117,7 @@ jobs:
             "OMNILENS_SIGNATURE_NONCE_STORE_MODE=${{ secrets.OMNILENS_SIGNATURE_NONCE_STORE_MODE || 'redis' }}" \
             "OMNILENS_SIGNATURE_MAX_NONCES=${{ secrets.OMNILENS_SIGNATURE_MAX_NONCES || '10000' }}" \
             "OMNILENS_MTLS_ENABLED=${{ secrets.OMNILENS_MTLS_ENABLED || 'false' }}" \
+            "OMNILENS_TERM_ANALYTICS_HASH_SALT=${{ secrets.OMNILENS_TERM_ANALYTICS_HASH_SALT }}" \
             "DB_URL=${{ secrets.DB_URL }}" \
             "DB_USERNAME=${{ secrets.DB_USERNAME }}" \
             "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" \

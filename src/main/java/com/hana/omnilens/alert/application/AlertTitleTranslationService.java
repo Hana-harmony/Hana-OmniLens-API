@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.provider.translation.DeepLTranslationClient;
 
 @Service
@@ -30,19 +31,27 @@ public class AlertTitleTranslationService {
     }
 
     public String translateTitle(String originalTitle) {
-        return translateOrFallback(originalTitle);
+        return translateTitle(originalTitle, List.of());
+    }
+
+    public String translateTitle(String originalTitle, List<AlertGlossaryTerm> glossaryTerms) {
+        return translateOrFallback(originalTitle, glossaryTerms);
     }
 
     public String translateText(String originalText) {
+        return translateText(originalText, List.of());
+    }
+
+    public String translateText(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
         if (!StringUtils.hasText(originalText)) {
             return "";
         }
         return String.join("\n", chunks(originalText).stream()
-                .map(this::translateOrFallback)
+                .map(chunk -> translateOrFallback(chunk, glossaryTerms))
                 .toList());
     }
 
-    private String translateOrFallback(String originalText) {
+    private String translateOrFallback(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
         if (!StringUtils.hasText(originalText)) {
             return "";
         }

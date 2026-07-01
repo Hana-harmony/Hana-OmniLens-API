@@ -1,6 +1,9 @@
 package com.hana.omnilens.alert.application;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -53,6 +56,16 @@ public class AlertAnalysisPublishingService {
         if (!StringUtils.hasText(analysis.stockCode()) || !StringUtils.hasText(analysis.stockName())) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "AI analysis did not match a stock");
         }
+        List<AlertGlossaryTerm> glossaryTerms = toAlertGlossaryTerms(analysis.glossaryTerms());
+        String originalContent = originalContent(analysis, request);
+        String translatedTitle = alertTitleTranslationService.translateTitle(analysis.originalTitle(), glossaryTerms);
+        String translatedSummary = alertTitleTranslationService.translateText(analysis.summary(), glossaryTerms);
+        String translatedContent = translateContent(originalContent, glossaryTerms);
+        List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
+                glossaryTerms,
+                translatedTitle,
+                translatedSummary,
+                translatedContent);
 
         return new AlertPublishRequest(
                 request.partnerId(),
@@ -60,12 +73,12 @@ public class AlertAnalysisPublishingService {
                 analysis.stockName(),
                 analysis.sourceType(),
                 analysis.originalTitle(),
-                alertTitleTranslationService.translateTitle(analysis.originalTitle()),
+                translatedTitle,
                 analysis.summary(),
                 analysis.summaryLines(),
-                alertTitleTranslationService.translateText(analysis.summary()),
-                originalContent(analysis, request),
-                translateContent(originalContent(analysis, request)),
+                translatedSummary,
+                originalContent,
+                translatedContent,
                 imageUrls(analysis, request),
                 contentAvailability(analysis, request),
                 request.originalUrl(),
@@ -76,7 +89,7 @@ public class AlertAnalysisPublishingService {
                 analysis.relatedStocks(),
                 analysis.holderTarget(),
                 analysis.watchlistTarget(),
-                toAlertGlossaryTerms(analysis.glossaryTerms()),
+                displayGlossaryTerms,
                 analysis.translationQualityFlags() == null ? List.of() : analysis.translationQualityFlags(),
                 analysis.duplicateKey(),
                 analysis.clusterKey(),
@@ -114,15 +127,73 @@ public class AlertAnalysisPublishingService {
                         term.sourceTerm(),
                         term.normalizedTerm(),
                         term.englishTerm(),
+                term.category()))
+                .toList();
+    }
+
+    private List<AlertGlossaryTerm> toDisplayGlossaryTerms(
+            List<AlertGlossaryTerm> glossaryTerms,
+            String translatedTitle,
+            String translatedSummary,
+            String translatedContent) {
+        if (glossaryTerms == null || glossaryTerms.isEmpty()) {
+            return List.of();
+        }
+        String translatedText = String.join("\n",
+                translatedTitle == null ? "" : translatedTitle,
+                translatedSummary == null ? "" : translatedSummary,
+                translatedContent == null ? "" : translatedContent);
+        return glossaryTerms.stream()
+                .map(term -> new AlertGlossaryTerm(
+                        displaySourceTerm(term, translatedText),
+                        term.normalizedTerm(),
+                        term.englishTerm(),
                         term.category()))
                 .toList();
     }
 
-    private String translateContent(String originalContent) {
+    private String displaySourceTerm(AlertGlossaryTerm term, String translatedText) {
+        for (String candidate : translatedSurfaceCandidates(term)) {
+            String matched = firstMatchedSurface(translatedText, candidate);
+            if (StringUtils.hasText(matched)) {
+                return matched;
+            }
+        }
+        return StringUtils.hasText(term.englishTerm()) ? term.englishTerm() : term.sourceTerm();
+    }
+
+    private List<String> translatedSurfaceCandidates(AlertGlossaryTerm term) {
+        if ("개미".equals(term.normalizedTerm())) {
+            return List.of(term.englishTerm(), "ants", "ant", "gaemee", "gaemi", term.sourceTerm());
+        }
+        return List.of(term.englishTerm(), term.sourceTerm(), term.normalizedTerm());
+    }
+
+    private String firstMatchedSurface(String text, String candidate) {
+        if (!StringUtils.hasText(text) || !StringUtils.hasText(candidate)) {
+            return "";
+        }
+        Pattern pattern = Pattern.compile(
+                "\\b" + Pattern.quote(candidate) + "\\b",
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        String lowerText = text.toLowerCase(Locale.ROOT);
+        String lowerCandidate = candidate.toLowerCase(Locale.ROOT);
+        int index = lowerText.indexOf(lowerCandidate);
+        if (index < 0) {
+            return "";
+        }
+        return text.substring(index, index + candidate.length());
+    }
+
+    private String translateContent(String originalContent, List<AlertGlossaryTerm> glossaryTerms) {
         if (!StringUtils.hasText(originalContent)) {
             return "";
         }
-        return alertTitleTranslationService.translateText(originalContent);
+        return alertTitleTranslationService.translateText(originalContent, glossaryTerms);
     }
 
     private String originalContent(HannahAiAnalysisResponse analysis, AlertAnalysisPublishRequest request) {

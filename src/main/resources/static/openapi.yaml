@@ -29,6 +29,8 @@ tags:
     description: Partner credential operation APIs.
   - name: Tax
     description: Tax refund status synchronization APIs.
+  - name: Korean Financial Terms
+    description: Korean market slang and financial term explanation APIs.
 x-websocket:
   alertStream:
     endpoint: /ws/alerts
@@ -742,6 +744,62 @@ paths:
           $ref: "#/components/responses/PartnerAccessDenied"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/korean-financial-terms/explain:
+    post:
+      tags:
+        - Korean Financial Terms
+      operationId: explainKoreanFinancialTerm
+      summary: Explain a clicked Korean financial term and record usage analytics.
+      description: >
+        Returns an English explanation for Korean market-specific financial
+        slang or terminology from the Hannah-Montana-AI dictionary/RAG engine.
+        Every request records anonymized click analytics so high-frequency terms
+        can be cached and low-confidence new terms can be reviewed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KoreanFinancialTermExplainRequest"
+      responses:
+        "200":
+          description: Korean financial term explanation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KoreanFinancialTermExplanationApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/korean-financial-terms/stats:
+    get:
+      tags:
+        - Korean Financial Terms
+      operationId: listKoreanFinancialTermStats
+      summary: List clicked Korean financial term analytics.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+      responses:
+        "200":
+          description: Korean financial term click statistics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KoreanFinancialTermClickStatListApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 components:
   securitySchemes:
     partnerMtls:
@@ -826,6 +884,172 @@ components:
         timestamp:
           type: string
           format: date-time
+    KoreanFinancialTermExplainRequest:
+      type: object
+      required:
+        - term
+      properties:
+        term:
+          type: string
+          minLength: 1
+          maxLength: 80
+          example: 개미
+        locale:
+          type: string
+          enum: [en]
+          default: en
+        sourceType:
+          type: string
+          enum: [NEWS, DISCLOSURE]
+          default: NEWS
+        title:
+          type: string
+          maxLength: 300
+        context:
+          type: string
+          maxLength: 4000
+        stockCode:
+          type: string
+          pattern: "^\\d{6}$"
+        stockName:
+          type: string
+          maxLength: 80
+        articleId:
+          type: string
+          maxLength: 120
+        articleUrl:
+          type: string
+          maxLength: 1000
+        userKey:
+          type: string
+          maxLength: 160
+          description: Partner user identifier. The server stores only a salted hash.
+        sessionKey:
+          type: string
+          maxLength: 160
+          description: Partner session identifier. The server stores only a salted hash.
+        allowWebSearch:
+          type: boolean
+          default: true
+    KoreanFinancialTermEvidence:
+      type: object
+      properties:
+        title:
+          type: string
+        snippet:
+          type: string
+        url:
+          type: string
+        sourceType:
+          type: string
+          example: INTERNAL_DICTIONARY
+    KoreanFinancialTermExplanation:
+      type: object
+      required:
+        - term
+        - normalizedTerm
+        - displayMode
+        - source
+        - cacheable
+        - cacheHit
+        - clickCount
+      properties:
+        term:
+          type: string
+          example: 개미
+        normalizedTerm:
+          type: string
+          example: 개미
+        englishTerm:
+          type: string
+          example: retail investors
+        category:
+          type: string
+          example: market_participant
+        definition:
+          type: string
+        explanation:
+          type: string
+        example:
+          type: string
+        confidenceScore:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidenceLevel:
+          type: string
+          enum: [HIGH, MEDIUM, LOW]
+        displayMode:
+          type: string
+          enum: [EXPLANATION, REVIEW_REQUIRED]
+        source:
+          type: string
+          example: DICTIONARY
+        cacheable:
+          type: boolean
+        cacheTtlSeconds:
+          type: integer
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/KoreanFinancialTermEvidence"
+        qualityFlags:
+          type: array
+          items:
+            type: string
+        modelVersion:
+          type: string
+          example: k-finance-term-rag-v1
+        generatedAt:
+          type: string
+          format: date-time
+        cacheHit:
+          type: boolean
+        clickCount:
+          type: integer
+          format: int64
+    KoreanFinancialTermExplanationApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/KoreanFinancialTermExplanation"
+    KoreanFinancialTermClickStat:
+      type: object
+      properties:
+        normalizedTerm:
+          type: string
+        locale:
+          type: string
+        clickCount:
+          type: integer
+          format: int64
+        cacheHitCount:
+          type: integer
+          format: int64
+        reviewRequiredCount:
+          type: integer
+          format: int64
+        firstClickedAt:
+          type: string
+          format: date-time
+        lastClickedAt:
+          type: string
+          format: date-time
+    KoreanFinancialTermClickStatListApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/KoreanFinancialTermClickStat"
     StockSummaryApiResponse:
       allOf:
         - $ref: "#/components/schemas/ApiResponseBase"

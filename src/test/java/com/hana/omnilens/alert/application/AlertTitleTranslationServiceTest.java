@@ -58,4 +58,14 @@ class AlertTitleTranslationServiceTest {
         assertThat(translatedText).contains("EN:");
         verify(deepLTranslationClient, atLeast(2)).translateKoToEn(any());
     }
+
+    @Test
+    void translateTextKeepsProviderSurfaceTermForGlossaryClickMapping() {
+        when(deepLTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
+                .thenReturn("Ants net bought Samsung Electronics.");
+
+        String translatedText = translationService.translateText("개미가 삼성전자를 순매수했다.");
+
+        assertThat(translatedText).isEqualTo("Ants net bought Samsung Electronics.");
+    }
 }

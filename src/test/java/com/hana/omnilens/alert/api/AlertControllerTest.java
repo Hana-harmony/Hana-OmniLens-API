@@ -190,8 +190,10 @@ class AlertControllerTest {
                 0.89,
                 0.93,
                 1.0));
-        when(alertTitleTranslationService.translateTitle("삼성전자 실적 개선"))
+        when(alertTitleTranslationService.translateTitle(eq("삼성전자 실적 개선"), any()))
                 .thenReturn("Samsung Electronics earnings improve");
+        when(alertTitleTranslationService.translateText(eq("반도체 회복으로 실적 개선 기대"), any()))
+                .thenReturn("Chip recovery raised earnings hopes");
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -225,12 +227,66 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
                 .andExpect(jsonPath("$.data.holderTarget", equalTo(true)))
                 .andExpect(jsonPath("$.data.watchlistTarget", equalTo(true)))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("earnings")))
                 .andExpect(jsonPath("$.data.glossaryTerms[0].englishTerm", equalTo("earnings")))
                 .andExpect(jsonPath("$.data.translationQualityFlags[0]", equalTo("FINANCIAL_GLOSSARY_APPLIED")))
                 .andExpect(jsonPath("$.data.duplicateKey", equalTo("duplicate-key")))
                 .andExpect(jsonPath("$.data.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")))
                 .andExpect(jsonPath("$.data.eventConfidence", equalTo(0.91)))
                 .andExpect(jsonPath("$.data.stockMatchConfidence", equalTo(1.0)));
+    }
+
+    @Test
+    void analyzeAndPublishUsesTranslatedSurfaceTermForGlossaryClickTarget() throws Exception {
+        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
+                "005930",
+                "삼성전자",
+                "NEWS",
+                "삼성전자 개미 순매수",
+                "개미가 삼성전자를 순매수했다",
+                List.of("MARKET"),
+                "POSITIVE",
+                "HIGH",
+                List.of("005930"),
+                true,
+                true,
+                List.of(new HannahAiGlossaryTerm("개미", "개미", "retail investors", "market_slang")),
+                List.of("FINANCIAL_GLOSSARY_APPLIED"),
+                "duplicate-key-ant-surface",
+                "financial-keyword-baseline-2026-06-04",
+                0.91,
+                0.89,
+                0.93,
+                1.0));
+        when(alertTitleTranslationService.translateTitle(eq("삼성전자 개미 순매수"), any()))
+                .thenReturn("Samsung Electronics Ants net bought");
+        when(alertTitleTranslationService.translateText(eq("개미가 삼성전자를 순매수했다"), any()))
+                .thenReturn("Ants net bought Samsung Electronics.");
+
+        mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerId": "partner-a",
+                                  "sourceType": "NEWS",
+                                  "title": "삼성전자 개미 순매수",
+                                  "snippet": "개미가 삼성전자를 순매수했다",
+                                  "originalUrl": "https://example.com/news/ant-surface",
+                                  "publishedAt": "2026-06-04T00:00:00Z",
+                                  "stockUniverse": [
+                                    {
+                                      "stockCode": "005930",
+                                      "stockName": "삼성전자",
+                                      "stockNameEn": "Samsung Electronics"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("Ants")))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].normalizedTerm", equalTo("개미")))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].englishTerm", equalTo("retail investors")));
     }
 
     @Test
@@ -298,9 +354,9 @@ class AlertControllerTest {
                     0.93,
                     1.0);
         });
-        when(alertTitleTranslationService.translateTitle(any()))
+        when(alertTitleTranslationService.translateTitle(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(alertTitleTranslationService.translateText(any()))
+        when(alertTitleTranslationService.translateText(any(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         mockMvc.perform(post("/api/v1/alerts/collect-and-publish")

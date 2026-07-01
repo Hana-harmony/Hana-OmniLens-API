@@ -1,5 +1,11 @@
 # 구현 기록
 
+## 2026-07-01 한국 금융 용어 해설 RAG 연동
+- `POST /api/v1/korean-financial-terms/explain`와 `GET /api/v1/korean-financial-terms/stats`를 추가했다. 협력사 FE/BE가 뉴스·공시 본문에서 클릭한 한국 금융 용어를 보내면 OmniLens가 Hannah-Montana-AI 사전/RAG 해설 엔진을 호출한다.
+- 검증된 `EXPLANATION` 응답은 `korean_financial_term_explanation_cache`에 TTL cache로 저장하고, `REVIEW_REQUIRED` 또는 AI 장애 응답은 cache하지 않는다.
+- 클릭 로그는 `korean_financial_term_click_log`, 누적 통계는 `korean_financial_term_click_stats`에 저장한다. 사용자/세션 식별자는 원문 저장 없이 `OMNILENS_TERM_ANALYTICS_HASH_SALT` 기반 salted SHA-256 hash로 기록한다.
+- MockMvc + JDBC 테스트로 첫 호출 AI 생성, 두 번째 호출 cache hit, 검수 대상 비캐시, 통계 조회, Hannah 내부 호출 계약을 검증했다.
+
 ## 2026-06-28 KRX 외국인보유량 백필 전환
 - KIS 현재가 응답을 외국인 보유량 수집 source로 사용하지 않도록 분리했다.
 - `KRX_ID`, `KRX_PW` 환경변수 기반 KRX Data Marketplace 로그인 provider를 추가해 `MDCSTAT03702` 일자별 외국인 보유량을 수집한다.
