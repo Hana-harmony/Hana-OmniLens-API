@@ -183,7 +183,7 @@ public class KisRealtimeSessionRunner {
     }
 
     List<KisRealtimeSubscriptionFrame> subscriptionFrames(String approvalKey, List<String> stockCodes) {
-        return subscriptionFrames(approvalKey, stockCodes, List.of());
+        return subscriptionFrames(approvalKey, stockCodes, kisRealtimeProperties.indexCodes());
     }
 
     List<KisRealtimeSubscriptionFrame> subscriptionFrames(
