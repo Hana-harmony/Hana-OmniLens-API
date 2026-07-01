@@ -32,7 +32,10 @@ import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
 import org.springframework.web.socket.WebSocketHttpHeaders;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -102,6 +105,35 @@ class AlertWebSocketContractTest {
     }
 
     @Test
+    void rawAlertEventStreamPublishesExchangeBackendPayload() throws Exception {
+        BlockingQueue<String> rawEvents = new LinkedBlockingQueue<>();
+        WebSocketSession session = new StandardWebSocketClient()
+                .execute(new TextWebSocketHandler() {
+                    @Override
+                    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+                        rawEvents.add(message.getPayload());
+                    }
+                }, rawHeaders("test-api-key"), java.net.URI.create("ws://localhost:" + port + "/ws/alerts/events"))
+                .get(5, TimeUnit.SECONDS);
+
+        var response = publishAlert("test-api-key", "partner-a");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String payload = rawEvents.poll(5, TimeUnit.SECONDS);
+        assertThat(payload).isNotNull();
+        Map<?, ?> event = objectMapper.readValue(payload, Map.class);
+        assertThat((String) event.get("eventId")).isNotBlank();
+        assertThat(event.get("idempotencyKey")).isEqualTo("manual-duplicate");
+        assertThat(event.get("title")).isEqualTo("Samsung Electronics earnings improve");
+        assertThat(event.get("stockCode")).isEqualTo("005930");
+        assertThat(event.get("riskLevel")).isEqualTo("HIGH");
+
+        if (session.isOpen()) {
+            session.close();
+        }
+    }
+
+    @Test
     void partnerCredentialSubscribersReceivePartnerScopedTopics() throws Exception {
         insertPartnerCredential("partner-a", "partner-a-api-key");
         StompSession session = connect("partner-a-api-key");
@@ -159,6 +191,12 @@ class AlertWebSocketContractTest {
                         new StompSessionHandlerAdapter() {
                         })
                 .get(5, TimeUnit.SECONDS);
+    }
+
+    private WebSocketHttpHeaders rawHeaders(String apiKey) {
+        WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
+        headers.set("X-HANA-OMNILENS-API-KEY", apiKey);
+        return headers;
     }
 
     private HttpEntity<Map<String, Object>> request(String apiKey, String partnerId) {

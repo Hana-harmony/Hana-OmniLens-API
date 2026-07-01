@@ -40,6 +40,7 @@ class HannahAiForeignOwnershipRetrainClientTest {
         server.expect(requestTo("http://localhost:8000/api/v1/market/foreign-ownership/model/retrain"))
                 .andExpect(header("X-HANNAH-AI-MAINTENANCE-TOKEN", "maintenance-secret"))
                 .andExpect(content().string(containsString("\"stock_code\":\"015760\"")))
+                .andExpect(content().string(containsString("\"base_date\":\"2026-06-26\"")))
                 .andExpect(content().string(containsString("\"restricted_stock_codes\":[\"015760\"]")))
                 .andExpect(content().string(containsString("\"minimum_promotable_stock_count\":29")))
                 .andRespond(withSuccess("""

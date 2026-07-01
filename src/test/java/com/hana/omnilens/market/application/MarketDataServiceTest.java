@@ -144,6 +144,67 @@ class MarketDataServiceTest {
     }
 
     @Test
+    void getQuoteUsesKisForeignOwnershipWhenKrxCacheIsMissing() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                cache,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership()));
+
+        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
+
+        assertThat(quote.foreignOwnedQuantity()).isEqualTo(3_642_091_300L);
+        assertThat(quote.foreignOwnershipRate()).isEqualByComparingTo("61.0088");
+        assertThat(quote.foreignLimitExhaustionRate()).isEqualByComparingTo("54.2100");
+        assertThat(quote.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 4));
+        assertThat(quote.source()).isEqualTo("KIS_OPEN_API+KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP");
+    }
+
+    @Test
+    void getQuoteKeepsPriceWhenForeignOwnershipIsMissing() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                cache,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(
+                new KisCurrentPriceSnapshot(
+                        "005930",
+                        "삼성전자",
+                        new BigDecimal("81200"),
+                        new BigDecimal("1.87"),
+                        15_500_000L)));
+
+        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
+
+        assertThat(quote.currentPriceKrw()).isEqualByComparingTo("81200");
+        assertThat(quote.foreignOwnedQuantity()).isZero();
+        assertThat(quote.foreignOwnershipRate()).isNull();
+        assertThat(quote.foreignLimitExhaustionRate()).isNull();
+        assertThat(quote.foreignOwnershipBaseDate()).isNull();
+        assertThat(quote.source()).isEqualTo("KIS_OPEN_API");
+    }
+
+    @Test
     void getQuoteUsesPublicDataSnapshotWhenAvailable() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);

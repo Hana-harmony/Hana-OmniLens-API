@@ -34,6 +34,7 @@ class HannahAiForeignOwnershipPredictionClientTest {
         server.expect(requestTo("http://localhost:8000/api/v1/market/foreign-ownership/predict"))
                 .andExpect(headerDoesNotExist("X-HANNAH-AI-SERVICE-TOKEN"))
                 .andExpect(content().string(containsString("\"stock_code\":\"005930\"")))
+                .andExpect(content().string(containsString("\"base_date\":\"2025-06-04\"")))
                 .andExpect(content().string(containsString("\"foreign_limit_exhaustion_rate\":99.5000")))
                 .andExpect(content().string(containsString("\"history\"")))
                 .andRespond(withSuccess("""

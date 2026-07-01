@@ -10,18 +10,22 @@ import org.springframework.stereotype.Service;
 import com.hana.omnilens.alert.api.AlertPublishRequest;
 import com.hana.omnilens.alert.domain.AlertEvent;
 import com.hana.omnilens.alert.domain.AlertSummaryLines;
+import com.hana.omnilens.alert.stream.AlertEventRawStreamingService;
 
 @Service
 public class AlertStreamingService {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final AlertEventRepository alertEventRepository;
+    private final AlertEventRawStreamingService rawStreamingService;
 
     public AlertStreamingService(
             SimpMessagingTemplate messagingTemplate,
-            AlertEventRepository alertEventRepository) {
+            AlertEventRepository alertEventRepository,
+            AlertEventRawStreamingService rawStreamingService) {
         this.messagingTemplate = messagingTemplate;
         this.alertEventRepository = alertEventRepository;
+        this.rawStreamingService = rawStreamingService;
     }
 
     public AlertEvent publish(AlertPublishRequest request) {
@@ -65,6 +69,7 @@ public class AlertStreamingService {
                 "/topic/partners/" + request.partnerId() + "/stocks/" + request.stockCode() + "/alerts",
                 event);
         messagingTemplate.convertAndSend("/topic/stocks/" + request.stockCode() + "/alerts", event);
+        rawStreamingService.publish(event);
         return event;
     }
 }

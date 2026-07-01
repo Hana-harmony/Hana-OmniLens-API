@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,9 +28,14 @@ public class KisMinuteChartPriceClient {
 
     private static final DateTimeFormatter KIS_TIME = DateTimeFormatter.ofPattern("HHmmss");
     private static final String TIME_ITEM_CHART_PRICE_TR_ID = "FHKST03010200";
+    private static final String TIME_DAILY_CHART_PRICE_TR_ID = "FHKST03010230";
     private static final int PAGE_SIZE_HINT = 30;
     private static final int MAX_PAGE_COUNT = 20;
-    private static final Duration PAGE_REQUEST_INTERVAL = Duration.ofMillis(1200);
+    private static final Duration PAGE_REQUEST_INTERVAL = Duration.ofMillis(2_200);
+    private static final int RATE_LIMIT_MAX_ATTEMPTS = 4;
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+    private static final LocalTime REGULAR_MARKET_OPEN = LocalTime.of(9, 0);
+    private static final LocalTime REGULAR_MARKET_CLOSE = LocalTime.of(15, 30);
 
     private final RestClient restClient;
     private final ExternalProviderProperties.Kis kisProperties;
@@ -51,24 +57,17 @@ public class KisMinuteChartPriceClient {
 
     public List<KisMinuteChartPrice> findMinutePrices(String stockCode, LocalDate tradingDate, int limit) {
         int resolvedLimit = Math.max(1, Math.min(limit, PAGE_SIZE_HINT * MAX_PAGE_COUNT));
-        String cursor = KIS_TIME.format(LocalTime.of(23, 59, 59));
+        String cursor = KIS_TIME.format(REGULAR_MARKET_CLOSE);
         List<KisMinuteChartPrice> prices = new ArrayList<>();
         Set<LocalDateTime> seenBuckets = new HashSet<>();
 
         for (int page = 0; page < MAX_PAGE_COUNT && prices.size() < resolvedLimit; page += 1) {
-            List<KisMinuteChartPrice> pagePrices;
-            try {
-                pagePrices = requestPage(stockCode, tradingDate, cursor)
-                        .stream()
-                        .filter(price -> price.bucketStart().toLocalDate().equals(tradingDate))
-                        .sorted(Comparator.comparing(KisMinuteChartPrice::bucketStart).reversed())
-                        .toList();
-            } catch (RestClientResponseException exception) {
-                if (isKisRateLimit(exception)) {
-                    break;
-                }
-                throw exception;
-            }
+            List<KisMinuteChartPrice> pagePrices = requestPageWithRateLimitRetry(stockCode, tradingDate, cursor)
+                    .stream()
+                    .filter(price -> price.bucketStart().toLocalDate().equals(tradingDate))
+                    .filter(KisMinuteChartPriceClient::isRegularSessionPrice)
+                    .sorted(Comparator.comparing(KisMinuteChartPrice::bucketStart).reversed())
+                    .toList();
             if (pagePrices.isEmpty()) {
                 break;
             }
@@ -87,7 +86,7 @@ public class KisMinuteChartPriceClient {
                 break;
             }
             cursor = nextCursorText;
-            waitForProviderQuota();
+            waitForProviderQuota(1);
         }
 
         return prices.stream()
@@ -95,24 +94,62 @@ public class KisMinuteChartPriceClient {
                 .toList();
     }
 
+    private static boolean isRegularSessionPrice(KisMinuteChartPrice price) {
+        LocalTime time = price.bucketStart().toLocalTime();
+        return !time.isBefore(REGULAR_MARKET_OPEN) && !time.isAfter(REGULAR_MARKET_CLOSE);
+    }
+
+    private List<KisMinuteChartPrice> requestPageWithRateLimitRetry(
+            String stockCode,
+            LocalDate tradingDate,
+            String cursor) {
+        RestClientResponseException lastRateLimit = null;
+        for (int attempt = 1; attempt <= RATE_LIMIT_MAX_ATTEMPTS; attempt += 1) {
+            try {
+                return requestPage(stockCode, tradingDate, cursor);
+            } catch (RestClientResponseException exception) {
+                if (!isKisRateLimit(exception)) {
+                    throw exception;
+                }
+                lastRateLimit = exception;
+                if (attempt < RATE_LIMIT_MAX_ATTEMPTS) {
+                    waitForProviderQuota(attempt);
+                }
+            }
+        }
+        throw lastRateLimit;
+    }
+
     private List<KisMinuteChartPrice> requestPage(String stockCode, LocalDate tradingDate, String cursor) {
         String accessToken = accessTokenProvider.accessToken();
         String appKey = kisProperties.requiredAppKey();
         String appSecret = kisProperties.requiredAppSecret();
-        JsonNode root = resiliencePolicy.execute("kis-time-item-chart-price", () -> restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice")
-                        .queryParam("FID_ETC_CLS_CODE", "")
-                        .queryParam("FID_COND_MRKT_DIV_CODE", "J")
-                        .queryParam("FID_INPUT_ISCD", stockCode)
-                        .queryParam("FID_INPUT_HOUR_1", cursor)
-                        .queryParam("FID_PW_DATA_INCU_YN", "Y")
-                        .build())
+        boolean today = tradingDate.equals(LocalDate.now(KOREA_ZONE));
+        String path = today
+                ? "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
+                : "/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice";
+        String trId = today ? TIME_ITEM_CHART_PRICE_TR_ID : TIME_DAILY_CHART_PRICE_TR_ID;
+        JsonNode root = resiliencePolicy.execute("kis-time-minute-chart-price", () -> restClient.get()
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder
+                            .path(path)
+                            .queryParam("FID_COND_MRKT_DIV_CODE", "J")
+                            .queryParam("FID_INPUT_ISCD", stockCode)
+                            .queryParam("FID_INPUT_HOUR_1", cursor)
+                            .queryParam("FID_PW_DATA_INCU_YN", "Y");
+                    if (today) {
+                        builder.queryParam("FID_ETC_CLS_CODE", "");
+                    } else {
+                        builder.queryParam("FID_INPUT_DATE_1", tradingDate.format(DateTimeFormatter.BASIC_ISO_DATE))
+                                .queryParam("FID_FAKE_TICK_INCU_YN", "");
+                    }
+                    return builder.build();
+                })
                 .header("Content-Type", "application/json; charset=utf-8")
                 .header("authorization", "Bearer " + accessToken)
                 .header("appkey", appKey)
                 .header("appsecret", appSecret)
-                .header("tr_id", TIME_ITEM_CHART_PRICE_TR_ID)
+                .header("tr_id", trId)
                 .retrieve()
                 .body(JsonNode.class));
 
@@ -130,10 +167,10 @@ public class KisMinuteChartPriceClient {
         return body != null && body.contains("EGW00201");
     }
 
-    private static void waitForProviderQuota() {
+    private static void waitForProviderQuota(int attempt) {
         try {
             // KIS 분봉 페이지 API는 짧은 연속 호출에서 초당 제한이 쉽게 발생한다.
-            Thread.sleep(PAGE_REQUEST_INTERVAL.toMillis());
+            Thread.sleep(PAGE_REQUEST_INTERVAL.multipliedBy(Math.max(1, attempt)).toMillis());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("KIS minute chart request was interrupted", exception);

@@ -31,6 +31,7 @@ import com.hana.omnilens.market.application.ForeignOwnershipPredictionPrecompute
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.GlobalPeerMatchService;
 import com.hana.omnilens.market.application.MarketDataService;
+import com.hana.omnilens.market.application.MarketChartWarmupResult;
 import com.hana.omnilens.market.application.MarketHistoryService;
 import com.hana.omnilens.market.domain.GlobalPeerMatchResponse;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
@@ -156,8 +157,9 @@ public class MarketDataController {
     public ApiResponse<List<MarketIntradayPrice>> getIntradayHistory(
             @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
             @RequestParam(required = false) LocalDate date,
-            @RequestParam(defaultValue = "390") @Min(1) @Max(600) int limit) {
-        return ApiResponse.success(marketHistoryService.getIntradayHistory(stockCode, date, limit));
+            @RequestParam(defaultValue = "390") @Min(1) @Max(600) int limit,
+            @RequestParam(defaultValue = "true") boolean fetchMissing) {
+        return ApiResponse.success(marketHistoryService.getIntradayHistory(stockCode, date, limit, fetchMissing));
     }
 
     @PostMapping("/stocks/{stockCode}/realtime-subscription")
@@ -188,6 +190,13 @@ public class MarketDataController {
             @RequestParam(required = false) LocalDate baseDate) {
         return ApiResponse.success(MarketHistoryCollectionResponse.from(
                 marketHistoryService.collectDailyHistory(baseDate)));
+    }
+
+    @PostMapping("/chart/warmup")
+    @Operation(summary = "모바일 차트용 1D 분봉 및 1W/1M 일봉 cache warmup")
+    public ApiResponse<MarketChartWarmupResult> warmupChart(
+            @RequestParam(required = false) LocalDate baseDate) {
+        return ApiResponse.success(marketHistoryService.warmupChartHistory(baseDate));
     }
 
     @PostMapping("/stocks/{stockCode}/foreign-ownership/refresh")

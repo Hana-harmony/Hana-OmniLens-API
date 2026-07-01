@@ -90,6 +90,29 @@ class KisRealtimeMessageParserTest {
     }
 
     @Test
+    void parseIndexTickMapsValidMarketDataTime() {
+        Optional<KisRealtimeIndexTick> tick = parser.parseIndexTick(kisFrame(
+                KisRealtimeTransaction.INDEX_TRADE,
+                indexPayload("153000")));
+
+        assertThat(tick).isPresent();
+        assertThat(tick.orElseThrow().indexCode()).isEqualTo("0001");
+        assertThat(tick.orElseThrow().indexName()).isEqualTo("KOSPI");
+        assertThat(tick.orElseThrow().currentValue()).isEqualByComparingTo("2800.12");
+        assertThat(tick.orElseThrow().marketDataTime()).isNotNull();
+    }
+
+    @Test
+    void parseIndexTickKeepsSessionWhenKisSendsSentinelMarketDataTime() {
+        Optional<KisRealtimeIndexTick> tick = parser.parseIndexTick(kisFrame(
+                KisRealtimeTransaction.INDEX_TRADE,
+                indexPayload("999999")));
+
+        assertThat(tick).isPresent();
+        assertThat(tick.orElseThrow().marketDataTime()).isNotNull();
+    }
+
+    @Test
     void parseIgnoresOtherTransactions() {
         assertThat(parser.parseTradeTick(kisFrame(KisRealtimeTransaction.ORDERBOOK, orderBookPayload()))).isEmpty();
         assertThat(parser.parseOrderBook(kisFrame(KisRealtimeTransaction.TRADE, tradePayload()))).isEmpty();
@@ -156,6 +179,23 @@ class KisRealtimeMessageParserTest {
             fields.set(30 + index, String.valueOf(900 + index));
         }
         fields.set(49, "17000000");
+        return String.join("^", fields);
+    }
+
+    private String indexPayload(String marketTime) {
+        ArrayList<String> fields = new ArrayList<>(Collections.nCopies(30, "0"));
+        fields.set(0, "0001");
+        fields.set(1, marketTime);
+        fields.set(2, "2800.12");
+        fields.set(3, "2");
+        fields.set(4, "1.23");
+        fields.set(5, "120000");
+        fields.set(6, "5000000000");
+        fields.set(9, "0.44");
+        fields.set(10, "2790.00");
+        fields.set(11, "2810.00");
+        fields.set(12, "2780.00");
+        fields.set(29, "2815.00");
         return String.join("^", fields);
     }
 }

@@ -147,6 +147,18 @@ omnilens:
       fixed-delay-ms: 86400000
       base-date-offset-days: 1
       provider: KRX_OPEN_API_WITH_KIS_BACKUP
+    chart-warmup:
+      enabled: true
+      fixed-delay-ms: 300000
+      initial-delay-ms: 10000
+      base-date-offset-days: 0
+      daily-lookback-days: 30
+      intraday-lookback-days: 7
+      stock-limit: 30
+      stock-codes: []
+      request-delay-ms: 1200
+      daily-enabled: true
+      intraday-enabled: true
   market-news:
     scheduler:
       enabled: true
