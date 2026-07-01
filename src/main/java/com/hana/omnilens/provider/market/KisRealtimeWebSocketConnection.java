@@ -10,4 +10,6 @@ public interface KisRealtimeWebSocketConnection {
             URI websocketUrl,
             List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer);
+
+    void send(List<KisRealtimeSubscriptionFrame> subscriptionFrames);
 }

@@ -99,7 +99,7 @@ omnilens:
       stock-limit: 2500
       stock-codes: []
     kis-realtime:
-      enabled: false
+      enabled: true
       stock-codes: []
       stock-limit: 5000
       shard-size: 40
@@ -115,13 +115,22 @@ omnilens:
       fixed-delay-ms: 86400000
       base-date-offset-days: 1
       provider: KRX_OPEN_API_WITH_KIS_BACKUP
+  market-news:
+    scheduler:
+      enabled: true
+      fixed-delay-ms: 300000
+      display: 10
+      queries:
+        - "한국 증시"
+        - "코스피 코스닥"
+        - "국내 증시"
   alert:
     dedupe:
       mode: redis
       ttl: 24h
       max-in-memory-entries: 10000
     scheduler:
-      enabled: false
+      enabled: true
       fixed-delay-ms: 300000
       news-display: 10
       disclosure-lookback-days: 7

@@ -118,6 +118,39 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - DB credential을 사용하는 협력사는 `/topic/partners/{partnerId}/alerts` 또는 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`를 구독한다.
 - `/topic/stocks/{stockCode}/alerts`는 bootstrap 전역 키 호환용 topic으로 유지한다.
 
+## 실시간 시세 수요 구독
+- 인기 종목은 `KIS_REALTIME_STOCK_CODES` 또는 종목 마스터 상위 `KIS_REALTIME_STOCK_LIMIT` 기준으로 API 기동 시 KIS WebSocket에 선구독한다.
+- 상세 화면처럼 인기 종목 외 종목이 필요하면 협력사는 `/ws/market/quotes`에 아래 메시지를 전송한다.
+
+```json
+{
+  "type": "QUOTE_STREAM_SUBSCRIBE",
+  "currency": "USD",
+  "stockCodes": ["091990"]
+}
+```
+
+- OmniLens는 지원 종목, 중복 구독, KIS 구독 한도를 확인한 뒤 같은 KIS WebSocket 세션에 추가 구독한다. 요청 직후 현재 REST snapshot도 같은 WebSocket 세션으로 재송신한다.
+
+## 한국 증시 시장뉴스
+- 종목별 뉴스·공시는 `/api/v1/alerts/stocks/{stockCode}/events`를 사용하고, 한국 증시 전체 뉴스는 별도 `/api/v1/market/news`를 사용한다.
+- 스케줄러는 `MARKET_NEWS_SCHEDULER_ENABLED=true`일 때 `MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS` 간격으로 `MARKET_NEWS_SCHEDULER_QUERIES` 검색어를 수집한다.
+- 수동 수집은 `POST /api/v1/market/news/collect`로 실행한다.
+
+```json
+{
+  "queries": ["한국 증시"],
+  "display": 10
+}
+```
+
+```text
+MARKET_NEWS_SCHEDULER_ENABLED=true
+MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS=300000
+MARKET_NEWS_SCHEDULER_DISPLAY=10
+MARKET_NEWS_SCHEDULER_QUERIES=한국 증시,코스피 코스닥,국내 증시
+```
+
 ## 협력사 입력 환율
 - `PUT /api/v1/market/exchange-rates/{currency}`로 `KRW -> 현지통화` 표시용 환율을 저장한다.
 - 응답은 `data.baseCurrency`, `data.localCurrency`, `data.fxRate`, `data.updatedAt`를 담은 공동 응답 envelope이다.

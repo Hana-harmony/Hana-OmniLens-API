@@ -181,6 +181,27 @@ class KisRealtimeSessionRunnerTest {
         assertThat(cache.latestTrade("005930").orElseThrow().currentPriceKrw()).isEqualByComparingTo("81500");
     }
 
+    @Test
+    void subscribeStockCodesSendsDynamicFramesForDemandDetailStock() {
+        FakeConnection connection = new FakeConnection();
+        KisRealtimeSessionRunner runner = newRunner(
+                new KisRealtimeProperties(true, List.of("005930"), 2500, 40, true),
+                connection,
+                new InMemoryRealtimeMarketDataCache());
+
+        runner.start();
+        KisRealtimeDynamicSubscriptionResult result = runner.subscribeStockCodes(List.of("000660", "005930", "999999"));
+
+        assertThat(result.subscribedStockCodes()).containsExactly("000660");
+        assertThat(result.alreadySubscribedStockCodes()).containsExactly("005930");
+        assertThat(result.unsupportedStockCodes()).containsExactly("999999");
+        assertThat(connection.sentFrames).hasSize(2);
+        assertThat(connection.sentFrames).extracting(frame -> frame.body().input().trId())
+                .containsExactly("H0STCNT0", "H0STASP0");
+        assertThat(connection.sentFrames).extracting(frame -> frame.body().input().trKey())
+                .containsOnly("000660");
+    }
+
     private KisRealtimeSessionRunner newRunner(
             KisRealtimeProperties properties,
             FakeConnection connection,
@@ -287,6 +308,7 @@ class KisRealtimeSessionRunnerTest {
         private List<KisRealtimeSubscriptionFrame> frames = List.of();
         private List<KisRealtimeSubscriptionFrame> allFrames = new ArrayList<>();
         private List<List<KisRealtimeSubscriptionFrame>> frameBatches = new ArrayList<>();
+        private List<KisRealtimeSubscriptionFrame> sentFrames = new ArrayList<>();
         private Consumer<String> messageConsumer = message -> {
         };
 
@@ -302,6 +324,12 @@ class KisRealtimeSessionRunnerTest {
             this.allFrames.addAll(subscriptionFrames);
             this.frameBatches.add(subscriptionFrames);
             this.messageConsumer = messageConsumer;
+        }
+
+        @Override
+        public void send(List<KisRealtimeSubscriptionFrame> subscriptionFrames) {
+            this.sentFrames.addAll(subscriptionFrames);
+            this.allFrames.addAll(subscriptionFrames);
         }
 
         private void emit(String rawMessage) {

@@ -9,15 +9,21 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hana.omnilens.market.application.KisRealtimeSessionRunner;
 
 @Component
 public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
 
     private final MarketQuoteStreamingService streamingService;
+    private final KisRealtimeSessionRunner kisRealtimeSessionRunner;
     private final ObjectMapper objectMapper;
 
-    public MarketQuoteWebSocketHandler(MarketQuoteStreamingService streamingService, ObjectMapper objectMapper) {
+    public MarketQuoteWebSocketHandler(
+            MarketQuoteStreamingService streamingService,
+            KisRealtimeSessionRunner kisRealtimeSessionRunner,
+            ObjectMapper objectMapper) {
         this.streamingService = streamingService;
+        this.kisRealtimeSessionRunner = kisRealtimeSessionRunner;
         this.objectMapper = objectMapper;
     }
 
@@ -31,6 +37,11 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
         MarketQuoteReplayRequest request = objectMapper.readValue(message.getPayload(), MarketQuoteReplayRequest.class);
         if (request.isReplayRequest()) {
             streamingService.replay(session, request.replayCurrency());
+            return;
+        }
+        if (request.isSubscribeRequest()) {
+            kisRealtimeSessionRunner.subscribeStockCodes(request.requestedStockCodes());
+            streamingService.replay(session, request.replayCurrency(), request.requestedStockCodes());
         }
     }
 
