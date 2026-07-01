@@ -36,6 +36,13 @@ omnilens:
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: "replace-with-open-dart-api-key"
+    krx:
+      base-url: https://data.krx.co.kr
+      scraping-enabled: ${KRX_SCRAPING_ENABLED:true}
+      id: ${KRX_ID:}
+      password: ${KRX_PW:}
+      login-path: /contents/MDC/COMS/client/MDCCOMS001D1.cmd
+      foreign-ownership-history-bld: dbms/MDC/STAT/standard/MDCSTAT03702
     krx-open-api:
       base-url: https://data-dbg.krx.co.kr
       auth-key: "replace-with-krx-open-api-auth-key"
@@ -75,10 +82,36 @@ omnilens:
     foreign-ownership-cache:
       mode: redis
       ttl: 24h
+    foreign-ownership-refresh:
+      enabled: true
+      cron: "0 10 8 * * MON-FRI"
+      request-delay-ms: 1200
+      base-date-offset-days: 1
+      backfill-lookback-days: 400
+      stock-limit: 5000
+      stock-codes: []
+    foreign-ownership-model-training:
+      enabled: true
+      trigger-after-refresh: true
+      connect-timeout: 2s
+      read-timeout: 20m
+      maintenance-token: ${HANNAH_AI_MAINTENANCE_TOKEN:}
+      minimum-promotable-stock-count: 29
+      minimum-promotable-history-days: 2500
+      minimum-promotable-observations: 50000
+      max-model-training-samples: 250000
+    foreign-ownership-prediction-precompute:
+      enabled: true
+      trigger-after-refresh: true
+      stock-limit: 5000
     kis-realtime:
       enabled: true
       stock-codes:
         - "005930"
+      stock-limit: 20
+      shard-size: 40
+      order-book-enabled: true
+      after-hours-enabled: true
         - "000660"
       stock-limit: 20
       shard-size: 40

@@ -29,6 +29,29 @@ public class InMemoryForeignOwnershipDailySnapshotRepository implements ForeignO
                 .toList();
     }
 
+    @Override
+    public List<ForeignOwnershipDailySnapshot> findAllByStockCodes(List<String> stockCodes) {
+        if (stockCodes == null || stockCodes.isEmpty()) {
+            return List.of();
+        }
+        return snapshots.values().stream()
+                .filter(snapshot -> stockCodes.contains(snapshot.stockCode()))
+                .sorted(Comparator
+                        .comparing(ForeignOwnershipDailySnapshot::stockCode)
+                        .thenComparing(ForeignOwnershipDailySnapshot::baseDate))
+                .toList();
+    }
+
+    @Override
+    public List<LocalDate> findBaseDates(String stockCode, LocalDate from, LocalDate to) {
+        return snapshots.values().stream()
+                .filter(snapshot -> snapshot.stockCode().equals(stockCode))
+                .map(ForeignOwnershipDailySnapshot::baseDate)
+                .filter(baseDate -> !baseDate.isBefore(from) && !baseDate.isAfter(to))
+                .sorted()
+                .toList();
+    }
+
     private String key(String stockCode, LocalDate baseDate) {
         return stockCode + ":" + baseDate;
     }

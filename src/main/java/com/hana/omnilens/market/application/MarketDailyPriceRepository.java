@@ -10,4 +10,6 @@ public interface MarketDailyPriceRepository {
     int upsertAll(List<MarketDailyPrice> prices);
 
     List<MarketDailyPrice> findByStockCode(String stockCode, LocalDate from, LocalDate to, int limit);
+
+    List<LocalDate> findTradingDates(LocalDate from, LocalDate to);
 }

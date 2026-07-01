@@ -32,6 +32,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hana.omnilens.market.application.ForeignOwnershipSnapshotCache;
 import com.hana.omnilens.market.application.MarketDataService;
 import com.hana.omnilens.market.application.RealtimeMarketDataIngestionService;
+import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
@@ -63,6 +64,9 @@ class MarketQuoteWebSocketContractTest {
     @Autowired
     private ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
 
+    @Autowired
+    private StockMasterRepository stockMasterRepository;
+
     @MockitoBean
     private KisCurrentPriceClient kisCurrentPriceClient;
 
@@ -71,13 +75,14 @@ class MarketQuoteWebSocketContractTest {
         marketDataService.updateExchangeRate("USD", new BigDecimal("0.00072"));
         when(kisCurrentPriceClient.findCurrentPrice(anyString()))
                 .thenAnswer(invocation -> Optional.of(kisSnapshot(invocation.getArgument(0))));
-        foreignOwnershipSnapshotCache.put(new ForeignOwnershipSnapshot(
-                "005930",
-                3_642_091_300L,
-                new BigDecimal("54.19"),
-                6_720_000_000L,
-                new BigDecimal("54.19"),
-                LocalDate.of(2025, 6, 4)));
+        stockMasterRepository.findAll(100)
+                .forEach(stock -> foreignOwnershipSnapshotCache.put(new ForeignOwnershipSnapshot(
+                        stock.stockCode(),
+                        3_642_091_300L,
+                        new BigDecimal("54.19"),
+                        6_720_000_000L,
+                        new BigDecimal("54.19"),
+                        LocalDate.of(2025, 6, 4))));
     }
 
     @Test

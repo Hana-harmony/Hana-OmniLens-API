@@ -218,7 +218,7 @@ paths:
       operationId: getStockDetail
       summary: Get Korea stock detail for exchange app screens.
       description: >
-        Returns quote, local currency price, KIS foreign ownership snapshot,
+        Returns quote, local currency price, KRX foreign ownership snapshot,
         foreign limit prediction, and realtime order boundary flags in one
         payload for Stock-exchange-BE detail pages.
       parameters:
@@ -447,11 +447,13 @@ paths:
       tags:
         - Market Data
       operationId: collectForeignOwnership
-      summary: Collect KIS foreign ownership daily snapshots.
+      summary: Collect KRX foreign ownership daily snapshots.
       description: >
         Operational endpoint used by scheduled jobs or administrators to collect
-        KIS current-price foreign ownership snapshots and upsert them into
+        KRX foreign ownership snapshots and upsert them into
         foreign_ownership_daily_snapshot for Hannah time-series prediction.
+        Without explicit stockCodes, the default target is the current listed
+        foreign ownership restricted stock allowlist.
       parameters:
         - name: baseDate
           in: query
@@ -1286,7 +1288,7 @@ components:
           type: integer
         source:
           type: string
-          example: KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP
+          example: KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP
         status:
           type: string
           enum:
@@ -1453,7 +1455,7 @@ components:
           format: date-time
         source:
           type: string
-          description: Data source chain, for example KIS_WEBSOCKET_TRADE+KIS_FOREIGN_OWNERSHIP_CACHE, KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE, or PUBLIC_DATA_STOCK_SECURITIES+KIS_FOREIGN_OWNERSHIP_CACHE.
+          description: Data source chain, for example KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP_CACHE, KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE, or PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE.
     StockDetail:
       type: object
       required:
@@ -1601,13 +1603,16 @@ components:
           type:
             - string
             - "null"
-          example: FOREIGN_LIMIT_EXCEEDED
+          description: Market-status block reason. Foreign ownership limit forecasts are warning-only and do not populate this field.
+          example: TRADING_HALTED
         foreignLimitExceeded:
           type: boolean
+          description: BUY warning flag for KRX foreign ownership restricted stocks only. It also covers zero-limit restricted stocks such as SBS/KNN/TBC. This does not block the order by itself.
         currentForeignLimitExhaustionRate:
           type: number
         predictedForeignLimitExhaustionRate:
           type: number
+          description: Base forecast for today's foreign ownership limit exhaustion rate from the foreign ownership time series.
         foreignOwnershipPrediction:
           $ref: "#/components/schemas/ForeignOwnershipPrediction"
         foreignOwnershipBaseDate:
@@ -1656,19 +1661,20 @@ components:
           description: Lower bound of the predicted foreign ownership limit exhaustion rate.
         baseForeignLimitExhaustionRate:
           type: number
-          description: Snapshot rate plus simulated order impact and time-series trend adjustment.
+          description: Base forecast from the foreign ownership snapshot and daily time-series trend. Requested order quantity is not applied. For unrestricted stocks this is the current KRX snapshot rate.
         maxForeignLimitExhaustionRate:
           type: number
-          description: Upper risk boundary for warning and display. BUY blocking uses predictedForeignLimitExhaustionRate, not this confidence boundary by itself.
+          description: Upper risk boundary for warning and display. It is evaluated for KRX foreign ownership restricted stocks, including zero-limit restricted stocks, and is not an automatic order-blocking condition.
         orderImpactRate:
           type: number
-          description: Percentage-point impact of the requested mock order quantity.
+          description: Compatibility field. Foreign ownership limit prediction does not apply the requested mock order quantity and returns 0.
         intradayUncertaintyRate:
           type: number
-          description: Intraday uncertainty derived from KIS realtime accumulated volume, or snapshot-only fallback.
+          description: Compatibility field. KIS realtime accumulated volume is not applied; fallback responses may carry time-series or snapshot uncertainty under this legacy field name.
         observedIntradayVolume:
           type: integer
           format: int64
+          description: Compatibility field. Foreign ownership limit prediction does not use intraday volume.
         trendDailyChangeRate:
           type: number
           description: Average daily percentage-point change from recent foreign ownership limit-exhaustion snapshots.

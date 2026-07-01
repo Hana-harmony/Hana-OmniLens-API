@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 public record KisRealtimeProperties(
         boolean enabled,
         List<String> stockCodes,
+        List<String> indexCodes,
         int stockLimit,
         int shardSize,
         boolean orderBookEnabled,
@@ -17,7 +18,7 @@ public record KisRealtimeProperties(
 ) {
 
     public KisRealtimeProperties(boolean enabled, List<String> stockCodes) {
-        this(enabled, stockCodes, 5000, 40, false, false);
+        this(enabled, stockCodes, List.of(), 5000, 40, false, false);
     }
 
     public KisRealtimeProperties(
@@ -26,7 +27,17 @@ public record KisRealtimeProperties(
             int stockLimit,
             int shardSize,
             boolean orderBookEnabled) {
-        this(enabled, stockCodes, stockLimit, shardSize, orderBookEnabled, false);
+        this(enabled, stockCodes, List.of(), stockLimit, shardSize, orderBookEnabled, false);
+    }
+
+    public KisRealtimeProperties(
+            boolean enabled,
+            List<String> stockCodes,
+            int stockLimit,
+            int shardSize,
+            boolean orderBookEnabled,
+            boolean afterHoursEnabled) {
+        this(enabled, stockCodes, List.of(), stockLimit, shardSize, orderBookEnabled, afterHoursEnabled);
     }
 
     @ConstructorBinding
@@ -36,7 +47,12 @@ public record KisRealtimeProperties(
                 : stockCodes.stream()
                         .filter(StringUtils::hasText)
                         .toList();
-        stockLimit = stockLimit <= 0 ? 5000 : stockLimit;
+        indexCodes = indexCodes == null
+                ? List.of()
+                : indexCodes.stream()
+                        .filter(StringUtils::hasText)
+                        .toList();
+        stockLimit = stockLimit < 0 ? 5000 : stockLimit;
         shardSize = shardSize <= 0 ? 40 : shardSize;
     }
 }

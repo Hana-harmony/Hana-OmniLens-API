@@ -11,5 +11,9 @@ public interface KisRealtimeWebSocketConnection {
             List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer);
 
-    void send(List<KisRealtimeSubscriptionFrame> subscriptionFrames);
+    default void subscribe(List<KisRealtimeSubscriptionFrame> subscriptionFrames) {
+    }
+
+    default void unsubscribe(List<KisRealtimeSubscriptionFrame> subscriptionFrames) {
+    }
 }

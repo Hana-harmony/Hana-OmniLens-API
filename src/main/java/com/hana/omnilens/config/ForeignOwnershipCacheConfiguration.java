@@ -9,8 +9,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.hana.omnilens.market.application.ForeignOwnershipSnapshotCache;
+import com.hana.omnilens.market.application.ForeignOwnershipPredictionCache;
 import com.hana.omnilens.market.application.InMemoryForeignOwnershipSnapshotCache;
+import com.hana.omnilens.market.application.InMemoryForeignOwnershipPredictionCache;
 import com.hana.omnilens.market.application.RedisForeignOwnershipSnapshotCache;
+import com.hana.omnilens.market.application.RedisForeignOwnershipPredictionCache;
 
 @Configuration
 public class ForeignOwnershipCacheConfiguration {
@@ -32,6 +35,29 @@ public class ForeignOwnershipCacheConfiguration {
         }
 
         return new RedisForeignOwnershipSnapshotCache(
+                redisTemplate,
+                objectMapper,
+                fallbackCache,
+                properties.ttl());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ForeignOwnershipPredictionCache foreignOwnershipPredictionCache(
+            ForeignOwnershipCacheProperties properties,
+            ObjectProvider<StringRedisTemplate> redisTemplateProvider,
+            ObjectMapper objectMapper) {
+        ForeignOwnershipPredictionCache fallbackCache = new InMemoryForeignOwnershipPredictionCache();
+        if (properties.mode() == ForeignOwnershipCacheProperties.Mode.IN_MEMORY) {
+            return fallbackCache;
+        }
+
+        StringRedisTemplate redisTemplate = redisTemplateProvider.getIfAvailable();
+        if (redisTemplate == null) {
+            return fallbackCache;
+        }
+
+        return new RedisForeignOwnershipPredictionCache(
                 redisTemplate,
                 objectMapper,
                 fallbackCache,

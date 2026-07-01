@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -92,6 +93,38 @@ public class JdbcForeignOwnershipDailySnapshotRepository implements ForeignOwner
                 stockCode,
                 to,
                 limit);
+    }
+
+    @Override
+    public List<ForeignOwnershipDailySnapshot> findAllByStockCodes(List<String> stockCodes) {
+        if (stockCodes == null || stockCodes.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = String.join(",", Collections.nCopies(stockCodes.size(), "?"));
+        String sql = """
+                SELECT stock_code, base_date, foreign_owned_quantity, foreign_ownership_rate,
+                       foreign_limit_quantity, foreign_limit_exhaustion_rate, source, collected_at
+                FROM foreign_ownership_daily_snapshot
+                WHERE stock_code IN (%s)
+                ORDER BY stock_code ASC, base_date ASC
+                """.formatted(placeholders);
+        return jdbcTemplate.query(sql, ROW_MAPPER, stockCodes.toArray());
+    }
+
+    @Override
+    public List<LocalDate> findBaseDates(String stockCode, LocalDate from, LocalDate to) {
+        return jdbcTemplate.queryForList(
+                """
+                SELECT base_date
+                FROM foreign_ownership_daily_snapshot
+                WHERE stock_code = ?
+                  AND base_date BETWEEN ? AND ?
+                ORDER BY base_date ASC
+                """,
+                LocalDate.class,
+                stockCode,
+                from,
+                to);
     }
 
     private static class ForeignOwnershipDailySnapshotRowMapper

@@ -22,6 +22,7 @@ import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
+import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
@@ -46,7 +47,7 @@ import com.hana.omnilens.provider.market.PublicDataStockSecuritiesClient;
 public class MarketDataService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
-    private static final BigDecimal FOREIGN_LIMIT_BLOCK_RATE = new BigDecimal("100.0000");
+    private static final BigDecimal FOREIGN_LIMIT_WARNING_RATE = new BigDecimal("100.0000");
     private static final Duration PRICE_CACHE_TTL = Duration.ofSeconds(2);
     private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofSeconds(30);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
@@ -60,6 +61,7 @@ public class MarketDataService {
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
     private final ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository;
+    private final ForeignOwnershipPredictionCache foreignOwnershipPredictionCache;
     private final ExchangeRateCache exchangeRateCache;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
     private final HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient;
@@ -75,6 +77,7 @@ public class MarketDataService {
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
+            ForeignOwnershipPredictionCache foreignOwnershipPredictionCache,
             ExchangeRateCache exchangeRateCache,
             RealtimeMarketDataCache realtimeMarketDataCache,
             HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
@@ -86,6 +89,7 @@ public class MarketDataService {
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 foreignOwnershipDailySnapshotRepository,
+                foreignOwnershipPredictionCache,
                 exchangeRateCache,
                 realtimeMarketDataCache,
                 hannahAiForeignOwnershipPredictionClient,
@@ -108,6 +112,7 @@ public class MarketDataService {
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 new InMemoryForeignOwnershipDailySnapshotRepository(),
+                new InMemoryForeignOwnershipPredictionCache(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
                 null,
@@ -131,6 +136,7 @@ public class MarketDataService {
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 new InMemoryForeignOwnershipDailySnapshotRepository(),
+                new InMemoryForeignOwnershipPredictionCache(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
                 null,
@@ -154,6 +160,7 @@ public class MarketDataService {
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 new InMemoryForeignOwnershipDailySnapshotRepository(),
+                new InMemoryForeignOwnershipPredictionCache(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
                 null,
@@ -173,12 +180,41 @@ public class MarketDataService {
             HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
             Clock clock) {
+        this(
+                publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                foreignOwnershipDailySnapshotRepository,
+                new InMemoryForeignOwnershipPredictionCache(),
+                exchangeRateCache,
+                realtimeMarketDataCache,
+                hannahAiForeignOwnershipPredictionClient,
+                foreignOwnershipPredictionEngine,
+                clock);
+    }
+
+    MarketDataService(
+            PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
+            KisRestOrderBookClient kisRestOrderBookClient,
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
+            ForeignOwnershipPredictionCache foreignOwnershipPredictionCache,
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
+            ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
+            Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.kisCurrentPriceClient = kisCurrentPriceClient;
         this.kisRestOrderBookClient = kisRestOrderBookClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
         this.foreignOwnershipDailySnapshotRepository = foreignOwnershipDailySnapshotRepository;
+        this.foreignOwnershipPredictionCache = foreignOwnershipPredictionCache;
         this.exchangeRateCache = exchangeRateCache;
         this.realtimeMarketDataCache = realtimeMarketDataCache;
         this.hannahAiForeignOwnershipPredictionClient = hannahAiForeignOwnershipPredictionClient;
@@ -198,7 +234,7 @@ public class MarketDataService {
                         "No live provider price is available for stockCode=" + stockCode));
         ForeignOwnershipSnapshot ownership = foreignOwnership.snapshot()
                 .orElseThrow(() -> new MarketDataUnavailableException(
-                        "No KIS foreign ownership snapshot is available for stockCode=" + stockCode));
+                        "No KRX foreign ownership snapshot is available for stockCode=" + stockCode));
         FxLookup fxLookup = resolveFxRate(localCurrency, fxRate);
         BigDecimal localPrice = currentPrice.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
         BigDecimal afterHoursPriceKrw = afterHoursTrade.map(KisRealtimeTradeTick::currentPriceKrw).orElse(null);
@@ -292,6 +328,26 @@ public class MarketDataService {
                 .toList();
     }
 
+    public List<MarketIndexQuote> getIndices() {
+        return realtimeMarketDataCache.latestIndices().stream()
+                .map(tick -> new MarketIndexQuote(
+                        tick.indexCode(),
+                        tick.indexName(),
+                        tick.market(),
+                        tick.currentValue(),
+                        tick.changeSign(),
+                        tick.changeValue(),
+                        tick.changeRate(),
+                        tick.accumulatedVolume(),
+                        tick.accumulatedTradingValue(),
+                        tick.openValue(),
+                        tick.highValue(),
+                        tick.lowValue(),
+                        tick.marketDataTime(),
+                        tick.source()))
+                .toList();
+    }
+
     public OrderBook getOrderBook(String stockCode) {
         Optional<KisRealtimeOrderBookSnapshot> realtimeOrderBook =
                 realtimeMarketDataCache.latestOrderBook(stockCode);
@@ -373,10 +429,6 @@ public class MarketDataService {
         BigDecimal currentForeignLimitExhaustionRate = snapshot
                 .map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate)
                 .orElse(BigDecimal.ZERO);
-        BigDecimal predictedForeignLimitExhaustionRate = predictedForeignLimitExhaustionRate(
-                side,
-                quantity,
-                snapshot);
         List<ForeignOwnershipDailySnapshot> history = foreignOwnershipHistory(stockCode, snapshot);
         Optional<KisRealtimeTradeTick> realtimeTradeTick = realtimeMarketDataCache.latestTrade(stockCode);
         ForeignOwnershipPrediction foreignOwnershipPrediction = foreignOwnershipPrediction(
@@ -385,10 +437,15 @@ public class MarketDataService {
                 snapshot,
                 realtimeTradeTick,
                 history);
+        BigDecimal predictedForeignLimitExhaustionRate =
+                foreignOwnershipPrediction.baseForeignLimitExhaustionRate();
         boolean foreignLimitExceeded = "BUY".equals(side)
-                && predictedForeignLimitExhaustionRate.compareTo(FOREIGN_LIMIT_BLOCK_RATE) >= 0;
+                && snapshot.map(this::isForeignLimitRestricted).orElse(false)
+                && (snapshot.map(this::isZeroForeignLimitRestricted).orElse(false)
+                        || foreignOwnershipPrediction.maxForeignLimitExhaustionRate()
+                                .compareTo(FOREIGN_LIMIT_WARNING_RATE) >= 0);
         MarketStatus marketStatus = latestMarketStatus(stockCode);
-        String blockedReason = blockedReason(foreignLimitExceeded, marketStatus.tradingHalted());
+        String blockedReason = blockedReason(marketStatus.tradingHalted());
 
         return new Orderability(
                 stock.stockCode(),
@@ -468,7 +525,6 @@ public class MarketDataService {
             if (kisSnapshot.isPresent()) {
                 LocalDate baseDate = LocalDate.now(clock);
                 KisCurrentPriceSnapshot snapshot = kisSnapshot.orElseThrow();
-                snapshot.foreignOwnershipSnapshot(baseDate).ifPresent(this::storeForeignOwnershipSnapshot);
                 PriceLookup priceLookup = PriceLookup.kis(snapshot, baseDate);
                 priceLookupCache.put(stockCode, new CachedPriceLookup(priceLookup, Instant.now(clock)));
                 return priceLookup;
@@ -532,20 +588,35 @@ public class MarketDataService {
             Optional<ForeignOwnershipSnapshot> snapshot,
             Optional<KisRealtimeTradeTick> realtimeTradeTick,
             List<ForeignOwnershipDailySnapshot> history) {
+        if (snapshot.isPresent() && isZeroForeignLimitRestricted(snapshot.orElseThrow())) {
+            return zeroForeignLimitPrediction(snapshot.orElseThrow(), history);
+        }
+        if (snapshot.isPresent() && !isForeignLimitRestricted(snapshot.orElseThrow())) {
+            return unrestrictedForeignOwnershipPrediction(snapshot.orElseThrow(), history);
+        }
         if (hannahAiForeignOwnershipPredictionClient == null || snapshot.isEmpty()) {
             return fallbackForeignOwnershipPrediction(side, quantity, snapshot, realtimeTradeTick, history);
         }
+        ForeignOwnershipSnapshot ownershipSnapshot = snapshot.orElseThrow();
+        Optional<ForeignOwnershipPrediction> cachedPrediction = foreignOwnershipPredictionCache.find(
+                ownershipSnapshot.stockCode(),
+                ownershipSnapshot.baseDate());
+        if (cachedPrediction.isPresent()) {
+            return cachedPrediction.orElseThrow();
+        }
         try {
-            return toForeignOwnershipPrediction(hannahAiForeignOwnershipPredictionClient.predict(
-                    toHannahAiForeignOwnershipPredictionRequest(
+            ForeignOwnershipPrediction prediction = toForeignOwnershipPrediction(
+                    hannahAiForeignOwnershipPredictionClient.predict(toHannahAiForeignOwnershipPredictionRequest(
                             side,
                             quantity,
-                            snapshot.orElseThrow(),
+                            ownershipSnapshot,
                             realtimeTradeTick,
                             history)));
+            foreignOwnershipPredictionCache.put(ownershipSnapshot.stockCode(), prediction);
+            return prediction;
         } catch (ProviderCircuitOpenException | RestClientException | IllegalStateException exception) {
             log.warn("Hannah AI foreign ownership prediction failed for stockCode={}, falling back: {}",
-                    snapshot.orElseThrow().stockCode(),
+                    ownershipSnapshot.stockCode(),
                     exception.toString());
             return fallbackForeignOwnershipPrediction(side, quantity, snapshot, realtimeTradeTick, history);
         }
@@ -558,6 +629,62 @@ public class MarketDataService {
             Optional<KisRealtimeTradeTick> realtimeTradeTick,
             List<ForeignOwnershipDailySnapshot> history) {
         return foreignOwnershipPredictionEngine.predict(side, quantity, snapshot, realtimeTradeTick, history);
+    }
+
+    private ForeignOwnershipPrediction unrestrictedForeignOwnershipPrediction(
+            ForeignOwnershipSnapshot snapshot,
+            List<ForeignOwnershipDailySnapshot> history) {
+        BigDecimal currentRate = snapshot.foreignLimitExhaustionRate().setScale(6, RoundingMode.HALF_UP);
+        return new ForeignOwnershipPrediction(
+                currentRate,
+                currentRate,
+                currentRate,
+                BigDecimal.ZERO.setScale(6),
+                BigDecimal.ZERO.setScale(6),
+                0L,
+                BigDecimal.ZERO.setScale(6),
+                history.size(),
+                0,
+                snapshot.baseDate(),
+                Instant.now(clock),
+                "FOREIGN_LIMIT_NOT_APPLICABLE",
+                BigDecimal.ONE.setScale(4),
+                "foreign-ownership-unrestricted-v1",
+                "KRX_FOREIGN_OWNERSHIP_UNRESTRICTED");
+    }
+
+    private ForeignOwnershipPrediction zeroForeignLimitPrediction(
+            ForeignOwnershipSnapshot snapshot,
+            List<ForeignOwnershipDailySnapshot> history) {
+        BigDecimal zeroRate = BigDecimal.ZERO.setScale(6);
+        return new ForeignOwnershipPrediction(
+                zeroRate,
+                zeroRate,
+                FOREIGN_LIMIT_WARNING_RATE.setScale(6, RoundingMode.HALF_UP),
+                BigDecimal.ZERO.setScale(6),
+                BigDecimal.ZERO.setScale(6),
+                0L,
+                BigDecimal.ZERO.setScale(6),
+                history.size(),
+                0,
+                snapshot.baseDate(),
+                Instant.now(clock),
+                "FOREIGN_LIMIT_ZERO_NOT_ACQUIRABLE",
+                BigDecimal.ONE.setScale(4),
+                "foreign-ownership-zero-limit-v1",
+                "KRX_FOREIGN_OWNERSHIP_ZERO_LIMIT");
+    }
+
+    private boolean isForeignLimitRestricted(ForeignOwnershipSnapshot snapshot) {
+        return ForeignOwnershipRestrictedStockUniverse.isRestrictedStockCode(snapshot.stockCode());
+    }
+
+    private boolean isZeroForeignLimitRestricted(ForeignOwnershipSnapshot snapshot) {
+        return ForeignOwnershipRestrictedStockUniverse.isZeroLimitRestrictedStockCode(snapshot.stockCode())
+                && snapshot.foreignOwnedQuantity() == 0L
+                && snapshot.foreignLimitQuantity() == 0L
+                && snapshot.foreignOwnershipRate().signum() == 0
+                && snapshot.foreignLimitExhaustionRate().signum() == 0;
     }
 
     private HannahAiForeignOwnershipPredictionRequest toHannahAiForeignOwnershipPredictionRequest(
@@ -624,41 +751,9 @@ public class MarketDataService {
         return foreignOwnershipDailySnapshotRepository.findRecent(stockCode, to, FOREIGN_OWNERSHIP_HISTORY_LIMIT);
     }
 
-    private void storeForeignOwnershipSnapshot(ForeignOwnershipSnapshot snapshot) {
-        foreignOwnershipSnapshotCache.put(snapshot);
-        foreignOwnershipDailySnapshotRepository.upsert(new ForeignOwnershipDailySnapshot(
-                snapshot.stockCode(),
-                snapshot.baseDate(),
-                snapshot.foreignOwnedQuantity(),
-                snapshot.foreignOwnershipRate(),
-                snapshot.foreignLimitQuantity(),
-                snapshot.foreignLimitExhaustionRate(),
-                "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP",
-                Instant.now(clock)));
-    }
-
-    private BigDecimal predictedForeignLimitExhaustionRate(
-            String side,
-            long quantity,
-            Optional<ForeignOwnershipSnapshot> snapshot) {
-        if (!"BUY".equals(side) || snapshot.isEmpty() || snapshot.orElseThrow().foreignLimitQuantity() <= 0) {
-            return snapshot.map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(BigDecimal.ZERO);
-        }
-        ForeignOwnershipSnapshot ownership = snapshot.orElseThrow();
-        BigDecimal quantityRate = BigDecimal.valueOf(quantity)
-                .multiply(BigDecimal.valueOf(100))
-                .divide(BigDecimal.valueOf(ownership.foreignLimitQuantity()), 6, RoundingMode.HALF_UP);
-        return ownership.foreignLimitExhaustionRate()
-                .add(quantityRate)
-                .setScale(6, RoundingMode.HALF_UP);
-    }
-
-    private String blockedReason(boolean foreignLimitExceeded, boolean tradingHalted) {
+    private String blockedReason(boolean tradingHalted) {
         if (tradingHalted) {
             return "TRADING_HALTED";
-        }
-        if (foreignLimitExceeded) {
-            return "FOREIGN_LIMIT_EXCEEDED";
         }
         return null;
     }
@@ -724,19 +819,19 @@ public class MarketDataService {
 
     private String source(PriceSource priceSource, ForeignOwnershipSource foreignOwnershipSource) {
         if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
-            return "KIS_WEBSOCKET_TRADE+KIS_FOREIGN_OWNERSHIP_CACHE";
+            return "KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
         if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE) {
             return "KIS_WEBSOCKET_TRADE";
         }
         if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
-            return "KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE";
+            return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
         if (priceSource == PriceSource.KIS_OPEN_API) {
             return "KIS_OPEN_API";
         }
         if (priceSource == PriceSource.PUBLIC_DATA && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
-            return "PUBLIC_DATA_STOCK_SECURITIES+KIS_FOREIGN_OWNERSHIP_CACHE";
+            return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
         if (priceSource == PriceSource.PUBLIC_DATA) {
             return "PUBLIC_DATA_STOCK_SECURITIES";
