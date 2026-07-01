@@ -17,6 +17,7 @@ import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipTrainingPoint;
 public class ForeignOwnershipModelTrainingService {
 
     private static final Logger log = LoggerFactory.getLogger(ForeignOwnershipModelTrainingService.class);
+    private static final int MIN_HANNAH_RETRAIN_HISTORY_POINTS = 120;
 
     private final ForeignOwnershipDailySnapshotRepository repository;
     private final HannahAiForeignOwnershipRetrainClient retrainClient;
@@ -38,8 +39,17 @@ public class ForeignOwnershipModelTrainingService {
         List<String> restrictedStockCodes = ForeignOwnershipRestrictedStockUniverse.stockCodes();
         List<ForeignOwnershipDailySnapshot> snapshots =
                 repository.findAllByStockCodes(restrictedStockCodes);
+        return retrainRestrictedUniverse(snapshots, restrictedStockCodes);
+    }
+
+    private HannahAiForeignOwnershipRetrainResponse retrainRestrictedUniverse(
+            List<ForeignOwnershipDailySnapshot> snapshots,
+            List<String> restrictedStockCodes) {
         if (snapshots.isEmpty()) {
             throw new IllegalStateException("Foreign ownership training history is empty");
+        }
+        if (snapshots.size() < MIN_HANNAH_RETRAIN_HISTORY_POINTS) {
+            throw new IllegalStateException("Foreign ownership training history is below Hannah retrain minimum");
         }
         HannahAiForeignOwnershipRetrainResponse response = retrainClient.retrain(
                 new HannahAiForeignOwnershipRetrainRequest(
@@ -69,8 +79,18 @@ public class ForeignOwnershipModelTrainingService {
         if (backfillResult.savedCount() <= 0) {
             return;
         }
+        List<String> restrictedStockCodes = ForeignOwnershipRestrictedStockUniverse.stockCodes();
+        List<ForeignOwnershipDailySnapshot> snapshots =
+                repository.findAllByStockCodes(restrictedStockCodes);
+        if (snapshots.size() < MIN_HANNAH_RETRAIN_HISTORY_POINTS) {
+            log.info(
+                    "Foreign ownership model retrain skipped after refresh historyCount={} minimumHistoryCount={}",
+                    snapshots.size(),
+                    MIN_HANNAH_RETRAIN_HISTORY_POINTS);
+            return;
+        }
         try {
-            retrainRestrictedUniverse();
+            retrainRestrictedUniverse(snapshots, restrictedStockCodes);
         } catch (RuntimeException exception) {
             log.warn(
                     "Foreign ownership model retrain failed after refresh savedCount={} status={}",

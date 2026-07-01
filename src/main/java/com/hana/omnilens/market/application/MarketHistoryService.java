@@ -4,16 +4,21 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.hana.omnilens.config.MarketChartWarmupProperties;
 import com.hana.omnilens.config.MarketHistoryCollectionProperties;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.market.domain.MarketIntradayPrice;
@@ -34,9 +39,14 @@ public class MarketHistoryService {
     private static final String KIS_SOURCE = "KIS_DAILY_ITEM_CHART_PRICE";
     private static final String KIS_FALLBACK_MARKET = "KIS_DAILY_CHART";
     private static final int KIS_FALLBACK_STOCK_LIMIT = 2_000;
-    private static final Duration KIS_FALLBACK_REQUEST_INTERVAL = Duration.ofMillis(1_200);
-    private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
+    private static final Duration KIS_FALLBACK_REQUEST_INTERVAL = Duration.ofMillis(2_200);
+    private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(3_000);
     private static final Duration INTRADAY_CACHE_FRESHNESS = Duration.ofSeconds(60);
+    private static final LocalTime REGULAR_MARKET_OPEN = LocalTime.of(9, 0);
+    private static final LocalTime REGULAR_MARKET_CLOSE = LocalTime.of(15, 30);
+    private static final LocalTime REGULAR_MARKET_FIRST_MINUTE = LocalTime.of(9, 1);
+    private static final int REGULAR_SESSION_EXPECTED_MINUTES = 390;
+    private static final int REGULAR_SESSION_MINIMUM_COMPLETE_MINUTES = 380;
     private static final List<String> MARKETS = List.of("KOSPI", "KOSDAQ", "KONEX");
 
     private final KrxOpenApiDailyTradeClient krxOpenApiDailyTradeClient;
@@ -46,6 +56,7 @@ public class MarketHistoryService {
     private final MarketIntradayPriceRepository marketIntradayPriceRepository;
     private final StockMasterRepository stockMasterRepository;
     private final MarketHistoryCollectionProperties collectionProperties;
+    private final MarketChartWarmupProperties chartWarmupProperties;
     private final Clock clock;
 
     @Autowired
@@ -56,7 +67,8 @@ public class MarketHistoryService {
             MarketDailyPriceRepository marketDailyPriceRepository,
             MarketIntradayPriceRepository marketIntradayPriceRepository,
             StockMasterRepository stockMasterRepository,
-            MarketHistoryCollectionProperties collectionProperties) {
+            MarketHistoryCollectionProperties collectionProperties,
+            MarketChartWarmupProperties chartWarmupProperties) {
         this(
                 krxOpenApiDailyTradeClient,
                 kisDailyChartPriceClient,
@@ -65,6 +77,7 @@ public class MarketHistoryService {
                 marketIntradayPriceRepository,
                 stockMasterRepository,
                 collectionProperties,
+                chartWarmupProperties,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -83,6 +96,7 @@ public class MarketHistoryService {
                 null,
                 stockMasterRepository,
                 collectionProperties,
+                null,
                 clock);
     }
 
@@ -94,6 +108,7 @@ public class MarketHistoryService {
             MarketIntradayPriceRepository marketIntradayPriceRepository,
             StockMasterRepository stockMasterRepository,
             MarketHistoryCollectionProperties collectionProperties,
+            MarketChartWarmupProperties chartWarmupProperties,
             Clock clock) {
         this.krxOpenApiDailyTradeClient = krxOpenApiDailyTradeClient;
         this.kisDailyChartPriceClient = kisDailyChartPriceClient;
@@ -104,6 +119,9 @@ public class MarketHistoryService {
         this.collectionProperties = collectionProperties == null
                 ? new MarketHistoryCollectionProperties(false, 86_400_000L, 1, null)
                 : collectionProperties;
+        this.chartWarmupProperties = chartWarmupProperties == null
+                ? new MarketChartWarmupProperties(true, 300_000L, 10_000L, 0, 30, 7, 30, List.of(), 1_200L, true, true)
+                : chartWarmupProperties;
         this.clock = clock;
     }
 
@@ -117,18 +135,56 @@ public class MarketHistoryService {
         }
         List<MarketDailyPrice> savedHistory =
                 marketDailyPriceRepository.findByStockCode(stockCode, resolvedFrom, resolvedTo, limit);
-        if (!savedHistory.isEmpty()) {
+        if (!savedHistory.isEmpty() && coversRequestedStart(savedHistory, resolvedFrom)) {
             return savedHistory;
         }
-        return loadKisHistoryFallback(stock, resolvedFrom, resolvedTo, limit);
+        List<MarketDailyPrice> fetchedHistory = loadKisHistoryFallback(stock, resolvedFrom, resolvedTo, limit);
+        return mergeHistory(savedHistory, fetchedHistory, limit);
+    }
+
+    private boolean coversRequestedStart(List<MarketDailyPrice> savedHistory, LocalDate requestedFrom) {
+        LocalDate earliestSavedDate = savedHistory.stream()
+                .map(MarketDailyPrice::tradeDate)
+                .min(Comparator.naturalOrder())
+                .orElse(requestedFrom);
+        return !earliestSavedDate.isAfter(requestedFrom.plusDays(3));
+    }
+
+    private List<MarketDailyPrice> mergeHistory(
+            List<MarketDailyPrice> savedHistory,
+            List<MarketDailyPrice> fetchedHistory,
+            int limit) {
+        Map<LocalDate, MarketDailyPrice> pricesByDate = new LinkedHashMap<>();
+        fetchedHistory.stream()
+                .sorted(Comparator.comparing(MarketDailyPrice::tradeDate))
+                .forEach(price -> pricesByDate.put(price.tradeDate(), price));
+        savedHistory.stream()
+                .sorted(Comparator.comparing(MarketDailyPrice::tradeDate))
+                .forEach(price -> pricesByDate.put(price.tradeDate(), price));
+        return pricesByDate.values().stream()
+                .sorted(Comparator.comparing(MarketDailyPrice::tradeDate))
+                .limit(limit)
+                .toList();
     }
 
     public List<MarketIntradayPrice> getIntradayHistory(String stockCode, LocalDate date, int limit) {
+        return getIntradayHistory(stockCode, date, limit, true);
+    }
+
+    public List<MarketIntradayPrice> getIntradayHistory(
+            String stockCode,
+            LocalDate date,
+            int limit,
+            boolean fetchMissing) {
         StockSummary stock = stockMasterRepository.findByCode(stockCode)
                 .orElseThrow(() -> new StockMasterNotFoundException(stockCode));
         LocalDate resolvedDate = date == null ? LocalDate.now(clock) : date;
-        List<MarketIntradayPrice> savedPrices = findSavedIntradayPrices(stockCode, resolvedDate, limit);
+        List<MarketIntradayPrice> savedPrices = regularSessionPrices(
+                findSavedIntradayPrices(stockCode, resolvedDate, limit));
         if (isReusableIntradayCache(savedPrices, resolvedDate)) {
+            return savedPrices;
+        }
+        if (!fetchMissing) {
             return savedPrices;
         }
         if (kisMinuteChartPriceClient == null) {
@@ -136,13 +192,25 @@ public class MarketHistoryService {
         }
         List<MarketIntradayPrice> fetchedPrices = kisMinuteChartPriceClient.findMinutePrices(stockCode, resolvedDate, limit)
                 .stream()
-                .map(price -> toIntradayPrice(stock, price))
+                .map(price -> toIntradayPrice(stock, price, resolvedDate))
+                .filter(this::isRegularSessionPrice)
                 .toList();
         if (marketIntradayPriceRepository != null && !fetchedPrices.isEmpty()) {
             marketIntradayPriceRepository.upsertAll(fetchedPrices);
-            return findSavedIntradayPrices(stockCode, resolvedDate, limit);
+            return regularSessionPrices(findSavedIntradayPrices(stockCode, resolvedDate, limit));
         }
         return fetchedPrices.isEmpty() ? savedPrices : fetchedPrices;
+    }
+
+    private List<MarketIntradayPrice> regularSessionPrices(List<MarketIntradayPrice> prices) {
+        return prices.stream()
+                .filter(this::isRegularSessionPrice)
+                .toList();
+    }
+
+    private boolean isRegularSessionPrice(MarketIntradayPrice price) {
+        LocalTime time = price.bucketStart().toLocalTime();
+        return !time.isBefore(REGULAR_MARKET_OPEN) && !time.isAfter(REGULAR_MARKET_CLOSE);
     }
 
     private List<MarketIntradayPrice> findSavedIntradayPrices(String stockCode, LocalDate date, int limit) {
@@ -160,11 +228,36 @@ public class MarketHistoryService {
         if (date.isBefore(today)) {
             return true;
         }
+        if (date.equals(today) && isRegularSessionClosed() && hasCompleteRegularSession(prices)) {
+            return true;
+        }
         Instant newestCollectionTime = prices.stream()
                 .map(MarketIntradayPrice::collectedAt)
                 .max(Comparator.naturalOrder())
                 .orElse(Instant.EPOCH);
         return newestCollectionTime.plus(INTRADAY_CACHE_FRESHNESS).isAfter(Instant.now(clock));
+    }
+
+    private boolean isRegularSessionClosed() {
+        return LocalTime.now(clock).isAfter(REGULAR_MARKET_CLOSE.plusMinutes(5));
+    }
+
+    private boolean hasCompleteRegularSession(List<MarketIntradayPrice> prices) {
+        LocalTime earliestTime = prices.stream()
+                .map(price -> price.bucketStart().toLocalTime())
+                .min(Comparator.naturalOrder())
+                .orElse(REGULAR_MARKET_CLOSE);
+        LocalTime latestTime = prices.stream()
+                .map(price -> price.bucketStart().toLocalTime())
+                .max(Comparator.naturalOrder())
+                .orElse(REGULAR_MARKET_OPEN);
+        long distinctMinuteCount = prices.stream()
+                .map(MarketIntradayPrice::bucketStart)
+                .distinct()
+                .count();
+        return !earliestTime.isAfter(REGULAR_MARKET_FIRST_MINUTE)
+                && !latestTime.isBefore(REGULAR_MARKET_CLOSE)
+                && distinctMinuteCount >= Math.min(REGULAR_SESSION_EXPECTED_MINUTES, REGULAR_SESSION_MINIMUM_COMPLETE_MINUTES);
     }
 
     public MarketHistoryCollectionResult collectDailyHistory(LocalDate baseDate) {
@@ -225,6 +318,97 @@ public class MarketHistoryService {
                 source(marketResults),
                 collectionStatus(marketResults),
                 List.copyOf(marketResults));
+    }
+
+    public MarketChartWarmupResult warmupChartHistory(LocalDate baseDate) {
+        LocalDate resolvedBaseDate = baseDate == null ? LocalDate.now(clock) : baseDate;
+        LocalDate dailyFrom = resolvedBaseDate.minusDays(chartWarmupProperties.dailyLookbackDays());
+        List<StockSummary> stocks = chartWarmupStocks();
+        List<MarketChartWarmupResult.StockResult> stockResults = new ArrayList<>();
+        int dailyPointCount = 0;
+        int intradayPointCount = 0;
+        for (int index = 0; index < stocks.size(); index++) {
+            StockSummary stock = stocks.get(index);
+            if (index > 0) {
+                pause(Duration.ofMillis(chartWarmupProperties.requestDelayMs()));
+            }
+            try {
+                int stockDailyPointCount = 0;
+                int stockIntradayPointCount = 0;
+                if (chartWarmupProperties.isDailyEnabled()) {
+                    stockDailyPointCount = getHistory(
+                            stock.stockCode(),
+                            dailyFrom,
+                            resolvedBaseDate,
+                            chartWarmupProperties.dailyLookbackDays() + 10)
+                            .size();
+                }
+                if (chartWarmupProperties.isIntradayEnabled()) {
+                    LocalDate intradayFrom = resolvedBaseDate.minusDays(chartWarmupProperties.intradayLookbackDays());
+                    LocalDate intradayDate = intradayFrom;
+                    while (!intradayDate.isAfter(resolvedBaseDate)) {
+                        if (isWeekday(intradayDate)) {
+                            stockIntradayPointCount += getIntradayHistory(stock.stockCode(), intradayDate, 390).size();
+                            pause(Duration.ofMillis(chartWarmupProperties.requestDelayMs()));
+                        }
+                        intradayDate = intradayDate.plusDays(1);
+                    }
+                }
+                dailyPointCount += stockDailyPointCount;
+                intradayPointCount += stockIntradayPointCount;
+                stockResults.add(new MarketChartWarmupResult.StockResult(
+                        stock.stockCode(),
+                        stockDailyPointCount,
+                        stockIntradayPointCount,
+                        "SUCCESS",
+                        null));
+            } catch (RuntimeException exception) {
+                log.warn("Market chart warmup failed stockCode={} baseDate={}",
+                        stock.stockCode(), resolvedBaseDate, exception);
+                stockResults.add(new MarketChartWarmupResult.StockResult(
+                        stock.stockCode(),
+                        0,
+                        0,
+                        "FAILED",
+                        providerErrorMessage(exception)));
+            }
+        }
+        return new MarketChartWarmupResult(
+                resolvedBaseDate,
+                dailyFrom,
+                resolvedBaseDate,
+                stocks.size(),
+                dailyPointCount,
+                intradayPointCount,
+                warmupStatus(stockResults),
+                List.copyOf(stockResults));
+    }
+
+    private List<StockSummary> chartWarmupStocks() {
+        if (!chartWarmupProperties.stockCodes().isEmpty()) {
+            return chartWarmupProperties.stockCodes().stream()
+                    .map(stockMasterRepository::findByCode)
+                    .flatMap(Optional::stream)
+                    .toList();
+        }
+        return stockMasterRepository.findAll(chartWarmupProperties.stockLimit());
+    }
+
+    private static boolean isWeekday(LocalDate date) {
+        return date.getDayOfWeek().getValue() < 6;
+    }
+
+    private static String warmupStatus(List<MarketChartWarmupResult.StockResult> stockResults) {
+        long failedCount = stockResults.stream()
+                .filter(result -> "FAILED".equals(result.status()))
+                .count();
+        if (failedCount == 0) {
+            return "SUCCESS";
+        }
+        if (failedCount == stockResults.size()) {
+            return "FAILED";
+        }
+        return "PARTIAL_FAILED";
     }
 
     private static boolean hasFailedMarket(List<MarketHistoryCollectionResult.MarketResult> marketResults) {
@@ -338,8 +522,7 @@ public class MarketHistoryService {
             return List.of();
         }
         try {
-            List<MarketDailyPrice> prices = kisDailyChartPriceClient
-                    .findDailyPrices(stock.stockCode(), from, to)
+            List<MarketDailyPrice> prices = findDailyPricesWithRateLimitRetry(stock.stockCode(), from, to)
                     .stream()
                     .map(price -> toDailyPrice(stock, price))
                     .sorted(Comparator.comparing(MarketDailyPrice::tradeDate))
@@ -353,6 +536,20 @@ public class MarketHistoryService {
             log.warn("KIS daily chart fallback failed stockCode={} from={} to={}",
                     stock.stockCode(), from, to, exception);
             return List.of();
+        }
+    }
+
+    private List<KisDailyChartPrice> findDailyPricesWithRateLimitRetry(String stockCode, LocalDate from, LocalDate to) {
+        try {
+            return kisDailyChartPriceClient.findDailyPrices(stockCode, from, to);
+        } catch (RuntimeException exception) {
+            if (!isKisRateLimitError(exception)) {
+                throw exception;
+            }
+            log.warn("KIS daily chart fallback rate limited stockCode={} from={} to={}, retrying once",
+                    stockCode, from, to);
+            pause(KIS_RATE_LIMIT_RETRY_DELAY);
+            return kisDailyChartPriceClient.findDailyPrices(stockCode, from, to);
         }
     }
 
@@ -390,7 +587,10 @@ public class MarketHistoryService {
                 Instant.now(clock));
     }
 
-    private MarketIntradayPrice toIntradayPrice(StockSummary stock, KisMinuteChartPrice price) {
+    private MarketIntradayPrice toIntradayPrice(StockSummary stock, KisMinuteChartPrice price, LocalDate requestedDate) {
+        String source = requestedDate.equals(LocalDate.now(clock))
+                ? "KIS_TIME_ITEM_CHART_PRICE"
+                : "KIS_TIME_DAILY_CHART_PRICE";
         return new MarketIntradayPrice(
                 stock.stockCode(),
                 price.bucketStart(),
@@ -401,7 +601,7 @@ public class MarketHistoryService {
                 price.closePriceKrw(),
                 price.volume(),
                 price.tradingValueKrw(),
-                "KIS_TIME_ITEM_CHART_PRICE",
+                source,
                 Instant.now(clock));
     }
 

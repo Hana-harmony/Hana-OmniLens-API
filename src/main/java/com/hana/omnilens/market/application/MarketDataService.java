@@ -48,8 +48,8 @@ public class MarketDataService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private static final BigDecimal FOREIGN_LIMIT_WARNING_RATE = new BigDecimal("100.0000");
-    private static final Duration PRICE_CACHE_TTL = Duration.ofSeconds(2);
-    private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofSeconds(30);
+    private static final Duration PRICE_CACHE_TTL = Duration.ofSeconds(20);
+    private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofMinutes(10);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
     private static final int KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS = 3;
     private static final int FOREIGN_OWNERSHIP_HISTORY_LIMIT = 30;
@@ -225,16 +225,13 @@ public class MarketDataService {
     public MarketQuote getQuote(String stockCode, String localCurrency, BigDecimal fxRate) {
         PriceLookup priceLookup = latestPriceSnapshot(stockCode);
         StockSummary stock = getStock(stockCode);
-        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock);
+        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock, priceLookup);
         Optional<KisRealtimeTradeTick> afterHoursTrade = realtimeMarketDataCache.latestTrade(stockCode)
                 .filter(KisRealtimeTradeTick::afterHours);
 
         BigDecimal currentPrice = priceLookup.currentPriceKrw()
                 .orElseThrow(() -> new MarketDataUnavailableException(
                         "No live provider price is available for stockCode=" + stockCode));
-        ForeignOwnershipSnapshot ownership = foreignOwnership.snapshot()
-                .orElseThrow(() -> new MarketDataUnavailableException(
-                        "No KRX foreign ownership snapshot is available for stockCode=" + stockCode));
         FxLookup fxLookup = resolveFxRate(localCurrency, fxRate);
         BigDecimal localPrice = currentPrice.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
         BigDecimal afterHoursPriceKrw = afterHoursTrade.map(KisRealtimeTradeTick::currentPriceKrw).orElse(null);
@@ -264,10 +261,10 @@ public class MarketDataService {
                 fxLookup.fxRateTime(),
                 fxLookup.fxRateSource(),
                 fxLookup.stale(),
-                ownership.foreignOwnedQuantity(),
-                ownership.foreignOwnershipRate(),
-                ownership.foreignLimitExhaustionRate(),
-                ownership.baseDate(),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(0L),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(null),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::baseDate).orElse(null),
                 Instant.now(clock),
                 source(priceLookup.source(), foreignOwnership.source()))
         ;
@@ -319,13 +316,23 @@ public class MarketDataService {
         if (resolvedStockCodes.isEmpty()) {
             return stockMasterRepository.findAll(limit).stream()
                     .filter(stock -> normalizedMarket == null || normalizedMarket.equals(stock.market()))
-                    .map(stock -> getQuote(stock.stockCode(), localCurrency, fxRate))
+                    .flatMap(stock -> quoteOrEmpty(stock.stockCode(), localCurrency, fxRate).stream())
                     .toList();
         }
         return resolvedStockCodes.stream()
-                .map(stockCode -> getQuote(stockCode, localCurrency, fxRate))
+                .flatMap(stockCode -> quoteOrEmpty(stockCode, localCurrency, fxRate).stream())
                 .filter(quote -> normalizedMarket == null || normalizedMarket.equals(quote.market()))
                 .toList();
+    }
+
+    private Optional<MarketQuote> quoteOrEmpty(String stockCode, String localCurrency, BigDecimal fxRate) {
+        try {
+            return Optional.of(getQuote(stockCode, localCurrency, fxRate));
+        } catch (MarketDataUnavailableException exception) {
+            // 목록 API는 한 종목의 외부 데이터 장애가 전체 홈 화면을 막지 않도록 종목 단위로 격리한다.
+            log.warn("Market quote skipped stockCode={}: {}", stockCode, exception.toString());
+            return Optional.empty();
+        }
     }
 
     public List<MarketIndexQuote> getIndices() {
@@ -424,7 +431,7 @@ public class MarketDataService {
     public Orderability getOrderability(String stockCode, String side, long quantity) {
         StockSummary stock = getStock(stockCode);
         PriceLookup priceLookup = latestPriceSnapshot(stockCode);
-        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock);
+        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock, priceLookup);
         Optional<ForeignOwnershipSnapshot> snapshot = foreignOwnership.snapshot();
         BigDecimal currentForeignLimitExhaustionRate = snapshot
                 .map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate)
@@ -738,9 +745,11 @@ public class MarketDataService {
                 response.source());
     }
 
-    private ForeignOwnershipLookup latestForeignOwnershipSnapshot(StockSummary stock) {
+    private ForeignOwnershipLookup latestForeignOwnershipSnapshot(StockSummary stock, PriceLookup priceLookup) {
         return foreignOwnershipSnapshotCache.find(stock.stockCode())
                 .map(ForeignOwnershipLookup::cache)
+                .or(() -> priceLookup.foreignOwnershipSnapshot()
+                        .map(ForeignOwnershipLookup::kisCurrentPrice))
                 .orElseGet(ForeignOwnershipLookup::empty);
     }
 
@@ -821,17 +830,26 @@ public class MarketDataService {
         if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "KIS_WEBSOCKET_TRADE+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
+        if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE && foreignOwnershipSource == ForeignOwnershipSource.KIS_CURRENT_PRICE) {
+            return "KIS_WEBSOCKET_TRADE+KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP";
+        }
         if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE) {
             return "KIS_WEBSOCKET_TRADE";
         }
         if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
+        if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.KIS_CURRENT_PRICE) {
+            return "KIS_OPEN_API+KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP";
+        }
         if (priceSource == PriceSource.KIS_OPEN_API) {
             return "KIS_OPEN_API";
         }
         if (priceSource == PriceSource.PUBLIC_DATA && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "PUBLIC_DATA_STOCK_SECURITIES+KRX_FOREIGN_OWNERSHIP_CACHE";
+        }
+        if (priceSource == PriceSource.PUBLIC_DATA && foreignOwnershipSource == ForeignOwnershipSource.KIS_CURRENT_PRICE) {
+            return "PUBLIC_DATA_STOCK_SECURITIES+KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP";
         }
         if (priceSource == PriceSource.PUBLIC_DATA) {
             return "PUBLIC_DATA_STOCK_SECURITIES";
@@ -860,6 +878,7 @@ public class MarketDataService {
             Optional<BigDecimal> changeRate,
             Optional<Long> volume,
             Optional<LocalDate> baseDate,
+            Optional<ForeignOwnershipSnapshot> foreignOwnershipSnapshot,
             String marketSession,
             PriceSource source
     ) {
@@ -871,6 +890,7 @@ public class MarketDataService {
                     Optional.of(tick.changeRate()),
                     Optional.of(tick.accumulatedVolume()),
                     Optional.of(tick.businessDate()),
+                    Optional.empty(),
                     tick.marketSession(),
                     PriceSource.KIS_WEBSOCKET_TRADE);
         }
@@ -883,6 +903,7 @@ public class MarketDataService {
                     Optional.of(snapshot.changeRate()),
                     Optional.of(snapshot.volume()),
                     Optional.of(baseDate),
+                    snapshot.foreignOwnershipSnapshot(baseDate),
                     KisRealtimeTradeTick.REGULAR_SESSION,
                     PriceSource.KIS_OPEN_API);
         }
@@ -895,12 +916,14 @@ public class MarketDataService {
                     Optional.of(snapshot.changeRate()),
                     Optional.of(snapshot.volume()),
                     Optional.of(snapshot.baseDate()),
+                    Optional.empty(),
                     KisRealtimeTradeTick.REGULAR_SESSION,
                     PriceSource.PUBLIC_DATA);
         }
 
         private static PriceLookup empty() {
             return new PriceLookup(
+                    Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
@@ -933,6 +956,10 @@ public class MarketDataService {
             return new ForeignOwnershipLookup(Optional.of(snapshot), ForeignOwnershipSource.CACHE);
         }
 
+        private static ForeignOwnershipLookup kisCurrentPrice(ForeignOwnershipSnapshot snapshot) {
+            return new ForeignOwnershipLookup(Optional.of(snapshot), ForeignOwnershipSource.KIS_CURRENT_PRICE);
+        }
+
         private static ForeignOwnershipLookup empty() {
             return new ForeignOwnershipLookup(Optional.empty(), ForeignOwnershipSource.NONE);
         }
@@ -940,6 +967,7 @@ public class MarketDataService {
 
     private enum ForeignOwnershipSource {
         CACHE,
+        KIS_CURRENT_PRICE,
         NONE
     }
 

@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -158,7 +159,13 @@ public class KisRealtimeMessageParser {
     }
 
     private Instant marketDataTime(String tradeTime) {
-        LocalTime time = LocalTime.parse(tradeTime, TRADE_TIME_FORMATTER);
+        LocalTime time;
+        try {
+            time = LocalTime.parse(tradeTime, TRADE_TIME_FORMATTER);
+        } catch (DateTimeParseException exception) {
+            // 지수 실시간 체결시각이 999999처럼 sentinel 값으로 오는 경우 수신 시각으로 보정한다.
+            return Instant.now();
+        }
         return LocalDateTime.of(LocalDate.now(KOREA_ZONE), time).atZone(KOREA_ZONE).toInstant();
     }
 

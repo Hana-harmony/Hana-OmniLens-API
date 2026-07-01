@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties({
         StockMasterSeedProperties.class,
         MarketHistoryCollectionProperties.class,
+        MarketChartWarmupProperties.class,
         MarketNewsCollectionProperties.class
 })
 public class MarketDataConfiguration {

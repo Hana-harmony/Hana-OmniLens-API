@@ -12,6 +12,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 import com.hana.omnilens.market.stream.MarketQuoteWebSocketHandler;
 import com.hana.omnilens.market.stream.MarketIndexWebSocketHandler;
+import com.hana.omnilens.alert.stream.AlertEventRawWebSocketHandler;
 
 @Configuration
 @EnableWebSocket
@@ -22,16 +23,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSoc
     private final PartnerTopicAuthorizationInterceptor partnerTopicAuthorizationInterceptor;
     private final MarketQuoteWebSocketHandler marketQuoteWebSocketHandler;
     private final MarketIndexWebSocketHandler marketIndexWebSocketHandler;
+    private final AlertEventRawWebSocketHandler alertEventRawWebSocketHandler;
 
     public WebSocketConfig(
             PartnerWebSocketHandshakeInterceptor partnerWebSocketHandshakeInterceptor,
             PartnerTopicAuthorizationInterceptor partnerTopicAuthorizationInterceptor,
             MarketQuoteWebSocketHandler marketQuoteWebSocketHandler,
-            MarketIndexWebSocketHandler marketIndexWebSocketHandler) {
+            MarketIndexWebSocketHandler marketIndexWebSocketHandler,
+            AlertEventRawWebSocketHandler alertEventRawWebSocketHandler) {
         this.partnerWebSocketHandshakeInterceptor = partnerWebSocketHandshakeInterceptor;
         this.partnerTopicAuthorizationInterceptor = partnerTopicAuthorizationInterceptor;
         this.marketQuoteWebSocketHandler = marketQuoteWebSocketHandler;
         this.marketIndexWebSocketHandler = marketIndexWebSocketHandler;
+        this.alertEventRawWebSocketHandler = alertEventRawWebSocketHandler;
     }
 
     @Override
@@ -51,6 +55,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSoc
         registry.addHandler(marketQuoteWebSocketHandler, "/ws/market/quotes")
                 .addInterceptors(partnerWebSocketHandshakeInterceptor);
         registry.addHandler(marketIndexWebSocketHandler, "/ws/market/indices")
+                .addInterceptors(partnerWebSocketHandshakeInterceptor);
+        registry.addHandler(alertEventRawWebSocketHandler, "/ws/alerts/events")
                 .addInterceptors(partnerWebSocketHandshakeInterceptor);
     }
 
