@@ -76,14 +76,14 @@ omnilens:
       mode: redis
       ttl: 24h
     kis-realtime:
-      enabled: false
+      enabled: true
       stock-codes:
         - "005930"
+        - "000660"
       stock-limit: 20
       shard-size: 40
       order-book-enabled: true
       after-hours-enabled: true
-        - "000660"
     exchange-rate-refresh:
       enabled: false
       fixed-delay-ms: 300000
@@ -96,13 +96,22 @@ omnilens:
       fixed-delay-ms: 86400000
       base-date-offset-days: 1
       provider: KIS_DAILY_CHART
+  market-news:
+    scheduler:
+      enabled: true
+      fixed-delay-ms: 300000
+      display: 10
+      queries:
+        - "한국 증시"
+        - "코스피 코스닥"
+        - "국내 증시"
   alert:
     dedupe:
       mode: redis
       ttl: 24h
       max-in-memory-entries: 10000
     scheduler:
-      enabled: false
+      enabled: true
       fixed-delay-ms: 300000
       news-display: 10
       disclosure-lookback-days: 7

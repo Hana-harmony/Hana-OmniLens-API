@@ -2,6 +2,7 @@ package com.hana.omnilens.market.stream;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -55,6 +56,11 @@ public class MarketQuoteStreamingService {
 
     void replay(WebSocketSession session, String currency) {
         marketDataService.getQuotes(null, null, currency, null, REPLAY_LIMIT)
+                .forEach(quote -> send(session, quote));
+    }
+
+    void replay(WebSocketSession session, String currency, List<String> stockCodes) {
+        marketDataService.getQuotes(stockCodes, null, currency, null, Math.max(stockCodes.size(), 1))
                 .forEach(quote -> send(session, quote));
     }
 

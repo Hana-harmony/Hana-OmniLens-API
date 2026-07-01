@@ -40,6 +40,9 @@ curl http://localhost:8080/actuator/health
 - `GET /api/v1/market/stocks/{stockCode}/orderbook`
 - `GET /api/v1/market/stocks/{stockCode}/history`
 - `POST /api/v1/market/history/collect`
+- `GET /api/v1/market/news`
+- `GET /api/v1/market/news/{newsId}`
+- `POST /api/v1/market/news/collect`
 - `GET /api/v1/market/stocks/search?query=삼성`
 - `WS /ws/market/quotes` raw JSON quote stream
 - `POST /api/v1/alerts/events`
@@ -52,11 +55,13 @@ curl http://localhost:8080/actuator/health
 
 ## 최신 기획 기준
 - 시장 데이터는 KIS 모의투자 현재가, 실시간 체결가·호가 WebSocket, KIS 종목 마스터, KRX 과거 시세, KIS REST snapshot/cache 기반 외국인 보유율, 실시간/준실시간 FX 환율을 합성한다.
+- KIS 실시간 WebSocket은 인기 종목을 시작 시점에 선구독하고, 협력사가 `/ws/market/quotes`로 `QUOTE_STREAM_SUBSCRIBE` 메시지를 보내면 같은 KIS 세션에 상세 진입 종목을 추가 구독한다.
 - Market REST API는 성공/실패 모두 `success`, `status`, `code`, `message`, `data`, `timestamp`를 포함하는 공동 응답 형식을 사용한다.
 - 주문 관련 기능은 실제 주문 API가 아니라 외국인 투자 한도, 당일 예측 지분율 min/base/max boundary, VI 발동, 상·하한가 상태를 현지 MTS 주문/종목 화면에 제공하는 의사결정 지원 API다.
 - `GET /api/v1/market/stocks/{stockCode}/detail`은 Stock-exchange-BE 종목 상세 화면용으로 quote, 현지통화 가격, KIS 외국인 보유 snapshot, 한도소진율 예측, VI/단일가/상·하한가/거래정지 flags를 한 응답으로 제공한다.
 - `GET /api/v1/market/stocks/{stockCode}/orderability`는 협력사 거래소가 자체 mock ledger 주문 전 확인할 외국인 한도 min/base/max 예측, VI, 상·하한가, 거래정지 상태를 공동 응답 형식으로 제공한다. 이 API는 실제 주문이나 KIS 모의투자 주문을 실행하지 않는다.
 - 뉴스·공시는 Naver News Search와 OpenDART를 수집하고, Hannah-Montana-AI 분석 결과와 DeepL 번역 결과를 함께 WebSocket 이벤트로 송신한다. Naver News Search는 발견 데이터로 사용하고, 사용 허가된 원문 링크에서 기사 전문과 대표 이미지 URL을 추가 수집해 Hannah가 제목·snippet·전문을 함께 분석한다.
+- 한국 증시 시장뉴스는 종목별 뉴스·공시와 분리된 `/api/v1/market/news` REST 계약으로 제공하며, Naver 시장 키워드 검색과 원문 보강 결과를 `market_news_event`에 저장한다.
 - Naver Search 자체는 기사 전문과 이미지 URL을 보장하지 않으므로 v2 전문/이미지는 라이선스가 있는 원문 provider, 허용된 원문 파서, 또는 OpenDART document처럼 재배포 가능한 출처로만 수집한다.
 - OpenDART 공시는 목록 검색 뒤 접수번호의 원문 document를 내려받아 XML/HTML 본문을 정제하고, 공시 전문을 Hannah 분석과 DeepL 전문 번역 입력으로 사용한다.
 - 뉴스·공시 v2 응답은 원문 제목, 번역 제목, What/Why/Impact 3줄 요약, 요약 번역, 전문 원문/번역, 이미지 URL 목록, 원문 링크, 중복 클러스터 키, AI confidence를 포함한다. DeepL은 번역 provider이며 Papago는 레거시 provider로 제거되어 smoke report에서 `legacy_disabled`로만 기록한다.

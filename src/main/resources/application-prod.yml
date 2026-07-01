@@ -91,7 +91,7 @@ omnilens:
       stock-limit: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT:2500}
       stock-codes: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES:}
     kis-realtime:
-      enabled: ${KIS_REALTIME_ENABLED:false}
+      enabled: ${KIS_REALTIME_ENABLED:true}
       stock-codes: ${KIS_REALTIME_STOCK_CODES:}
       stock-limit: ${KIS_REALTIME_STOCK_LIMIT:5000}
       shard-size: ${KIS_REALTIME_SHARD_SIZE:40}
@@ -107,13 +107,19 @@ omnilens:
       fixed-delay-ms: ${MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS:86400000}
       base-date-offset-days: ${MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS:1}
       provider: ${MARKET_HISTORY_COLLECTION_PROVIDER:KRX_OPEN_API_WITH_KIS_BACKUP}
+  market-news:
+    scheduler:
+      enabled: ${MARKET_NEWS_SCHEDULER_ENABLED:true}
+      fixed-delay-ms: ${MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS:300000}
+      display: ${MARKET_NEWS_SCHEDULER_DISPLAY:10}
+      queries: "${MARKET_NEWS_SCHEDULER_QUERIES:한국 증시,코스피 코스닥,국내 증시}"
   alert:
     dedupe:
       mode: ${ALERT_DEDUPE_MODE:redis}
       ttl: ${ALERT_DEDUPE_TTL:24h}
       max-in-memory-entries: ${ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES:10000}
     scheduler:
-      enabled: ${ALERT_SCHEDULER_ENABLED:false}
+      enabled: ${ALERT_SCHEDULER_ENABLED:true}
       fixed-delay-ms: ${ALERT_SCHEDULER_FIXED_DELAY_MS:300000}
       news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:10}
       disclosure-lookback-days: ${ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS:7}

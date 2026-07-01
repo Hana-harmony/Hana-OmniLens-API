@@ -2,11 +2,15 @@ package com.hana.omnilens.provider.market;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,6 +45,8 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
     private final ObjectMapper objectMapper;
     private final StandardWebSocketClient webSocketClient;
     private final ScheduledExecutorService reconnectExecutor;
+    private final AtomicReference<WebSocketSession> session = new AtomicReference<>();
+    private final Map<String, KisRealtimeSubscriptionFrame> subscriptionFrames = new ConcurrentHashMap<>();
 
     @Autowired
     public StandardKisRealtimeWebSocketConnection(ObjectMapper objectMapper) {
@@ -62,28 +68,44 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             URI websocketUrl,
             List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer) {
-        connect(websocketUrl, subscriptionFrames, messageConsumer, 0);
+        this.subscriptionFrames.clear();
+        subscriptionFrames.forEach(frame -> this.subscriptionFrames.put(subscriptionKey(frame), frame));
+        connect(websocketUrl, messageConsumer, 0);
     }
 
     private void connect(
             URI websocketUrl,
-            List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer,
             int reconnectAttempt) {
+        List<KisRealtimeSubscriptionFrame> frames = currentSubscriptionFrames();
         log.info(
                 "Connecting KIS realtime websocket url={} subscriptionFrameCount={} reconnectAttempt={}",
                 websocketUrl,
-                subscriptionFrames.size(),
+                frames.size(),
                 reconnectAttempt);
-        webSocketClient.execute(new Handler(websocketUrl, subscriptionFrames, messageConsumer), websocketUrl.toString())
+        webSocketClient.execute(new Handler(websocketUrl, messageConsumer), websocketUrl.toString())
                 .whenComplete((session, exception) -> {
                     if (exception != null) {
                         log.warn("KIS realtime websocket connection failed: {}", rootCauseMessage(exception));
-                        scheduleReconnect(websocketUrl, subscriptionFrames, messageConsumer, reconnectAttempt + 1);
+                        scheduleReconnect(websocketUrl, messageConsumer, reconnectAttempt + 1);
                     } else {
                         log.info("KIS realtime websocket connected sessionId={}", session.getId());
                     }
                 });
+    }
+
+    @Override
+    public void send(List<KisRealtimeSubscriptionFrame> subscriptionFrames) {
+        if (subscriptionFrames == null || subscriptionFrames.isEmpty()) {
+            return;
+        }
+        subscriptionFrames.forEach(frame -> this.subscriptionFrames.put(subscriptionKey(frame), frame));
+        WebSocketSession openSession = session.get();
+        if (openSession == null || !openSession.isOpen()) {
+            log.info("KIS realtime websocket dynamic subscription queued frameCount={}", subscriptionFrames.size());
+            return;
+        }
+        sendFrames(openSession, subscriptionFrames);
     }
 
     @PreDestroy
@@ -94,29 +116,25 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
     private class Handler extends TextWebSocketHandler {
 
         private final URI websocketUrl;
-        private final List<KisRealtimeSubscriptionFrame> subscriptionFrames;
         private final Consumer<String> messageConsumer;
         private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
 
         private Handler(
                 URI websocketUrl,
-                List<KisRealtimeSubscriptionFrame> subscriptionFrames,
                 Consumer<String> messageConsumer) {
             this.websocketUrl = websocketUrl;
-            this.subscriptionFrames = subscriptionFrames;
             this.messageConsumer = messageConsumer;
         }
 
         @Override
         public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-            for (KisRealtimeSubscriptionFrame frame : subscriptionFrames) {
-                session.sendMessage(new TextMessage(serialize(frame)));
-                Thread.sleep(SUBSCRIPTION_FRAME_DELAY_MILLIS);
-            }
+            StandardKisRealtimeWebSocketConnection.this.session.set(session);
+            List<KisRealtimeSubscriptionFrame> frames = currentSubscriptionFrames();
+            sendFrames(session, frames);
             log.info(
                     "KIS realtime websocket subscription frames sent sessionId={} subscriptionFrameCount={}",
                     session.getId(),
-                    subscriptionFrames.size());
+                    frames.size());
         }
 
         @Override
@@ -139,6 +157,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
 
         @Override
         public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+            StandardKisRealtimeWebSocketConnection.this.session.compareAndSet(session, null);
             log.warn("KIS realtime websocket closed sessionId={} status={}", session.getId(), status);
             if (!CloseStatus.NORMAL.equals(status)) {
                 scheduleReconnectOnce();
@@ -147,7 +166,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
 
         private void scheduleReconnectOnce() {
             if (reconnectScheduled.compareAndSet(false, true)) {
-                scheduleReconnect(websocketUrl, subscriptionFrames, messageConsumer, 1);
+                scheduleReconnect(websocketUrl, messageConsumer, 1);
             }
         }
 
@@ -174,7 +193,6 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
 
     private void scheduleReconnect(
             URI websocketUrl,
-            List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer,
             int reconnectAttempt) {
         long delaySeconds = reconnectAttempt > MAX_FAST_RECONNECT_ATTEMPTS
@@ -186,9 +204,31 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
                 reconnectAttempt,
                 subscriptionFrames.size());
         reconnectExecutor.schedule(
-                () -> connect(websocketUrl, subscriptionFrames, messageConsumer, reconnectAttempt),
+                () -> connect(websocketUrl, messageConsumer, reconnectAttempt),
                 delaySeconds,
                 TimeUnit.SECONDS);
+    }
+
+    private List<KisRealtimeSubscriptionFrame> currentSubscriptionFrames() {
+        return new ArrayList<>(subscriptionFrames.values());
+    }
+
+    private void sendFrames(WebSocketSession session, List<KisRealtimeSubscriptionFrame> frames) {
+        for (KisRealtimeSubscriptionFrame frame : frames) {
+            try {
+                session.sendMessage(new TextMessage(serialize(frame)));
+                Thread.sleep(SUBSCRIPTION_FRAME_DELAY_MILLIS);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("KIS realtime subscription send interrupted", exception);
+            } catch (Exception exception) {
+                throw new IllegalStateException("KIS realtime subscription send failed", exception);
+            }
+        }
+    }
+
+    private String subscriptionKey(KisRealtimeSubscriptionFrame frame) {
+        return frame.body().input().trId() + ":" + frame.body().input().trKey();
     }
 
     private void logKisMessage(WebSocketSession session, String payload) {
