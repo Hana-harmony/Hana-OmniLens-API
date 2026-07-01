@@ -2,11 +2,12 @@ package com.hana.omnilens.market.application;
 
 public record RealtimeMarketDataIngestionResult(
         Type type,
-        String stockCode
+        String code
 ) {
     public enum Type {
         TRADE,
         ORDERBOOK,
+        INDEX,
         IGNORED
     }
 
@@ -18,7 +19,15 @@ public record RealtimeMarketDataIngestionResult(
         return new RealtimeMarketDataIngestionResult(Type.ORDERBOOK, stockCode);
     }
 
+    static RealtimeMarketDataIngestionResult index(String indexCode) {
+        return new RealtimeMarketDataIngestionResult(Type.INDEX, indexCode);
+    }
+
     static RealtimeMarketDataIngestionResult ignored() {
         return new RealtimeMarketDataIngestionResult(Type.IGNORED, "");
+    }
+
+    public String stockCode() {
+        return code;
     }
 }

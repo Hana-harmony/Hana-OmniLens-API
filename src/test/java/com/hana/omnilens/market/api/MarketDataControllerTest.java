@@ -24,12 +24,18 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import com.hana.omnilens.market.application.ForeignOwnershipSnapshotCache;
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshResult;
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
+import com.hana.omnilens.market.application.ForeignOwnershipBackfillResult;
 import com.hana.omnilens.market.application.ForeignOwnershipCollectionResult;
 import com.hana.omnilens.market.application.MarketDailyPriceRepository;
+import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatch;
+import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatchClient;
+import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatchResponse;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 
@@ -49,16 +55,27 @@ class MarketDataControllerTest {
     @Autowired
     private MarketDailyPriceRepository marketDailyPriceRepository;
 
+    @Autowired
+    private ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
+
+    @Autowired
+    private StockMasterRepository stockMasterRepository;
+
     @MockitoBean
     private ForeignOwnershipRefreshService foreignOwnershipRefreshService;
 
     @MockitoBean
     private KisCurrentPriceClient kisCurrentPriceClient;
 
+    @MockitoBean
+    private HannahAiGlobalPeerMatchClient hannahAiGlobalPeerMatchClient;
+
     @BeforeEach
     void setUpKisMarketData() {
         when(kisCurrentPriceClient.findCurrentPrice(anyString()))
                 .thenAnswer(invocation -> Optional.of(kisSnapshot(invocation.getArgument(0))));
+        stockMasterRepository.findAll(100)
+                .forEach(stock -> foreignOwnershipSnapshotCache.put(foreignOwnershipSnapshot(stock.stockCode())));
     }
 
     @Test
@@ -111,7 +128,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.fxRate", equalTo(7.2E-4)))
                 .andExpect(jsonPath("$.data.fxRateSource", equalTo("PARTNER_REQUEST")))
                 .andExpect(jsonPath("$.data.fxStale", equalTo(false)))
-                .andExpect(jsonPath("$.data.source", equalTo("KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE")));
+                .andExpect(jsonPath("$.data.source", equalTo("KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE")));
     }
 
     @Test
@@ -143,6 +160,82 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.priceLimitState", equalTo("UNKNOWN")))
                 .andExpect(jsonPath("$.data.tradingHalted", equalTo(false)))
                 .andExpect(jsonPath("$.data.orderable", equalTo(true)));
+    }
+
+    @Test
+    void globalPeerApiReturnsHannahAiPeerMatch() throws Exception {
+        when(hannahAiGlobalPeerMatchClient.match(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new HannahAiGlobalPeerMatchResponse(
+                        "196170",
+                        "알테오젠",
+                        "Alteogen",
+                        "Alteogen Is The 'Halozyme Therapeutics' of South Korea — "
+                                + "A Global Biotech Platform Leader",
+                        "Alteogen is a high-margin Biotech Platform provider.",
+                        new HannahAiGlobalPeerMatch(
+                                1,
+                                "HALO",
+                                "Halozyme Therapeutics",
+                                "NASDAQ_GLOBAL_SELECT",
+                                "US",
+                                new BigDecimal("0.4911"),
+                                List.of("biotech platform", "drug delivery"),
+                                "Health Care",
+                                "Biotechnology",
+                                "Biotech platform licensing",
+                                "MID_CAP",
+                                2025,
+                                null,
+                                new BigDecimal("1396611000"),
+                                new BigDecimal("469006000"),
+                                new BigDecimal("316889000"),
+                                "SEC_COMPANYFACTS",
+                                new BigDecimal("0.9996"),
+                                List.of("Sector: both are Health Care companies."),
+                                "Both companies are biotech platform providers."),
+                        List.of(new HannahAiGlobalPeerMatch(
+                                1,
+                                "HALO",
+                                "Halozyme Therapeutics",
+                                "NASDAQ_GLOBAL_SELECT",
+                                "US",
+                                new BigDecimal("0.4911"),
+                                List.of("biotech platform", "drug delivery"),
+                                "Health Care",
+                                "Biotechnology",
+                                "Biotech platform licensing",
+                                "MID_CAP",
+                                2025,
+                                null,
+                                new BigDecimal("1396611000"),
+                                new BigDecimal("469006000"),
+                                new BigDecimal("316889000"),
+                                "SEC_COMPANYFACTS",
+                                new BigDecimal("0.9996"),
+                                List.of("Sector: both are Health Care companies."),
+                                "Both companies are biotech platform providers.")),
+                        new BigDecimal("0.4911"),
+                        "MEDIUM",
+                        "global-peer-tfidf-test",
+                        "HANNAH_GLOBAL_PEER_TFIDF+FUNDAMENTALS"));
+
+        mockMvc.perform(get("/api/v1/market/stocks/196170/global-peers")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.stockCode", equalTo("196170")))
+                .andExpect(jsonPath("$.data.primaryPeer.ticker", equalTo("HALO")))
+                .andExpect(jsonPath("$.data.primaryPeer.sector", equalTo("Health Care")))
+                .andExpect(jsonPath("$.data.primaryPeer.industry", equalTo("Biotechnology")))
+                .andExpect(jsonPath("$.data.primaryPeer.scaleBucket", equalTo("MID_CAP")))
+                .andExpect(jsonPath("$.data.primaryPeer.revenueUsd", equalTo(1396611000)))
+                .andExpect(jsonPath("$.data.primaryPeer.financialDataSource", equalTo("SEC_COMPANYFACTS")))
+                .andExpect(jsonPath("$.data.primaryPeer.matchedFactors[0]")
+                        .value("Sector: both are Health Care companies."))
+                .andExpect(jsonPath("$.data.headline")
+                        .value("Alteogen Is The 'Halozyme Therapeutics' of South Korea — "
+                                + "A Global Biotech Platform Leader"))
+                .andExpect(jsonPath("$.data.source", equalTo("HANNAH_GLOBAL_PEER_TFIDF+FUNDAMENTALS")));
     }
 
     @Test
@@ -308,7 +401,7 @@ class MarketDataControllerTest {
     }
 
     @Test
-    void foreignOwnershipRefreshApiStoresKisSnapshotInCache() throws Exception {
+    void foreignOwnershipRefreshApiStoresKrxSnapshotInCache() throws Exception {
         when(foreignOwnershipRefreshService.refresh("005930", LocalDate.of(2025, 6, 4)))
                 .thenReturn(new ForeignOwnershipRefreshResult(
                         "005930",
@@ -320,7 +413,7 @@ class MarketDataControllerTest {
                                 6_720_000_000L,
                                 new BigDecimal("54.21"),
                                 LocalDate.of(2025, 6, 4))),
-                        "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP"));
+                        "KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP"));
 
         mockMvc.perform(post("/api/v1/market/stocks/005930/foreign-ownership/refresh")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -334,7 +427,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.foreignOwnershipRate", equalTo(54.19)))
                 .andExpect(jsonPath("$.data.foreignLimitQuantity", equalTo(6_720_000_000L)))
                 .andExpect(jsonPath("$.data.foreignLimitExhaustionRate", equalTo(54.21)))
-                .andExpect(jsonPath("$.data.source", equalTo("KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP")));
+                .andExpect(jsonPath("$.data.source", equalTo("KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP")));
     }
 
     @Test
@@ -349,7 +442,7 @@ class MarketDataControllerTest {
                         2,
                         1,
                         1,
-                        "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP",
+                        "KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP",
                         "PARTIAL",
                         List.of(
                                 new ForeignOwnershipCollectionResult.StockResult(
@@ -361,7 +454,7 @@ class MarketDataControllerTest {
                                         "000660",
                                         false,
                                         "PROVIDER_EMPTY",
-                                        "KIS current price did not include foreign ownership snapshot"))));
+                                        "KRX foreign ownership provider did not return a snapshot"))));
 
         mockMvc.perform(post("/api/v1/market/foreign-ownership/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -379,6 +472,49 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.stockResults[0].stockCode", equalTo("005930")))
                 .andExpect(jsonPath("$.data.stockResults[0].refreshed", equalTo(true)))
                 .andExpect(jsonPath("$.data.stockResults[1].status", equalTo("PROVIDER_EMPTY")));
+    }
+
+    @Test
+    void foreignOwnershipBackfillApiStoresOnlyMissingDailySnapshots() throws Exception {
+        when(foreignOwnershipRefreshService.backfillMissing(
+                LocalDate.of(2024, 6, 4),
+                LocalDate.of(2025, 6, 4),
+                List.of("005930"),
+                30,
+                1_200L))
+                .thenReturn(new ForeignOwnershipBackfillResult(
+                        LocalDate.of(2024, 6, 4),
+                        LocalDate.of(2025, 6, 4),
+                        1,
+                        252,
+                        250,
+                        2,
+                        "KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP",
+                        "PARTIAL",
+                        List.of(new ForeignOwnershipBackfillResult.StockBackfillResult(
+                                "005930",
+                                252,
+                                250,
+                                "PARTIAL",
+                                "Historical provider did not return all missing dates"))));
+
+        mockMvc.perform(post("/api/v1/market/foreign-ownership/backfill")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("fromDate", "2024-06-04")
+                        .param("toDate", "2025-06-04")
+                        .param("stockCodes", "005930")
+                        .param("limit", "30")
+                        .param("requestDelayMs", "1200"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.fromDate", equalTo("2024-06-04")))
+                .andExpect(jsonPath("$.data.toDate", equalTo("2025-06-04")))
+                .andExpect(jsonPath("$.data.requestedStockCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.missingDateCount", equalTo(252)))
+                .andExpect(jsonPath("$.data.savedCount", equalTo(250)))
+                .andExpect(jsonPath("$.data.failedDateCount", equalTo(2)))
+                .andExpect(jsonPath("$.data.status", equalTo("PARTIAL")))
+                .andExpect(jsonPath("$.data.stockResults[0].stockCode", equalTo("005930")));
     }
 
     @Test
@@ -422,5 +558,15 @@ class MarketDataControllerTest {
                 new BigDecimal("54.19"),
                 6_720_000_000L,
                 new BigDecimal("54.19"));
+    }
+
+    private ForeignOwnershipSnapshot foreignOwnershipSnapshot(String stockCode) {
+        return new ForeignOwnershipSnapshot(
+                stockCode,
+                3_642_091_300L,
+                new BigDecimal("54.19"),
+                6_720_000_000L,
+                new BigDecimal("54.21"),
+                LocalDate.of(2025, 6, 4));
     }
 }

@@ -24,18 +24,18 @@ class ForeignOwnershipPredictionEngineTest {
             new ForeignOwnershipPredictionEngine(Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
 
     @Test
-    void predictsSnapshotOnlyMinBaseMaxBoundaryWithBuyOrderImpact() {
+    void predictsSnapshotOnlyBoundaryWithoutOrderImpact() {
         ForeignOwnershipPrediction prediction = engine.predict(
                 "BUY",
                 20,
                 Optional.of(snapshot()),
                 Optional.empty());
 
-        assertThat(prediction.orderImpactRate()).isEqualByComparingTo("2.000000");
+        assertThat(prediction.orderImpactRate()).isEqualByComparingTo("0.000000");
         assertThat(prediction.intradayUncertaintyRate()).isEqualByComparingTo("0.050000");
-        assertThat(prediction.minForeignLimitExhaustionRate()).isEqualByComparingTo("100.950000");
-        assertThat(prediction.baseForeignLimitExhaustionRate()).isEqualByComparingTo("101.000000");
-        assertThat(prediction.maxForeignLimitExhaustionRate()).isEqualByComparingTo("101.050000");
+        assertThat(prediction.minForeignLimitExhaustionRate()).isEqualByComparingTo("98.950000");
+        assertThat(prediction.baseForeignLimitExhaustionRate()).isEqualByComparingTo("99.000000");
+        assertThat(prediction.maxForeignLimitExhaustionRate()).isEqualByComparingTo("99.050000");
         assertThat(prediction.confidenceLevel()).isEqualTo("SNAPSHOT_ONLY");
         assertThat(prediction.confidenceScore()).isEqualByComparingTo("0.4500");
         assertThat(prediction.modelVersion()).isEqualTo("foreign-ownership-timeseries-v1");
@@ -45,7 +45,7 @@ class ForeignOwnershipPredictionEngineTest {
     }
 
     @Test
-    void predictsRealtimeVolumeAdjustedBoundaryWithCappedUncertainty() {
+    void ignoresRealtimeVolumeForForeignOwnershipLimitForecast() {
         ForeignOwnershipPrediction prediction = engine.predict(
                 "BUY",
                 10,
@@ -61,15 +61,15 @@ class ForeignOwnershipPredictionEngineTest {
                         500L,
                         LocalDate.of(2025, 6, 4))));
 
-        assertThat(prediction.orderImpactRate()).isEqualByComparingTo("1.000000");
-        assertThat(prediction.intradayUncertaintyRate()).isEqualByComparingTo("0.500000");
-        assertThat(prediction.minForeignLimitExhaustionRate()).isEqualByComparingTo("99.500000");
-        assertThat(prediction.baseForeignLimitExhaustionRate()).isEqualByComparingTo("100.000000");
-        assertThat(prediction.maxForeignLimitExhaustionRate()).isEqualByComparingTo("100.500000");
-        assertThat(prediction.observedIntradayVolume()).isEqualTo(500L);
-        assertThat(prediction.confidenceLevel()).isEqualTo("REALTIME_VOLUME_ADJUSTED");
-        assertThat(prediction.confidenceScore()).isEqualByComparingTo("0.5500");
-        assertThat(prediction.source()).isEqualTo("KIS_FOREIGN_OWNERSHIP_CACHE+KIS_WEBSOCKET_TRADE_VOLUME");
+        assertThat(prediction.orderImpactRate()).isEqualByComparingTo("0.000000");
+        assertThat(prediction.intradayUncertaintyRate()).isEqualByComparingTo("0.050000");
+        assertThat(prediction.minForeignLimitExhaustionRate()).isEqualByComparingTo("98.950000");
+        assertThat(prediction.baseForeignLimitExhaustionRate()).isEqualByComparingTo("99.000000");
+        assertThat(prediction.maxForeignLimitExhaustionRate()).isEqualByComparingTo("99.050000");
+        assertThat(prediction.observedIntradayVolume()).isZero();
+        assertThat(prediction.confidenceLevel()).isEqualTo("SNAPSHOT_ONLY");
+        assertThat(prediction.confidenceScore()).isEqualByComparingTo("0.4500");
+        assertThat(prediction.source()).isEqualTo("KRX_FOREIGN_OWNERSHIP_CACHE");
     }
 
     @Test
@@ -86,17 +86,17 @@ class ForeignOwnershipPredictionEngineTest {
                         history(LocalDate.of(2025, 6, 2), "98.9000"),
                         history(LocalDate.of(2025, 6, 3), "99.0000")));
 
-        assertThat(prediction.orderImpactRate()).isEqualByComparingTo("0.100000");
+        assertThat(prediction.orderImpactRate()).isEqualByComparingTo("0.000000");
         assertThat(prediction.trendDailyChangeRate()).isEqualByComparingTo("0.250000");
         assertThat(prediction.intradayUncertaintyRate()).isEqualByComparingTo("0.250000");
-        assertThat(prediction.baseForeignLimitExhaustionRate()).isEqualByComparingTo("99.350000");
-        assertThat(prediction.minForeignLimitExhaustionRate()).isEqualByComparingTo("99.100000");
-        assertThat(prediction.maxForeignLimitExhaustionRate()).isEqualByComparingTo("99.600000");
+        assertThat(prediction.baseForeignLimitExhaustionRate()).isEqualByComparingTo("99.250000");
+        assertThat(prediction.minForeignLimitExhaustionRate()).isEqualByComparingTo("99.000000");
+        assertThat(prediction.maxForeignLimitExhaustionRate()).isEqualByComparingTo("99.500000");
         assertThat(prediction.historyObservationCount()).isEqualTo(5);
         assertThat(prediction.historyWindowDays()).isEqualTo(4);
         assertThat(prediction.confidenceLevel()).isEqualTo("TIME_SERIES_ADJUSTED");
         assertThat(prediction.confidenceScore()).isEqualByComparingTo("0.7500");
-        assertThat(prediction.source()).isEqualTo("KIS_FOREIGN_OWNERSHIP_CACHE+FOREIGN_OWNERSHIP_DAILY_TIMESERIES");
+        assertThat(prediction.source()).isEqualTo("KRX_FOREIGN_OWNERSHIP_CACHE+FOREIGN_OWNERSHIP_DAILY_TIMESERIES");
     }
 
     @Test
@@ -133,7 +133,7 @@ class ForeignOwnershipPredictionEngineTest {
                 new BigDecimal("49.50"),
                 1_000L,
                 new BigDecimal(rate),
-                "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP",
+                "KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP",
                 FIXED_NOW);
     }
 }

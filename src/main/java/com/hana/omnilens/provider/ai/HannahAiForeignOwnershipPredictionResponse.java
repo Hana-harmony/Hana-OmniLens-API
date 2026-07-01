@@ -8,6 +8,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record HannahAiForeignOwnershipPredictionResponse(
         @JsonProperty("stock_code") String stockCode,
+        @JsonProperty("predicted_foreign_owned_quantity") Long predictedForeignOwnedQuantity,
+        @JsonProperty("min_foreign_owned_quantity") Long minForeignOwnedQuantity,
+        @JsonProperty("max_foreign_owned_quantity") Long maxForeignOwnedQuantity,
+        @JsonProperty("predicted_foreign_net_acquired_quantity") Long predictedForeignNetAcquiredQuantity,
+        @JsonProperty("predicted_foreign_limit_quantity") Long predictedForeignLimitQuantity,
+        @JsonProperty("min_foreign_limit_quantity") Long minForeignLimitQuantity,
+        @JsonProperty("max_foreign_limit_quantity") Long maxForeignLimitQuantity,
         @JsonProperty("min_foreign_limit_exhaustion_rate") BigDecimal minForeignLimitExhaustionRate,
         @JsonProperty("base_foreign_limit_exhaustion_rate") BigDecimal baseForeignLimitExhaustionRate,
         @JsonProperty("max_foreign_limit_exhaustion_rate") BigDecimal maxForeignLimitExhaustionRate,

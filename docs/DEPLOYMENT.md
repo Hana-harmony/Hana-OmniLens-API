@@ -35,8 +35,8 @@ docker compose -f compose.local.yml up -d
 - `REDIS_PORT`: 운영 Redis 포트
 - `REDIS_PASSWORD`: 운영 Redis 비밀번호
 - `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 API 인증키
-- `KIS_APP_KEY`: KIS 현재가, 외국인 보유량, 일봉 보강, REST 호가 호출용 App Key
-- `KIS_APP_SECRET`: KIS 현재가, 외국인 보유량, 일봉 보강, REST 호가 호출용 App Secret
+- `KIS_APP_KEY`: KIS 현재가, 일봉 보강, REST 호가 호출용 App Key
+- `KIS_APP_SECRET`: KIS 현재가, 일봉 보강, REST 호가 호출용 App Secret
 - `KRX_OPEN_API_AUTH_KEY`: KRX 일별매매정보 수집용 인증키
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
@@ -57,10 +57,24 @@ docker compose -f compose.local.yml up -d
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
 - `KRX_OPEN_API_BASE_URL`: KRX Open API 실제 호출 endpoint 주소. 기본값은 `https://data-dbg.krx.co.kr`이다.
 - `KRX_OPEN_API_AUTH_KEY`: KRX Open API `AUTH_KEY` 헤더로 전달하는 인증키다.
+- `KRX_SCRAPING_ENABLED`: KRX Data Marketplace 로그인 기반 외국인 보유량 백필 활성화 여부. 기본값은 `true`이다.
+- `KRX_ID`: KRX Data Marketplace 로그인 ID. GitHub Secrets 또는 서버 env로만 주입한다.
+- `KRX_PW`: KRX Data Marketplace 로그인 비밀번호. GitHub Secrets 또는 서버 env로만 주입한다.
 - `MARKET_HISTORY_COLLECTION_PROVIDER`: 일봉 수집 provider. `KRX_OPEN_API_WITH_KIS_BACKUP`, `KRX_OPEN_API`, `KIS_DAILY_CHART` 중 하나이며, KRX egress가 막힌 환경은 `KIS_DAILY_CHART`를 사용한다.
 - `MARKET_HISTORY_COLLECTION_ENABLED`: KRX 과거 일별 시세 수집 scheduler 활성화 여부. 기본값은 `false`이다.
 - `MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS`: KRX 과거 시세 수집 scheduler 주기. 기본값은 `86400000`이다.
 - `MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS`: KRX 과거 시세 수집 기준일 offset. 기본값은 `1`이다.
+- `FOREIGN_OWNERSHIP_REFRESH_ENABLED`: 외국인 보유량 전일 snapshot과 누락 백필 scheduler 활성화 여부. 운영 기본값은 `true`이다.
+- `FOREIGN_OWNERSHIP_REFRESH_CRON`: 외국인 보유량 scheduler cron. 기본값은 평일 장전 `0 10 8 * * MON-FRI`이다.
+- `FOREIGN_OWNERSHIP_REFRESH_BACKFILL_LOOKBACK_DAYS`: 누락 백필 조회 기간. 기본값은 초기 1년+ 보강을 위한 `400`이다.
+- `FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT`: 수집 종목 최대 개수. 기본값은 전체 국내주식 수용 우선의 `5000`이며 provider quota 제약 시 `30` 등으로 낮춘다.
+- `FOREIGN_OWNERSHIP_MODEL_TRAINING_ENABLED`: 제한 종목 외국인 보유 ML 재학습 기능 활성화 여부. 기본값은 `true`이다.
+- `FOREIGN_OWNERSHIP_MODEL_TRAINING_TRIGGER_AFTER_REFRESH`: 전일/누락 KRX 외국인 보유 row 저장 후 Hannah 재학습을 자동 호출할지 여부. 기본값은 `true`이다.
+- `FOREIGN_OWNERSHIP_MODEL_TRAINING_READ_TIMEOUT`: Hannah 재학습 호출 read timeout. 기본값은 `20m`이다.
+- `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_ENABLED`: 제한 종목 금일 외국인 보유 예측 선계산 활성화 여부. 기본값은 `true`이다.
+- `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_TRIGGER_AFTER_REFRESH`: KRX 수집과 재학습 이후 예측 cache를 자동 갱신할지 여부. 기본값은 `true`이다.
+- `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_STOCK_LIMIT`: 예측 선계산 대상 최대 종목 수. 기본값은 `5000`이며 실제 대상은 외국인 취득한도 제한 allowlist로 제한된다.
+- `HANNAH_AI_MAINTENANCE_TOKEN`: Hannah 재학습 endpoint 보호용 내부 토큰. GitHub Secrets 또는 서버 env로만 주입한다.
 - `KIS_BASE_URL`: KIS 모의투자 REST endpoint 주소. 기본값은 `https://openapivts.koreainvestment.com:29443`이다.
 - `KIS_WEBSOCKET_URL`: KIS 모의투자 WebSocket endpoint 주소. 기본값은 `ws://ops.koreainvestment.com:31000`이다.
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.

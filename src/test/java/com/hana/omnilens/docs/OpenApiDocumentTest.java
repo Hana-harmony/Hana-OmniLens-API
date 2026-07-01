@@ -46,7 +46,7 @@ class OpenApiDocumentTest {
                 .andExpect(content().string(containsString("AlertEventApiResponse")))
                 .andExpect(content().string(containsString("AlertCollectPublishApiResponse")))
                 .andExpect(content().string(containsString("fxRateSource")))
-                .andExpect(content().string(containsString("KIS_OPEN_API+KIS_FOREIGN_OWNERSHIP_CACHE")))
+                .andExpect(content().string(containsString("KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE")))
                 .andExpect(content().string(containsString("/api/v1/alerts/collect-and-publish")))
                 .andExpect(content().string(containsString("/ws/alerts")))
                 .andExpect(content().string(containsString("/topic/partners/{partnerId}/alerts")))

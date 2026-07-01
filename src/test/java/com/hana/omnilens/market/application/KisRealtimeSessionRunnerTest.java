@@ -327,7 +327,7 @@ class KisRealtimeSessionRunnerTest {
         }
 
         @Override
-        public void send(List<KisRealtimeSubscriptionFrame> subscriptionFrames) {
+        public void subscribe(List<KisRealtimeSubscriptionFrame> subscriptionFrames) {
             this.sentFrames.addAll(subscriptionFrames);
             this.allFrames.addAll(subscriptionFrames);
         }

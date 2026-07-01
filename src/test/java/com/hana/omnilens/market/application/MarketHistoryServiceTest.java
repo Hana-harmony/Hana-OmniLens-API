@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
@@ -19,9 +21,12 @@ import org.mockito.ArgumentCaptor;
 
 import com.hana.omnilens.config.MarketHistoryCollectionProperties;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
+import com.hana.omnilens.market.domain.MarketIntradayPrice;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.market.KisDailyChartPrice;
 import com.hana.omnilens.provider.market.KisDailyChartPriceClient;
+import com.hana.omnilens.provider.market.KisMinuteChartPrice;
+import com.hana.omnilens.provider.market.KisMinuteChartPriceClient;
 import com.hana.omnilens.provider.market.KrxOpenApiDailyTrade;
 import com.hana.omnilens.provider.market.KrxOpenApiDailyTradeClient;
 
@@ -29,7 +34,9 @@ class MarketHistoryServiceTest {
 
     private final KrxOpenApiDailyTradeClient krxClient = mock(KrxOpenApiDailyTradeClient.class);
     private final KisDailyChartPriceClient kisDailyChartPriceClient = mock(KisDailyChartPriceClient.class);
+    private final KisMinuteChartPriceClient kisMinuteChartPriceClient = mock(KisMinuteChartPriceClient.class);
     private final MarketDailyPriceRepository dailyPriceRepository = mock(MarketDailyPriceRepository.class);
+    private final MarketIntradayPriceRepository intradayPriceRepository = mock(MarketIntradayPriceRepository.class);
     private final StockMasterRepository stockMasterRepository = mock(StockMasterRepository.class);
     private final MarketHistoryService service = new MarketHistoryService(
             krxClient,
@@ -242,6 +249,91 @@ class MarketHistoryServiceTest {
         assertThat(prices).hasSize(1);
         assertThat(prices.get(0).source()).isEqualTo("KIS_DAILY_ITEM_CHART_PRICE");
         verify(dailyPriceRepository).upsertAll(anyList());
+    }
+
+    @Test
+    void getIntradayHistoryUsesFreshSavedMinutePricesWithoutKisRequest() {
+        Clock fixedClock = Clock.fixed(Instant.parse("2025-06-05T01:00:30Z"), ZoneId.of("Asia/Seoul"));
+        MarketHistoryService intradayService = intradayService(fixedClock);
+        LocalDate today = LocalDate.of(2025, 6, 5);
+        StockSummary stock = stock();
+        MarketIntradayPrice saved = intradayPrice(today.atTime(9, 1), Instant.parse("2025-06-05T01:00:00Z"));
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(intradayPriceRepository.findByStockCodeAndDate("005930", today, 390)).thenReturn(List.of(saved));
+
+        List<MarketIntradayPrice> prices = intradayService.getIntradayHistory("005930", today, 390);
+
+        assertThat(prices).containsExactly(saved);
+        verifyNoInteractions(kisMinuteChartPriceClient);
+    }
+
+    @Test
+    void getIntradayHistoryStoresKisMinutePricesWhenSavedCacheIsMissing() {
+        Clock fixedClock = Clock.fixed(Instant.parse("2025-06-05T01:00:30Z"), ZoneId.of("Asia/Seoul"));
+        MarketHistoryService intradayService = intradayService(fixedClock);
+        LocalDate today = LocalDate.of(2025, 6, 5);
+        StockSummary stock = stock();
+        MarketIntradayPrice savedAfterUpsert = intradayPrice(today.atTime(9, 1), Instant.parse("2025-06-05T01:00:30Z"));
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(intradayPriceRepository.findByStockCodeAndDate("005930", today, 390))
+                .thenReturn(List.of())
+                .thenReturn(List.of(savedAfterUpsert));
+        when(kisMinuteChartPriceClient.findMinutePrices("005930", today, 390)).thenReturn(List.of(
+                new KisMinuteChartPrice(
+                        today.atTime(9, 1),
+                        new BigDecimal("58000"),
+                        new BigDecimal("58100"),
+                        new BigDecimal("57900"),
+                        new BigDecimal("58050"),
+                        12_345L,
+                        new BigDecimal("716000000"))));
+
+        List<MarketIntradayPrice> prices = intradayService.getIntradayHistory("005930", today, 390);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<MarketIntradayPrice>> captor = ArgumentCaptor.forClass(List.class);
+        verify(intradayPriceRepository).upsertAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
+        assertThat(captor.getValue().get(0).stockCode()).isEqualTo("005930");
+        assertThat(captor.getValue().get(0).source()).isEqualTo("KIS_TIME_ITEM_CHART_PRICE");
+        assertThat(prices).containsExactly(savedAfterUpsert);
+    }
+
+    private MarketHistoryService intradayService(Clock clock) {
+        return new MarketHistoryService(
+                krxClient,
+                kisDailyChartPriceClient,
+                kisMinuteChartPriceClient,
+                dailyPriceRepository,
+                intradayPriceRepository,
+                stockMasterRepository,
+                defaultCollectionProperties(),
+                clock);
+    }
+
+    private static StockSummary stock() {
+        return new StockSummary(
+                "005930",
+                "삼성전자",
+                "Samsung Electronics",
+                "KOSPI",
+                "KR7005930003",
+                "00126380");
+    }
+
+    private static MarketIntradayPrice intradayPrice(LocalDateTime bucketStart, Instant collectedAt) {
+        return new MarketIntradayPrice(
+                "005930",
+                bucketStart,
+                "KOSPI",
+                new BigDecimal("58000"),
+                new BigDecimal("58100"),
+                new BigDecimal("57900"),
+                new BigDecimal("58050"),
+                12_345L,
+                new BigDecimal("716000000"),
+                "KIS_TIME_ITEM_CHART_PRICE",
+                collectedAt);
     }
 
     private static MarketHistoryCollectionProperties defaultCollectionProperties() {

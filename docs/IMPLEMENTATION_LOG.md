@@ -1,5 +1,11 @@
 # 구현 기록
 
+## 2026-06-28 KRX 외국인보유량 백필 전환
+- KIS 현재가 응답을 외국인 보유량 수집 source로 사용하지 않도록 분리했다.
+- `KRX_ID`, `KRX_PW` 환경변수 기반 KRX Data Marketplace 로그인 provider를 추가해 `MDCSTAT03702` 일자별 외국인 보유량을 수집한다.
+- 외국인 보유량 scheduler는 평일 장전 누락일만 KRX에서 보강한다. 기본 수집 대상은 현재 상장 외국인 취득한도 제한 32종목 allowlist이며, 비제한 종목 history는 `foreign_ownership_daily_snapshot`에서 제거했다.
+- KRX 수집, Hannah 재학습, 금일 예측 선계산은 기본 활성화한다. 스케줄러는 전일/누락 row 저장 후 quality gate를 통과한 모델만 promote하고, 이후 제한 종목 예측을 cache에 저장해 모바일 요청이 선계산 결과를 우선 조회한다.
+
 ## 2026-06-22 실제 원문 전문 수집·번역 경로
 - Naver News Search 발견 URL에서 사용 허가된 기사 원문 HTML을 fetch해 본문, canonical URL, 대표 이미지 URL, content hash를 추출한다.
 - OpenDART `document.xml` 접수번호 원문을 zip/XML 양쪽으로 처리해 공시 전문을 정제하고 Hannah 분석 입력으로 전달한다.
@@ -12,7 +18,7 @@
 - 배포 workflow에서 제거된 Papago/한국수출입은행 secret 주입을 삭제해 DeepL/Frankfurter 기준 운영 설정과 맞췄다.
 - KIS 실시간 체결가·호가 WebSocket은 가격, 호가, 누적 거래량, VI/단일가/거래정지 상태 전용으로 정리했다.
 - 외국인 보유수량, 보유율, 한도소진율은 KIS 현재가 REST snapshot과 Redis/in-memory cache에서 공급한다고 명시했다.
-- 외국인 한도 사전 차단은 snapshot, 주문 수량 영향도, KIS 실시간 누적 거래량 보정 기반이며 외국인 보유량 다일자 시계열 학습 모델은 구현 범위가 아님을 문서화했다.
+- 외국인 한도 예측은 snapshot과 외국인 보유량 일별 시계열 기반 사전 고지용 경고 신호이며, 주문 수량과 KIS 실시간 누적 거래량을 예측식에 반영하지 않도록 정정했다.
 - Papago와 한국수출입은행 환율 provider는 레거시 제거 상태이며, 번역은 DeepL, 환율은 Frankfurter 기준으로 정리했다.
 
 ## 2026-06-19 KIS 외국인보유량 provider 정정
@@ -184,7 +190,7 @@
 ## 2026-06-04 KIS 외국인보유량 캐시
 - KIS 현재가 응답의 외국인보유량 필드를 `ForeignOwnershipSnapshotCache`에 저장한다.
 - KIS provider가 장애 또는 무응답이면 캐시된 snapshot을 quote 응답에 사용한다.
-- 캐시 사용 시 source는 `KIS_FOREIGN_OWNERSHIP_CACHE` suffix로 표시해 live provider와 구분한다.
+- 캐시 사용 시 source는 `KRX_FOREIGN_OWNERSHIP_CACHE` suffix로 표시해 live provider와 구분한다.
 - 단위 테스트로 KIS snapshot 저장과 provider 장애 시 캐시 fallback을 검증했다.
 
 ## 2026-06-04 KIS 현재가 REST provider 연결
@@ -376,7 +382,7 @@
 ## 현재 구현 로직
 - 종목 마스터는 `stock_master` DB 테이블을 기준으로 조회하고, seed loader는 빈 테이블에만 기본 universe를 적재한다.
 - 시장 데이터는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 주식시세 snapshot 순서로 실제 provider 가격을 사용한다. 실제 가격 provider, KIS 외국인 보유량 snapshot, FX cache가 없으면 가짜값 대신 `MARKET_002`로 실패한다.
-- 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KIS 외국인보유량 cache, 요청 수량, 최근 일별 시계열, KIS 실시간 체결 누적 거래량을 Hannah-Montana-AI 외국인 보유 예측 API에 전달해 예상 한도소진율 min/base/max를 계산한다. Hannah 호출 실패 시 내부 deterministic 시계열 엔진으로 fallback한다. 차단은 현재 snapshot에 주문수량 영향을 더한 확정 한도소진율이 100% 이상일 때만 수행하고, 시계열 max boundary와 confidence score는 경고/표시용으로만 사용한다.
+- 주문 가능 여부 boundary는 `/api/v1/market/stocks/{stockCode}/orderability`에서 공동 응답 envelope으로 제공하며, BUY 요청은 KRX 외국인보유량 snapshot과 최근 일별 시계열로 금일 한도 도달 가능성 min/base/max를 계산한다. Hannah 호출 실패 시 내부 시계열 엔진으로 fallback한다. 외국인 한도 예측은 주문 차단 조건이 아니라 프론트 사전 고지용 경고 신호로만 사용한다.
 - KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산해 orderability 응답에 반영한다. 실시간 상태 tick이 없으면 `priceLimitState=UNKNOWN`, source `MARKET_STATUS_UNAVAILABLE`로 반환한다. `tradingHalted=true`이면 `TRADING_HALTED`로 주문 가능 여부를 차단한다.
 - KRX KOSPI/KOSDAQ/KONEX 일별매매정보는 `market_daily_price`에 OHLCV, 거래량, 거래대금, 조정종가 기준으로 정규화 저장한다. KRX 수집 실패 시 KIS 일봉 chart API로 기준일 데이터를 실 provider 보강 저장한다.
 - 과거 시세는 `/api/v1/market/stocks/{stockCode}/history`에서 공동 응답 envelope으로 조회하고, 운영 수집은 `/api/v1/market/history/collect` 또는 scheduler로 실행한다.

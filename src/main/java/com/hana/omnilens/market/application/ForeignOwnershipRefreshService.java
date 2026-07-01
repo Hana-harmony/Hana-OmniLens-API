@@ -1,9 +1,11 @@
 package com.hana.omnilens.market.application;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -13,52 +15,58 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
 import com.hana.omnilens.market.domain.StockSummary;
-import com.hana.omnilens.provider.ProviderCircuitOpenException;
+import com.hana.omnilens.provider.market.ForeignOwnershipHistoricalSnapshotClient;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
-import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 
 @Service
 public class ForeignOwnershipRefreshService {
 
     private static final Logger log = LoggerFactory.getLogger(ForeignOwnershipRefreshService.class);
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
-    private static final String SOURCE = "KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP";
-    private static final int DEFAULT_COLLECTION_LIMIT = 2_500;
+    private static final String SOURCE = "KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP";
+    private static final String HISTORICAL_SOURCE = SOURCE;
+    private static final int DEFAULT_COLLECTION_LIMIT = 5_000;
+    private static final int DEFAULT_BACKFILL_LOOKBACK_DAYS = 400;
+    private static final int MAX_HISTORICAL_REQUEST_DAYS = 360;
 
-    private final KisCurrentPriceClient kisCurrentPriceClient;
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
     private final ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository;
+    private final MarketDailyPriceRepository marketDailyPriceRepository;
+    private final ForeignOwnershipHistoricalSnapshotClient historicalSnapshotClient;
     private final Clock clock;
 
     @Autowired
     public ForeignOwnershipRefreshService(
-            KisCurrentPriceClient kisCurrentPriceClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
-            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository) {
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
+            MarketDailyPriceRepository marketDailyPriceRepository,
+            ForeignOwnershipHistoricalSnapshotClient historicalSnapshotClient) {
         this(
-                kisCurrentPriceClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 foreignOwnershipDailySnapshotRepository,
+                marketDailyPriceRepository,
+                historicalSnapshotClient,
                 Clock.system(KOREA_ZONE));
     }
 
     ForeignOwnershipRefreshService(
-            KisCurrentPriceClient kisCurrentPriceClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
+            MarketDailyPriceRepository marketDailyPriceRepository,
+            ForeignOwnershipHistoricalSnapshotClient historicalSnapshotClient,
             Clock clock) {
-        this.kisCurrentPriceClient = kisCurrentPriceClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
         this.foreignOwnershipDailySnapshotRepository = foreignOwnershipDailySnapshotRepository;
+        this.marketDailyPriceRepository = marketDailyPriceRepository;
+        this.historicalSnapshotClient = historicalSnapshotClient;
         this.clock = clock;
     }
 
@@ -123,7 +131,7 @@ public class ForeignOwnershipRefreshService {
                             stock.stockCode(),
                             false,
                             "PROVIDER_EMPTY",
-                            "KIS current price did not include foreign ownership snapshot"));
+                            "KRX foreign ownership provider did not return a snapshot"));
                 }
             } catch (RuntimeException exception) {
                 failedCount++;
@@ -147,17 +155,133 @@ public class ForeignOwnershipRefreshService {
                 List.copyOf(stockResults));
     }
 
+    public ForeignOwnershipBackfillResult backfillMissing(
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<String> stockCodes,
+            int limit,
+            long requestDelayMs) {
+        LocalDate resolvedToDate = toDate == null ? previousWeekday(LocalDate.now(clock)) : toDate;
+        LocalDate resolvedFromDate = fromDate == null
+                ? resolvedToDate.minusDays(DEFAULT_BACKFILL_LOOKBACK_DAYS)
+                : fromDate;
+        if (resolvedFromDate.isAfter(resolvedToDate)) {
+            return new ForeignOwnershipBackfillResult(
+                    resolvedFromDate,
+                    resolvedToDate,
+                    0,
+                    0,
+                    0,
+                    0,
+                    HISTORICAL_SOURCE,
+                    "EMPTY",
+                    List.of());
+        }
+
+        int resolvedLimit = limit <= 0 ? DEFAULT_COLLECTION_LIMIT : Math.min(limit, DEFAULT_COLLECTION_LIMIT);
+        List<StockSummary> stocks = targetStocks(stockCodes, resolvedLimit);
+        List<ForeignOwnershipBackfillResult.StockBackfillResult> stockResults = new ArrayList<>();
+        int missingDateCount = 0;
+        int savedCount = 0;
+        int failedDateCount = 0;
+        long safeRequestDelayMs = Math.max(0L, requestDelayMs);
+        int providerRequestIndex = 0;
+
+        for (int index = 0; index < stocks.size(); index++) {
+            StockSummary stock = stocks.get(index);
+            try {
+                List<LocalDate> missingDates = missingTradingDates(stock.stockCode(), resolvedFromDate, resolvedToDate);
+                if (missingDates.isEmpty()) {
+                    stockResults.add(new ForeignOwnershipBackfillResult.StockBackfillResult(
+                            stock.stockCode(),
+                            0,
+                            0,
+                            "SKIPPED",
+                            null));
+                    continue;
+                }
+
+                missingDateCount += missingDates.size();
+                Set<LocalDate> missingDateSet = new HashSet<>(missingDates);
+                List<ForeignOwnershipSnapshot> snapshots = new ArrayList<>();
+                for (DateRange chunk : historicalRequestChunks(missingDates)) {
+                    waitForProviderQuota(providerRequestIndex, safeRequestDelayMs);
+                    providerRequestIndex++;
+                    snapshots.addAll(historicalSnapshotClient.findSnapshots(stock, chunk.fromDate(), chunk.toDate())
+                            .stream()
+                            .filter(snapshot -> stock.stockCode().equals(snapshot.stockCode()))
+                            .filter(snapshot -> missingDateSet.contains(snapshot.baseDate()))
+                            .toList());
+                }
+                int stockSavedCount = storeHistoricalSnapshots(snapshots);
+                savedCount += stockSavedCount;
+                int stockFailedCount = missingDates.size() - stockSavedCount;
+                failedDateCount += stockFailedCount;
+                stockResults.add(new ForeignOwnershipBackfillResult.StockBackfillResult(
+                        stock.stockCode(),
+                        missingDates.size(),
+                        stockSavedCount,
+                        stockBackfillStatus(missingDates.size(), stockSavedCount),
+                        stockFailedCount == 0 ? null : "Historical provider did not return all missing dates"));
+            } catch (RuntimeException exception) {
+                List<LocalDate> missingDates = missingTradingDates(stock.stockCode(), resolvedFromDate, resolvedToDate);
+                missingDateCount += missingDates.size();
+                failedDateCount += missingDates.size();
+                log.warn("Foreign ownership backfill failed stockCode={} fromDate={} toDate={}",
+                        stock.stockCode(), resolvedFromDate, resolvedToDate, exception);
+                stockResults.add(new ForeignOwnershipBackfillResult.StockBackfillResult(
+                        stock.stockCode(),
+                        missingDates.size(),
+                        0,
+                        "FAILED",
+                        exception.getClass().getSimpleName()));
+            }
+        }
+
+        return new ForeignOwnershipBackfillResult(
+                resolvedFromDate,
+                resolvedToDate,
+                stocks.size(),
+                missingDateCount,
+                savedCount,
+                failedDateCount,
+                HISTORICAL_SOURCE,
+                backfillStatus(stocks.size(), missingDateCount, savedCount, failedDateCount),
+                List.copyOf(stockResults));
+    }
+
     private void waitForProviderQuota(int index, long requestDelayMs) {
         if (index == 0 || requestDelayMs <= 0) {
             return;
         }
         try {
-            // KIS 초당 호출 제한을 넘지 않도록 종목별 요청 간격을 둔다.
+            // KRX 요청 제한을 넘지 않도록 종목별 요청 간격을 둔다.
             Thread.sleep(requestDelayMs);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Foreign ownership collection interrupted", exception);
         }
+    }
+
+    private List<DateRange> historicalRequestChunks(List<LocalDate> dates) {
+        if (dates.isEmpty()) {
+            return List.of();
+        }
+        List<DateRange> chunks = new ArrayList<>();
+        LocalDate chunkStart = dates.get(0);
+        LocalDate chunkEnd = chunkStart;
+        for (LocalDate date : dates) {
+            if (date.isAfter(chunkStart.plusDays(MAX_HISTORICAL_REQUEST_DAYS))) {
+                chunks.add(new DateRange(chunkStart, chunkEnd));
+                chunkStart = date;
+            }
+            chunkEnd = date;
+        }
+        chunks.add(new DateRange(chunkStart, chunkEnd));
+        return chunks;
+    }
+
+    private record DateRange(LocalDate fromDate, LocalDate toDate) {
     }
 
     private ForeignOwnershipRefreshResult refreshStock(StockSummary stock, LocalDate baseDate) {
@@ -168,12 +292,25 @@ public class ForeignOwnershipRefreshService {
 
     private List<StockSummary> targetStocks(List<String> stockCodes, int limit) {
         if (stockCodes == null || stockCodes.isEmpty()) {
-            return stockMasterRepository.findAll(limit);
+            return ForeignOwnershipRestrictedStockUniverse.stockCodes().stream()
+                    .limit(limit)
+                    .map(this::findRestrictedStock)
+                    .flatMap(Optional::stream)
+                    .toList();
         }
         return distinctStockCodes(stockCodes).stream()
                 .map(stockMasterRepository::findByCode)
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    private Optional<StockSummary> findRestrictedStock(String stockCode) {
+        Optional<StockSummary> stock = stockMasterRepository.findByCode(stockCode);
+        if (stock.isEmpty()) {
+            // 법령 제한 종목이 master에서 사라지면 수집 누락을 운영 로그로 남긴다.
+            log.warn("Foreign ownership restricted stock is missing from stock master stockCode={}", stockCode);
+        }
+        return stock;
     }
 
     private List<String> distinctStockCodes(List<String> stockCodes) {
@@ -209,13 +346,90 @@ public class ForeignOwnershipRefreshService {
                 clock.instant()));
     }
 
+    private int storeHistoricalSnapshots(List<ForeignOwnershipSnapshot> snapshots) {
+        int savedCount = 0;
+        for (ForeignOwnershipSnapshot snapshot : snapshots) {
+            savedCount += foreignOwnershipDailySnapshotRepository.upsert(new ForeignOwnershipDailySnapshot(
+                    snapshot.stockCode(),
+                    snapshot.baseDate(),
+                    snapshot.foreignOwnedQuantity(),
+                    snapshot.foreignOwnershipRate(),
+                    snapshot.foreignLimitQuantity(),
+                    snapshot.foreignLimitExhaustionRate(),
+                    HISTORICAL_SOURCE,
+                    clock.instant()));
+        }
+        return savedCount;
+    }
+
     private Optional<ForeignOwnershipSnapshot> findSnapshot(StockSummary stock, LocalDate baseDate) {
         try {
-            return kisCurrentPriceClient.findCurrentPrice(stock.stockCode())
-                    .flatMap(snapshot -> snapshot.foreignOwnershipSnapshot(baseDate));
-        } catch (ProviderCircuitOpenException | RestClientException exception) {
-            log.warn("KIS foreign ownership refresh failed stockCode={} baseDate={}", stock.stockCode(), baseDate, exception);
+            return historicalSnapshotClient.findSnapshots(stock, baseDate, baseDate)
+                    .stream()
+                    .findFirst();
+        } catch (RuntimeException exception) {
+            log.warn("KRX foreign ownership refresh failed stockCode={} baseDate={}",
+                    stock.stockCode(), baseDate, exception);
             return Optional.empty();
         }
+    }
+
+    private List<LocalDate> missingTradingDates(String stockCode, LocalDate fromDate, LocalDate toDate) {
+        Set<LocalDate> existingDates = new HashSet<>(
+                foreignOwnershipDailySnapshotRepository.findBaseDates(stockCode, fromDate, toDate));
+        List<LocalDate> tradingDates = marketDailyPriceRepository.findTradingDates(fromDate, toDate);
+        if (!tradingDates.isEmpty()) {
+            return tradingDates.stream()
+                    .filter(date -> !existingDates.contains(date))
+                    .toList();
+        }
+
+        log.warn("KRX trading calendar is empty fromDate={} toDate={}, using weekday fallback", fromDate, toDate);
+        List<LocalDate> missingDates = new ArrayList<>();
+        for (LocalDate date = fromDate; !date.isAfter(toDate); date = date.plusDays(1)) {
+            if (isWeekday(date) && !existingDates.contains(date)) {
+                missingDates.add(date);
+            }
+        }
+        return missingDates;
+    }
+
+    private static LocalDate previousWeekday(LocalDate today) {
+        LocalDate date = today.minusDays(1);
+        while (!isWeekday(date)) {
+            date = date.minusDays(1);
+        }
+        return date;
+    }
+
+    private static boolean isWeekday(LocalDate date) {
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
+    }
+
+    private String stockBackfillStatus(int missingDateCount, int savedCount) {
+        if (missingDateCount == 0) {
+            return "SKIPPED";
+        }
+        if (savedCount == missingDateCount) {
+            return "SUCCESS";
+        }
+        if (savedCount > 0) {
+            return "PARTIAL";
+        }
+        return "PROVIDER_EMPTY";
+    }
+
+    private String backfillStatus(int requestedStockCount, int missingDateCount, int savedCount, int failedDateCount) {
+        if (requestedStockCount == 0 || missingDateCount == 0) {
+            return "EMPTY";
+        }
+        if (failedDateCount == 0) {
+            return "SUCCESS";
+        }
+        if (savedCount > 0) {
+            return "PARTIAL";
+        }
+        return "FAILED";
     }
 }
