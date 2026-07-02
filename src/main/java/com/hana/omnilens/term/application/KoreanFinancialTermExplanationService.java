@@ -24,6 +24,7 @@ import com.hana.omnilens.provider.ai.HannahAiFinancialTermEvidence;
 import com.hana.omnilens.provider.ai.HannahAiKoreanFinancialTermClient;
 import com.hana.omnilens.provider.ai.HannahAiKoreanFinancialTermExplainRequest;
 import com.hana.omnilens.provider.ai.HannahAiKoreanFinancialTermExplainResponse;
+import com.hana.omnilens.provider.ai.OpenAiFinancialTermExplanationClient;
 import com.hana.omnilens.term.api.KoreanFinancialTermExplainRequest;
 import com.hana.omnilens.term.domain.FinancialTermEvidence;
 import com.hana.omnilens.term.domain.KoreanFinancialTermClickStat;
@@ -38,6 +39,7 @@ public class KoreanFinancialTermExplanationService {
 
     private final KoreanFinancialTermExplanationRepository repository;
     private final HannahAiKoreanFinancialTermClient hannahAiClient;
+    private final OpenAiFinancialTermExplanationClient openAiClient;
     private final Clock clock;
     private final String analyticsHashSalt;
 
@@ -45,17 +47,20 @@ public class KoreanFinancialTermExplanationService {
     public KoreanFinancialTermExplanationService(
             KoreanFinancialTermExplanationRepository repository,
             HannahAiKoreanFinancialTermClient hannahAiClient,
+            OpenAiFinancialTermExplanationClient openAiClient,
             @Value("${omnilens.term.analytics.hash-salt:local-term-analytics-salt}") String analyticsHashSalt) {
-        this(repository, hannahAiClient, Clock.systemUTC(), analyticsHashSalt);
+        this(repository, hannahAiClient, openAiClient, Clock.systemUTC(), analyticsHashSalt);
     }
 
     KoreanFinancialTermExplanationService(
             KoreanFinancialTermExplanationRepository repository,
             HannahAiKoreanFinancialTermClient hannahAiClient,
+            OpenAiFinancialTermExplanationClient openAiClient,
             Clock clock,
             String analyticsHashSalt) {
         this.repository = repository;
         this.hannahAiClient = hannahAiClient;
+        this.openAiClient = openAiClient;
         this.clock = clock;
         this.analyticsHashSalt = analyticsHashSalt == null ? "" : analyticsHashSalt;
     }
@@ -129,10 +134,70 @@ public class KoreanFinancialTermExplanationService {
                             request.articleId(),
                             request.articleUrl(),
                             request.allowWebSearch()));
-            return toDomain(response);
+            KoreanFinancialTermExplanation explanation = toDomain(response);
+            if (!"EXPLANATION".equals(explanation.displayMode())) {
+                return explainWithOpenAi(request, "AI_REVIEW_REQUIRED")
+                        .orElse(explanation);
+            }
+            return explanation;
         } catch (ProviderCircuitOpenException | RestClientException | IllegalStateException exception) {
-            return reviewRequired(request.term(), normalizeTerm(request.term()), Instant.now(clock), "AI_UNAVAILABLE");
+            return explainWithOpenAi(request, "OPENAI_CONTEXT_FALLBACK")
+                    .orElseGet(() -> reviewRequired(request.term(), normalizeTerm(request.term()), Instant.now(clock), "AI_UNAVAILABLE"));
         }
+    }
+
+    private Optional<KoreanFinancialTermExplanation> explainWithOpenAi(
+            KoreanFinancialTermExplainRequest request,
+            String source) {
+        try {
+            String explanation = openAiClient.explain(request);
+            if (!StringUtils.hasText(explanation)) {
+                return Optional.empty();
+            }
+            String normalizedTerm = normalizeTerm(request.term());
+            return Optional.of(new KoreanFinancialTermExplanation(
+                    request.term().trim(),
+                    normalizedTerm,
+                    request.term().trim(),
+                    "market_term",
+                    firstSentence(explanation),
+                    explanation.strip(),
+                    "",
+                    new BigDecimal("0.78"),
+                    "MEDIUM",
+                    "EXPLANATION",
+                    source,
+                    true,
+                    86400,
+                    evidence(request),
+                    List.of(),
+                    "openai-context-term-v1",
+                    Instant.now(clock),
+                    false,
+                    0));
+        } catch (RestClientException | IllegalStateException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private String firstSentence(String explanation) {
+        String stripped = explanation == null ? "" : explanation.strip();
+        int periodIndex = stripped.indexOf('.');
+        if (periodIndex < 20) {
+            return stripped;
+        }
+        return stripped.substring(0, periodIndex + 1);
+    }
+
+    private List<FinancialTermEvidence> evidence(KoreanFinancialTermExplainRequest request) {
+        if (!StringUtils.hasText(request.articleUrl())) {
+            return List.of();
+        }
+        return List.of(new FinancialTermEvidence(
+                request.title(),
+                request.context(),
+                request.articleUrl(),
+                request.sourceType()));
     }
 
     private boolean shouldCache(KoreanFinancialTermExplanation explanation) {

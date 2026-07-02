@@ -14,12 +14,14 @@ import org.junit.jupiter.api.Test;
 
 import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.provider.translation.DeepLTranslationClient;
+import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
 
 class AlertTitleTranslationServiceTest {
 
     private final DeepLTranslationClient deepLTranslationClient = mock(DeepLTranslationClient.class);
+    private final OpenAiTranslationClient openAiTranslationClient = mock(OpenAiTranslationClient.class);
     private final AlertTitleTranslationService translationService =
-            new AlertTitleTranslationService(deepLTranslationClient);
+            new AlertTitleTranslationService(deepLTranslationClient, openAiTranslationClient);
 
     @Test
     void translateTitleReturnsDeepLTranslationFirst() {
@@ -35,6 +37,8 @@ class AlertTitleTranslationServiceTest {
     void translateTitleFallsBackToOriginalWhenProviderFails() {
         when(deepLTranslationClient.translateKoToEn("삼성전자 실적 개선"))
                 .thenThrow(new IllegalStateException("missing deepl secret"));
+        when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
+                .thenReturn("");
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
@@ -45,10 +49,24 @@ class AlertTitleTranslationServiceTest {
     void translateTitleFallsBackToOriginalWhenProviderReturnsBlank() {
         when(deepLTranslationClient.translateKoToEn("삼성전자 실적 개선"))
                 .thenReturn("");
+        when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
+                .thenReturn("");
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
         assertThat(translatedTitle).isEqualTo("삼성전자 실적 개선");
+    }
+
+    @Test
+    void translateTitleFallsBackToOpenAiWhenDeepLReturnsKorean() {
+        when(deepLTranslationClient.translateKoToEn("삼성전자 실적 개선"))
+                .thenReturn("삼성전자 실적 개선");
+        when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
+                .thenReturn("Samsung Electronics earnings improve");
+
+        String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
+
+        assertThat(translatedTitle).isEqualTo("Samsung Electronics earnings improve");
     }
 
     @Test

@@ -14,6 +14,7 @@ import com.hana.omnilens.alert.api.AlertAnalysisPublishRequest;
 import com.hana.omnilens.alert.api.AlertPublishRequest;
 import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.alert.domain.AlertEvent;
+import com.hana.omnilens.alert.domain.AlertSummaryLines;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
@@ -26,6 +27,7 @@ public class AlertAnalysisPublishingService {
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertStreamingService alertStreamingService;
     private final AlertTitleTranslationService alertTitleTranslationService;
+    private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
 
     public AlertAnalysisPublishingService(
             HannahAiAnalysisClient hannahAiAnalysisClient,
@@ -58,11 +60,20 @@ public class AlertAnalysisPublishingService {
         }
         List<AlertGlossaryTerm> glossaryTerms = toAlertGlossaryTerms(analysis.glossaryTerms());
         String originalContent = originalContent(analysis, request);
-        String translatedTitle = alertTitleTranslationService.translateTitle(analysis.originalTitle(), glossaryTerms);
-        String translatedSummary = alertTitleTranslationService.translateText(analysis.summary(), glossaryTerms);
-        String translatedContent = translateContent(originalContent, glossaryTerms);
-        List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
-                glossaryTerms,
+	        String translatedTitle = alertTitleTranslationService.translateTitle(analysis.originalTitle(), glossaryTerms);
+	        String translatedSummary = alertTitleTranslationService.translateText(analysis.summary(), glossaryTerms);
+	        String translatedContent = translateContent(originalContent, glossaryTerms);
+	        AlertSummaryLines translatedSummaryLines = translateSummaryLines(
+	                analysis.summaryLines(),
+	                glossaryTerms,
+	                translatedSummary);
+	        List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
+	                glossaryTerms,
+	                translatedTitle,
+                translatedSummary,
+                translatedContent);
+        displayGlossaryTerms = glossaryTermExtractor.supplement(
+                displayGlossaryTerms,
                 translatedTitle,
                 translatedSummary,
                 translatedContent);
@@ -72,13 +83,13 @@ public class AlertAnalysisPublishingService {
                 analysis.stockCode(),
                 analysis.stockName(),
                 analysis.sourceType(),
-                analysis.originalTitle(),
-                translatedTitle,
-                analysis.summary(),
-                analysis.summaryLines(),
-                translatedSummary,
-                originalContent,
-                translatedContent,
+	                analysis.originalTitle(),
+	                translatedTitle,
+	                analysis.summary(),
+	                translatedSummaryLines,
+	                translatedSummary,
+	                originalContent,
+	                translatedContent,
                 imageUrls(analysis, request),
                 contentAvailability(analysis, request),
                 request.originalUrl(),
@@ -189,12 +200,35 @@ public class AlertAnalysisPublishingService {
         return text.substring(index, index + candidate.length());
     }
 
-    private String translateContent(String originalContent, List<AlertGlossaryTerm> glossaryTerms) {
-        if (!StringUtils.hasText(originalContent)) {
-            return "";
-        }
-        return alertTitleTranslationService.translateText(originalContent, glossaryTerms);
-    }
+	    private String translateContent(String originalContent, List<AlertGlossaryTerm> glossaryTerms) {
+	        if (!StringUtils.hasText(originalContent)) {
+	            return "";
+	        }
+	        return alertTitleTranslationService.translateText(originalContent, glossaryTerms);
+	    }
+
+	    private AlertSummaryLines translateSummaryLines(
+	            AlertSummaryLines summaryLines,
+	            List<AlertGlossaryTerm> glossaryTerms,
+	            String fallbackSummary) {
+	        if (summaryLines == null) {
+	            return AlertSummaryLines.fromSummary(fallbackSummary);
+	        }
+	        String what = translateSummaryLine(summaryLines.what(), glossaryTerms);
+	        String why = translateSummaryLine(summaryLines.why(), glossaryTerms);
+	        String impact = translateSummaryLine(summaryLines.impact(), glossaryTerms);
+	        if (!StringUtils.hasText(what) && !StringUtils.hasText(why) && !StringUtils.hasText(impact)) {
+	            return AlertSummaryLines.fromSummary(fallbackSummary);
+	        }
+	        return new AlertSummaryLines(what, why, impact);
+	    }
+
+	    private String translateSummaryLine(String value, List<AlertGlossaryTerm> glossaryTerms) {
+	        if (!StringUtils.hasText(value)) {
+	            return "";
+	        }
+	        return alertTitleTranslationService.translateText(value, glossaryTerms);
+	    }
 
     private String originalContent(HannahAiAnalysisResponse analysis, AlertAnalysisPublishRequest request) {
         if (StringUtils.hasText(analysis.originalContent())) {

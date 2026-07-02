@@ -18,18 +18,24 @@ import org.springframework.util.StringUtils;
 
 import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.provider.translation.DeepLTranslationClient;
+import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
 
 @Service
 public class AlertTitleTranslationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AlertTitleTranslationService.class);
     private static final int MAX_CHUNK_CHARS = 4_000;
+    private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
 
     private final DeepLTranslationClient deepLTranslationClient;
+    private final OpenAiTranslationClient openAiTranslationClient;
     private final Map<String, String> translationCache = new ConcurrentHashMap<>();
 
-    public AlertTitleTranslationService(DeepLTranslationClient deepLTranslationClient) {
+    public AlertTitleTranslationService(
+            DeepLTranslationClient deepLTranslationClient,
+            OpenAiTranslationClient openAiTranslationClient) {
         this.deepLTranslationClient = deepLTranslationClient;
+        this.openAiTranslationClient = openAiTranslationClient;
     }
 
     public String translateTitle(String originalTitle) {
@@ -63,6 +69,9 @@ public class AlertTitleTranslationService {
             return cached;
         }
         String translatedText = translateWithDeepL(originalText);
+        if (!isEnglishTranslation(translatedText)) {
+            translatedText = translateWithOpenAi(originalText);
+        }
         String result = applyLocalismSurfaceTerms(
                 StringUtils.hasText(translatedText) ? translatedText : originalText,
                 glossaryTerms);
@@ -148,6 +157,20 @@ public class AlertTitleTranslationService {
                     exception.getClass().getSimpleName());
             return "";
         }
+    }
+
+    private String translateWithOpenAi(String originalText) {
+        try {
+            return openAiTranslationClient.translateKoToEn(originalText);
+        } catch (RuntimeException exception) {
+            LOGGER.warn("OpenAI alert translation failed. Falling back to original text: {}",
+                    exception.getClass().getSimpleName());
+            return "";
+        }
+    }
+
+    private boolean isEnglishTranslation(String text) {
+        return StringUtils.hasText(text) && !HANGUL_PATTERN.matcher(text).find();
     }
 
     private List<String> chunks(String text) {

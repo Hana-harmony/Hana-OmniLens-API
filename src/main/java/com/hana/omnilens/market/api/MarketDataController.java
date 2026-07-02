@@ -31,10 +31,12 @@ import com.hana.omnilens.market.application.ForeignOwnershipPredictionPrecompute
 import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.GlobalPeerMatchService;
 import com.hana.omnilens.market.application.MarketDataService;
+import com.hana.omnilens.market.application.MarketIndexHistoryService;
 import com.hana.omnilens.market.application.MarketChartWarmupResult;
 import com.hana.omnilens.market.application.MarketHistoryService;
 import com.hana.omnilens.market.domain.GlobalPeerMatchResponse;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
+import com.hana.omnilens.market.domain.MarketIndexIntradayPrice;
 import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.market.domain.MarketIntradayPrice;
 import com.hana.omnilens.market.domain.MarketQuote;
@@ -56,6 +58,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class MarketDataController {
 
     private final MarketDataService marketDataService;
+    private final MarketIndexHistoryService marketIndexHistoryService;
     private final MarketHistoryService marketHistoryService;
     private final ForeignOwnershipRefreshService foreignOwnershipRefreshService;
     private final ForeignOwnershipModelTrainingService foreignOwnershipModelTrainingService;
@@ -65,6 +68,7 @@ public class MarketDataController {
 
     public MarketDataController(
             MarketDataService marketDataService,
+            MarketIndexHistoryService marketIndexHistoryService,
             MarketHistoryService marketHistoryService,
             ForeignOwnershipRefreshService foreignOwnershipRefreshService,
             ForeignOwnershipModelTrainingService foreignOwnershipModelTrainingService,
@@ -72,6 +76,7 @@ public class MarketDataController {
             OnDemandKisRealtimeSubscriptionService onDemandKisRealtimeSubscriptionService,
             GlobalPeerMatchService globalPeerMatchService) {
         this.marketDataService = marketDataService;
+        this.marketIndexHistoryService = marketIndexHistoryService;
         this.marketHistoryService = marketHistoryService;
         this.foreignOwnershipRefreshService = foreignOwnershipRefreshService;
         this.foreignOwnershipModelTrainingService = foreignOwnershipModelTrainingService;
@@ -125,6 +130,15 @@ public class MarketDataController {
     @Operation(summary = "국내 시장 지수 실시간 snapshot 조회")
     public ApiResponse<List<MarketIndexQuote>> getIndices() {
         return ApiResponse.success(marketDataService.getIndices());
+    }
+
+    @GetMapping("/indices/{indexCode}/intraday")
+    @Operation(summary = "KIS 기반 국내 시장 지수 당일 분봉 조회")
+    public ApiResponse<List<MarketIndexIntradayPrice>> getIndexIntradayHistory(
+            @PathVariable @Pattern(regexp = "0001|1001|2001") String indexCode,
+            @RequestParam(required = false) LocalDate date,
+            @RequestParam(defaultValue = "390") @Min(1) @Max(600) int limit) {
+        return ApiResponse.success(marketIndexHistoryService.getIntradayHistory(indexCode, date, limit));
     }
 
     @GetMapping("/stocks/{stockCode}/orderbook")

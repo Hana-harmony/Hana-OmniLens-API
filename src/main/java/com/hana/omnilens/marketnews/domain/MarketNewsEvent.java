@@ -3,17 +3,25 @@ package com.hana.omnilens.marketnews.domain;
 import java.time.Instant;
 import java.util.List;
 
+import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
+import com.hana.omnilens.alert.domain.AlertSummaryLines;
+
 public record MarketNewsEvent(
         String newsId,
         String query,
         String title,
+        String translatedTitle,
         String summary,
+        AlertSummaryLines summaryLines,
+        String translatedSummary,
         String originalContent,
+        String translatedContent,
         List<String> imageUrls,
         String contentAvailability,
         String originalUrl,
         String canonicalUrl,
         String sourceLicensePolicy,
+        List<AlertGlossaryTerm> glossaryTerms,
         String duplicateKey,
         Instant publishedAt,
         Instant createdAt
@@ -21,5 +29,7 @@ public record MarketNewsEvent(
 
     public MarketNewsEvent {
         imageUrls = imageUrls == null ? List.of() : List.copyOf(imageUrls);
+        glossaryTerms = glossaryTerms == null ? List.of() : List.copyOf(glossaryTerms);
+        summaryLines = summaryLines == null ? AlertSummaryLines.fromSummary(summary) : summaryLines;
     }
 }

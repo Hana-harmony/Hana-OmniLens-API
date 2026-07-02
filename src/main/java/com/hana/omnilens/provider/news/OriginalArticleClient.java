@@ -33,7 +33,28 @@ public class OriginalArticleClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OriginalArticleClient.class);
     private static final int MAX_CONTENT_CHARS = 20_000;
+    private static final int MIN_ARTICLE_BODY_CHARS = 60;
     private static final int MAX_IMAGES = 10;
+    private static final List<String> ARTICLE_BODY_SELECTORS = List.of(
+            "[itemprop=articleBody]",
+            "#article-view-content-div",
+            ".article-body-only",
+            "#articleBody",
+            "#article_body",
+            ".news_body",
+            ".article_body",
+            "#news_body",
+            ".article-view-content",
+            ".article_content",
+            ".article-content",
+            ".article_txt",
+            ".view_con",
+            ".view_content",
+            ".newsct_article",
+            "#dic_area",
+            ".go_trans._article_content",
+            "main article",
+            "article");
 
     private final RestClient restClient;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
@@ -87,16 +108,61 @@ public class OriginalArticleClient {
     }
 
     private String selectContent(Document document) {
-        Element article = document.selectFirst("article");
-        if (article != null && article.text().length() >= 120) {
-            return article.text();
+        for (String selector : ARTICLE_BODY_SELECTORS) {
+            Element article = document.selectFirst(selector);
+            String candidate = cleanArticleText(article);
+            if (candidate.length() >= MIN_ARTICLE_BODY_CHARS && !isBoilerplate(candidate)) {
+                return candidate;
+            }
         }
-        Element main = document.selectFirst("main");
-        if (main != null && main.text().length() >= 120) {
-            return main.text();
+        return metaDescription(document);
+    }
+
+    private String cleanArticleText(Element article) {
+        if (article == null) {
+            return "";
         }
-        Element body = document.body();
-        return body == null ? "" : body.text();
+        Element copy = article.clone();
+        copy.select(String.join(",",
+                "script",
+                "style",
+                "noscript",
+                "iframe",
+                "form",
+                "button",
+                "nav",
+                "aside",
+                "ins",
+                "table",
+                "[class*=ad]",
+                "[id*=ad]",
+                "[class*=share]",
+                "[id*=share]",
+                "[class*=sns]",
+                "[id*=sns]",
+                "[class*=recommend]",
+                "[class*=related]",
+                "[class*=copyright]",
+                "[class*=reporter]")).remove();
+        return normalize(copy.text());
+    }
+
+    private boolean isBoilerplate(String value) {
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("quick report title author date result")
+                || normalized.startsWith("share this article send article")
+                || normalized.contains("copy url close")
+                || normalized.contains("all violation of")
+                || normalized.contains("facebook twitter kakao");
+    }
+
+    private String metaDescription(Document document) {
+        Element ogDescription = document.selectFirst("meta[property=og:description]");
+        if (ogDescription != null && StringUtils.hasText(ogDescription.attr("content"))) {
+            return ogDescription.attr("content");
+        }
+        Element description = document.selectFirst("meta[name=description]");
+        return description == null ? "" : description.attr("content");
     }
 
     private List<String> imageUrls(Document document, URI sourceUri) {

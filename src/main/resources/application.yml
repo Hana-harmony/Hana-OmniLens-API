@@ -48,6 +48,10 @@ omnilens:
     deep-l-translation:
       base-url: https://api-free.deepl.com
       api-key: ""
+    openai-translation:
+      base-url: ${OPENAI_TRANSLATION_BASE_URL:https://api.openai.com}
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_TRANSLATION_MODEL:gpt-4o-mini}
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: ""
