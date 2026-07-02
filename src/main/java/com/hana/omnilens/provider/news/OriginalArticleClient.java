@@ -33,6 +33,7 @@ public class OriginalArticleClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OriginalArticleClient.class);
     private static final int MAX_CONTENT_CHARS = 20_000;
+    private static final int MIN_ARTICLE_BODY_CHARS = 60;
     private static final int MAX_IMAGES = 10;
     private static final List<String> ARTICLE_BODY_SELECTORS = List.of(
             "[itemprop=articleBody]",
@@ -110,7 +111,7 @@ public class OriginalArticleClient {
         for (String selector : ARTICLE_BODY_SELECTORS) {
             Element article = document.selectFirst(selector);
             String candidate = cleanArticleText(article);
-            if (candidate.length() >= 120 && !isBoilerplate(candidate)) {
+            if (candidate.length() >= MIN_ARTICLE_BODY_CHARS && !isBoilerplate(candidate)) {
                 return candidate;
             }
         }
