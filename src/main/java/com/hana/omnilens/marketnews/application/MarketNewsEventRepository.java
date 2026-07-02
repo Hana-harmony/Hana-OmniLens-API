@@ -2,6 +2,7 @@ package com.hana.omnilens.marketnews.application;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
 import com.hana.omnilens.marketnews.domain.MarketNewsEvent;
 
@@ -14,4 +15,8 @@ public interface MarketNewsEventRepository {
     Optional<MarketNewsEvent> findByDuplicateKey(String duplicateKey);
 
     List<MarketNewsEvent> findLatest(int limit);
+
+    void recordView(String newsId, Instant viewedAt);
+
+    List<MarketNewsEvent> findTrending(Instant since, int limit);
 }

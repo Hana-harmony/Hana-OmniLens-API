@@ -3,6 +3,7 @@ package com.hana.omnilens.marketnews.infra;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -91,6 +92,37 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
                 LIMIT ?
                 """,
                 rowMapper,
+                limit);
+    }
+
+    @Override
+    public void recordView(String newsId, Instant viewedAt) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO market_news_view_event (news_id, viewed_at)
+                VALUES (?, ?)
+                """,
+                newsId,
+                Timestamp.from(viewedAt));
+    }
+
+    @Override
+    public List<MarketNewsEvent> findTrending(Instant since, int limit) {
+        return jdbcTemplate.query(
+                """
+                SELECT event.event_json
+                FROM market_news_event event
+                JOIN market_news_view_event view_event
+                  ON view_event.news_id = event.news_id
+                WHERE view_event.viewed_at >= ?
+                GROUP BY event.news_id, event.event_json
+                ORDER BY COUNT(view_event.view_id) DESC,
+                         MAX(view_event.viewed_at) DESC,
+                         MAX(event.published_at) DESC
+                LIMIT ?
+                """,
+                rowMapper,
+                Timestamp.from(since),
                 limit);
     }
 
