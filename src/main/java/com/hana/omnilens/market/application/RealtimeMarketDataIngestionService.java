@@ -31,12 +31,14 @@ public class RealtimeMarketDataIngestionService {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter KIS_TIME = DateTimeFormatter.ofPattern("HHmmss");
     private static final String REALTIME_TRADE_SOURCE = "KIS_REALTIME_TRADE";
+    private static final String REALTIME_INDEX_SOURCE = "KIS_REALTIME_INDEX";
 
     private final KisRealtimeMessageParser kisRealtimeMessageParser;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
     private final MarketQuoteStreamingService marketQuoteStreamingService;
     private final MarketIndexStreamingService marketIndexStreamingService;
     private final MarketIntradayPriceRepository marketIntradayPriceRepository;
+    private final MarketIndexSnapshotRepository marketIndexSnapshotRepository;
     private final StockMasterRepository stockMasterRepository;
     private final Clock clock;
 
@@ -51,6 +53,7 @@ public class RealtimeMarketDataIngestionService {
                 null,
                 null,
                 null,
+                null,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -61,6 +64,7 @@ public class RealtimeMarketDataIngestionService {
             MarketQuoteStreamingService marketQuoteStreamingService,
             MarketIndexStreamingService marketIndexStreamingService,
             MarketIntradayPriceRepository marketIntradayPriceRepository,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
             StockMasterRepository stockMasterRepository) {
         this(
                 kisRealtimeMessageParser,
@@ -68,6 +72,7 @@ public class RealtimeMarketDataIngestionService {
                 marketQuoteStreamingService,
                 marketIndexStreamingService,
                 marketIntradayPriceRepository,
+                marketIndexSnapshotRepository,
                 stockMasterRepository,
                 Clock.system(KOREA_ZONE));
     }
@@ -78,6 +83,7 @@ public class RealtimeMarketDataIngestionService {
             MarketQuoteStreamingService marketQuoteStreamingService,
             MarketIndexStreamingService marketIndexStreamingService,
             MarketIntradayPriceRepository marketIntradayPriceRepository,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
             StockMasterRepository stockMasterRepository,
             Clock clock) {
         this.kisRealtimeMessageParser = kisRealtimeMessageParser;
@@ -85,8 +91,28 @@ public class RealtimeMarketDataIngestionService {
         this.marketQuoteStreamingService = marketQuoteStreamingService;
         this.marketIndexStreamingService = marketIndexStreamingService;
         this.marketIntradayPriceRepository = marketIntradayPriceRepository;
+        this.marketIndexSnapshotRepository = marketIndexSnapshotRepository;
         this.stockMasterRepository = stockMasterRepository;
         this.clock = clock;
+    }
+
+    RealtimeMarketDataIngestionService(
+            KisRealtimeMessageParser kisRealtimeMessageParser,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketQuoteStreamingService marketQuoteStreamingService,
+            MarketIndexStreamingService marketIndexStreamingService,
+            MarketIntradayPriceRepository marketIntradayPriceRepository,
+            StockMasterRepository stockMasterRepository,
+            Clock clock) {
+        this(
+                kisRealtimeMessageParser,
+                realtimeMarketDataCache,
+                marketQuoteStreamingService,
+                marketIndexStreamingService,
+                marketIntradayPriceRepository,
+                null,
+                stockMasterRepository,
+                clock);
     }
 
     public RealtimeMarketDataIngestionResult ingestKisMessage(String rawMessage) {
@@ -110,22 +136,24 @@ public class RealtimeMarketDataIngestionService {
         if (indexTick.isPresent()) {
             KisRealtimeIndexTick tick = indexTick.orElseThrow();
             realtimeMarketDataCache.putIndex(tick);
+            MarketIndexQuote quote = new MarketIndexQuote(
+                    tick.indexCode(),
+                    tick.indexName(),
+                    tick.market(),
+                    tick.currentValue(),
+                    tick.changeSign(),
+                    tick.changeValue(),
+                    tick.changeRate(),
+                    tick.accumulatedVolume(),
+                    tick.accumulatedTradingValue(),
+                    tick.openValue(),
+                    tick.highValue(),
+                    tick.lowValue(),
+                    tick.marketDataTime(),
+                    tick.source());
+            recordRealtimeIndex(quote);
             if (marketIndexStreamingService != null) {
-                marketIndexStreamingService.publish(new MarketIndexQuote(
-                        tick.indexCode(),
-                        tick.indexName(),
-                        tick.market(),
-                        tick.currentValue(),
-                        tick.changeSign(),
-                        tick.changeValue(),
-                        tick.changeRate(),
-                        tick.accumulatedVolume(),
-                        tick.accumulatedTradingValue(),
-                        tick.openValue(),
-                        tick.highValue(),
-                        tick.lowValue(),
-                        tick.marketDataTime(),
-                        tick.source()));
+                marketIndexStreamingService.publish(quote);
             }
             return RealtimeMarketDataIngestionResult.index(tick.indexCode());
         }
@@ -165,6 +193,37 @@ public class RealtimeMarketDataIngestionService {
         String normalizedTime = normalizeTime(tick.tradeTime());
         LocalTime tradeTime = LocalTime.parse(normalizedTime, KIS_TIME).withSecond(0);
         return LocalDateTime.of(businessDate, tradeTime);
+    }
+
+    private void recordRealtimeIndex(MarketIndexQuote quote) {
+        if (marketIndexSnapshotRepository == null || quote.marketDataTime() == null) {
+            return;
+        }
+        try {
+            marketIndexSnapshotRepository.recordLatest(quote);
+            marketIndexSnapshotRepository.recordRealtimeMinute(new com.hana.omnilens.market.domain.MarketIndexIntradayPrice(
+                    quote.indexCode(),
+                    quote.indexName(),
+                    quote.market(),
+                    indexBucketStart(quote),
+                    quote.openValue(),
+                    quote.highValue(),
+                    quote.lowValue(),
+                    quote.currentValue(),
+                    quote.accumulatedVolume(),
+                    BigDecimal.valueOf(quote.accumulatedTradingValue()),
+                    REALTIME_INDEX_SOURCE,
+                    Instant.now(clock)));
+        } catch (RuntimeException exception) {
+            // 지수 화면은 실시간 전송을 우선하고 저장 장애는 다음 tick에서 복구한다.
+            log.warn("Realtime index persistence failed indexCode={}", quote.indexCode(), exception);
+        }
+    }
+
+    private LocalDateTime indexBucketStart(MarketIndexQuote quote) {
+        return LocalDateTime.ofInstant(quote.marketDataTime(), KOREA_ZONE)
+                .withSecond(0)
+                .withNano(0);
     }
 
     private String normalizeTime(String value) {
