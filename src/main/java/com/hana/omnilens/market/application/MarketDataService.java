@@ -7,6 +7,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -22,6 +24,7 @@ import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
+import com.hana.omnilens.market.domain.MarketIndexIntradayPrice;
 import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
@@ -36,6 +39,8 @@ import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipPredictionResponse;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
+import com.hana.omnilens.provider.market.KisIndexCurrentPriceClient;
+import com.hana.omnilens.provider.market.KisIndexCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
 import com.hana.omnilens.provider.market.KisRestOrderBookClient;
@@ -50,48 +55,60 @@ public class MarketDataService {
     private static final BigDecimal FOREIGN_LIMIT_WARNING_RATE = new BigDecimal("100.0000");
     private static final Duration PRICE_CACHE_TTL = Duration.ofSeconds(20);
     private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofMinutes(10);
+    private static final Duration INDEX_CURRENT_CACHE_TTL = Duration.ofSeconds(20);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
     private static final int KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS = 3;
     private static final int FOREIGN_OWNERSHIP_HISTORY_LIMIT = 30;
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+    private static final List<String> DEFAULT_MARKET_INDEX_CODES = List.of("0001", "1001", "2001");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
     private final KisCurrentPriceClient kisCurrentPriceClient;
     private final KisRestOrderBookClient kisRestOrderBookClient;
+    private final KisIndexCurrentPriceClient kisIndexCurrentPriceClient;
     private final StockMasterRepository stockMasterRepository;
     private final ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache;
     private final ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository;
     private final ForeignOwnershipPredictionCache foreignOwnershipPredictionCache;
     private final ExchangeRateCache exchangeRateCache;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
+    private final MarketIndexSnapshotRepository marketIndexSnapshotRepository;
+    private final MarketIndexHistoryService marketIndexHistoryService;
     private final HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient;
     private final ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine;
     private final Clock clock;
     private final Map<String, CachedPriceLookup> priceLookupCache = new ConcurrentHashMap<>();
+    private final Map<String, CachedIndexQuote> indexQuoteCache = new ConcurrentHashMap<>();
 
     @Autowired
     public MarketDataService(
             PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
             KisCurrentPriceClient kisCurrentPriceClient,
             KisRestOrderBookClient kisRestOrderBookClient,
+            KisIndexCurrentPriceClient kisIndexCurrentPriceClient,
             StockMasterRepository stockMasterRepository,
             ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
             ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
             ForeignOwnershipPredictionCache foreignOwnershipPredictionCache,
             ExchangeRateCache exchangeRateCache,
             RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
+            MarketIndexHistoryService marketIndexHistoryService,
             HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine) {
         this(
                 publicDataStockSecuritiesClient,
                 kisCurrentPriceClient,
                 kisRestOrderBookClient,
+                kisIndexCurrentPriceClient,
                 stockMasterRepository,
                 foreignOwnershipSnapshotCache,
                 foreignOwnershipDailySnapshotRepository,
                 foreignOwnershipPredictionCache,
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                marketIndexSnapshotRepository,
+                marketIndexHistoryService,
                 hannahAiForeignOwnershipPredictionClient,
                 foreignOwnershipPredictionEngine,
                 Clock.system(KOREA_ZONE));
@@ -115,6 +132,7 @@ public class MarketDataService {
                 new InMemoryForeignOwnershipPredictionCache(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                new InMemoryMarketIndexSnapshotRepository(),
                 null,
                 new ForeignOwnershipPredictionEngine(clock),
                 clock);
@@ -139,6 +157,7 @@ public class MarketDataService {
                 new InMemoryForeignOwnershipPredictionCache(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                new InMemoryMarketIndexSnapshotRepository(),
                 null,
                 new ForeignOwnershipPredictionEngine(clock),
                 clock);
@@ -163,7 +182,37 @@ public class MarketDataService {
                 new InMemoryForeignOwnershipPredictionCache(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                new InMemoryMarketIndexSnapshotRepository(),
                 null,
+                foreignOwnershipPredictionEngine,
+                clock);
+    }
+
+    MarketDataService(
+            PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
+            KisRestOrderBookClient kisRestOrderBookClient,
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
+            ForeignOwnershipPredictionCache foreignOwnershipPredictionCache,
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
+            ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
+            Clock clock) {
+        this(
+                publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                foreignOwnershipDailySnapshotRepository,
+                foreignOwnershipPredictionCache,
+                exchangeRateCache,
+                realtimeMarketDataCache,
+                new InMemoryMarketIndexSnapshotRepository(),
+                hannahAiForeignOwnershipPredictionClient,
                 foreignOwnershipPredictionEngine,
                 clock);
     }
@@ -190,6 +239,7 @@ public class MarketDataService {
                 new InMemoryForeignOwnershipPredictionCache(),
                 exchangeRateCache,
                 realtimeMarketDataCache,
+                new InMemoryMarketIndexSnapshotRepository(),
                 hannahAiForeignOwnershipPredictionClient,
                 foreignOwnershipPredictionEngine,
                 clock);
@@ -205,18 +255,88 @@ public class MarketDataService {
             ForeignOwnershipPredictionCache foreignOwnershipPredictionCache,
             ExchangeRateCache exchangeRateCache,
             RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
+            HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
+            ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
+            Clock clock) {
+        this(
+                publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                foreignOwnershipDailySnapshotRepository,
+                foreignOwnershipPredictionCache,
+                exchangeRateCache,
+                realtimeMarketDataCache,
+                marketIndexSnapshotRepository,
+                null,
+                hannahAiForeignOwnershipPredictionClient,
+                foreignOwnershipPredictionEngine,
+                clock);
+    }
+
+    MarketDataService(
+            PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
+            KisRestOrderBookClient kisRestOrderBookClient,
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
+            ForeignOwnershipPredictionCache foreignOwnershipPredictionCache,
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
+            MarketIndexHistoryService marketIndexHistoryService,
+            HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
+            ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
+            Clock clock) {
+        this(
+                publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                null,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                foreignOwnershipDailySnapshotRepository,
+                foreignOwnershipPredictionCache,
+                exchangeRateCache,
+                realtimeMarketDataCache,
+                marketIndexSnapshotRepository,
+                marketIndexHistoryService,
+                hannahAiForeignOwnershipPredictionClient,
+                foreignOwnershipPredictionEngine,
+                clock);
+    }
+
+    MarketDataService(
+            PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
+            KisRestOrderBookClient kisRestOrderBookClient,
+            KisIndexCurrentPriceClient kisIndexCurrentPriceClient,
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
+            ForeignOwnershipPredictionCache foreignOwnershipPredictionCache,
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
+            MarketIndexHistoryService marketIndexHistoryService,
             HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
             Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.kisCurrentPriceClient = kisCurrentPriceClient;
         this.kisRestOrderBookClient = kisRestOrderBookClient;
+        this.kisIndexCurrentPriceClient = kisIndexCurrentPriceClient;
         this.stockMasterRepository = stockMasterRepository;
         this.foreignOwnershipSnapshotCache = foreignOwnershipSnapshotCache;
         this.foreignOwnershipDailySnapshotRepository = foreignOwnershipDailySnapshotRepository;
         this.foreignOwnershipPredictionCache = foreignOwnershipPredictionCache;
         this.exchangeRateCache = exchangeRateCache;
         this.realtimeMarketDataCache = realtimeMarketDataCache;
+        this.marketIndexSnapshotRepository = marketIndexSnapshotRepository;
+        this.marketIndexHistoryService = marketIndexHistoryService;
         this.hannahAiForeignOwnershipPredictionClient = hannahAiForeignOwnershipPredictionClient;
         this.foreignOwnershipPredictionEngine = foreignOwnershipPredictionEngine;
         this.clock = clock;
@@ -336,7 +456,7 @@ public class MarketDataService {
     }
 
     public List<MarketIndexQuote> getIndices() {
-        return realtimeMarketDataCache.latestIndices().stream()
+        List<MarketIndexQuote> realtimeIndices = realtimeMarketDataCache.latestIndices().stream()
                 .map(tick -> new MarketIndexQuote(
                         tick.indexCode(),
                         tick.indexName(),
@@ -353,6 +473,136 @@ public class MarketDataService {
                         tick.marketDataTime(),
                         tick.source()))
                 .toList();
+        if (!realtimeIndices.isEmpty()) {
+            return realtimeIndices;
+        }
+        List<MarketIndexQuote> storedIndices = marketIndexSnapshotRepository.findLatestIndices();
+        List<MarketIndexQuote> currentIndices = currentIndexSnapshots();
+        if (!currentIndices.isEmpty()) {
+            return mergeIndexQuotes(currentIndices, storedIndices);
+        }
+        // KIS 현재지수가 실패한 경우에만 저장 스냅샷을 사용한다.
+        if (!storedIndices.isEmpty()) {
+            return storedIndices;
+        }
+        return latestCloseIndexSnapshots();
+    }
+
+    private List<MarketIndexQuote> currentIndexSnapshots() {
+        if (kisIndexCurrentPriceClient == null) {
+            return List.of();
+        }
+        return DEFAULT_MARKET_INDEX_CODES.stream()
+                .flatMap(indexCode -> currentIndexSnapshot(indexCode).stream())
+                .toList();
+    }
+
+    private Optional<MarketIndexQuote> currentIndexSnapshot(String indexCode) {
+        Instant now = Instant.now(clock);
+        CachedIndexQuote cached = indexQuoteCache.get(indexCode);
+        if (cached != null && cached.isFresh(now)) {
+            return Optional.of(cached.quote());
+        }
+        try {
+            Optional<KisIndexCurrentPriceSnapshot> snapshot =
+                    kisIndexCurrentPriceClient.findCurrentIndex(indexCode);
+            if (snapshot.isEmpty()) {
+                return Optional.empty();
+            }
+            MarketIndexQuote quote = toMarketIndexQuote(snapshot.orElseThrow());
+            marketIndexSnapshotRepository.recordLatest(quote);
+            indexQuoteCache.put(indexCode, new CachedIndexQuote(quote, now.plus(INDEX_CURRENT_CACHE_TTL)));
+            return Optional.of(quote);
+        } catch (RuntimeException exception) {
+            // 지수 현재가 장애는 저장 스냅샷 또는 분봉 fallback으로 격리한다.
+            log.warn("KIS current index quote failed indexCode={}: {}", indexCode, exception.toString());
+            return Optional.empty();
+        }
+    }
+
+    private static List<MarketIndexQuote> mergeIndexQuotes(
+            List<MarketIndexQuote> preferred,
+            List<MarketIndexQuote> fallback) {
+        Map<String, MarketIndexQuote> byCode = new LinkedHashMap<>();
+        fallback.forEach(quote -> byCode.put(quote.indexCode(), quote));
+        preferred.forEach(quote -> byCode.put(quote.indexCode(), quote));
+        List<MarketIndexQuote> ordered = DEFAULT_MARKET_INDEX_CODES.stream()
+                .flatMap(indexCode -> Optional.ofNullable(byCode.remove(indexCode)).stream())
+                .toList();
+        if (byCode.isEmpty()) {
+            return ordered;
+        }
+        List<MarketIndexQuote> merged = new ArrayList<>(ordered);
+        merged.addAll(byCode.values());
+        return merged;
+    }
+
+    private static MarketIndexQuote toMarketIndexQuote(KisIndexCurrentPriceSnapshot snapshot) {
+        return new MarketIndexQuote(
+                snapshot.indexCode(),
+                snapshot.indexName(),
+                snapshot.market(),
+                snapshot.currentValue(),
+                snapshot.changeSign(),
+                snapshot.changeValue(),
+                snapshot.changeRate(),
+                snapshot.accumulatedVolume(),
+                snapshot.accumulatedTradingValue(),
+                snapshot.openValue(),
+                snapshot.highValue(),
+                snapshot.lowValue(),
+                snapshot.marketDataTime(),
+                snapshot.source());
+    }
+
+    private List<MarketIndexQuote> latestCloseIndexSnapshots() {
+        if (marketIndexHistoryService == null) {
+            return List.of();
+        }
+        return DEFAULT_MARKET_INDEX_CODES.stream()
+                .flatMap(indexCode -> latestCloseIndexSnapshot(indexCode).stream())
+                .toList();
+    }
+
+    private Optional<MarketIndexQuote> latestCloseIndexSnapshot(String indexCode) {
+        try {
+            List<MarketIndexIntradayPrice> prices = marketIndexHistoryService.getIntradayHistory(indexCode, null, 390);
+            if (prices.isEmpty()) {
+                return Optional.empty();
+            }
+            MarketIndexIntradayPrice first = prices.get(0);
+            MarketIndexIntradayPrice last = prices.get(prices.size() - 1);
+            MarketIndexQuote quote = new MarketIndexQuote(
+                    indexCode,
+                    last.indexName(),
+                    last.market(),
+                    last.closeValue(),
+                    "3",
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    prices.stream().mapToLong(MarketIndexIntradayPrice::tradingVolume).sum(),
+                    prices.stream()
+                            .map(MarketIndexIntradayPrice::tradingValueKrw)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .longValue(),
+                    first.openValue(),
+                    prices.stream()
+                            .map(MarketIndexIntradayPrice::highValue)
+                            .max(BigDecimal::compareTo)
+                            .orElse(last.highValue()),
+                    prices.stream()
+                            .map(MarketIndexIntradayPrice::lowValue)
+                            .min(BigDecimal::compareTo)
+                            .orElse(last.lowValue()),
+                    last.bucketStart().atZone(KOREA_ZONE).toInstant(),
+                    last.source() + "_LATEST_CLOSE");
+            marketIndexSnapshotRepository.recordLatest(quote);
+            return Optional.of(quote);
+        } catch (RuntimeException exception) {
+            // 지수 목록은 특정 지수의 KIS fallback 실패가 전체 홈 화면을 막지 않도록 분리한다.
+            log.warn("Market index latest close fallback failed indexCode={}: {}", indexCode, exception.toString());
+            return Optional.empty();
+        }
     }
 
     public OrderBook getOrderBook(String stockCode) {
@@ -939,6 +1189,16 @@ public class MarketDataService {
             PriceLookup priceLookup,
             Instant cachedAt
     ) {
+    }
+
+    private record CachedIndexQuote(
+            MarketIndexQuote quote,
+            Instant expiresAt
+    ) {
+
+        private boolean isFresh(Instant now) {
+            return expiresAt.isAfter(now);
+        }
     }
 
     private enum PriceSource {

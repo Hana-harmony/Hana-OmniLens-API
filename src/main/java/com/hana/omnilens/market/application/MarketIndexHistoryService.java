@@ -3,6 +3,7 @@ package com.hana.omnilens.market.application;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
@@ -19,27 +20,53 @@ public class MarketIndexHistoryService {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final String SOURCE = "KIS_TIME_INDEX_CHART_PRICE";
+    private static final LocalTime REGULAR_MARKET_OPEN = LocalTime.of(9, 0);
 
     private final KisIndexMinuteChartPriceClient kisIndexMinuteChartPriceClient;
+    private final MarketIndexSnapshotRepository marketIndexSnapshotRepository;
     private final Clock clock;
 
     @Autowired
-    public MarketIndexHistoryService(KisIndexMinuteChartPriceClient kisIndexMinuteChartPriceClient) {
-        this(kisIndexMinuteChartPriceClient, Clock.system(KOREA_ZONE));
+    public MarketIndexHistoryService(
+            KisIndexMinuteChartPriceClient kisIndexMinuteChartPriceClient,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository) {
+        this(kisIndexMinuteChartPriceClient, marketIndexSnapshotRepository, Clock.system(KOREA_ZONE));
     }
 
     MarketIndexHistoryService(KisIndexMinuteChartPriceClient kisIndexMinuteChartPriceClient, Clock clock) {
+        this(kisIndexMinuteChartPriceClient, new InMemoryMarketIndexSnapshotRepository(), clock);
+    }
+
+    MarketIndexHistoryService(
+            KisIndexMinuteChartPriceClient kisIndexMinuteChartPriceClient,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
+            Clock clock) {
         this.kisIndexMinuteChartPriceClient = kisIndexMinuteChartPriceClient;
+        this.marketIndexSnapshotRepository = marketIndexSnapshotRepository;
         this.clock = clock;
     }
 
     public List<MarketIndexIntradayPrice> getIntradayHistory(String indexCode, LocalDate date, int limit) {
-        LocalDate resolvedDate = date == null ? LocalDate.now(clock) : date;
-        return kisIndexMinuteChartPriceClient.findMinutePrices(indexCode, resolvedDate, limit)
+        LocalDate resolvedDate = date == null ? defaultTradingDate(indexCode) : date;
+        List<MarketIndexIntradayPrice> saved = marketIndexSnapshotRepository.findIntraday(indexCode, resolvedDate, limit);
+        if (!saved.isEmpty()) {
+            return saved;
+        }
+        List<MarketIndexIntradayPrice> fetched = kisIndexMinuteChartPriceClient.findMinutePrices(indexCode, resolvedDate, limit)
                 .stream()
                 .map(price -> toIndexIntradayPrice(indexCode, price))
                 .sorted(Comparator.comparing(MarketIndexIntradayPrice::bucketStart))
                 .toList();
+        marketIndexSnapshotRepository.upsertIntradayPrices(fetched);
+        return fetched;
+    }
+
+    private LocalDate defaultTradingDate(String indexCode) {
+        LocalDate today = LocalDate.now(clock);
+        if (LocalTime.now(clock).isBefore(REGULAR_MARKET_OPEN)) {
+            return marketIndexSnapshotRepository.latestTradeDate(indexCode).orElse(today);
+        }
+        return today;
     }
 
     private MarketIndexIntradayPrice toIndexIntradayPrice(String indexCode, KisIndexMinuteChartPrice price) {

@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,10 +18,13 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.hana.omnilens.market.domain.MarketIndexIntradayPrice;
+import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.provider.market.KisRealtimeMessageParser;
 import com.hana.omnilens.provider.market.KisRealtimeTransaction;
 import com.hana.omnilens.market.domain.MarketIntradayRealtimeTick;
 import com.hana.omnilens.market.domain.StockSummary;
+import com.hana.omnilens.market.stream.MarketIndexStreamingService;
 import com.hana.omnilens.market.stream.MarketQuoteStreamingService;
 
 class RealtimeMarketDataIngestionServiceTest {
@@ -81,6 +85,44 @@ class RealtimeMarketDataIngestionServiceTest {
     }
 
     @Test
+    void ingestKisMessageStoresRealtimeIndexSnapshotAndMinuteCandle() {
+        RealtimeMarketDataCache localCache = new InMemoryRealtimeMarketDataCache();
+        MarketQuoteStreamingService localStreamingService = mock(MarketQuoteStreamingService.class);
+        MarketIndexStreamingService indexStreamingService = mock(MarketIndexStreamingService.class);
+        MarketIndexSnapshotRepository indexSnapshotRepository = mock(MarketIndexSnapshotRepository.class);
+        RealtimeMarketDataIngestionService realtimeService = new RealtimeMarketDataIngestionService(
+                new KisRealtimeMessageParser(),
+                localCache,
+                localStreamingService,
+                indexStreamingService,
+                null,
+                indexSnapshotRepository,
+                null,
+                Clock.fixed(Instant.parse("2025-06-04T00:30:10Z"), ZoneId.of("Asia/Seoul")));
+
+        RealtimeMarketDataIngestionResult result = realtimeService.ingestKisMessage(kisFrame(
+                KisRealtimeTransaction.INDEX_TRADE,
+                indexPayload()));
+
+        assertThat(result.type()).isEqualTo(RealtimeMarketDataIngestionResult.Type.INDEX);
+        assertThat(localCache.latestIndices()).hasSize(1);
+        ArgumentCaptor<MarketIndexQuote> latestCaptor = ArgumentCaptor.forClass(MarketIndexQuote.class);
+        verify(indexSnapshotRepository).recordLatest(latestCaptor.capture());
+        assertThat(latestCaptor.getValue().indexCode()).isEqualTo("0001");
+        assertThat(latestCaptor.getValue().currentValue()).isEqualByComparingTo("2800.12");
+
+        ArgumentCaptor<MarketIndexIntradayPrice> minuteCaptor =
+                ArgumentCaptor.forClass(MarketIndexIntradayPrice.class);
+        verify(indexSnapshotRepository).recordRealtimeMinute(minuteCaptor.capture());
+        MarketIndexIntradayPrice savedMinute = minuteCaptor.getValue();
+        assertThat(savedMinute.indexCode()).isEqualTo("0001");
+        assertThat(savedMinute.bucketStart().toLocalTime()).isEqualTo(LocalTime.of(9, 30));
+        assertThat(savedMinute.closeValue()).isEqualByComparingTo("2800.12");
+        assertThat(savedMinute.source()).isEqualTo("KIS_REALTIME_INDEX");
+        verify(indexStreamingService).publish(latestCaptor.getValue());
+    }
+
+    @Test
     void ingestKisMessageStoresOrderBookSnapshot() {
         RealtimeMarketDataIngestionResult result = service.ingestKisMessage(kisFrame(
                 KisRealtimeTransaction.ORDERBOOK,
@@ -132,6 +174,23 @@ class RealtimeMarketDataIngestionServiceTest {
             fields.set(33 + index, String.valueOf(1800 + index));
         }
         fields.set(53, "16200000");
+        return String.join("^", fields);
+    }
+
+    private String indexPayload() {
+        ArrayList<String> fields = new ArrayList<>(Collections.nCopies(30, "0"));
+        fields.set(0, "0001");
+        fields.set(1, "093000");
+        fields.set(2, "2800.12");
+        fields.set(3, "2");
+        fields.set(4, "1.23");
+        fields.set(5, "120000");
+        fields.set(6, "5000000000");
+        fields.set(9, "0.44");
+        fields.set(10, "2790.00");
+        fields.set(11, "2810.00");
+        fields.set(12, "2780.00");
+        fields.set(29, "2815.00");
         return String.join("^", fields);
     }
 }
