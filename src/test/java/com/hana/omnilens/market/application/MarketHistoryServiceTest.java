@@ -307,6 +307,35 @@ class MarketHistoryServiceTest {
     }
 
     @Test
+    void getIntradayHistoryRefetchesFreshCacheMissingOpeningMinutes() {
+        Clock fixedClock = Clock.fixed(Instant.parse("2025-06-05T00:55:30Z"), ZoneId.of("Asia/Seoul"));
+        MarketHistoryService intradayService = intradayService(fixedClock);
+        LocalDate today = LocalDate.of(2025, 6, 5);
+        StockSummary stock = stock();
+        MarketIntradayPrice lateCached = intradayPrice(today.atTime(9, 49), Instant.parse("2025-06-05T00:55:00Z"));
+        MarketIntradayPrice savedOpen = intradayPrice(today.atTime(9, 1), Instant.parse("2025-06-05T00:55:30Z"));
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(intradayPriceRepository.findByStockCodeAndDate("005930", today, 390))
+                .thenReturn(List.of(lateCached))
+                .thenReturn(List.of(savedOpen, lateCached));
+        when(kisMinuteChartPriceClient.findMinutePrices("005930", today, 390)).thenReturn(List.of(
+                new KisMinuteChartPrice(
+                        today.atTime(9, 1),
+                        new BigDecimal("58000"),
+                        new BigDecimal("58100"),
+                        new BigDecimal("57900"),
+                        new BigDecimal("58050"),
+                        12_345L,
+                        new BigDecimal("716000000"))));
+
+        List<MarketIntradayPrice> prices = intradayService.getIntradayHistory("005930", today, 390);
+
+        assertThat(prices).extracting(MarketIntradayPrice::bucketStart)
+                .containsExactly(today.atTime(9, 1), today.atTime(9, 49));
+        verify(intradayPriceRepository).upsertAll(anyList());
+    }
+
+    @Test
     void getIntradayHistoryUsesSavedRegularSessionMinutesAfterMarketCloseWithoutKisRequest() {
         Clock fixedClock = Clock.fixed(Instant.parse("2025-06-05T07:00:30Z"), ZoneId.of("Asia/Seoul"));
         MarketHistoryService intradayService = intradayService(fixedClock);

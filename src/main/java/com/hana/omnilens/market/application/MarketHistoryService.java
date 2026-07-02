@@ -231,11 +231,22 @@ public class MarketHistoryService {
         if (date.equals(today) && isRegularSessionClosed() && hasCompleteRegularSession(prices)) {
             return true;
         }
+        if (date.equals(today) && !coversRegularSessionStart(prices)) {
+            return false;
+        }
         Instant newestCollectionTime = prices.stream()
                 .map(MarketIntradayPrice::collectedAt)
                 .max(Comparator.naturalOrder())
                 .orElse(Instant.EPOCH);
         return newestCollectionTime.plus(INTRADAY_CACHE_FRESHNESS).isAfter(Instant.now(clock));
+    }
+
+    private boolean coversRegularSessionStart(List<MarketIntradayPrice> prices) {
+        LocalTime earliestTime = prices.stream()
+                .map(price -> price.bucketStart().toLocalTime())
+                .min(Comparator.naturalOrder())
+                .orElse(REGULAR_MARKET_CLOSE);
+        return !earliestTime.isAfter(REGULAR_MARKET_FIRST_MINUTE);
     }
 
     private boolean isRegularSessionClosed() {
