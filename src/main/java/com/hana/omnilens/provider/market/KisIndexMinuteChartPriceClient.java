@@ -1,6 +1,7 @@
 package com.hana.omnilens.provider.market;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -17,6 +18,7 @@ import java.util.stream.StreamSupport;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -41,35 +43,54 @@ public class KisIndexMinuteChartPriceClient {
     private final ExternalProviderProperties.Kis kisProperties;
     private final KisAccessTokenProvider accessTokenProvider;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
+    private final Clock clock;
 
+    @Autowired
     public KisIndexMinuteChartPriceClient(
             RestClient.Builder restClientBuilder,
             ExternalProviderProperties properties,
             KisAccessTokenProvider accessTokenProvider,
             ExternalProviderResiliencePolicy resiliencePolicy) {
+        this(restClientBuilder, properties, accessTokenProvider, resiliencePolicy, Clock.system(KOREA_ZONE));
+    }
+
+    KisIndexMinuteChartPriceClient(
+            RestClient.Builder restClientBuilder,
+            ExternalProviderProperties properties,
+            KisAccessTokenProvider accessTokenProvider,
+            ExternalProviderResiliencePolicy resiliencePolicy,
+            Clock clock) {
         this.restClient = restClientBuilder
                 .baseUrl(properties.kis().baseUrl().toString())
                 .build();
         this.kisProperties = properties.kis();
         this.accessTokenProvider = accessTokenProvider;
         this.resiliencePolicy = resiliencePolicy;
+        this.clock = clock;
     }
 
     public List<KisIndexMinuteChartPrice> findMinutePrices(String indexCode, LocalDate tradingDate, int limit) {
-        if (!tradingDate.equals(LocalDate.now(KOREA_ZONE))) {
+        if (!tradingDate.equals(LocalDate.now(clock))) {
             return List.of();
         }
         int resolvedLimit = Math.max(1, Math.min(limit, PAGE_SIZE_HINT * MAX_PAGE_COUNT));
         String cursor = "";
         List<KisIndexMinuteChartPrice> prices = new ArrayList<>();
         Set<LocalDateTime> seenBuckets = new HashSet<>();
+        LocalDate selectedDate = null;
 
         for (int page = 0; page < MAX_PAGE_COUNT && prices.size() < resolvedLimit; page += 1) {
-            List<KisIndexMinuteChartPrice> pagePrices = requestPageWithRateLimitRetry(indexCode, tradingDate, cursor)
+            List<KisIndexMinuteChartPrice> rawPagePrices = requestPageWithRateLimitRetry(indexCode, tradingDate, cursor)
                     .stream()
-                    .filter(price -> price.bucketStart().toLocalDate().equals(tradingDate))
                     .filter(KisIndexMinuteChartPriceClient::isRegularSessionPrice)
                     .sorted(Comparator.comparing(KisIndexMinuteChartPrice::bucketStart).reversed())
+                    .toList();
+            selectedDate = selectedDate == null
+                    ? selectAvailableTradingDate(tradingDate, rawPagePrices)
+                    : selectedDate;
+            LocalDate pageSelectedDate = selectedDate;
+            List<KisIndexMinuteChartPrice> pagePrices = rawPagePrices.stream()
+                    .filter(price -> price.bucketStart().toLocalDate().equals(pageSelectedDate))
                     .toList();
             if (pagePrices.isEmpty()) {
                 break;
@@ -95,6 +116,14 @@ public class KisIndexMinuteChartPriceClient {
         return prices.stream()
                 .sorted(Comparator.comparing(KisIndexMinuteChartPrice::bucketStart))
                 .toList();
+    }
+
+    static LocalDate selectAvailableTradingDate(LocalDate requestedDate, List<KisIndexMinuteChartPrice> prices) {
+        return prices.stream()
+                .map(price -> price.bucketStart().toLocalDate())
+                .filter(date -> !date.isAfter(requestedDate))
+                .max(Comparator.naturalOrder())
+                .orElse(requestedDate);
     }
 
     private static boolean isRegularSessionPrice(KisIndexMinuteChartPrice price) {

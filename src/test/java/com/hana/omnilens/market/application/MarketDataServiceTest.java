@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.market.domain.MarketQuote;
+import com.hana.omnilens.market.domain.MarketIndexIntradayPrice;
+import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
@@ -28,7 +31,10 @@ import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipPredictionClient;
 import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipPredictionResponse;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
+import com.hana.omnilens.provider.market.KisIndexCurrentPriceClient;
+import com.hana.omnilens.provider.market.KisIndexCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
+import com.hana.omnilens.provider.market.KisRealtimeIndexTick;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
 import com.hana.omnilens.provider.market.KisRestOrderBookClient;
 import com.hana.omnilens.provider.market.KisRestOrderBookSnapshot;
@@ -41,6 +47,86 @@ class MarketDataServiceTest {
     private static final Clock FIXED_CLOCK = Clock.fixed(
             Instant.parse("2025-06-04T00:00:00Z"),
             ZoneId.of("Asia/Seoul"));
+
+    @Test
+    void getIndicesFallsBackToStoredIndexSnapshotWhenRealtimeCacheIsEmpty() {
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        indexSnapshotRepository.recordLatest(indexQuote("0001", "KOSPI", "KIS_REALTIME_INDEX_SNAPSHOT"));
+        MarketDataService service = marketDataService(
+                new InMemoryRealtimeMarketDataCache(),
+                indexSnapshotRepository);
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).hasSize(1);
+        assertThat(indices.get(0).indexCode()).isEqualTo("0001");
+        assertThat(indices.get(0).source()).isEqualTo("KIS_REALTIME_INDEX_SNAPSHOT");
+    }
+
+    @Test
+    void getIndicesUsesRealtimeCacheBeforeStoredIndexSnapshot() {
+        InMemoryRealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        realtimeCache.putIndex(indexTick("0001", "KOSPI", "KIS_WEBSOCKET_INDEX"));
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        indexSnapshotRepository.recordLatest(indexQuote("0001", "KOSPI", "KIS_REALTIME_INDEX_SNAPSHOT"));
+        MarketDataService service = marketDataService(realtimeCache, indexSnapshotRepository);
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).hasSize(1);
+        assertThat(indices.get(0).indexCode()).isEqualTo("0001");
+        assertThat(indices.get(0).source()).isEqualTo("KIS_WEBSOCKET_INDEX");
+        assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2801.50");
+    }
+
+    @Test
+    void getIndicesBuildsStoredSnapshotFromLatestIntradayHistoryWhenIndexCacheIsEmpty() {
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        MarketIndexHistoryService indexHistoryService = mock(MarketIndexHistoryService.class);
+        when(indexHistoryService.getIntradayHistory("0001", null, 390)).thenReturn(List.of(
+                indexIntraday(LocalDateTime.of(2026, 7, 2, 15, 29), "2885.00"),
+                indexIntraday(LocalDateTime.of(2026, 7, 2, 15, 30), "2890.12")));
+        when(indexHistoryService.getIntradayHistory("1001", null, 390)).thenReturn(List.of());
+        when(indexHistoryService.getIntradayHistory("2001", null, 390)).thenReturn(List.of());
+        MarketDataService service = marketDataService(
+                new InMemoryRealtimeMarketDataCache(),
+                indexSnapshotRepository,
+                indexHistoryService);
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).hasSize(1);
+        assertThat(indices.get(0).indexCode()).isEqualTo("0001");
+        assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2890.12");
+        assertThat(indices.get(0).source()).isEqualTo("KIS_TIME_INDEX_CHART_PRICE_LATEST_CLOSE");
+        assertThat(indexSnapshotRepository.findLatestIndices()).hasSize(1);
+    }
+
+    @Test
+    void getIndicesReplacesStoredIntradayFallbackWithKisCurrentIndexQuote() {
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        indexSnapshotRepository.recordLatest(indexQuote("0001", "KOSPI", "KIS_TIME_INDEX_CHART_PRICE_LATEST_CLOSE"));
+        KisIndexCurrentPriceClient kisIndexCurrentPriceClient = mock(KisIndexCurrentPriceClient.class);
+        when(kisIndexCurrentPriceClient.findCurrentIndex("0001")).thenReturn(Optional.of(indexCurrentSnapshot()));
+        when(kisIndexCurrentPriceClient.findCurrentIndex("1001")).thenReturn(Optional.empty());
+        when(kisIndexCurrentPriceClient.findCurrentIndex("2001")).thenReturn(Optional.empty());
+        MarketDataService service = marketDataService(
+                new InMemoryRealtimeMarketDataCache(),
+                indexSnapshotRepository,
+                null,
+                kisIndexCurrentPriceClient);
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).hasSize(1);
+        assertThat(indices.get(0).indexCode()).isEqualTo("0001");
+        assertThat(indices.get(0).currentValue()).isEqualByComparingTo("7648.09");
+        assertThat(indices.get(0).changeValue()).isEqualByComparingTo("-655.32");
+        assertThat(indices.get(0).changeRate()).isEqualByComparingTo("-7.89");
+        assertThat(indices.get(0).source()).isEqualTo("KIS_INDEX_CURRENT_PRICE");
+        assertThat(indexSnapshotRepository.findLatestIndices().get(0).source())
+                .isEqualTo("KIS_INDEX_CURRENT_PRICE");
+    }
 
     @Test
     void getQuoteUsesKisCurrentPriceBeforePublicDataSnapshot() {
@@ -1302,5 +1388,117 @@ class MarketDataServiceTest {
                 new BigDecimal(exhaustionRate),
                 "KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP",
                 FIXED_CLOCK.instant());
+    }
+
+    private MarketDataService marketDataService(
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository) {
+        return marketDataService(realtimeMarketDataCache, marketIndexSnapshotRepository, null);
+    }
+
+    private MarketDataService marketDataService(
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
+            MarketIndexHistoryService marketIndexHistoryService) {
+        return marketDataService(
+                realtimeMarketDataCache,
+                marketIndexSnapshotRepository,
+                marketIndexHistoryService,
+                null);
+    }
+
+    private MarketDataService marketDataService(
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
+            MarketIndexHistoryService marketIndexHistoryService,
+            KisIndexCurrentPriceClient kisIndexCurrentPriceClient) {
+        return new MarketDataService(
+                null,
+                null,
+                null,
+                kisIndexCurrentPriceClient,
+                null,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                new InMemoryForeignOwnershipDailySnapshotRepository(),
+                new InMemoryForeignOwnershipPredictionCache(),
+                new InMemoryExchangeRateCache(),
+                realtimeMarketDataCache,
+                marketIndexSnapshotRepository,
+                marketIndexHistoryService,
+                null,
+                new ForeignOwnershipPredictionEngine(FIXED_CLOCK),
+                FIXED_CLOCK);
+    }
+
+    private KisIndexCurrentPriceSnapshot indexCurrentSnapshot() {
+        return new KisIndexCurrentPriceSnapshot(
+                "0001",
+                "KOSPI",
+                "KOSPI",
+                new BigDecimal("7648.09"),
+                "5",
+                new BigDecimal("-655.32"),
+                new BigDecimal("-7.89"),
+                922_000L,
+                12_340_000_000L,
+                new BigDecimal("8300.00"),
+                new BigDecimal("8400.00"),
+                new BigDecimal("7648.09"),
+                Instant.parse("2026-07-02T09:59:00Z"),
+                "KIS_INDEX_CURRENT_PRICE");
+    }
+
+    private MarketIndexQuote indexQuote(String indexCode, String indexName, String source) {
+        return new MarketIndexQuote(
+                indexCode,
+                indexName,
+                "KOSPI",
+                new BigDecimal("2800.12"),
+                "2",
+                new BigDecimal("1.23"),
+                new BigDecimal("0.44"),
+                120_000L,
+                5_000_000_000L,
+                new BigDecimal("2790.00"),
+                new BigDecimal("2810.00"),
+                new BigDecimal("2780.00"),
+                Instant.parse("2025-06-04T06:30:00Z"),
+                source);
+    }
+
+    private MarketIndexIntradayPrice indexIntraday(LocalDateTime bucketStart, String closeValue) {
+        return new MarketIndexIntradayPrice(
+                "0001",
+                "KOSPI",
+                "KOSPI",
+                bucketStart,
+                new BigDecimal("2880.00"),
+                new BigDecimal("2895.00"),
+                new BigDecimal("2875.00"),
+                new BigDecimal(closeValue),
+                1_200_000L,
+                new BigDecimal("3400000000000"),
+                "KIS_TIME_INDEX_CHART_PRICE",
+                FIXED_CLOCK.instant());
+    }
+
+    private KisRealtimeIndexTick indexTick(String indexCode, String indexName, String source) {
+        return new KisRealtimeIndexTick(
+                indexCode,
+                indexName,
+                "KOSPI",
+                "153000",
+                new BigDecimal("2801.50"),
+                "2",
+                new BigDecimal("2.61"),
+                new BigDecimal("0.09"),
+                122_000L,
+                5_100_000_000L,
+                new BigDecimal("2790.00"),
+                new BigDecimal("2812.00"),
+                new BigDecimal("2780.00"),
+                new BigDecimal("1.50"),
+                Instant.parse("2025-06-04T06:30:00Z"),
+                source);
     }
 }
