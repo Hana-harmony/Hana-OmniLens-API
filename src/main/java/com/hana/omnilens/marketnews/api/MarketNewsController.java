@@ -1,5 +1,8 @@
 package com.hana.omnilens.marketnews.api;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -49,12 +52,25 @@ public class MarketNewsController {
         return ApiResponse.success(new MarketNewsListResponse(news.size(), news));
     }
 
+    @GetMapping("/trending")
+    @Operation(summary = "List Korean market-wide news ranked by recent detail views")
+    public ApiResponse<MarketNewsListResponse> listTrendingMarketNews(
+            @RequestParam(defaultValue = "24") @Min(1) @Max(720) int windowHours,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) int limit) {
+        var news = marketNewsEventRepository.findTrending(
+                Instant.now().minus(Duration.ofHours(windowHours)),
+                limit);
+        return ApiResponse.success(new MarketNewsListResponse(news.size(), news));
+    }
+
     @GetMapping("/{newsId}")
     @Operation(summary = "Get Korean market-wide news detail")
     public ApiResponse<MarketNewsEvent> getMarketNews(
             @PathVariable @Size(min = 1, max = 80) String newsId) {
-        return ApiResponse.success(marketNewsEventRepository.findByNewsId(newsId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "market news not found")));
+        var event = marketNewsEventRepository.findByNewsId(newsId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "market news not found"));
+        marketNewsEventRepository.recordView(newsId, Instant.now());
+        return ApiResponse.success(event);
     }
 
     @PostMapping("/collect")
