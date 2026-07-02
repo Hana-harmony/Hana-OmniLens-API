@@ -4,11 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
+import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.provider.translation.DeepLTranslationClient;
 
 class AlertTitleTranslationServiceTest {
@@ -67,5 +71,20 @@ class AlertTitleTranslationServiceTest {
         String translatedText = translationService.translateText("개미가 삼성전자를 순매수했다.");
 
         assertThat(translatedText).isEqualTo("Ants net bought Samsung Electronics.");
+    }
+
+    @Test
+    void translateTextPreservesLocalismSurfaceTermWhenProviderUsesGenericEnglish() {
+        when(deepLTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
+                .thenReturn("Retail investors net bought Samsung Electronics.");
+
+        String plainTranslation = translationService.translateText("개미가 삼성전자를 순매수했다.");
+        String glossaryTranslation = translationService.translateText(
+                "개미가 삼성전자를 순매수했다.",
+                List.of(new AlertGlossaryTerm("개미", "개미", "retail investors", "market_slang")));
+
+        assertThat(plainTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
+        assertThat(glossaryTranslation).isEqualTo("Ants net bought Samsung Electronics.");
+        verify(deepLTranslationClient, times(2)).translateKoToEn("개미가 삼성전자를 순매수했다.");
     }
 }

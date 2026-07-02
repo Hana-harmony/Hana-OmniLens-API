@@ -8,6 +8,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,15 +57,87 @@ public class AlertTitleTranslationService {
         if (!StringUtils.hasText(originalText)) {
             return "";
         }
-        String cacheKey = sha256Hex(originalText);
+        String cacheKey = sha256Hex(originalText + "\n" + glossaryFingerprint(glossaryTerms));
         String cached = translationCache.get(cacheKey);
         if (cached != null) {
             return cached;
         }
         String translatedText = translateWithDeepL(originalText);
-        String result = StringUtils.hasText(translatedText) ? translatedText : originalText;
+        String result = applyLocalismSurfaceTerms(
+                StringUtils.hasText(translatedText) ? translatedText : originalText,
+                glossaryTerms);
         translationCache.put(cacheKey, result);
         return result;
+    }
+
+    private String applyLocalismSurfaceTerms(String text, List<AlertGlossaryTerm> glossaryTerms) {
+        if (!StringUtils.hasText(text) || glossaryTerms == null || glossaryTerms.isEmpty()) {
+            return text;
+        }
+        String result = text;
+        for (AlertGlossaryTerm term : glossaryTerms) {
+            result = switch (term.normalizedTerm()) {
+                case "개미" -> replaceIfMissing(result, "Ants", List.of(
+                        "retail investors",
+                        "retail investor",
+                        "individual investors",
+                        "individual investor",
+                        "ant investors"));
+                case "대장주" -> replaceIfMissing(result, "bellwether stock", List.of(
+                        "sector leader stock",
+                        "leading stock",
+                        "market leader stock",
+                        "leading share"));
+                case "따따블" -> replaceIfMissing(result, "dda-dda-ble", List.of(
+                        "IPO quadruple jump",
+                        "quadruple IPO jump",
+                        "fourfold IPO pop"));
+                case "품절주" -> replaceIfMissing(result, "low-float stock", List.of(
+                        "scarce-float stock",
+                        "thin-float stock"));
+                default -> result;
+            };
+        }
+        return result;
+    }
+
+    private String replaceIfMissing(String text, String preferredSurface, List<String> translatedPhrases) {
+        if (containsPhrase(text, preferredSurface)) {
+            return text;
+        }
+        String result = text;
+        for (String translatedPhrase : translatedPhrases) {
+            Pattern pattern = Pattern.compile(
+                    "\\b" + Pattern.quote(translatedPhrase) + "\\b",
+                    Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+            Matcher matcher = pattern.matcher(result);
+            result = matcher.replaceAll(Matcher.quoteReplacement(preferredSurface));
+        }
+        return result;
+    }
+
+    private boolean containsPhrase(String text, String phrase) {
+        Pattern pattern = Pattern.compile(
+                "\\b" + Pattern.quote(phrase) + "\\b",
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+        return pattern.matcher(text).find();
+    }
+
+    private String glossaryFingerprint(List<AlertGlossaryTerm> glossaryTerms) {
+        if (glossaryTerms == null || glossaryTerms.isEmpty()) {
+            return "";
+        }
+        return String.join("|", glossaryTerms.stream()
+                .map(term -> String.join(":",
+                        nullToEmpty(term.sourceTerm()),
+                        nullToEmpty(term.normalizedTerm()),
+                        nullToEmpty(term.englishTerm()),
+                        nullToEmpty(term.category())))
+                .toList());
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private String translateWithDeepL(String originalText) {
