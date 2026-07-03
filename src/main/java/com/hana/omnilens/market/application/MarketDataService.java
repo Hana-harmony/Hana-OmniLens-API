@@ -461,7 +461,7 @@ public class MarketDataService {
     }
 
     public List<MarketIndexQuote> getIndices() {
-        List<MarketIndexQuote> realtimeIndices = realtimeMarketDataCache.latestIndices().stream()
+        List<MarketIndexQuote> realtimeIndices = completeDefaultIndexQuotesOrEmpty(realtimeMarketDataCache.latestIndices().stream()
                 .map(tick -> new MarketIndexQuote(
                         tick.indexCode(),
                         tick.indexName(),
@@ -478,13 +478,15 @@ public class MarketDataService {
                         tick.marketDataTime(),
                         tick.source()))
                 .filter(this::isUsableRealtimeIndexQuote)
-                .toList();
+                .toList(), "realtime");
         if (!realtimeIndices.isEmpty()) {
             return realtimeIndices;
         }
-        List<MarketIndexQuote> storedIndices = marketIndexSnapshotRepository.findLatestIndices().stream()
-                .filter(this::isUsableStoredIndexQuote)
-                .toList();
+        List<MarketIndexQuote> storedIndices = completeDefaultIndexQuotesOrEmpty(
+                marketIndexSnapshotRepository.findLatestIndices().stream()
+                        .filter(this::isUsableStoredIndexQuote)
+                        .toList(),
+                "stored");
         List<MarketIndexQuote> currentIndices = currentIndexSnapshots();
         if (!currentIndices.isEmpty()) {
             return mergeIndexQuotes(currentIndices, storedIndices);
@@ -533,15 +535,11 @@ public class MarketDataService {
         if (kisIndexCurrentPriceClient == null) {
             return List.of();
         }
-        List<MarketIndexQuote> quotes = DEFAULT_MARKET_INDEX_CODES.stream()
-                .flatMap(indexCode -> currentIndexSnapshot(indexCode).stream())
-                .toList();
-        if (!quotes.isEmpty() && quotes.size() < DEFAULT_MARKET_INDEX_CODES.size()) {
-            log.warn(
-                    "KIS current index quote batch skipped because one or more default index quotes failed count={}",
-                    quotes.size());
-            return List.of();
-        }
+        List<MarketIndexQuote> quotes = completeDefaultIndexQuotesOrEmpty(
+                DEFAULT_MARKET_INDEX_CODES.stream()
+                        .flatMap(indexCode -> currentIndexSnapshot(indexCode).stream())
+                        .toList(),
+                "current");
         Instant now = Instant.now(clock);
         quotes.forEach(quote -> {
             marketIndexSnapshotRepository.recordLatest(quote);
@@ -602,6 +600,27 @@ public class MarketDataService {
         return merged;
     }
 
+    private List<MarketIndexQuote> completeDefaultIndexQuotesOrEmpty(
+            List<MarketIndexQuote> quotes,
+            String sourceLabel) {
+        if (quotes.isEmpty()) {
+            return List.of();
+        }
+        long defaultIndexCount = quotes.stream()
+                .map(MarketIndexQuote::indexCode)
+                .filter(DEFAULT_MARKET_INDEX_CODES::contains)
+                .distinct()
+                .count();
+        if (defaultIndexCount > 0 && defaultIndexCount < DEFAULT_MARKET_INDEX_CODES.size()) {
+            log.warn(
+                    "Market index {} batch skipped because default index quotes are incomplete count={}",
+                    sourceLabel,
+                    defaultIndexCount);
+            return List.of();
+        }
+        return mergeIndexQuotes(quotes, List.of());
+    }
+
     private static MarketIndexQuote toMarketIndexQuote(KisIndexCurrentPriceSnapshot snapshot) {
         return new MarketIndexQuote(
                 snapshot.indexCode(),
@@ -624,9 +643,13 @@ public class MarketDataService {
         if (marketIndexHistoryService == null) {
             return List.of();
         }
-        return DEFAULT_MARKET_INDEX_CODES.stream()
-                .flatMap(indexCode -> latestCloseIndexSnapshot(indexCode).stream())
-                .toList();
+        List<MarketIndexQuote> quotes = completeDefaultIndexQuotesOrEmpty(
+                DEFAULT_MARKET_INDEX_CODES.stream()
+                        .flatMap(indexCode -> latestCloseIndexSnapshot(indexCode).stream())
+                        .toList(),
+                "latest-close");
+        quotes.forEach(marketIndexSnapshotRepository::recordLatest);
+        return quotes;
     }
 
     private Optional<MarketIndexQuote> latestCloseIndexSnapshot(String indexCode) {
@@ -661,7 +684,6 @@ public class MarketDataService {
                             .orElse(last.lowValue()),
                     last.bucketStart().atZone(KOREA_ZONE).toInstant(),
                     last.source() + "_LATEST_CLOSE");
-            marketIndexSnapshotRepository.recordLatest(quote);
             return Optional.of(quote);
         } catch (RuntimeException exception) {
             // 지수 목록은 특정 지수의 KIS fallback 실패가 전체 홈 화면을 막지 않도록 분리한다.
