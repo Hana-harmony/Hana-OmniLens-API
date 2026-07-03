@@ -54,6 +54,14 @@ omnilens:
       app-secret: "replace-with-kis-app-secret"
       access-token: ""
       approval-key: ""
+    real-kis:
+      base-url: https://openapi.koreainvestment.com:9443
+      websocket-url: ws://ops.koreainvestment.com:21000
+      account-number: "replace-with-real-kis-account-number"
+      app-key: "replace-with-real-kis-app-key"
+      app-secret: "replace-with-real-kis-app-secret"
+      access-token: ""
+      approval-key: ""
     frankfurter:
       base-url: https://api.frankfurter.dev
     resilience:

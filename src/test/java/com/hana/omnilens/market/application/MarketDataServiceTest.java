@@ -51,7 +51,7 @@ class MarketDataServiceTest {
     @Test
     void getIndicesFallsBackToStoredIndexSnapshotWhenRealtimeCacheIsEmpty() {
         InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
-        indexSnapshotRepository.recordLatest(indexQuote("0001", "KOSPI", "KIS_REALTIME_INDEX_SNAPSHOT"));
+        indexSnapshotRepository.recordLatest(indexQuote("0001", "KOSPI", "KIS_INDEX_CURRENT_PRICE"));
         MarketDataService service = marketDataService(
                 new InMemoryRealtimeMarketDataCache(),
                 indexSnapshotRepository);
@@ -60,7 +60,7 @@ class MarketDataServiceTest {
 
         assertThat(indices).hasSize(1);
         assertThat(indices.get(0).indexCode()).isEqualTo("0001");
-        assertThat(indices.get(0).source()).isEqualTo("KIS_REALTIME_INDEX_SNAPSHOT");
+        assertThat(indices.get(0).source()).isEqualTo("KIS_INDEX_CURRENT_PRICE");
     }
 
     @Test
@@ -77,6 +77,36 @@ class MarketDataServiceTest {
         assertThat(indices.get(0).indexCode()).isEqualTo("0001");
         assertThat(indices.get(0).source()).isEqualTo("KIS_WEBSOCKET_INDEX");
         assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2801.50");
+    }
+
+    @Test
+    void getIndicesSkipsOutOfSessionRealtimeCacheBeforeCurrentIndexQuote() {
+        InMemoryRealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        realtimeCache.putIndex(indexTick(
+                "0001",
+                "KOSPI",
+                "180500",
+                Instant.parse("2025-06-04T09:05:00Z"),
+                "KIS_WEBSOCKET_INDEX"));
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        KisIndexCurrentPriceClient kisIndexCurrentPriceClient = mock(KisIndexCurrentPriceClient.class);
+        when(kisIndexCurrentPriceClient.findCurrentIndex("0001")).thenReturn(Optional.of(indexCurrentSnapshot()));
+        when(kisIndexCurrentPriceClient.findCurrentIndex("1001"))
+                .thenReturn(Optional.of(indexCurrentSnapshot("1001", "KOSDAQ", "KOSDAQ", "868.41")));
+        when(kisIndexCurrentPriceClient.findCurrentIndex("2001"))
+                .thenReturn(Optional.of(indexCurrentSnapshot("2001", "KOSPI 200", "KOSPI200", "395.30")));
+        MarketDataService service = marketDataService(
+                realtimeCache,
+                indexSnapshotRepository,
+                null,
+                kisIndexCurrentPriceClient);
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).hasSize(3);
+        assertThat(indices.get(0).indexCode()).isEqualTo("0001");
+        assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2891.12");
+        assertThat(indices.get(0).source()).isEqualTo("KIS_INDEX_CURRENT_PRICE");
     }
 
     @Test
@@ -108,8 +138,10 @@ class MarketDataServiceTest {
         indexSnapshotRepository.recordLatest(indexQuote("0001", "KOSPI", "KIS_TIME_INDEX_CHART_PRICE_LATEST_CLOSE"));
         KisIndexCurrentPriceClient kisIndexCurrentPriceClient = mock(KisIndexCurrentPriceClient.class);
         when(kisIndexCurrentPriceClient.findCurrentIndex("0001")).thenReturn(Optional.of(indexCurrentSnapshot()));
-        when(kisIndexCurrentPriceClient.findCurrentIndex("1001")).thenReturn(Optional.empty());
-        when(kisIndexCurrentPriceClient.findCurrentIndex("2001")).thenReturn(Optional.empty());
+        when(kisIndexCurrentPriceClient.findCurrentIndex("1001"))
+                .thenReturn(Optional.of(indexCurrentSnapshot("1001", "KOSDAQ", "KOSDAQ", "868.41")));
+        when(kisIndexCurrentPriceClient.findCurrentIndex("2001"))
+                .thenReturn(Optional.of(indexCurrentSnapshot("2001", "KOSPI 200", "KOSPI200", "395.30")));
         MarketDataService service = marketDataService(
                 new InMemoryRealtimeMarketDataCache(),
                 indexSnapshotRepository,
@@ -118,14 +150,36 @@ class MarketDataServiceTest {
 
         List<MarketIndexQuote> indices = service.getIndices();
 
-        assertThat(indices).hasSize(1);
+        assertThat(indices).hasSize(3);
         assertThat(indices.get(0).indexCode()).isEqualTo("0001");
-        assertThat(indices.get(0).currentValue()).isEqualByComparingTo("7648.09");
+        assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2891.12");
         assertThat(indices.get(0).changeValue()).isEqualByComparingTo("-655.32");
         assertThat(indices.get(0).changeRate()).isEqualByComparingTo("-7.89");
         assertThat(indices.get(0).source()).isEqualTo("KIS_INDEX_CURRENT_PRICE");
         assertThat(indexSnapshotRepository.findLatestIndices().get(0).source())
                 .isEqualTo("KIS_INDEX_CURRENT_PRICE");
+    }
+
+    @Test
+    void getIndicesRejectsImplausibleCurrentIndexBatch() {
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        KisIndexCurrentPriceClient kisIndexCurrentPriceClient = mock(KisIndexCurrentPriceClient.class);
+        when(kisIndexCurrentPriceClient.findCurrentIndex("0001"))
+                .thenReturn(Optional.of(indexCurrentSnapshot("0001", "KOSPI", "KOSPI", "8088.34")));
+        when(kisIndexCurrentPriceClient.findCurrentIndex("1001"))
+                .thenReturn(Optional.of(indexCurrentSnapshot("1001", "KOSDAQ", "KOSDAQ", "868.41")));
+        when(kisIndexCurrentPriceClient.findCurrentIndex("2001"))
+                .thenReturn(Optional.of(indexCurrentSnapshot("2001", "KOSPI 200", "KOSPI200", "1299.30")));
+        MarketDataService service = marketDataService(
+                new InMemoryRealtimeMarketDataCache(),
+                indexSnapshotRepository,
+                null,
+                kisIndexCurrentPriceClient);
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).isEmpty();
+        assertThat(indexSnapshotRepository.findLatestIndices()).isEmpty();
     }
 
     @Test
@@ -1431,11 +1485,19 @@ class MarketDataServiceTest {
     }
 
     private KisIndexCurrentPriceSnapshot indexCurrentSnapshot() {
+        return indexCurrentSnapshot("0001", "KOSPI", "KOSPI", "2891.12");
+    }
+
+    private KisIndexCurrentPriceSnapshot indexCurrentSnapshot(
+            String indexCode,
+            String indexName,
+            String market,
+            String currentValue) {
         return new KisIndexCurrentPriceSnapshot(
-                "0001",
-                "KOSPI",
-                "KOSPI",
-                new BigDecimal("7648.09"),
+                indexCode,
+                indexName,
+                market,
+                new BigDecimal(currentValue),
                 "5",
                 new BigDecimal("-655.32"),
                 new BigDecimal("-7.89"),
@@ -1443,8 +1505,8 @@ class MarketDataServiceTest {
                 12_340_000_000L,
                 new BigDecimal("8300.00"),
                 new BigDecimal("8400.00"),
-                new BigDecimal("7648.09"),
-                Instant.parse("2026-07-02T09:59:00Z"),
+                new BigDecimal(currentValue),
+                Instant.now(FIXED_CLOCK),
                 "KIS_INDEX_CURRENT_PRICE");
     }
 
@@ -1462,7 +1524,7 @@ class MarketDataServiceTest {
                 new BigDecimal("2790.00"),
                 new BigDecimal("2810.00"),
                 new BigDecimal("2780.00"),
-                Instant.parse("2025-06-04T06:30:00Z"),
+                Instant.now(FIXED_CLOCK),
                 source);
     }
 
@@ -1483,11 +1545,20 @@ class MarketDataServiceTest {
     }
 
     private KisRealtimeIndexTick indexTick(String indexCode, String indexName, String source) {
+        return indexTick(indexCode, indexName, "090000", FIXED_CLOCK.instant(), source);
+    }
+
+    private KisRealtimeIndexTick indexTick(
+            String indexCode,
+            String indexName,
+            String tradeTime,
+            Instant marketDataTime,
+            String source) {
         return new KisRealtimeIndexTick(
                 indexCode,
                 indexName,
                 "KOSPI",
-                "153000",
+                tradeTime,
                 new BigDecimal("2801.50"),
                 "2",
                 new BigDecimal("2.61"),
@@ -1498,7 +1569,7 @@ class MarketDataServiceTest {
                 new BigDecimal("2812.00"),
                 new BigDecimal("2780.00"),
                 new BigDecimal("1.50"),
-                Instant.parse("2025-06-04T06:30:00Z"),
+                marketDataTime,
                 source);
     }
 }

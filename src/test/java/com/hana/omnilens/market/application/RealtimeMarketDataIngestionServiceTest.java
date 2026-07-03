@@ -3,6 +3,7 @@ package com.hana.omnilens.market.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -90,15 +91,16 @@ class RealtimeMarketDataIngestionServiceTest {
         MarketQuoteStreamingService localStreamingService = mock(MarketQuoteStreamingService.class);
         MarketIndexStreamingService indexStreamingService = mock(MarketIndexStreamingService.class);
         MarketIndexSnapshotRepository indexSnapshotRepository = mock(MarketIndexSnapshotRepository.class);
+        Clock fixedClock = Clock.fixed(Instant.parse("2025-06-04T00:30:10Z"), ZoneId.of("Asia/Seoul"));
         RealtimeMarketDataIngestionService realtimeService = new RealtimeMarketDataIngestionService(
-                new KisRealtimeMessageParser(),
+                new KisRealtimeMessageParser(fixedClock),
                 localCache,
                 localStreamingService,
                 indexStreamingService,
                 null,
                 indexSnapshotRepository,
                 null,
-                Clock.fixed(Instant.parse("2025-06-04T00:30:10Z"), ZoneId.of("Asia/Seoul")));
+                fixedClock);
 
         RealtimeMarketDataIngestionResult result = realtimeService.ingestKisMessage(kisFrame(
                 KisRealtimeTransaction.INDEX_TRADE,
@@ -118,8 +120,34 @@ class RealtimeMarketDataIngestionServiceTest {
         assertThat(savedMinute.indexCode()).isEqualTo("0001");
         assertThat(savedMinute.bucketStart().toLocalTime()).isEqualTo(LocalTime.of(9, 30));
         assertThat(savedMinute.closeValue()).isEqualByComparingTo("2800.12");
-        assertThat(savedMinute.source()).isEqualTo("KIS_REALTIME_INDEX");
+        assertThat(savedMinute.source()).isEqualTo("KIS_REAL_INDEX_REALTIME");
         verify(indexStreamingService).publish(latestCaptor.getValue());
+    }
+
+    @Test
+    void ingestKisMessageIgnoresOutOfSessionRealtimeIndexTick() {
+        RealtimeMarketDataCache localCache = new InMemoryRealtimeMarketDataCache();
+        MarketQuoteStreamingService localStreamingService = mock(MarketQuoteStreamingService.class);
+        MarketIndexStreamingService indexStreamingService = mock(MarketIndexStreamingService.class);
+        MarketIndexSnapshotRepository indexSnapshotRepository = mock(MarketIndexSnapshotRepository.class);
+        Clock fixedClock = Clock.fixed(Instant.parse("2025-06-04T01:00:00Z"), ZoneId.of("Asia/Seoul"));
+        RealtimeMarketDataIngestionService realtimeService = new RealtimeMarketDataIngestionService(
+                new KisRealtimeMessageParser(fixedClock),
+                localCache,
+                localStreamingService,
+                indexStreamingService,
+                null,
+                indexSnapshotRepository,
+                null,
+                fixedClock);
+
+        RealtimeMarketDataIngestionResult result = realtimeService.ingestKisMessage(kisFrame(
+                KisRealtimeTransaction.INDEX_TRADE,
+                indexPayload("180500")));
+
+        assertThat(result.type()).isEqualTo(RealtimeMarketDataIngestionResult.Type.IGNORED);
+        assertThat(localCache.latestIndices()).isEmpty();
+        verifyNoInteractions(indexSnapshotRepository, indexStreamingService);
     }
 
     @Test
@@ -178,9 +206,13 @@ class RealtimeMarketDataIngestionServiceTest {
     }
 
     private String indexPayload() {
+        return indexPayload("093000");
+    }
+
+    private String indexPayload(String marketTime) {
         ArrayList<String> fields = new ArrayList<>(Collections.nCopies(30, "0"));
         fields.set(0, "0001");
-        fields.set(1, "093000");
+        fields.set(1, marketTime);
         fields.set(2, "2800.12");
         fields.set(3, "2");
         fields.set(4, "1.23");

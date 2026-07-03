@@ -6,6 +6,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -56,11 +58,14 @@ public class MarketDataService {
     private static final Duration PRICE_CACHE_TTL = Duration.ofSeconds(20);
     private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofMinutes(10);
     private static final Duration INDEX_CURRENT_CACHE_TTL = Duration.ofSeconds(20);
+    private static final Duration INDEX_TICK_FUTURE_TOLERANCE = Duration.ofMinutes(2);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
     private static final int KIS_RATE_LIMIT_RETRY_MAX_ATTEMPTS = 3;
     private static final int FOREIGN_OWNERSHIP_HISTORY_LIMIT = 30;
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final List<String> DEFAULT_MARKET_INDEX_CODES = List.of("0001", "1001", "2001");
+    private static final LocalTime REGULAR_MARKET_OPEN = LocalTime.of(9, 0);
+    private static final LocalTime REGULAR_MARKET_CLOSE = LocalTime.of(15, 30);
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
     private final KisCurrentPriceClient kisCurrentPriceClient;
@@ -472,11 +477,14 @@ public class MarketDataService {
                         tick.lowValue(),
                         tick.marketDataTime(),
                         tick.source()))
+                .filter(this::isUsableRealtimeIndexQuote)
                 .toList();
         if (!realtimeIndices.isEmpty()) {
             return realtimeIndices;
         }
-        List<MarketIndexQuote> storedIndices = marketIndexSnapshotRepository.findLatestIndices();
+        List<MarketIndexQuote> storedIndices = marketIndexSnapshotRepository.findLatestIndices().stream()
+                .filter(this::isUsableStoredIndexQuote)
+                .toList();
         List<MarketIndexQuote> currentIndices = currentIndexSnapshots();
         if (!currentIndices.isEmpty()) {
             return mergeIndexQuotes(currentIndices, storedIndices);
@@ -488,13 +496,58 @@ public class MarketDataService {
         return latestCloseIndexSnapshots();
     }
 
+    private boolean isUsableRealtimeIndexQuote(MarketIndexQuote quote) {
+        if (quote.marketDataTime() == null || quote.currentValue() == null) {
+            return false;
+        }
+        if (!MarketIndexSanityPolicy.isPlausibleCurrentValue(quote.indexCode(), quote.currentValue())) {
+            return false;
+        }
+        Instant now = Instant.now(clock);
+        if (quote.marketDataTime().isAfter(now.plus(INDEX_TICK_FUTURE_TOLERANCE))) {
+            return false;
+        }
+        LocalTime quoteTime = LocalDateTime.ofInstant(quote.marketDataTime(), KOREA_ZONE).toLocalTime();
+        return !quoteTime.isBefore(REGULAR_MARKET_OPEN) && !quoteTime.isAfter(REGULAR_MARKET_CLOSE);
+    }
+
+    private boolean isUsableStoredIndexQuote(MarketIndexQuote quote) {
+        String source = quote.source() == null ? "" : quote.source();
+        if (isUnsafeLegacyRealtimeIndexSource(source)) {
+            return false;
+        }
+        if (source.contains("KIS_INDEX_CURRENT_PRICE")) {
+            return isUsableRealtimeIndexQuote(quote);
+        }
+        if (!source.contains("WEBSOCKET_INDEX") && !source.contains("REALTIME_INDEX")) {
+            return true;
+        }
+        return isUsableRealtimeIndexQuote(quote);
+    }
+
+    private static boolean isUnsafeLegacyRealtimeIndexSource(String source) {
+        return source.contains("KIS_REALTIME_INDEX");
+    }
+
     private List<MarketIndexQuote> currentIndexSnapshots() {
         if (kisIndexCurrentPriceClient == null) {
             return List.of();
         }
-        return DEFAULT_MARKET_INDEX_CODES.stream()
+        List<MarketIndexQuote> quotes = DEFAULT_MARKET_INDEX_CODES.stream()
                 .flatMap(indexCode -> currentIndexSnapshot(indexCode).stream())
                 .toList();
+        if (!quotes.isEmpty() && quotes.size() < DEFAULT_MARKET_INDEX_CODES.size()) {
+            log.warn(
+                    "KIS current index quote batch skipped because one or more default index quotes failed count={}",
+                    quotes.size());
+            return List.of();
+        }
+        Instant now = Instant.now(clock);
+        quotes.forEach(quote -> {
+            marketIndexSnapshotRepository.recordLatest(quote);
+            indexQuoteCache.put(quote.indexCode(), new CachedIndexQuote(quote, now.plus(INDEX_CURRENT_CACHE_TTL)));
+        });
+        return quotes;
     }
 
     private Optional<MarketIndexQuote> currentIndexSnapshot(String indexCode) {
@@ -510,14 +563,26 @@ public class MarketDataService {
                 return Optional.empty();
             }
             MarketIndexQuote quote = toMarketIndexQuote(snapshot.orElseThrow());
-            marketIndexSnapshotRepository.recordLatest(quote);
-            indexQuoteCache.put(indexCode, new CachedIndexQuote(quote, now.plus(INDEX_CURRENT_CACHE_TTL)));
+            if (!isUsableCurrentIndexQuote(quote)) {
+                return Optional.empty();
+            }
             return Optional.of(quote);
         } catch (RuntimeException exception) {
             // 지수 현재가 장애는 저장 스냅샷 또는 분봉 fallback으로 격리한다.
             log.warn("KIS current index quote failed indexCode={}: {}", indexCode, exception.toString());
             return Optional.empty();
         }
+    }
+
+    private boolean isUsableCurrentIndexQuote(MarketIndexQuote quote) {
+        if (quote.marketDataTime() == null || quote.currentValue() == null) {
+            return false;
+        }
+        if (!MarketIndexSanityPolicy.isPlausibleCurrentValue(quote.indexCode(), quote.currentValue())) {
+            return false;
+        }
+        Instant now = Instant.now(clock);
+        return !quote.marketDataTime().isAfter(now.plus(INDEX_TICK_FUTURE_TOLERANCE));
     }
 
     private static List<MarketIndexQuote> mergeIndexQuotes(

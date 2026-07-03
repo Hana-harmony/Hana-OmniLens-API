@@ -27,7 +27,7 @@ public class KisRealtimeApprovalKeyProvider {
         this(restClientBuilder, properties.kis(), resiliencePolicy);
     }
 
-    KisRealtimeApprovalKeyProvider(
+    public KisRealtimeApprovalKeyProvider(
             RestClient.Builder restClientBuilder,
             ExternalProviderProperties.Kis properties,
             ExternalProviderResiliencePolicy resiliencePolicy) {

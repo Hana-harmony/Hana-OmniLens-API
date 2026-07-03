@@ -91,6 +91,37 @@ class KisRealtimeSessionRunnerTest {
     }
 
     @Test
+    void startSkipsIndexSubscriptionsWhenPrimaryProviderIsVirtualTrading() {
+        FakeConnection connection = new FakeConnection();
+        KisRealtimeSessionRunner runner = new KisRealtimeSessionRunner(
+                new KisRealtimeProperties(
+                        true,
+                        List.of("005930"),
+                        List.of("0001", "1001"),
+                        2500,
+                        40,
+                        false,
+                        false),
+                virtualTradingExternalProviderProperties(),
+                new KisRealtimeSubscriptionFrameFactory(),
+                connection,
+                new RealtimeMarketDataIngestionService(
+                        new KisRealtimeMessageParser(),
+                        new InMemoryRealtimeMarketDataCache(),
+                        mock(MarketQuoteStreamingService.class)),
+                approvalKeyProvider(),
+                new InMemoryStockMasterRepository(),
+                REGULAR_MARKET_CLOCK);
+
+        runner.start();
+
+        assertThat(connection.connected).isTrue();
+        assertThat(connection.frames).hasSize(1);
+        assertThat(connection.frames).extracting(frame -> frame.body().input().trId())
+                .containsExactly("H0STCNT0");
+    }
+
+    @Test
     void startConnectsWithAfterHoursTradeAndOrderBookSubscriptions() {
         FakeConnection connection = new FakeConnection();
         KisRealtimeSessionRunner runner = newRunner(
@@ -274,6 +305,23 @@ class KisRealtimeSessionRunnerTest {
                 new ExternalProviderProperties.Kis(
                         URI.create("https://kis.example"),
                         URI.create("wss://kis.example/ws"),
+                        "00000000",
+                        "app-key",
+                        "app-secret",
+                        "access-token",
+                        "approval-key"),
+                null);
+    }
+
+    private ExternalProviderProperties virtualTradingExternalProviderProperties() {
+        return new ExternalProviderProperties(
+                null,
+                null,
+                null,
+                null,
+                new ExternalProviderProperties.Kis(
+                        URI.create("https://openapivts.koreainvestment.com:29443"),
+                        URI.create("ws://ops.koreainvestment.com:31000"),
                         "00000000",
                         "app-key",
                         "app-secret",

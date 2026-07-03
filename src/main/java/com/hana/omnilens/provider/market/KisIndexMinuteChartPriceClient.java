@@ -60,16 +60,27 @@ public class KisIndexMinuteChartPriceClient {
             KisAccessTokenProvider accessTokenProvider,
             ExternalProviderResiliencePolicy resiliencePolicy,
             Clock clock) {
-        this.restClient = restClientBuilder
-                .baseUrl(properties.kis().baseUrl().toString())
-                .build();
-        this.kisProperties = properties.kis();
-        this.accessTokenProvider = accessTokenProvider;
+        java.util.Optional<ExternalProviderProperties.Kis> indexProvider =
+                KisProviderSupport.realIndexRestProvider(properties);
+        this.kisProperties = indexProvider.orElse(null);
+        this.restClient = indexProvider
+                .map(provider -> restClientBuilder
+                        .baseUrl(provider.baseUrl().toString())
+                        .build())
+                .orElse(null);
+        this.accessTokenProvider = indexProvider
+                .map(provider -> KisProviderSupport.isSameProvider(provider, properties.kis())
+                        ? accessTokenProvider
+                        : new KisAccessTokenProvider(restClientBuilder, provider, resiliencePolicy, clock))
+                .orElse(null);
         this.resiliencePolicy = resiliencePolicy;
         this.clock = clock;
     }
 
     public List<KisIndexMinuteChartPrice> findMinutePrices(String indexCode, LocalDate tradingDate, int limit) {
+        if (kisProperties == null || restClient == null || accessTokenProvider == null) {
+            return List.of();
+        }
         if (!tradingDate.equals(LocalDate.now(clock))) {
             return List.of();
         }
