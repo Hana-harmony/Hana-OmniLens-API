@@ -78,7 +78,7 @@ class MarketIndexHistoryServiceTest {
     }
 
     @Test
-    void getIntradayHistoryIgnoresLegacyRealtimeIndexSource() {
+    void getIntradayHistoryUsesStoredRegularSessionRealtimeIndexSource() {
         KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
         InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
         LocalDate explicitDate = LocalDate.of(2026, 7, 2);
@@ -86,16 +86,13 @@ class MarketIndexHistoryServiceTest {
                 LocalDateTime.of(2026, 7, 2, 10, 46),
                 "8088.34",
                 "KIS_REALTIME_INDEX"));
-        when(kisClient.findMinutePrices("0001", explicitDate, 390)).thenReturn(List.of(kisPrice(
-                LocalDateTime.of(2026, 7, 2, 10, 46),
-                "2891.00")));
         MarketIndexHistoryService service = new MarketIndexHistoryService(kisClient, repository, PRE_OPEN_CLOCK);
 
         List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 390);
 
-        verify(kisClient).findMinutePrices("0001", explicitDate, 390);
+        verifyNoInteractions(kisClient);
         assertThat(prices).hasSize(1);
-        assertThat(prices.get(0).closeValue()).isEqualByComparingTo("2891.00");
+        assertThat(prices.get(0).closeValue()).isEqualByComparingTo("8088.34");
     }
 
     @Test

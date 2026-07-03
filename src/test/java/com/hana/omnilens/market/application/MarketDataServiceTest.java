@@ -19,6 +19,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClientException;
 
+import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.MarketIndexIntradayPrice;
 import com.hana.omnilens.market.domain.MarketIndexQuote;
@@ -827,6 +828,7 @@ class MarketDataServiceTest {
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
         MarketIntradayPriceRepository intradayPriceRepository = mock(MarketIntradayPriceRepository.class);
+        MarketDailyPriceRepository dailyPriceRepository = mock(MarketDailyPriceRepository.class);
         ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
         MarketDataService service = new MarketDataService(
                 client,
@@ -842,6 +844,7 @@ class MarketDataServiceTest {
                 new InMemoryMarketIndexSnapshotRepository(),
                 null,
                 intradayPriceRepository,
+                dailyPriceRepository,
                 null,
                 new ForeignOwnershipPredictionEngine(FIXED_CLOCK),
                 FIXED_CLOCK);
@@ -863,11 +866,16 @@ class MarketDataServiceTest {
                         new BigDecimal("976800000"),
                         "KIS_REALTIME_TRADE",
                         FIXED_CLOCK.instant())));
+        when(dailyPriceRepository.findLatestBefore("005930", LocalDate.of(2025, 6, 4)))
+                .thenReturn(Optional.of(dailyPrice(
+                        "005930",
+                        LocalDate.of(2025, 6, 3),
+                        "80000")));
 
         MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
 
         assertThat(quote.currentPriceKrw()).isEqualByComparingTo("81400");
-        assertThat(quote.changeRate()).isEqualByComparingTo("0");
+        assertThat(quote.changeRate()).isEqualByComparingTo("1.7500");
         assertThat(quote.volume()).isZero();
         assertThat(quote.source()).isEqualTo("KIS_INTRADAY_PRICE_SNAPSHOT+KRX_FOREIGN_OWNERSHIP_CACHE");
     }
@@ -1629,6 +1637,23 @@ class MarketDataServiceTest {
                 1_000L,
                 new BigDecimal(exhaustionRate),
                 "KRX_DATA_MARKETPLACE_FOREIGN_OWNERSHIP",
+                FIXED_CLOCK.instant());
+    }
+
+    private MarketDailyPrice dailyPrice(String stockCode, LocalDate tradeDate, String closePrice) {
+        return new MarketDailyPrice(
+                stockCode,
+                tradeDate,
+                "KOSPI",
+                new BigDecimal("79000"),
+                new BigDecimal("82000"),
+                new BigDecimal("78500"),
+                new BigDecimal(closePrice),
+                BigDecimal.ZERO,
+                12_000_000L,
+                new BigDecimal("960000000000"),
+                new BigDecimal(closePrice),
+                "KIS_DAILY_ITEM_CHART_PRICE",
                 FIXED_CLOCK.instant());
     }
 

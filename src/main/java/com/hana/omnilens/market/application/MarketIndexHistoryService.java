@@ -55,7 +55,6 @@ public class MarketIndexHistoryService {
         List<MarketIndexIntradayPrice> saved = marketIndexSnapshotRepository.findIntraday(indexCode, resolvedDate, limit)
                 .stream()
                 .filter(this::isRegularSessionPrice)
-                .filter(this::isTrustedStoredPrice)
                 .filter(this::isPlausiblePrice)
                 .toList();
         if (!saved.isEmpty()) {
@@ -90,11 +89,6 @@ public class MarketIndexHistoryService {
     private boolean isRegularSessionPrice(MarketIndexIntradayPrice price) {
         LocalTime bucketTime = price.bucketStart().toLocalTime();
         return !bucketTime.isBefore(REGULAR_MARKET_OPEN) && !bucketTime.isAfter(REGULAR_MARKET_CLOSE);
-    }
-
-    private boolean isTrustedStoredPrice(MarketIndexIntradayPrice price) {
-        String source = price.source() == null ? "" : price.source();
-        return !source.contains("KIS_REALTIME_INDEX");
     }
 
     private boolean isPlausiblePrice(MarketIndexIntradayPrice price) {
