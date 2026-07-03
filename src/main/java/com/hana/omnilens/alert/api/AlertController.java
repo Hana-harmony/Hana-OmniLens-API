@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.util.Optional;
+
 import org.springframework.validation.annotation.Validated;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -115,6 +117,19 @@ public class AlertController {
                 .map(alertAnalysisPublishingService::reprocess)
                 .toList();
         return ApiResponse.success(new AlertEventListResponse(stockCode, events));
+    }
+
+    @PostMapping("/events/reprocess/quality-issues")
+    @Operation(summary = "Reprocess stored news and disclosure events with broken summaries or translations")
+    public ApiResponse<AlertEventReprocessResponse> reprocessQualityIssueEvents(
+            @RequestParam(defaultValue = "20") int limit) {
+        int effectiveLimit = Math.max(1, Math.min(limit, 100));
+        var events = alertEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
+                .peek(event -> partnerAuthorizationService.assertPartnerAccess(event.partnerId()))
+                .map(alertAnalysisPublishingService::reprocessIfPossible)
+                .flatMap(Optional::stream)
+                .toList();
+        return ApiResponse.success(new AlertEventReprocessResponse(events.size(), events));
     }
 
     @PostMapping("/analyze-and-publish")

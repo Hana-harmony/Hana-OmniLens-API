@@ -87,4 +87,12 @@ public class MarketNewsController {
         var news = marketNewsCollectionService.reprocessLatest(limit);
         return ApiResponse.success(new MarketNewsListResponse(news.size(), news));
     }
+
+    @PostMapping("/reprocess/quality-issues")
+    @Operation(summary = "Reprocess stored Korean market-wide news with broken summaries or translations")
+    public ApiResponse<MarketNewsListResponse> reprocessMarketNewsQualityIssues(
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit) {
+        var news = marketNewsCollectionService.reprocessSummaryQualityIssues(limit);
+        return ApiResponse.success(new MarketNewsListResponse(news.size(), news));
+    }
 }

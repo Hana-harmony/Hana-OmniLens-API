@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -18,6 +19,19 @@ import com.hana.omnilens.alert.domain.AlertEvent;
 
 @Repository
 public class JdbcAlertEventRepository implements AlertEventRepository {
+
+    private static final String SUMMARY_QUALITY_CANDIDATE_FILTER = """
+            lower(event_json) LIKE '%...%'
+            OR lower(event_json) LIKE '%…%'
+            OR lower(event_json) LIKE '%classified%'
+            OR lower(event_json) LIKE '%importance%'
+            OR lower(event_json) LIKE '%sentiment%'
+            OR event_json LIKE '%중요도%'
+            OR event_json LIKE '%감성%'
+            OR event_json LIKE '%투자 권유%'
+            OR event_json LIKE '%최종 판단%'
+            OR event_json LIKE '%투자자 본인%'
+            """;
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
@@ -110,12 +124,71 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
                 limit);
     }
 
+    @Override
+    public List<AlertEvent> findSummaryQualityIssues(int limit) {
+        int candidateLimit = Math.min(Math.max(limit * 50, limit), 10_000);
+        return jdbcTemplate.queryForList(
+                """
+                SELECT event_json
+                FROM alert_event
+                WHERE (
+                """ + SUMMARY_QUALITY_CANDIDATE_FILTER + """
+                )
+                ORDER BY published_at DESC, created_at DESC
+                LIMIT ?
+                """,
+                String.class,
+                candidateLimit)
+                .stream()
+                .map(this::readEvent)
+                .flatMap(Optional::stream)
+                .filter(this::hasSummaryQualityIssue)
+                .limit(limit)
+                .toList();
+    }
+
     private String toJson(AlertEvent event) {
         try {
             return objectMapper.writeValueAsString(event);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to serialize alert event", exception);
         }
+    }
+
+    private Optional<AlertEvent> readEvent(String eventJson) {
+        try {
+            return Optional.of(objectMapper.readValue(eventJson, AlertEvent.class));
+        } catch (JsonProcessingException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private boolean hasSummaryQualityIssue(AlertEvent event) {
+        String summaryLines = event.summaryLines() == null
+                ? ""
+                : String.join(" ",
+                        nullToEmpty(event.summaryLines().what()),
+                        nullToEmpty(event.summaryLines().why()),
+                        nullToEmpty(event.summaryLines().impact()));
+        String payload = String.join(" ",
+                nullToEmpty(event.summary()),
+                nullToEmpty(event.translatedSummary()),
+                summaryLines);
+        String lower = payload.toLowerCase(Locale.ROOT);
+        return lower.contains("...")
+                || lower.contains("…")
+                || lower.contains("classified")
+                || lower.contains("importance")
+                || lower.contains("sentiment")
+                || payload.contains("중요도")
+                || payload.contains("감성")
+                || payload.contains("투자 권유")
+                || payload.contains("최종 판단")
+                || payload.contains("투자자 본인");
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private class AlertEventRowMapper implements RowMapper<AlertEvent> {

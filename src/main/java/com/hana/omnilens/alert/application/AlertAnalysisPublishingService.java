@@ -3,9 +3,12 @@ package com.hana.omnilens.alert.application;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -25,6 +28,8 @@ import com.hana.omnilens.provider.ai.HannahAiStockCandidate;
 
 @Service
 public class AlertAnalysisPublishingService {
+
+    private static final Logger log = LoggerFactory.getLogger(AlertAnalysisPublishingService.class);
 
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertStreamingService alertStreamingService;
@@ -48,6 +53,10 @@ public class AlertAnalysisPublishingService {
     }
 
     public AlertPublishRequest analyze(AlertAnalysisPublishRequest request) {
+        return analyze(request, false);
+    }
+
+    private AlertPublishRequest analyze(AlertAnalysisPublishRequest request, boolean allowSingleStockFallback) {
         HannahAiAnalysisResponse analysis = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
                 request.sourceType(),
                 request.title(),
@@ -60,7 +69,8 @@ public class AlertAnalysisPublishingService {
                 request.originalUrl(),
                 toStockUniverse(request.stockUniverse())));
 
-        if (!StringUtils.hasText(analysis.stockCode()) || !StringUtils.hasText(analysis.stockName())) {
+        ResolvedStock resolvedStock = resolveStock(analysis, request, allowSingleStockFallback);
+        if (!StringUtils.hasText(resolvedStock.stockCode()) || !StringUtils.hasText(resolvedStock.stockName())) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "AI analysis did not match a stock");
         }
         List<AlertGlossaryTerm> glossaryTerms = toAlertGlossaryTerms(analysis.glossaryTerms());
@@ -68,8 +78,9 @@ public class AlertAnalysisPublishingService {
         TranslationResult translatedTitle = alertTitleTranslationService.translateTitleWithResult(
                 analysis.originalTitle(),
                 glossaryTerms);
+        String sourceSummary = summaryText(analysis.summary(), analysis.summaryLines(), analysis.originalTitle());
         TranslationResult translatedSummary = alertTitleTranslationService.translateTextWithResult(
-                analysis.summary(),
+                sourceSummary,
                 glossaryTerms);
         TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
 	        AlertSummaryLines translatedSummaryLines = translateSummaryLines(
@@ -89,16 +100,16 @@ public class AlertAnalysisPublishingService {
 
         return new AlertPublishRequest(
                 request.partnerId(),
-                analysis.stockCode(),
-                analysis.stockName(),
+                resolvedStock.stockCode(),
+                resolvedStock.stockName(),
                 analysis.sourceType(),
-	                analysis.originalTitle(),
-	                translatedTitle.translatedText(),
-	                analysis.summary(),
-	                translatedSummaryLines,
-	                translatedSummary.translatedText(),
-	                originalContent,
-	                translatedContent.translatedText(),
+                analysis.originalTitle(),
+                translatedTitle.translatedText(),
+                sourceSummary,
+                translatedSummaryLines,
+                translatedSummary.translatedText(),
+                originalContent,
+                translatedContent.translatedText(),
                 imageUrls(analysis, request),
                 contentAvailability(analysis, request),
                 request.originalUrl(),
@@ -106,7 +117,7 @@ public class AlertAnalysisPublishingService {
                 analysis.eventTags(),
                 analysis.sentiment(),
                 analysis.importance(),
-                analysis.relatedStocks(),
+                resolvedStock.relatedStocks(),
                 analysis.holderTarget(),
                 analysis.watchlistTarget(),
                 displayGlossaryTerms,
@@ -120,7 +131,7 @@ public class AlertAnalysisPublishingService {
                 analysis.eventConfidence(),
                 analysis.sentimentConfidence(),
                 analysis.importanceConfidence(),
-                analysis.stockMatchConfidence());
+                resolvedStock.stockMatchConfidence());
     }
 
     public AlertEvent publishAnalyzed(AlertPublishRequest request) {
@@ -132,7 +143,7 @@ public class AlertAnalysisPublishingService {
                 event.partnerId(),
                 event.sourceType(),
                 event.originalTitle(),
-                event.summary(),
+                event.originalTitle(),
                 event.originalContent(),
                 event.imageUrls(),
                 event.originalUrl(),
@@ -144,9 +155,31 @@ public class AlertAnalysisPublishingService {
                         event.stockCode(),
                         event.stockName(),
                         event.stockName(),
-                        List.of(event.stockName())))));
+                        List.of(event.stockName())))),
+                true);
         AlertEvent updated = toExistingEvent(event.alertId(), event.createdAt(), analyzed);
         return alertEventRepository.save(updated);
+    }
+
+    public Optional<AlertEvent> reprocessIfPossible(AlertEvent event) {
+        try {
+            return Optional.of(reprocess(event));
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Skipping alert summary quality reprocess: alertId={}, stockCode={}",
+                    event.alertId(),
+                    event.stockCode(),
+                    exception);
+            return Optional.empty();
+        }
+    }
+
+    public List<AlertEvent> reprocessSummaryQualityIssues(int limit) {
+        int effectiveLimit = Math.max(1, Math.min(limit, 100));
+        return alertEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
+                .map(this::reprocessIfPossible)
+                .flatMap(Optional::stream)
+                .toList();
     }
 
     private AlertEvent toExistingEvent(String alertId, Instant createdAt, AlertPublishRequest request) {
@@ -200,6 +233,28 @@ public class AlertAnalysisPublishingService {
                         stock.stockNameEn(),
                         stock.aliases() == null ? List.of() : stock.aliases()))
                 .toList();
+    }
+
+    private ResolvedStock resolveStock(
+            HannahAiAnalysisResponse analysis,
+            AlertAnalysisPublishRequest request,
+            boolean allowSingleStockFallback) {
+        if (StringUtils.hasText(analysis.stockCode()) && StringUtils.hasText(analysis.stockName())) {
+            return new ResolvedStock(
+                    analysis.stockCode(),
+                    analysis.stockName(),
+                    analysis.relatedStocks() == null ? List.of() : analysis.relatedStocks(),
+                    analysis.stockMatchConfidence());
+        }
+        if (allowSingleStockFallback && request.stockUniverse() != null && request.stockUniverse().size() == 1) {
+            var stock = request.stockUniverse().get(0);
+            return new ResolvedStock(
+                    stock.stockCode(),
+                    stock.stockName(),
+                    List.of(stock.stockCode()),
+                    Math.max(analysis.stockMatchConfidence(), 0.5));
+        }
+        return new ResolvedStock("", "", List.of(), 0.0);
     }
 
     private List<AlertGlossaryTerm> toAlertGlossaryTerms(List<HannahAiGlossaryTerm> glossaryTerms) {
@@ -300,8 +355,78 @@ public class AlertAnalysisPublishingService {
 	        if (!StringUtils.hasText(value)) {
 	            return "";
 	        }
-	        return alertTitleTranslationService.translateTextWithResult(value, glossaryTerms).translatedText();
+	        return sanitizeSummary(alertTitleTranslationService.translateTextWithResult(value, glossaryTerms).translatedText());
 	    }
+
+    private String summaryText(String summary, AlertSummaryLines summaryLines, String fallback) {
+        String joinedLines = joinSummaryLines(summaryLines);
+        if (StringUtils.hasText(joinedLines)) {
+            return joinedLines;
+        }
+        String sanitizedSummary = sanitizeSummary(summary);
+        if (StringUtils.hasText(sanitizedSummary)) {
+            return sanitizedSummary;
+        }
+        return fallbackSummary(fallback);
+    }
+
+    private String joinSummaryLines(AlertSummaryLines summaryLines) {
+        if (summaryLines == null) {
+            return "";
+        }
+        return List.of(
+                        sanitizeSummary(summaryLines.what()),
+                        sanitizeSummary(summaryLines.why()),
+                        sanitizeSummary(summaryLines.impact()))
+                .stream()
+                .filter(StringUtils::hasText)
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+    }
+
+    private String sanitizeSummary(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (containsEllipsis(normalized) || containsSummaryMeta(normalized)) {
+            return "";
+        }
+        if (!endsAsCompleteSentence(normalized)) {
+            return "";
+        }
+        return normalized;
+    }
+
+    private String fallbackSummary(String fallback) {
+        String subject = fallback == null ? "" : fallback
+                .replace("...", " ")
+                .replace("…", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (!StringUtils.hasText(subject)) {
+            return "원문은 최신 시장·기업 이벤트를 다룹니다.";
+        }
+        return "원문은 " + subject + " 관련 최신 시장·기업 이벤트를 다룹니다.";
+    }
+
+    private boolean containsEllipsis(String value) {
+        return value.contains("...") || value.contains("…");
+    }
+
+    private boolean containsSummaryMeta(String value) {
+        String lower = value.toLowerCase(Locale.ROOT);
+        return lower.contains("classified")
+                || lower.contains("importance")
+                || lower.contains("sentiment")
+                || value.contains("중요도")
+                || value.contains("감성")
+                || value.contains("분류");
+    }
+
+    private boolean endsAsCompleteSentence(String value) {
+        return value.matches(".*([.!?。]|다|요|니다|습니다|한다|했다|됐다|된다|였다|이다|합니다|했습니다|됩니다|입니다)$");
+    }
 
     private String originalContent(HannahAiAnalysisResponse analysis, AlertAnalysisPublishRequest request) {
         if (StringUtils.hasText(analysis.originalContent())) {
@@ -362,5 +487,12 @@ public class AlertAnalysisPublishingService {
         return translated
                 ? AlertTitleTranslationService.STATUS_TRANSLATED
                 : AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK;
+    }
+
+    private record ResolvedStock(
+            String stockCode,
+            String stockName,
+            List<String> relatedStocks,
+            double stockMatchConfidence) {
     }
 }

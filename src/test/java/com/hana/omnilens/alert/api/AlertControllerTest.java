@@ -3,6 +3,7 @@ package com.hana.omnilens.alert.api;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -20,6 +21,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.hana.omnilens.alert.application.AlertTitleTranslationService;
 import com.hana.omnilens.alert.application.AlertTitleTranslationService.TranslationResult;
+import com.hana.omnilens.alert.domain.AlertSummaryLines;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
@@ -176,7 +179,7 @@ class AlertControllerTest {
                 "삼성전자",
                 "NEWS",
                 "삼성전자 실적 개선",
-                "반도체 회복으로 실적 개선 기대",
+                "반도체 회복으로 실적 개선 기대가 커졌습니다.",
                 List.of("EARNINGS"),
                 "POSITIVE",
                 "HIGH",
@@ -193,8 +196,8 @@ class AlertControllerTest {
                 1.0));
         when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 실적 개선"), any()))
                 .thenReturn(translated("Samsung Electronics earnings improve"));
-        when(alertTitleTranslationService.translateTextWithResult(eq("반도체 회복으로 실적 개선 기대"), any()))
-                .thenReturn(translated("Chip recovery raised earnings hopes"));
+        when(alertTitleTranslationService.translateTextWithResult(eq("반도체 회복으로 실적 개선 기대가 커졌습니다."), any()))
+                .thenReturn(translated("Chip recovery raised earnings hopes."));
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -224,8 +227,8 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
                 .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
 	                .andExpect(jsonPath("$.data.translatedTitle", equalTo("Samsung Electronics earnings improve")))
-	                .andExpect(jsonPath("$.data.summary", equalTo("반도체 회복으로 실적 개선 기대")))
-	                .andExpect(jsonPath("$.data.summaryLines.what", equalTo("Chip recovery raised earnings hopes")))
+	                .andExpect(jsonPath("$.data.summary", equalTo("반도체 회복으로 실적 개선 기대가 커졌습니다.")))
+	                .andExpect(jsonPath("$.data.summaryLines.what", equalTo("Chip recovery raised earnings hopes.")))
 	                .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
                 .andExpect(jsonPath("$.data.holderTarget", equalTo(true)))
                 .andExpect(jsonPath("$.data.watchlistTarget", equalTo(true)))
@@ -236,6 +239,329 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")))
                 .andExpect(jsonPath("$.data.eventConfidence", equalTo(0.91)))
                 .andExpect(jsonPath("$.data.stockMatchConfidence", equalTo(1.0)));
+    }
+
+    @Test
+    void analyzeAndPublishRejectsEllipsisAndMetaSummaryFragments() throws Exception {
+        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
+                "005930",
+                "삼성전자",
+                "NEWS",
+                "삼성전자 실적 개선...HBM 수요 확대",
+                "반도체 수요 회복으로 영업이익 전망이 상향...",
+                new AlertSummaryLines(
+                        "반도체 수요 회복으로 영업이익 전망이 상향...",
+                        "HBM 수요 확대 배경은",
+                        "The impact is classified as high importance and positive sentiment."),
+                "SUMMARY_ONLY",
+                "",
+                List.of(),
+                List.of("EARNINGS"),
+                "POSITIVE",
+                "HIGH",
+                List.of("005930"),
+                true,
+                true,
+                List.of(),
+                List.of(),
+                "fragment-alert",
+                "fragment-alert",
+                "financial-keyword-baseline-2026-06-04",
+                0.55,
+                0.55,
+                0.55,
+                1.0));
+        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        String fallbackSummary = "원문은 삼성전자 실적 개선 HBM 수요 확대 관련 최신 시장·기업 이벤트를 다룹니다.";
+
+        mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerId": "partner-a",
+                                  "sourceType": "NEWS",
+                                  "title": "삼성전자 실적 개선...HBM 수요 확대",
+                                  "snippet": "반도체 수요 회복으로 영업이익 전망이 상향...",
+                                  "originalUrl": "https://example.com/news/fragment-alert",
+                                  "publishedAt": "2026-06-04T00:00:00Z",
+                                  "stockUniverse": [
+                                    {
+                                      "stockCode": "005930",
+                                      "stockName": "삼성전자",
+                                      "stockNameEn": "Samsung Electronics"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary", equalTo(fallbackSummary)))
+                .andExpect(jsonPath("$.data.summaryLines.what", equalTo(fallbackSummary)))
+                .andExpect(jsonPath("$.data.summaryLines.why", equalTo("")))
+                .andExpect(jsonPath("$.data.summaryLines.impact", equalTo("")));
+    }
+
+    @Test
+    void reprocessQualityIssuesFixesStoredBrokenAlertSummary() throws Exception {
+        jdbcTemplate.update("DELETE FROM alert_event");
+        jdbcTemplate.update(
+                """
+                INSERT INTO alert_event (
+                    alert_id, partner_id, stock_code, source_type, original_url,
+                    duplicate_key, cluster_key, content_availability, published_at, created_at, event_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                "alert-quality-issue",
+                "partner-a",
+                "005930",
+                "NEWS",
+                "https://news.example.com/alert/quality",
+                "alert-quality-duplicate",
+                "alert-quality-cluster",
+                "FULL_TEXT",
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:00:00Z")),
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:01:00Z")),
+                """
+                {
+                  "alertId": "alert-quality-issue",
+                  "partnerId": "partner-a",
+                  "stockCode": "005930",
+                  "stockName": "삼성전자",
+                  "sourceType": "NEWS",
+                  "originalTitle": "삼성전자 실적 개선...HBM 수요 확대",
+                  "translatedTitle": "Samsung earnings...",
+                  "summary": "반도체 수요 회복으로 영업이익 전망이 상향...",
+                  "summaryLines": {
+                    "what": "반도체 수요 회복으로 영업이익 전망이 상향...",
+                    "why": "HBM 수요 확대 배경은",
+                    "impact": "영향은 high 중요도와 positive 감성으로 분류되어 보유·관심 종목 사용자 확인이 필요합니다."
+                  },
+                  "translatedSummary": "The impact is classified as high importance and positive sentiment.",
+                  "originalContent": "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다. 데이터센터 투자가 주요 배경이다. 투자자는 영업이익 회복 속도를 확인해야 한다.",
+                  "translatedContent": "",
+                  "imageUrls": [],
+                  "contentAvailability": "FULL_TEXT",
+                  "originalUrl": "https://news.example.com/alert/quality",
+                  "publishedAt": "2026-06-18T07:00:00Z",
+                  "eventTags": ["EARNINGS"],
+                  "sentiment": "POSITIVE",
+                  "importance": "HIGH",
+                  "relatedStocks": ["005930"],
+                  "holderTarget": true,
+                  "watchlistTarget": true,
+                  "glossaryTerms": [],
+                  "translationQualityFlags": [],
+                  "translationProvider": "old-provider",
+                  "translationModelVersion": "old-model",
+                  "translationStatus": "TRANSLATED",
+                  "duplicateKey": "alert-quality-duplicate",
+                  "clusterKey": "alert-quality-cluster",
+                  "modelVersion": "old-model",
+                  "eventConfidence": 0.55,
+                  "sentimentConfidence": 0.55,
+                  "importanceConfidence": 0.55,
+                  "stockMatchConfidence": 1.0,
+                  "createdAt": "2026-06-18T07:01:00Z"
+                }
+                """);
+        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
+                "005930",
+                "삼성전자",
+                "NEWS",
+                "삼성전자 실적 개선...HBM 수요 확대",
+                "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                new AlertSummaryLines(
+                        "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                        "데이터센터 투자가 주요 배경입니다.",
+                        "투자자는 영업이익 회복 속도를 확인해야 합니다."),
+                "FULL_TEXT",
+                "",
+                List.of(),
+                List.of("EARNINGS"),
+                "POSITIVE",
+                "HIGH",
+                List.of("005930"),
+                true,
+                true,
+                List.of(),
+                List.of(),
+                "quality-alert-duplicate",
+                "quality-alert-cluster",
+                "financial-keyword-baseline-2026-06-04",
+                0.75,
+                0.75,
+                0.75,
+                1.0));
+        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        mockMvc.perform(post("/api/v1/alerts/events/reprocess/quality-issues")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.eventCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.what",
+                        equalTo("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.")))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.impact",
+                        equalTo("투자자는 영업이익 회복 속도를 확인해야 합니다.")));
+
+        String storedPayload = jdbcTemplate.queryForObject(
+                "SELECT event_json FROM alert_event WHERE alert_id = 'alert-quality-issue'",
+                String.class);
+        org.assertj.core.api.Assertions.assertThat(storedPayload)
+                .contains("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.")
+                .contains("투자자는 영업이익 회복 속도를 확인해야 합니다.")
+                .doesNotContain("The impact is classified")
+                .doesNotContain("중요도")
+                .doesNotContain("감성");
+        ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
+                ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
+        verify(hannahAiAnalysisClient).analyze(requestCaptor.capture());
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().snippet())
+                .isEqualTo("삼성전자 실적 개선...HBM 수요 확대");
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().content())
+                .contains("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다.");
+    }
+
+    @Test
+    void reprocessQualityIssuesSkipsFailedAlertAndContinues() throws Exception {
+        jdbcTemplate.update("DELETE FROM alert_event");
+        insertBrokenAlertEvent(
+                "alert-quality-failed",
+                "999999",
+                "미매칭종목",
+                "https://news.example.com/alert/failed",
+                "2026-06-18T08:00:00Z");
+        insertBrokenAlertEvent(
+                "alert-quality-match",
+                "005930",
+                "삼성전자",
+                "https://news.example.com/alert/match",
+                "2026-06-18T07:00:00Z");
+        when(hannahAiAnalysisClient.analyze(any()))
+                .thenThrow(new RuntimeException("analysis unavailable"))
+                .thenReturn(new HannahAiAnalysisResponse(
+                        "005930",
+                        "삼성전자",
+                        "NEWS",
+                        "삼성전자 실적 개선...HBM 수요 확대",
+                        "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                        new AlertSummaryLines(
+                                "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                                "데이터센터 투자가 주요 배경입니다.",
+                                "투자자는 영업이익 회복 속도를 확인해야 합니다."),
+                        "FULL_TEXT",
+                        "",
+                        List.of(),
+                        List.of("EARNINGS"),
+                        "POSITIVE",
+                        "HIGH",
+                        List.of("005930"),
+                        true,
+                        true,
+                        List.of(),
+                        List.of(),
+                        "quality-alert-match-duplicate",
+                        "quality-alert-match-cluster",
+                        "financial-keyword-baseline-2026-06-04",
+                        0.75,
+                        0.75,
+                        0.75,
+                        1.0));
+        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        mockMvc.perform(post("/api/v1/alerts/events/reprocess/quality-issues")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.eventCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.events[0].alertId", equalTo("alert-quality-match")))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.what",
+                        equalTo("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.")))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.impact",
+                        equalTo("투자자는 영업이익 회복 속도를 확인해야 합니다.")));
+
+        String matchedPayload = jdbcTemplate.queryForObject(
+                "SELECT event_json FROM alert_event WHERE alert_id = 'alert-quality-match'",
+                String.class);
+        String failedPayload = jdbcTemplate.queryForObject(
+                "SELECT event_json FROM alert_event WHERE alert_id = 'alert-quality-failed'",
+                String.class);
+        org.assertj.core.api.Assertions.assertThat(matchedPayload)
+                .contains("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.")
+                .doesNotContain("The impact is classified");
+        org.assertj.core.api.Assertions.assertThat(failedPayload)
+                .contains("The impact is classified");
+    }
+
+    @Test
+    void reprocessEventUsesStoredSingleStockWhenTitleOnlyAnalysisDoesNotMatch() throws Exception {
+        jdbcTemplate.update("DELETE FROM alert_event");
+        insertTitleOnlyAlertEvent(
+                "alert-title-only",
+                "005930",
+                "삼성전자",
+                "북미 최대 교육 기술 전시회서 삼성 교육용 전자칠판 공개");
+        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
+                "",
+                "",
+                "NEWS",
+                "북미 최대 교육 기술 전시회서 삼성 교육용 전자칠판 공개",
+                "북미 최대 교육 기술 전시회서 삼성 교육용 전자칠판 공개.",
+                new AlertSummaryLines(
+                        "북미 최대 교육 기술 전시회서 삼성 교육용 전자칠판 공개.",
+                        "북미 교육 시장 공략이 주요 배경입니다.",
+                        "투자자는 B2B 디스플레이 매출 기여도를 확인해야 합니다."),
+                "SUMMARY_ONLY",
+                "",
+                List.of(),
+                List.of("GENERAL_MARKET"),
+                "NEUTRAL",
+                "MEDIUM",
+                List.of(),
+                false,
+                true,
+                List.of(),
+                List.of(),
+                "title-only-duplicate",
+                "title-only-cluster",
+                "financial-keyword-baseline-2026-06-04",
+                0.55,
+                0.55,
+                0.55,
+                0.0));
+        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        mockMvc.perform(post("/api/v1/alerts/events/alert-title-only/reprocess")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
+                .andExpect(jsonPath("$.data.stockName", equalTo("삼성전자")))
+                .andExpect(jsonPath("$.data.stockMatchConfidence", equalTo(0.5)))
+                .andExpect(jsonPath("$.data.summaryLines.what",
+                        equalTo("북미 최대 교육 기술 전시회서 삼성 교육용 전자칠판 공개.")))
+                .andExpect(jsonPath("$.data.summaryLines.impact",
+                        equalTo("투자자는 B2B 디스플레이 매출 기여도를 확인해야 합니다.")));
+
+        ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
+                ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
+        verify(hannahAiAnalysisClient).analyze(requestCaptor.capture());
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().snippet())
+                .isEqualTo("북미 최대 교육 기술 전시회서 삼성 교육용 전자칠판 공개");
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().content()).isEmpty();
     }
 
     @Test
@@ -473,6 +799,155 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    private void insertBrokenAlertEvent(
+            String alertId,
+            String stockCode,
+            String stockName,
+            String originalUrl,
+            String publishedAt) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO alert_event (
+                    alert_id, partner_id, stock_code, source_type, original_url,
+                    duplicate_key, cluster_key, content_availability, published_at, created_at, event_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                alertId,
+                "partner-a",
+                stockCode,
+                "NEWS",
+                originalUrl,
+                alertId + "-duplicate",
+                alertId + "-cluster",
+                "FULL_TEXT",
+                java.sql.Timestamp.from(Instant.parse(publishedAt)),
+                java.sql.Timestamp.from(Instant.parse(publishedAt).plusSeconds(60)),
+                """
+                {
+                  "alertId": "%s",
+                  "partnerId": "partner-a",
+                  "stockCode": "%s",
+                  "stockName": "%s",
+                  "sourceType": "NEWS",
+                  "originalTitle": "%s 실적 개선...HBM 수요 확대",
+                  "translatedTitle": "Samsung earnings...",
+                  "summary": "반도체 수요 회복으로 영업이익 전망이 상향...",
+                  "summaryLines": {
+                    "what": "반도체 수요 회복으로 영업이익 전망이 상향...",
+                    "why": "HBM 수요 확대 배경은",
+                    "impact": "The impact is classified as high importance and positive sentiment."
+                  },
+                  "translatedSummary": "The impact is classified as high importance and positive sentiment.",
+                  "originalContent": "%s는 HBM 수요 확대로 실적 개선 기대가 커졌다. 데이터센터 투자가 주요 배경이다. 투자자는 영업이익 회복 속도를 확인해야 한다.",
+                  "translatedContent": "",
+                  "imageUrls": [],
+                  "contentAvailability": "FULL_TEXT",
+                  "originalUrl": "%s",
+                  "publishedAt": "%s",
+                  "eventTags": ["EARNINGS"],
+                  "sentiment": "POSITIVE",
+                  "importance": "HIGH",
+                  "relatedStocks": ["%s"],
+                  "holderTarget": true,
+                  "watchlistTarget": true,
+                  "glossaryTerms": [],
+                  "translationQualityFlags": [],
+                  "translationProvider": "old-provider",
+                  "translationModelVersion": "old-model",
+                  "translationStatus": "TRANSLATED",
+                  "duplicateKey": "%s-duplicate",
+                  "clusterKey": "%s-cluster",
+                  "modelVersion": "old-model",
+                  "eventConfidence": 0.55,
+                  "sentimentConfidence": 0.55,
+                  "importanceConfidence": 0.55,
+                  "stockMatchConfidence": 1.0,
+                  "createdAt": "%s"
+                }
+                """.formatted(
+                        alertId,
+                        stockCode,
+                        stockName,
+                        stockName,
+                        stockName,
+                        originalUrl,
+                        publishedAt,
+                        stockCode,
+                        alertId,
+                        alertId,
+                        Instant.parse(publishedAt).plusSeconds(60)));
+    }
+
+    private void insertTitleOnlyAlertEvent(
+            String alertId,
+            String stockCode,
+            String stockName,
+            String title) {
+        Instant publishedAt = Instant.parse("2026-06-18T09:00:00Z");
+        jdbcTemplate.update(
+                """
+                INSERT INTO alert_event (
+                    alert_id, partner_id, stock_code, source_type, original_url,
+                    duplicate_key, cluster_key, content_availability, published_at, created_at, event_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                alertId,
+                "partner-a",
+                stockCode,
+                "NEWS",
+                "https://news.example.com/alert/title-only",
+                alertId + "-duplicate",
+                alertId + "-cluster",
+                "SUMMARY_ONLY",
+                java.sql.Timestamp.from(publishedAt),
+                java.sql.Timestamp.from(publishedAt.plusSeconds(60)),
+                """
+                {
+                  "alertId": "%s",
+                  "partnerId": "partner-a",
+                  "stockCode": "%s",
+                  "stockName": "%s",
+                  "sourceType": "NEWS",
+                  "originalTitle": "%s",
+                  "translatedTitle": "%s",
+                  "summary": "과거 요약이 중간에서 잘린",
+                  "summaryLines": {
+                    "what": "과거 요약이 중간에서 잘린",
+                    "why": "",
+                    "impact": "The impact is classified as medium importance and neutral sentiment."
+                  },
+                  "translatedSummary": "The impact is classified as medium importance and neutral sentiment.",
+                  "originalContent": "",
+                  "translatedContent": "",
+                  "imageUrls": [],
+                  "contentAvailability": "SUMMARY_ONLY",
+                  "originalUrl": "https://news.example.com/alert/title-only",
+                  "publishedAt": "2026-06-18T09:00:00Z",
+                  "eventTags": ["GENERAL_MARKET"],
+                  "sentiment": "NEUTRAL",
+                  "importance": "MEDIUM",
+                  "relatedStocks": ["%s"],
+                  "holderTarget": false,
+                  "watchlistTarget": true,
+                  "glossaryTerms": [],
+                  "translationQualityFlags": [],
+                  "translationProvider": "old-provider",
+                  "translationModelVersion": "old-model",
+                  "translationStatus": "TRANSLATED",
+                  "duplicateKey": "%s-duplicate",
+                  "clusterKey": "%s-cluster",
+                  "modelVersion": "old-model",
+                  "eventConfidence": 0.55,
+                  "sentimentConfidence": 0.55,
+                  "importanceConfidence": 0.55,
+                  "stockMatchConfidence": 1.0,
+                  "createdAt": "2026-06-18T09:01:00Z"
+                }
+                """.formatted(alertId, stockCode, stockName, title, title, stockCode, alertId, alertId));
     }
 
     private TranslationResult translated(String text) {
