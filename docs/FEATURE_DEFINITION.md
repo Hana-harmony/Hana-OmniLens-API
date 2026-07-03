@@ -24,7 +24,13 @@
 | AI 분석 | `Hannah-Montana-AI` | 종목 매핑, 이벤트 분류, 감성, 중요도, What/Why/Impact 3줄 요약, 중복 키, confidence 생성 |
 | 번역 | `Hana-OmniLens-API` | DeepL로 제목·요약·전문을 번역하고 실패 시 원문 fallback과 cache 상태 제공 |
 | 용어 설명 | `Hana-OmniLens-API`, `Hannah-Montana-AI` | 한국 금융 용어 설명, evidence, confidence, 번역 품질 플래그 제공 |
-| 전송 | `Hana-OmniLens-API` | 뉴스·공시 목록/상세 REST API와 협력사/종목 WebSocket 이벤트 제공 |
+| 용어 통계 | `Hana-OmniLens-API` | 사용자가 클릭한 한국 금융 용어의 해시 기반 통계를 제공 |
+| 시장 뉴스 조회 | `Hana-OmniLens-API` | `/api/v1/market/news`, `/trending`, `/{newsId}`로 시장 뉴스 목록·트렌딩·상세와 조회수 기록 제공 |
+| 시장 뉴스 수집 | `Hana-OmniLens-API` | `/api/v1/market/news/collect`로 운영자가 시장 뉴스 query set을 즉시 수집 |
+| 협력사 watchlist 관리 | `Hana-OmniLens-API` | `/api/v1/alerts/watchlists/{partnerId}`로 협력사별 수집·알림 대상 종목을 조회·교체 |
+| 분석 발행 | `Hana-OmniLens-API` | `/api/v1/alerts/analyze-and-publish`로 입력 이벤트를 Hannah 분석 후 저장·송신 |
+| 수집 발행 | `Hana-OmniLens-API` | `/api/v1/alerts/collect-and-publish`로 provider 수집, AI 분석, 중복 제거, WebSocket 송신을 한 번에 실행 |
+| 전송 | `Hana-OmniLens-API` | `/api/v1/alerts/events/**`와 `/ws/alerts`로 저장 이벤트 목록·상세와 협력사/종목 WebSocket 이벤트 제공 |
 | 사용자 매칭 | `Stock-exchange-BE` | 보유종목/watchlist 사용자에게 알림함 저장과 push fanout 수행 |
 | 화면 | `Stock-exchange-FE` | 종목 상세 K-News, 통합 알림함, 원문 링크, 번역 요약 표시 |
 
@@ -39,12 +45,19 @@
 | 기능 | 담당 | 내용 |
 | --- | --- | --- |
 | 종목 마스터 | `Hana-OmniLens-API` | KIS/KRX 기반 종목코드, 국문명, 영문명, 시장, 기준가, 발행주식수 관리 |
+| 종목 검색·상세 | `Hana-OmniLens-API` | 국내 주식 검색, 단건 요약, 거래소 앱 화면용 상세 payload 제공 |
+| 글로벌 피어 | `Hana-OmniLens-API` | 국내 종목의 업종·키워드·규모 기반 글로벌 피어 후보와 매칭 근거 제공 |
 | 실시간 시세 | `Hana-OmniLens-API` | KIS 실시간 체결가·호가를 수집해 cache와 `/ws/market/quotes`로 제공 |
-| REST snapshot | `Hana-OmniLens-API` | 단건, 다건, 전체 종목, 지수, 호가, 환율 적용 현재가 제공 |
-| 과거 시세 | `Hana-OmniLens-API` | KRX 일별 OHLCV를 저장하고 차트 API로 제공 |
-| 환율 | `Hana-OmniLens-API` | KRW 기준값과 USD 등 현지통화 환산 가격, 기준시각, stale flag 제공 |
+| 실시간 원천 구독 | `Hana-OmniLens-API` | 인기 종목은 기본 구독하고, 상세 진입 종목은 KIS 실시간 원천 구독을 추가·해제 |
+| REST 스냅샷 | `Hana-OmniLens-API` | 단건, 다건, 전체 종목, 지수, 호가, 환율 적용 현재가, replay 복구용 스냅샷 제공 |
+| 지수 차트 | `Hana-OmniLens-API` | KOSPI, KOSDAQ, KOSPI 200 현재가와 KIS 기반 1D 분봉 제공 |
+| 종목 차트 | `Hana-OmniLens-API` | KRX 일봉과 KIS 1D 분봉을 저장·조회하고 1D/1W/1M 화면용 데이터를 제공 |
+| 차트 수집·예열 | `Hana-OmniLens-API` | 기준일 일봉 전체 수집, 모바일 차트용 1D 분봉 및 1W/1M 일봉 캐시 예열 제공 |
+| 환율 | `Hana-OmniLens-API` | KRW 기준값과 USD 등 현지통화 환산 가격, 기준시각, stale flag, 운영자 보정 제공 |
 | 외국인 한도 | `Hana-OmniLens-API` | KRX snapshot 기반 보유수량, 보유율, 한도수량, 한도소진율 제공 |
+| 외국인 한도 수집 | `Hana-OmniLens-API` | 단건 refresh, 전체/선택 종목 collect, 누락 평일 backfill 제공 |
 | 예측 boundary | `Hana-OmniLens-API`, `Hannah-Montana-AI` | 당일 외국인 한도소진율 min/base/max와 modelVersion, confidence 제공 |
+| 예측 운영 | `Hana-OmniLens-API`, `Hannah-Montana-AI` | 외국인 취득한도 제한 종목 학습 데이터 추출, Hannah ML 재학습, 금일 예측 선계산 캐시 제공 |
 | 주문 제한 신호 | `Hana-OmniLens-API` | VI, 단일가, 상·하한가, 거래정지, 외국인 한도 경고 사유 반환 |
 | FE용 재가공 | `Stock-exchange-BE` | Hana snapshot/stream을 watchlist, 보유종목, 종목 상세, 주문 화면 API로 전달 |
 | 화면 | `Stock-exchange-FE` | 시장 탭, 종목 상세, 차트, 주문 제한 배지와 경고 표시 |
