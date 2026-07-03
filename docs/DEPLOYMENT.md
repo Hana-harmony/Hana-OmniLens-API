@@ -95,10 +95,15 @@ docker compose -f compose.local.yml up -d
 - `ALERT_DEDUPE_MODE`: 알림 중복 방지 저장소 모드. 기본값은 `redis`이다.
 - `ALERT_DEDUPE_TTL`: Redis dedupe key 보존 시간. 기본값은 `24h`이다.
 - `ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES`: Redis 장애 fallback용 in-memory 최대 key 수. 기본값은 `10000`이다.
-- `ALERT_SCHEDULER_ENABLED`: 협력사 watchlist 주기 수집 활성화 여부. 기본값은 `false`이다.
+- `ALERT_SCHEDULER_ENABLED`: 협력사 watchlist와 기본 종목 universe 주기 수집 활성화 여부. 기본값은 `true`이다.
 - `ALERT_SCHEDULER_FIXED_DELAY_MS`: 주기 수집 간격. 기본값은 `300000`이다.
 - `ALERT_SCHEDULER_NEWS_DISPLAY`: 종목별 뉴스 수집 개수. 기본값은 `10`이다.
 - `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`: 공시 조회 기간. 기본값은 `7`이다.
+- `ALERT_SCHEDULER_DEFAULT_UNIVERSE_ENABLED`: `stock_master_priority` 인기 종목과 외국인 취득한도 제한 종목 자동 수집 활성화 여부. 기본값은 `true`이다.
+- `ALERT_SCHEDULER_DEFAULT_UNIVERSE_PARTNER_ID`: 기본 universe 이벤트의 partner id. 기본값은 `omnilens-default-universe`이다.
+- `ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT`: 기본 universe에 포함할 인기 종목 수. 기본값은 `30`이다.
+- `ALERT_SCHEDULER_INCLUDE_FOREIGN_OWNERSHIP_RESTRICTED_STOCKS`: 외국인 취득한도 제한 종목 allowlist 포함 여부. 기본값은 `true`이다.
+- `ALERT_SCHEDULER_COLLECTION_BATCH_SIZE`: 종목별 뉴스·공시 수집 배치 크기. 기본값과 상한은 `20`이다.
 - `EXCHANGE_RATE_REFRESH_ENABLED`: FX 환율 주기 갱신 활성화 여부. 기본값은 `false`이다.
 - `EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS`: 환율 갱신 간격. 기본값은 `300000`이다.
 - `EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS`: fallback provider가 기준일을 요구할 때 사용할 조회 기준일 offset. 기본값은 `0`이다.

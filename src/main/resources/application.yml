@@ -185,4 +185,9 @@ omnilens:
       fixed-delay-ms: 300000
       news-display: 10
       disclosure-lookback-days: 7
+      default-universe-enabled: true
+      default-universe-partner-id: omnilens-default-universe
+      priority-stock-limit: 30
+      include-foreign-ownership-restricted-stocks: true
+      collection-batch-size: 20
       watchlists: []
