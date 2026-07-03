@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.hana.omnilens.common.api.ApiResponse;
 import com.hana.omnilens.common.api.FieldErrorDetail;
@@ -43,6 +44,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.status())
                 .body(ApiResponse.error(errorCode.status().value(), errorCode.code(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException exception) {
+        ErrorCode errorCode = ErrorCode.RESOURCE_NOT_FOUND;
+        return ResponseEntity
+                .status(errorCode.status())
+                .body(ApiResponse.error(errorCode.status().value(), errorCode.code(), errorCode.message()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

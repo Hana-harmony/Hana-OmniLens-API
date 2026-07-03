@@ -4,7 +4,7 @@
 
 ## 0. 기준 고정
 - 최신 기능정의서를 기준으로 네 레포의 책임 범위를 먼저 고정한다.
-- Hana-OmniLens-API는 한국 주식 데이터, 환율, 뉴스, 공시, AI 분석 결과, 세무 상태를 협력사에 제공한다.
+- Hana-OmniLens-API는 한국 주식 데이터, 환율, 뉴스, 공시, AI 분석 결과를 협력사에 제공한다.
 - Hannah-Montana-AI는 뉴스와 공시의 번역, 요약, 감성, 중요도, 리스크 분석을 담당한다.
 - Stock-exchange-BE는 현지 거래소의 회원, mock USD 계좌, watchlist, 보유종목, 자체 mock 매수·매도, 알림 대상 매칭을 담당한다.
 - Stock-exchange-FE는 Flutter 기반 iOS/Android 앱으로 영어 UI와 USD 표시를 제공한다.
@@ -70,18 +70,16 @@
 - 전체 한국 주식, watchlist, 보유종목의 REST snapshot과 WebSocket 실시간 시세를 제공한다.
 - 과거 차트 데이터는 Hana-OmniLens-API의 KRX 기반 API를 사용한다.
 - 보유종목과 watchlist를 기준으로 뉴스·공시 분석 push 대상자를 매칭한다.
-- 매도 실현손익을 세무 환급 기능의 입력 데이터로 연결한다.
 
 완료 기준:
 - KIS 모의투자 API 호출 없이 자체 mock 거래가 가능하다.
 - FE가 요구하는 시세, 차트, 주문, 계좌, watchlist, 알림 API가 있다.
 - 실시간 stream 장애 시 REST snapshot 복구 정책이 동작한다.
-- 세무 환급 기능이 매도 실현손익을 참조한다.
 
 ## 6. Stock-exchange-FE 구현
 - Flutter 기반 iOS/Android 앱으로 구현한다.
 - UI 기본 언어는 영어이며, 금액의 기본 화폐 단위는 USD다.
-- 종목 검색, 전체 종목 시세, watchlist, 보유종목, 차트, 주문, 계좌, 알림, 세무 환급 화면을 구현한다.
+- 종목 검색, 전체 종목 시세, watchlist, 보유종목, 차트, 주문, 계좌, 알림 화면을 구현한다.
 - WebSocket 실시간 tick을 화면에 반영하고 stale 상태와 재연결 상태를 보여준다.
 - 뉴스·공시 분석 알림은 원문 링크와 함께 표시한다.
 

@@ -148,10 +148,6 @@ HEALTHCHECK_SCHEME=https
 - `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API credential
 - `OPEN_DART_API_KEY`: OpenDART API credential
 - `DEEPL_API_KEY`: DeepL 번역 credential
-- `TAX_OCR_PROVIDER_KEY`: 세무 OCR/문서 검증 공급자를 사용할 경우 credential
-
-세무 파일 원본, OCR 결과, 환급금 선지급 상태는 별도 암호화 저장소와 접근 감사 로그를 전제로 배포한다.
-
 ## 원격 서버 준비
 원격 서버에는 아래 런타임이 미리 설치되어 있어야 한다.
 

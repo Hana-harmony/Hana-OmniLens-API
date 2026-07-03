@@ -91,6 +91,3 @@ docker compose -f compose.local.yml up -d
 - 협력사 watchlist DB 교체 저장, 조회, 순서 보존, 빈 목록 삭제
 - 협력사 watchlist REST API의 중복 제거, validation, 미지원 종목 404
 - 설정 기반 watchlist와 DB watchlist의 스케줄러 병합
-- tax refund case sync API의 공동 응답 envelope, 입력 validation, 환급/선지급 상태 판정
-- tax treaty case classification API의 CASE_01 판정, 수동 검토 사유, 입력 validation
-- tax rectification batch status API의 분기 window, 진행 상태, case count, path variable validation

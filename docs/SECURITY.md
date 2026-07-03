@@ -25,7 +25,6 @@
 - DB credential 세션은 전역 `/topic/stocks/{stockCode}/alerts` 구독을 사용할 수 없다.
 - 세션은 stateless로 유지한다.
 - DeepL/KIS/KRX/Naver/OpenDART 등 외부 API credential은 환경 변수 또는 Secret Manager에서만 주입한다.
-- 세무/OCR/환급 상태 데이터는 개인정보와 민감 금융정보로 분류하고 최소 저장, 마스킹, 감사 로그를 기본으로 한다.
 
 ## 협력사 API key 운영
 - 원문 API key는 발급 직후 협력사에게 한 번만 전달한다.
@@ -77,5 +76,4 @@
 ## 향후 강화
 - abuse detection
 - 감사 로그 무결성 보장
-- 세무 서류/환급 상태 접근 권한 분리
 - 외부 번역 공급자 전송 데이터 최소화와 개인정보 제거

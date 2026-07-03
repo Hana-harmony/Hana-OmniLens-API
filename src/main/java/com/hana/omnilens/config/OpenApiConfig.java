@@ -20,7 +20,7 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("Hana OmniLens API")
                         .version("v1")
-                        .description("B2B API for Korean stock quotes, orderability, alerts, and tax status."))
+                        .description("B2B API for Korean stock quotes, orderability, and news/disclosure intelligence."))
                 .components(new Components()
                         .addSecuritySchemes(API_KEY_SCHEME, new SecurityScheme()
                                 .type(SecurityScheme.Type.APIKEY)
