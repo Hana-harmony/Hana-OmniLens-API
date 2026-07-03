@@ -10,6 +10,8 @@ public interface MarketNewsEventRepository {
 
     MarketNewsEvent save(MarketNewsEvent event);
 
+    MarketNewsEvent update(MarketNewsEvent event);
+
     Optional<MarketNewsEvent> findByNewsId(String newsId);
 
     Optional<MarketNewsEvent> findByDuplicateKey(String duplicateKey);

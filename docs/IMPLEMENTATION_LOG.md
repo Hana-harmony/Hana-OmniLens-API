@@ -12,20 +12,27 @@
 - 외국인 보유량 scheduler는 평일 장전 누락일만 KRX에서 보강한다. 기본 수집 대상은 현재 상장 외국인 취득한도 제한 32종목 allowlist이며, 비제한 종목 history는 `foreign_ownership_daily_snapshot`에서 제거했다.
 - KRX 수집, Hannah 재학습, 금일 예측 선계산은 기본 활성화한다. 스케줄러는 전일/누락 row 저장 후 quality gate를 통과한 모델만 promote하고, 이후 제한 종목 예측을 cache에 저장해 모바일 요청이 선계산 결과를 우선 조회한다.
 
+## 2026-07-04 뉴스·공시 요약 품질과 GPT 번역 경로
+- market news 수집에서 사용 허가 전문이 있으면 Hannah 분석 요청의 `content`에 반드시 전달하도록 수정했다.
+- Hannah 요약은 글자 수 hard cut 대신 문장 경계 기반 truncate와 품질 gate를 사용하며, snippet 생략부호와 중요도/감성 분류 메타 문장을 사용자 요약에서 제거한다.
+- 번역 경로는 OpenAI Responses API와 `OPENAI_API_KEY` 환경변수 기반 GPT 번역으로 전환했다. DeepL/Papago 호출 가능한 runtime adapter는 제거하고 legacy report만 남긴다.
+- 번역 실패 시 `translationStatus`, `translationProvider`, `translationModelVersion`을 이벤트 payload에 남기고 원문 fallback을 명시한다.
+- 시장 뉴스와 알림 이벤트의 운영 재처리를 위해 저장 이벤트 reprocess API를 추가했다.
+
 ## 2026-06-22 실제 원문 전문 수집·번역 경로
 - Naver News Search 발견 URL에서 사용 허가된 기사 원문 HTML을 fetch해 본문, canonical URL, 대표 이미지 URL, content hash를 추출한다.
 - OpenDART `document.xml` 접수번호 원문을 zip/XML 양쪽으로 처리해 공시 전문을 정제하고 Hannah 분석 입력으로 전달한다.
-- DeepL 번역 서비스는 제목뿐 아니라 What/Why/Impact 요약과 전문을 chunk 단위로 번역하고 SHA-256 cache로 중복 호출을 줄인다.
+- GPT 번역 서비스는 제목뿐 아니라 What/Why/Impact 요약과 전문을 chunk 단위로 번역하고 SHA-256 cache로 중복 호출을 줄인다.
 - 수집 발행 경로는 전문이 있으면 `FULL_TEXT`, `originalContent`, `translatedContent`, `imageUrls`, `sourceLicensePolicy`, `contentHash`를 포함해 DB/REST/WebSocket 이벤트로 저장한다.
 
 ## 2026-06-19 하네스·문서 최신화
 - 협력사별 API key rotation API를 추가했다. bootstrap 운영 키로만 호출할 수 있고, 서버가 새 256-bit key를 생성해 응답에서 한 번만 반환하며 DB에는 SHA-256 hash만 저장한다.
 - rotation 시 같은 partner의 기존 활성 credential은 같은 트랜잭션에서 비활성화한다. DB credential로 인증된 협력사 요청은 rotation API를 호출할 수 없다.
-- 배포 workflow에서 제거된 Papago/한국수출입은행 secret 주입을 삭제해 DeepL/Frankfurter 기준 운영 설정과 맞췄다.
+- 배포 workflow에서 제거된 Papago/한국수출입은행 secret 주입을 삭제해 번역/환율 provider 경계와 맞췄다.
 - KIS 실시간 체결가·호가 WebSocket은 가격, 호가, 누적 거래량, VI/단일가/거래정지 상태 전용으로 정리했다.
 - 외국인 보유수량, 보유율, 한도소진율은 KIS 현재가 REST snapshot과 Redis/in-memory cache에서 공급한다고 명시했다.
 - 외국인 한도 예측은 snapshot과 외국인 보유량 일별 시계열 기반 사전 고지용 경고 신호이며, 주문 수량과 KIS 실시간 누적 거래량을 예측식에 반영하지 않도록 정정했다.
-- Papago와 한국수출입은행 환율 provider는 레거시 제거 상태이며, 번역은 DeepL, 환율은 Frankfurter 기준으로 정리했다.
+- Papago와 한국수출입은행 환율 provider는 레거시 제거 상태이며, 번역 provider는 이후 GPT, 환율은 Frankfurter 기준으로 정리했다.
 
 ## 2026-06-19 KIS 외국인보유량 provider 정정
 - 외국인보유량은 KIS 현재가 응답의 `frgn_hldn_qty`, `hts_frgn_ehrt`, `lstn_stcn`에서 산출하도록 정정했다.
@@ -210,19 +217,18 @@
 - 단위 테스트로 KIS 요청 헤더·쿼리·응답 매핑, MarketDataService의 KIS 우선 사용, 공공데이터 fallback을 검증했다.
 
 ## 2026-06-04 Papago NMT 알림 제목 번역
-- 폐기된 초기 구현 이력이다. 현재 번역 provider는 DeepL이며 Papago credential slot과 runtime adapter는 운영 경로에서 제거됐다.
+- 폐기된 초기 구현 이력이다. 현재 번역 provider는 GPT이며 Papago credential slot과 runtime adapter는 운영 경로에서 제거됐다.
 - smoke report에는 Papago를 `legacy_disabled` 상태로만 기록한다.
 
-## 2026-06-19 DeepL 알림 제목 번역 fallback chain
-- DeepL `POST /v2/translate` 계약을 `DeepLTranslationClient`로 격리했다.
-- 요청 header는 `Authorization: DeepL-Auth-Key {apiKey}`로 고정하고, 요청 body는 `source_lang=KO`, `target_lang=EN-US`, `text={원문 제목}` form payload로 전송한다.
-- 운영 설정은 `DEEPL_TRANSLATION_BASE_URL`, `DEEPL_API_KEY` 환경변수 슬롯만 추가하고, 실제 값은 커밋하지 않는다.
-- `AlertTitleTranslationService`는 DeepL을 시도하고, DeepL 키 미설정·장애·빈 결과 시 원문 제목으로 fallback한다.
-- 단위 테스트로 DeepL 요청 계약, DeepL 우선 번역, provider 실패 시 원문 fallback을 검증했다.
+## 2026-06-19 legacy 번역 provider fallback chain
+- 이전 DeepL 계약은 2026-07-04 GPT 전환으로 폐기했다.
+- 운영 설정은 `OPENAI_API_KEY` 환경변수 슬롯만 사용하고, 실제 값은 커밋하지 않는다.
+- `AlertTitleTranslationService`는 GPT를 시도하고, 키 미설정·장애·빈 결과 시 원문과 fallback 상태를 payload에 남긴다.
+- 단위 테스트로 OpenAI Responses API 요청 계약, GPT 우선 번역, provider 실패 시 원문 fallback을 검증한다.
 
-## 2026-06-20 DeepL live smoke report
-- `build_deepl_translation_smoke_report.py`를 추가해 실제 DeepL translation API 호출 결과를 `reports/deepl-translation-smoke-report.json`에 기록한다.
-- 로컬 `application-local.yml`의 DeepL key를 환경변수로만 주입해 live smoke를 실행했고, HTTP 200과 영어 번역문을 확인했다.
+## 2026-06-20 legacy provider smoke report
+- `build_deepl_translation_smoke_report.py`는 더 이상 외부 API를 호출하지 않고 legacy provider disabled 상태만 `reports/deepl-translation-smoke-report.json`에 기록한다.
+- 실제 live smoke는 `build_openai_translation_smoke_report.py`가 `OPENAI_API_KEY` 환경변수 기반으로 수행한다.
 - Papago는 레거시 provider로 제거된 상태를 유지하며 smoke report에는 `legacy_disabled`로 기록한다.
 
 ## 2026-06-04 HMAC 요청 서명 인증
@@ -318,7 +324,7 @@
 - `ExternalProviderResiliencePolicy`는 provider 이름별 circuit state를 관리하고 `RestClientException` 계열 장애만 재시도한다.
 - 재시도 기본값은 2회, backoff 기본값은 150ms다.
 - circuit breaker 기본값은 연속 실패 5회 후 30초 open이다.
-- Naver News, OpenDART, DeepL, KIS 현재가와 외국인보유량, 공공데이터 주식시세, Frankfurter 환율, Hannah-Montana-AI 내부 분석 호출에 정책을 적용했다.
+- Naver News, OpenDART, OpenAI 번역, KIS 현재가와 외국인보유량, 공공데이터 주식시세, Frankfurter 환율, Hannah-Montana-AI 내부 분석 호출에 정책을 적용했다.
 - Hannah-Montana-AI 호출에는 별도 서비스 토큰을 추가하지 않고 내부 네트워크 호출 모델을 유지했다.
 - `application-prod.yml`은 `PROVIDER_*` placeholder를 사용하고, CI/CD가 기본값 포함 `application-prod.env`를 자동 생성한다.
 - 단위 테스트로 retry 성공, circuit open, 비네트워크 예외 no-retry, properties 기본값을 검증했다.
@@ -429,7 +435,7 @@
 - 협력사 watchlist를 DB에서 관리하는 저장소를 추가한다.
 ## 2026-06-21 뉴스·공시 인텔리전스 v2 보강 계약
 - v1 완료 범위를 Naver News Search 제목/snippet 기반 watchlist 알림으로 명확히 분리했다.
-- v2 목표를 전체 종목 shard 수집, 전문·이미지 권리 확인 수집, DB 이벤트 저장소, What/Why/Impact 요약, 제목·요약·전문 DeepL 번역, REST 목록·상세, WebSocket 저장 이벤트 송신으로 정의했다.
+- v2 목표를 전체 종목 shard 수집, 전문·이미지 권리 확인 수집, DB 이벤트 저장소, What/Why/Impact 요약, 제목·요약·전문 GPT 번역, REST 목록·상세, WebSocket 저장 이벤트 송신으로 정의했다.
 - Naver News Search는 기사 전문과 이미지 URL을 보장하지 않으므로 발견 데이터로만 사용하고, 재배포 권리가 불확실한 본문은 저장·응답하지 않는 정책을 문서화했다.
 
 ## 2026-06-21 뉴스·공시 v2 이벤트 저장소와 REST 조회

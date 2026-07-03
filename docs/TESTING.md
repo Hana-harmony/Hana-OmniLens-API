@@ -71,9 +71,10 @@ docker compose -f compose.local.yml up -d
 - 과거 시세 history API의 공동 응답 envelope과 OHLCV/거래대금 payload
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
-- DeepL 번역 요청 계약과 응답 매핑
-- 알림 제목 번역 DeepL 우선, 번역 장애 시 원문 fallback
-- `scripts/build_deepl_translation_smoke_report.py`가 DeepL live smoke 결과와 Papago `legacy_disabled` 상태를 secret 없이 `reports/deepl-translation-smoke-report.json`에 기록하는지 검증
+- OpenAI Responses API 번역 요청 계약과 응답 매핑
+- 알림 제목·요약·전문 번역 GPT 우선, 번역 장애 시 원문 fallback 상태 전파
+- `scripts/build_openai_translation_smoke_report.py`가 GPT 번역과 로컬 금융 용어 번역 보조 결과를 secret 없이 `reports/openai-translation-smoke-report.json`에 기록하는지 검증
+- `scripts/build_deepl_translation_smoke_report.py`는 legacy provider가 비활성 상태임만 기록하고 외부 API를 호출하지 않는지 검증
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 외부 provider 공통 timeout 설정 기본값
 - 외부 provider 재시도, circuit open, 비네트워크 예외 no-retry 정책

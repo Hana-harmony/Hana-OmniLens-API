@@ -39,7 +39,7 @@ docker compose -f compose.local.yml down
 - Naver News Search는 제목, snippet, 링크 발견용으로 사용하고, 사용 허가된 원문 URL에서 기사 전문과 대표 이미지 URL을 추가 수집한다. 저장 허가가 없는 provider를 추가할 때는 원문 저장을 비활성화하고 hash/요약만 남기는 별도 정책을 적용한다.
 - OpenDART는 공시 목록 검색 뒤 `rcept_no` document 원문을 내려받아 본문을 정제하고, 공시 전문을 분석·번역·REST 상세 응답에 포함한다.
 - 신규 여부는 URL TTL만으로 판단하지 않는다. canonical URL, normalized title, content hash, Hannah duplicate key, 시간창 기반 cluster key를 함께 사용하고, 재처리 idempotency key를 저장한다.
-- DeepL 번역은 제목, What/Why/Impact 요약, 전문을 분리해 chunk/cache 단위로 처리한다. provider 장애 시 원문과 번역 실패 상태를 함께 반환하고 이벤트 발행은 중단하지 않는다.
+- GPT 번역은 `OPENAI_API_KEY` 환경변수로만 credential을 주입하고 제목, What/Why/Impact 요약, 전문을 분리해 chunk/cache 단위로 처리한다. provider 장애, quota, 빈 응답 시 원문과 `SOURCE_LANGUAGE_FALLBACK` 또는 `PARTIAL_SOURCE_LANGUAGE_FALLBACK` 상태를 함께 반환하고 이벤트 발행은 중단하지 않는다.
 - watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
 - Hannah-Montana-AI 분석 결과의 `eventConfidence`, `sentimentConfidence`, `importanceConfidence`, `stockMatchConfidence`는 alert REST/WebSocket payload에 그대로 전파한다.
 - 주기는 `ALERT_SCHEDULER_FIXED_DELAY_MS`로 조정한다. 기본값은 `300000`이다.
@@ -217,8 +217,8 @@ STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 - 기본 refresh scheduler는 비활성화되어 있다.
 - 활성화하면 `EXCHANGE_RATE_REFRESH_CURRENCIES`에 지정한 통화만 주기적으로 갱신한다.
 - 한국수출입은행 환율 API는 레거시 provider로 제거됐다. 환율은 Frankfurter adapter와 cache를 기준으로 운영한다.
-- DeepL live smoke는 `DEEPL_API_KEY` 또는 `OMNILENS_PROVIDERS_DEEP_L_TRANSLATION_API_KEY`를 환경변수로 주입한 뒤 `python3 scripts/build_deepl_translation_smoke_report.py`로 실행한다. 결과는 `reports/deepl-translation-smoke-report.json`에 저장되며 API key는 기록하지 않는다.
-- Papago는 레거시 provider로 제거됐으므로 smoke report에는 `legacy_disabled` 상태만 기록한다.
+- GPT translation smoke는 `OPENAI_API_KEY`를 환경변수로 주입한 뒤 `python3 scripts/build_openai_translation_smoke_report.py`로 실행한다. 결과는 `reports/openai-translation-smoke-report.json`에 저장되며 API key는 기록하지 않는다.
+- DeepL/Papago는 active 번역 경로에서 호출하지 않는다. legacy smoke/report에는 `legacy_disabled` 상태만 기록한다.
 
 ```text
 EXCHANGE_RATE_REFRESH_ENABLED=true

@@ -55,6 +55,30 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
     }
 
     @Override
+    @Transactional
+    public MarketNewsEvent update(MarketNewsEvent event) {
+        int updated = jdbcTemplate.update(
+                """
+                UPDATE market_news_event
+                SET query = ?,
+                    original_url = ?,
+                    duplicate_key = ?,
+                    published_at = ?,
+                    created_at = ?,
+                    event_json = ?
+                WHERE news_id = ?
+                """,
+                event.query(),
+                event.originalUrl(),
+                event.duplicateKey(),
+                Timestamp.from(event.publishedAt()),
+                Timestamp.from(event.createdAt()),
+                toJson(event),
+                event.newsId());
+        return updated == 0 ? save(event) : event;
+    }
+
+    @Override
     public Optional<MarketNewsEvent> findByNewsId(String newsId) {
         return jdbcTemplate.query(
                         """
