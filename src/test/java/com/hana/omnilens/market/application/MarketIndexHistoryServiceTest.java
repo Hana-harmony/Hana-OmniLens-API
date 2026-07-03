@@ -105,7 +105,7 @@ class MarketIndexHistoryServiceTest {
         LocalDate explicitDate = LocalDate.of(2026, 7, 2);
         when(kisClient.findMinutePrices("0001", explicitDate, 390)).thenReturn(List.of(kisPrice(
                 LocalDateTime.of(2026, 7, 2, 10, 46),
-                "8088.34")));
+                "0.00")));
         MarketIndexHistoryService service = new MarketIndexHistoryService(kisClient, repository, PRE_OPEN_CLOCK);
 
         List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 390);

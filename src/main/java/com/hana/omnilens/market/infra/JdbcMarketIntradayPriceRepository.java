@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -148,6 +149,26 @@ public class JdbcMarketIntradayPriceRepository implements MarketIntradayPriceRep
                 tick.tradingValueKrw(),
                 tick.source(),
                 Timestamp.from(tick.collectedAt()));
+    }
+
+    @Override
+    public Optional<MarketIntradayPrice> findLatestByStockCodeAndDate(String stockCode, LocalDate date) {
+        return jdbcTemplate.query(
+                        """
+                        SELECT stock_code, bucket_start, market,
+                               open_price_krw, high_price_krw, low_price_krw, close_price_krw,
+                               trading_volume, trading_value_krw, source, collected_at
+                        FROM market_intraday_minute_price
+                        WHERE stock_code = ?
+                          AND trade_date = ?
+                        ORDER BY bucket_start DESC
+                        LIMIT 1
+                        """,
+                        ROW_MAPPER,
+                        stockCode,
+                        date)
+                .stream()
+                .findFirst();
     }
 
     @Override
