@@ -90,8 +90,7 @@ class KisRealtimeIndexSessionRunnerTest {
                 null,
                 null,
                 kis,
-                realKis,
-                null);
+                realKis);
     }
 
     private ExternalProviderProperties.Kis realKis() {

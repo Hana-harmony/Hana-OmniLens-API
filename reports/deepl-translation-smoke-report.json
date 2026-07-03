@@ -1,28 +1,24 @@
 {
-  "schema_version": "deepl-translation-smoke-report/v1",
-  "generated_at": "2026-06-20T00:00:00+00:00",
+  "schema_version": "legacy-translation-provider-report/v1",
+  "generated_at": "2026-07-04T00:00:00+09:00",
   "sample": {
     "source_type": "NEWS",
     "original_text": "삼성전자 영업이익 증가",
-    "original_url": "local-smoke://deepl-translation",
-    "external_translation_join_key": "6c43590ff27d39c2006bf5b579b7660f9423fe19256fe09f68e6a2e14b16e8d2"
+    "original_url": "local-smoke://legacy-translation",
+    "external_translation_join_key": "cc34285adbab2da7b01a1f4e52dd0a797f9f6fdf0941102f47c3eab689bfe003"
   },
   "providers": {
     "deepl": {
-      "status": "success",
-      "base_url": "https://api-free.deepl.com",
-      "http_status": 200,
-      "latency_ms": 1307,
-      "detected_source_language": "KO",
-      "translated_text": "Samsung Electronics Reports Increase in Operating Profit"
+      "status": "legacy_disabled",
+      "reason": "Active translation uses OpenAI GPT via OPENAI_API_KEY; DeepL is never called."
     },
     "papago": {
       "status": "legacy_disabled",
-      "reason": "Papago adapter is removed; DeepL is the active translation provider."
+      "reason": "Papago adapter is removed and is never called."
     }
   },
   "security": {
-    "credential_source": "environment",
+    "credential_source": "none",
     "api_key_recorded": false
   }
 }

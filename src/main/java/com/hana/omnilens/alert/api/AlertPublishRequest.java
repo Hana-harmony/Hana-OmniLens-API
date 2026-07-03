@@ -35,6 +35,9 @@ public record AlertPublishRequest(
         boolean watchlistTarget,
         List<AlertGlossaryTerm> glossaryTerms,
         List<String> translationQualityFlags,
+        @Size(max = 80) String translationProvider,
+        @Size(max = 120) String translationModelVersion,
+        @Size(max = 40) String translationStatus,
         @Size(max = 128) String duplicateKey,
         @Size(max = 128) String clusterKey,
         @Size(max = 120) String modelVersion,
@@ -45,5 +48,19 @@ public record AlertPublishRequest(
 ) {
     public String effectiveContentAvailability() {
         return contentAvailability == null || contentAvailability.isBlank() ? "SUMMARY_ONLY" : contentAvailability;
+    }
+
+    public String effectiveTranslationProvider() {
+        return translationProvider == null || translationProvider.isBlank()
+                ? "source-language-fallback"
+                : translationProvider;
+    }
+
+    public String effectiveTranslationModelVersion() {
+        return translationModelVersion == null ? "" : translationModelVersion;
+    }
+
+    public String effectiveTranslationStatus() {
+        return translationStatus == null || translationStatus.isBlank() ? "SOURCE_LANGUAGE_FALLBACK" : translationStatus;
     }
 }

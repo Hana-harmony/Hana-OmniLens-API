@@ -22,7 +22,7 @@
 | 수집 대상 관리 | `Hana-OmniLens-API` | 인기 종목, 외국인 보유 제한 종목, 협력사 watchlist 종목을 주기 수집 대상에 포함 |
 | 전문 정제 | `Hana-OmniLens-API` | 허용된 원문 기사와 OpenDART document에서 전문, 대표 이미지, 원문 링크 저장 |
 | AI 분석 | `Hannah-Montana-AI` | 종목 매핑, 이벤트 분류, 감성, 중요도, What/Why/Impact 3줄 요약, 중복 키, confidence 생성 |
-| 번역 | `Hana-OmniLens-API` | DeepL로 제목·요약·전문을 번역하고 실패 시 원문 fallback과 cache 상태 제공 |
+| 번역 | `Hana-OmniLens-API` | `OPENAI_API_KEY` 기반 GPT 번역으로 제목·What/Why/Impact·전문을 번역하고 실패 시 원문, provider, model, fallback 상태를 payload에 남김 |
 | 한국 금융 고유어·전문용어 해설 | `Hana-OmniLens-API`, `Hannah-Montana-AI` | 뉴스·공시 본문에서 클릭한 한국 금융 고유어·전문용어를 Hannah 사전/RAG로 해석하고 evidence, confidence, 번역 품질 플래그 제공 |
 | 용어 통계 | `Hana-OmniLens-API` | 사용자가 클릭한 한국 금융 용어의 해시 기반 통계를 제공 |
 | 시장 뉴스 조회 | `Hana-OmniLens-API` | `/api/v1/market/news`, `/trending`, `/{newsId}`로 시장 뉴스 목록·트렌딩·상세와 조회수 기록 제공 |
@@ -36,7 +36,7 @@
 
 흐름:
 
-`Naver/OpenDART -> Hana 수집·저장 -> Hannah 분석 -> DeepL 번역 -> Hana REST/WebSocket -> Stock-exchange-BE 매칭 -> Flutter 앱`
+`Naver/OpenDART -> Hana 수집·저장 -> Hannah 분석 -> GPT 번역 -> Hana REST/WebSocket -> Stock-exchange-BE 매칭 -> Flutter 앱`
 
 ## 핵심 기능 02. 실시간 주식 정보 제공 및 주문 제한 필터링 시스템
 
@@ -73,5 +73,5 @@
 - 협력사 서버 간 요청은 `X-HANA-OMNILENS-API-KEY`로 인증한다.
 - API key 원문은 저장하지 않고 SHA-256 hash, rate limit, 감사 로그를 적용한다.
 - 운영 요청 서명과 mTLS는 설정으로 강제할 수 있다.
-- `Stock-exchange-FE`에는 Hana/KIS/KRX/Naver/OpenDART/DeepL credential을 두지 않는다.
+- `Stock-exchange-FE`에는 Hana/KIS/KRX/Naver/OpenDART/OpenAI credential을 두지 않는다.
 - 외부 provider credential은 환경 변수 또는 Secret Manager로만 주입한다.

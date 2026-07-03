@@ -21,7 +21,6 @@ class ExternalProviderPropertiesTest {
         assertThat(properties.kis().websocketUrl().toString())
                 .isEqualTo("ws://ops.koreainvestment.com:21000");
         assertThat(properties.kis().accountNumber()).isEmpty();
-        assertThat(properties.deepLTranslation().baseUrl().toString()).isEqualTo("https://api-free.deepl.com");
 
         assertThatThrownBy(() -> properties.naverNews().requiredClientSecret())
                 .isInstanceOf(IllegalStateException.class)
@@ -29,8 +28,5 @@ class ExternalProviderPropertiesTest {
         assertThatThrownBy(() -> properties.kis().requiredApprovalKey())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("omnilens.providers.kis.approval-key");
-        assertThatThrownBy(() -> properties.deepLTranslation().requiredApiKey())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("omnilens.providers.deep-l-translation.api-key");
     }
 }

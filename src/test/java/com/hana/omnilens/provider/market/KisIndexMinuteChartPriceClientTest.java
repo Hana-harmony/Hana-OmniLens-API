@@ -84,8 +84,7 @@ class KisIndexMinuteChartPriceClientTest {
                 null,
                 null,
                 kis,
-                realKis,
-                null);
+                realKis);
     }
 
     private ExternalProviderProperties.Kis vtsKisWithoutCredential() {

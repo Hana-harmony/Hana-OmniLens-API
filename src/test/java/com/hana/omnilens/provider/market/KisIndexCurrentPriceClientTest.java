@@ -198,8 +198,7 @@ class KisIndexCurrentPriceClientTest {
                 null,
                 null,
                 kis,
-                realKis,
-                null);
+                realKis);
     }
 
     private ExternalProviderProperties.Kis realKis() {

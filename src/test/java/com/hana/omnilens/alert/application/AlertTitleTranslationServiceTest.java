@@ -13,19 +13,17 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
-import com.hana.omnilens.provider.translation.DeepLTranslationClient;
 import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
 
 class AlertTitleTranslationServiceTest {
 
-    private final DeepLTranslationClient deepLTranslationClient = mock(DeepLTranslationClient.class);
     private final OpenAiTranslationClient openAiTranslationClient = mock(OpenAiTranslationClient.class);
     private final AlertTitleTranslationService translationService =
-            new AlertTitleTranslationService(deepLTranslationClient, openAiTranslationClient);
+            new AlertTitleTranslationService(openAiTranslationClient);
 
     @Test
-    void translateTitleReturnsDeepLTranslationFirst() {
-        when(deepLTranslationClient.translateKoToEn("삼성전자 실적 개선"))
+    void translateTitleReturnsGptTranslationFirst() {
+        when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
                 .thenReturn("Samsung Electronics earnings improve");
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
@@ -35,10 +33,8 @@ class AlertTitleTranslationServiceTest {
 
     @Test
     void translateTitleFallsBackToOriginalWhenProviderFails() {
-        when(deepLTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenThrow(new IllegalStateException("missing deepl secret"));
         when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenReturn("");
+                .thenThrow(new IllegalStateException("missing openai secret"));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
@@ -47,8 +43,6 @@ class AlertTitleTranslationServiceTest {
 
     @Test
     void translateTitleFallsBackToOriginalWhenProviderReturnsBlank() {
-        when(deepLTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenReturn("");
         when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
                 .thenReturn("");
 
@@ -58,32 +52,33 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
-    void translateTitleFallsBackToOpenAiWhenDeepLReturnsKorean() {
-        when(deepLTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenReturn("삼성전자 실적 개선");
+    void translateTitleResultExposesSourceFallbackStatusWhenGptFails() {
         when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenReturn("Samsung Electronics earnings improve");
+                .thenReturn("");
 
-        String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
+        AlertTitleTranslationService.TranslationResult result =
+                translationService.translateTitleWithResult("삼성전자 실적 개선", List.of());
 
-        assertThat(translatedTitle).isEqualTo("Samsung Electronics earnings improve");
+        assertThat(result.translatedText()).isEqualTo("삼성전자 실적 개선");
+        assertThat(result.provider()).isEqualTo("source-language-fallback");
+        assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
     }
 
     @Test
     void translateTextSplitsLongContentIntoChunks() {
         String longText = "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다. ".repeat(120);
-        when(deepLTranslationClient.translateKoToEn(any()))
+        when(openAiTranslationClient.translateKoToEn(any()))
                 .thenAnswer(invocation -> "EN:" + invocation.getArgument(0, String.class).length());
 
         String translatedText = translationService.translateText(longText);
 
         assertThat(translatedText).contains("EN:");
-        verify(deepLTranslationClient, atLeast(2)).translateKoToEn(any());
+        verify(openAiTranslationClient, atLeast(2)).translateKoToEn(any());
     }
 
     @Test
     void translateTextKeepsProviderSurfaceTermForGlossaryClickMapping() {
-        when(deepLTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
+        when(openAiTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
                 .thenReturn("Ants net bought Samsung Electronics.");
 
         String translatedText = translationService.translateText("개미가 삼성전자를 순매수했다.");
@@ -93,7 +88,7 @@ class AlertTitleTranslationServiceTest {
 
     @Test
     void translateTextPreservesLocalismSurfaceTermWhenProviderUsesGenericEnglish() {
-        when(deepLTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
+        when(openAiTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
                 .thenReturn("Retail investors net bought Samsung Electronics.");
 
         String plainTranslation = translationService.translateText("개미가 삼성전자를 순매수했다.");
@@ -103,6 +98,6 @@ class AlertTitleTranslationServiceTest {
 
         assertThat(plainTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
         assertThat(glossaryTranslation).isEqualTo("Ants net bought Samsung Electronics.");
-        verify(deepLTranslationClient, times(2)).translateKoToEn("개미가 삼성전자를 순매수했다.");
+        verify(openAiTranslationClient, times(2)).translateKoToEn("개미가 삼성전자를 순매수했다.");
     }
 }

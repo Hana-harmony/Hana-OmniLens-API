@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
-import com.hana.omnilens.provider.translation.DeepLTranslationClient;
 import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
 
 @Service
@@ -26,15 +25,16 @@ public class AlertTitleTranslationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AlertTitleTranslationService.class);
     private static final int MAX_CHUNK_CHARS = 4_000;
     private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
+    public static final String STATUS_TRANSLATED = "TRANSLATED";
+    public static final String STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK = "PARTIAL_SOURCE_LANGUAGE_FALLBACK";
+    public static final String STATUS_SOURCE_LANGUAGE_FALLBACK = "SOURCE_LANGUAGE_FALLBACK";
+    private static final String PROVIDER_OPENAI = "openai";
+    private static final String PROVIDER_SOURCE_LANGUAGE_FALLBACK = "source-language-fallback";
 
-    private final DeepLTranslationClient deepLTranslationClient;
     private final OpenAiTranslationClient openAiTranslationClient;
-    private final Map<String, String> translationCache = new ConcurrentHashMap<>();
+    private final Map<String, TranslationResult> translationCache = new ConcurrentHashMap<>();
 
-    public AlertTitleTranslationService(
-            DeepLTranslationClient deepLTranslationClient,
-            OpenAiTranslationClient openAiTranslationClient) {
-        this.deepLTranslationClient = deepLTranslationClient;
+    public AlertTitleTranslationService(OpenAiTranslationClient openAiTranslationClient) {
         this.openAiTranslationClient = openAiTranslationClient;
     }
 
@@ -43,6 +43,10 @@ public class AlertTitleTranslationService {
     }
 
     public String translateTitle(String originalTitle, List<AlertGlossaryTerm> glossaryTerms) {
+        return translateTitleWithResult(originalTitle, glossaryTerms).translatedText();
+    }
+
+    public TranslationResult translateTitleWithResult(String originalTitle, List<AlertGlossaryTerm> glossaryTerms) {
         return translateOrFallback(originalTitle, glossaryTerms);
     }
 
@@ -54,27 +58,45 @@ public class AlertTitleTranslationService {
         if (!StringUtils.hasText(originalText)) {
             return "";
         }
-        return String.join("\n", chunks(originalText).stream()
-                .map(chunk -> translateOrFallback(chunk, glossaryTerms))
-                .toList());
+        return translateTextWithResult(originalText, glossaryTerms).translatedText();
     }
 
-    private String translateOrFallback(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
+    public TranslationResult translateTextWithResult(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
         if (!StringUtils.hasText(originalText)) {
-            return "";
+            return TranslationResult.sourceFallback("", openAiTranslationClient.model());
+        }
+        List<TranslationResult> results = chunks(originalText).stream()
+                .map(chunk -> translateOrFallback(chunk, glossaryTerms))
+                .toList();
+        String translatedText = String.join("\n", results.stream()
+                .map(TranslationResult::translatedText)
+                .toList());
+        return new TranslationResult(
+                translatedText,
+                aggregateProvider(results),
+                aggregateModelVersion(results),
+                aggregateStatus(results));
+    }
+
+    private TranslationResult translateOrFallback(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
+        if (!StringUtils.hasText(originalText)) {
+            return TranslationResult.sourceFallback("", openAiTranslationClient.model());
         }
         String cacheKey = sha256Hex(originalText + "\n" + glossaryFingerprint(glossaryTerms));
-        String cached = translationCache.get(cacheKey);
+        TranslationResult cached = translationCache.get(cacheKey);
         if (cached != null) {
             return cached;
         }
-        String translatedText = translateWithDeepL(originalText);
-        if (!isEnglishTranslation(translatedText)) {
-            translatedText = translateWithOpenAi(originalText);
-        }
-        String result = applyLocalismSurfaceTerms(
-                StringUtils.hasText(translatedText) ? translatedText : originalText,
-                glossaryTerms);
+        String translatedText = translateWithOpenAi(originalText);
+        TranslationResult result = usableTranslation(originalText, translatedText)
+                ? new TranslationResult(
+                        applyLocalismSurfaceTerms(translatedText, glossaryTerms),
+                        PROVIDER_OPENAI,
+                        openAiTranslationClient.model(),
+                        STATUS_TRANSLATED)
+                : TranslationResult.sourceFallback(
+                        applyLocalismSurfaceTerms(originalText, glossaryTerms),
+                        openAiTranslationClient.model());
         translationCache.put(cacheKey, result);
         return result;
     }
@@ -149,28 +171,51 @@ public class AlertTitleTranslationService {
         return value == null ? "" : value;
     }
 
-    private String translateWithDeepL(String originalText) {
-        try {
-            return deepLTranslationClient.translateKoToEn(originalText);
-        } catch (RuntimeException exception) {
-            LOGGER.warn("DeepL alert translation failed. Falling back to original text: {}",
-                    exception.getClass().getSimpleName());
-            return "";
-        }
-    }
-
     private String translateWithOpenAi(String originalText) {
         try {
             return openAiTranslationClient.translateKoToEn(originalText);
         } catch (RuntimeException exception) {
-            LOGGER.warn("OpenAI alert translation failed. Falling back to original text: {}",
+            LOGGER.warn("GPT alert translation failed. Falling back to source text: {}",
                     exception.getClass().getSimpleName());
             return "";
         }
     }
 
-    private boolean isEnglishTranslation(String text) {
-        return StringUtils.hasText(text) && !HANGUL_PATTERN.matcher(text).find();
+    private boolean usableTranslation(String originalText, String translatedText) {
+        if (!StringUtils.hasText(translatedText) || originalText.strip().equals(translatedText.strip())) {
+            return false;
+        }
+        Matcher matcher = HANGUL_PATTERN.matcher(translatedText);
+        int hangulCount = 0;
+        while (matcher.find()) {
+            hangulCount++;
+        }
+        return hangulCount <= Math.max(3, translatedText.length() / 20);
+    }
+
+    private String aggregateProvider(List<TranslationResult> results) {
+        return results.stream().anyMatch(result -> PROVIDER_OPENAI.equals(result.provider()))
+                ? PROVIDER_OPENAI
+                : PROVIDER_SOURCE_LANGUAGE_FALLBACK;
+    }
+
+    private String aggregateModelVersion(List<TranslationResult> results) {
+        return results.stream()
+                .map(TranslationResult::modelVersion)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(openAiTranslationClient.model());
+    }
+
+    private String aggregateStatus(List<TranslationResult> results) {
+        boolean hasTranslated = results.stream()
+                .anyMatch(result -> STATUS_TRANSLATED.equals(result.status()));
+        boolean hasFallback = results.stream()
+                .anyMatch(result -> STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status()));
+        if (hasTranslated && hasFallback) {
+            return STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK;
+        }
+        return hasTranslated ? STATUS_TRANSLATED : STATUS_SOURCE_LANGUAGE_FALLBACK;
     }
 
     private List<String> chunks(String text) {
@@ -211,6 +256,22 @@ public class AlertTitleTranslationService {
             return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
+        }
+    }
+
+    public record TranslationResult(
+            String translatedText,
+            String provider,
+            String modelVersion,
+            String status
+    ) {
+
+        private static TranslationResult sourceFallback(String text, String modelVersion) {
+            return new TranslationResult(
+                    text,
+                    PROVIDER_SOURCE_LANGUAGE_FALLBACK,
+                    modelVersion,
+                    STATUS_SOURCE_LANGUAGE_FALLBACK);
         }
     }
 }

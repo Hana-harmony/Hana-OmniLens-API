@@ -45,9 +45,6 @@ omnilens:
       base-url: https://openapi.naver.com
       client-id: ""
       client-secret: ""
-    deep-l-translation:
-      base-url: https://api-free.deepl.com
-      api-key: ""
     openai-translation:
       base-url: ${OPENAI_TRANSLATION_BASE_URL:https://api.openai.com}
       api-key: ${OPENAI_API_KEY:}

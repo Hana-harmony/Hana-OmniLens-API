@@ -24,7 +24,7 @@
 - DB credential로 인증된 WebSocket 세션은 `/topic/partners/{partnerId}/alerts`와 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`에서 자기 `partnerId`만 구독할 수 있다.
 - DB credential 세션은 전역 `/topic/stocks/{stockCode}/alerts` 구독을 사용할 수 없다.
 - 세션은 stateless로 유지한다.
-- DeepL/KIS/KRX/Naver/OpenDART 등 외부 API credential은 환경 변수 또는 Secret Manager에서만 주입한다.
+- OpenAI/KIS/KRX/Naver/OpenDART 등 외부 API credential은 환경 변수 또는 Secret Manager에서만 주입한다.
 
 ## 협력사 API key 운영
 - 원문 API key는 발급 직후 협력사에게 한 번만 전달한다.
@@ -56,7 +56,7 @@
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART 공시검색 API 인증키
-- `DEEPL_API_KEY`: DeepL translation API key
+- `OPENAI_API_KEY`: GPT translation API key
 - `OMNILENS_SIGNATURE_SECRET`: 협력사 요청 서명 검증용 HMAC secret
 - `SERVER_SSL_KEY_STORE_PASSWORD`: 서버 TLS keystore 비밀번호
 - `SERVER_SSL_TRUST_STORE_PASSWORD`: 협력사 client certificate CA truststore 비밀번호
