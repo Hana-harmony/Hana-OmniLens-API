@@ -52,13 +52,25 @@ class MarketDataServiceTest {
     void getIndicesFallsBackToStoredIndexSnapshotWhenRealtimeCacheIsEmpty() {
         InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
         indexSnapshotRepository.recordLatest(indexQuote("0001", "KOSPI", "KIS_INDEX_CURRENT_PRICE"));
+        indexSnapshotRepository.recordLatest(indexQuote(
+                "1001",
+                "KOSDAQ",
+                "KOSDAQ",
+                "868.41",
+                "KIS_INDEX_CURRENT_PRICE"));
+        indexSnapshotRepository.recordLatest(indexQuote(
+                "2001",
+                "KOSPI 200",
+                "KOSPI200",
+                "395.30",
+                "KIS_INDEX_CURRENT_PRICE"));
         MarketDataService service = marketDataService(
                 new InMemoryRealtimeMarketDataCache(),
                 indexSnapshotRepository);
 
         List<MarketIndexQuote> indices = service.getIndices();
 
-        assertThat(indices).hasSize(1);
+        assertThat(indices).hasSize(3);
         assertThat(indices.get(0).indexCode()).isEqualTo("0001");
         assertThat(indices.get(0).source()).isEqualTo("KIS_INDEX_CURRENT_PRICE");
     }
@@ -67,13 +79,39 @@ class MarketDataServiceTest {
     void getIndicesUsesRealtimeCacheBeforeStoredIndexSnapshot() {
         InMemoryRealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
         realtimeCache.putIndex(indexTick("0001", "KOSPI", "KIS_WEBSOCKET_INDEX"));
+        realtimeCache.putIndex(indexTick(
+                "1001",
+                "KOSDAQ",
+                "090000",
+                FIXED_CLOCK.instant(),
+                "KIS_WEBSOCKET_INDEX",
+                "868.41"));
+        realtimeCache.putIndex(indexTick(
+                "2001",
+                "KOSPI 200",
+                "090000",
+                FIXED_CLOCK.instant(),
+                "KIS_WEBSOCKET_INDEX",
+                "395.30"));
         InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
         indexSnapshotRepository.recordLatest(indexQuote("0001", "KOSPI", "KIS_REALTIME_INDEX_SNAPSHOT"));
+        indexSnapshotRepository.recordLatest(indexQuote(
+                "1001",
+                "KOSDAQ",
+                "KOSDAQ",
+                "868.41",
+                "KIS_REALTIME_INDEX_SNAPSHOT"));
+        indexSnapshotRepository.recordLatest(indexQuote(
+                "2001",
+                "KOSPI 200",
+                "KOSPI200",
+                "395.30",
+                "KIS_REALTIME_INDEX_SNAPSHOT"));
         MarketDataService service = marketDataService(realtimeCache, indexSnapshotRepository);
 
         List<MarketIndexQuote> indices = service.getIndices();
 
-        assertThat(indices).hasSize(1);
+        assertThat(indices).hasSize(3);
         assertThat(indices.get(0).indexCode()).isEqualTo("0001");
         assertThat(indices.get(0).source()).isEqualTo("KIS_WEBSOCKET_INDEX");
         assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2801.50");
@@ -110,13 +148,39 @@ class MarketDataServiceTest {
     }
 
     @Test
-    void getIndicesBuildsStoredSnapshotFromLatestIntradayHistoryWhenIndexCacheIsEmpty() {
+    void getIndicesBuildsStoredSnapshotsFromCompleteLatestIntradayHistoryWhenIndexCacheIsEmpty() {
         InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
         MarketIndexHistoryService indexHistoryService = mock(MarketIndexHistoryService.class);
         when(indexHistoryService.getIntradayHistory("0001", null, 390)).thenReturn(List.of(
-                indexIntraday(LocalDateTime.of(2026, 7, 2, 15, 29), "2885.00"),
-                indexIntraday(LocalDateTime.of(2026, 7, 2, 15, 30), "2890.12")));
-        when(indexHistoryService.getIntradayHistory("1001", null, 390)).thenReturn(List.of());
+                indexIntraday("0001", "KOSPI", "KOSPI", LocalDateTime.of(2026, 7, 2, 15, 29), "2885.00"),
+                indexIntraday("0001", "KOSPI", "KOSPI", LocalDateTime.of(2026, 7, 2, 15, 30), "2890.12")));
+        when(indexHistoryService.getIntradayHistory("1001", null, 390)).thenReturn(List.of(
+                indexIntraday("1001", "KOSDAQ", "KOSDAQ", LocalDateTime.of(2026, 7, 2, 15, 29), "866.00"),
+                indexIntraday("1001", "KOSDAQ", "KOSDAQ", LocalDateTime.of(2026, 7, 2, 15, 30), "868.41")));
+        when(indexHistoryService.getIntradayHistory("2001", null, 390)).thenReturn(List.of(
+                indexIntraday("2001", "KOSPI 200", "KOSPI200", LocalDateTime.of(2026, 7, 2, 15, 29), "394.20"),
+                indexIntraday("2001", "KOSPI 200", "KOSPI200", LocalDateTime.of(2026, 7, 2, 15, 30), "395.30")));
+        MarketDataService service = marketDataService(
+                new InMemoryRealtimeMarketDataCache(),
+                indexSnapshotRepository,
+                indexHistoryService);
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).hasSize(3);
+        assertThat(indices.get(0).indexCode()).isEqualTo("0001");
+        assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2890.12");
+        assertThat(indices.get(0).source()).isEqualTo("KIS_TIME_INDEX_CHART_PRICE_LATEST_CLOSE");
+        assertThat(indexSnapshotRepository.findLatestIndices()).hasSize(3);
+    }
+
+    @Test
+    void getIndicesSkipsPartialLatestIntradayFallback() {
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        MarketIndexHistoryService indexHistoryService = mock(MarketIndexHistoryService.class);
+        when(indexHistoryService.getIntradayHistory("0001", null, 390)).thenReturn(List.of());
+        when(indexHistoryService.getIntradayHistory("1001", null, 390)).thenReturn(List.of(
+                indexIntraday("1001", "KOSDAQ", "KOSDAQ", LocalDateTime.of(2026, 7, 2, 15, 30), "868.41")));
         when(indexHistoryService.getIntradayHistory("2001", null, 390)).thenReturn(List.of());
         MarketDataService service = marketDataService(
                 new InMemoryRealtimeMarketDataCache(),
@@ -125,11 +189,45 @@ class MarketDataServiceTest {
 
         List<MarketIndexQuote> indices = service.getIndices();
 
-        assertThat(indices).hasSize(1);
-        assertThat(indices.get(0).indexCode()).isEqualTo("0001");
-        assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2890.12");
-        assertThat(indices.get(0).source()).isEqualTo("KIS_TIME_INDEX_CHART_PRICE_LATEST_CLOSE");
-        assertThat(indexSnapshotRepository.findLatestIndices()).hasSize(1);
+        assertThat(indices).isEmpty();
+        assertThat(indexSnapshotRepository.findLatestIndices()).isEmpty();
+    }
+
+    @Test
+    void getIndicesSkipsPartialStoredDefaultIndexSnapshot() {
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        indexSnapshotRepository.recordLatest(indexQuote(
+                "1001",
+                "KOSDAQ",
+                "KOSDAQ",
+                "868.41",
+                "KIS_TIME_INDEX_CHART_PRICE_LATEST_CLOSE"));
+        MarketDataService service = marketDataService(
+                new InMemoryRealtimeMarketDataCache(),
+                indexSnapshotRepository);
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).isEmpty();
+    }
+
+    @Test
+    void getIndicesSkipsPartialRealtimeDefaultIndexBatch() {
+        InMemoryRealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
+        realtimeCache.putIndex(indexTick(
+                "1001",
+                "KOSDAQ",
+                "090000",
+                FIXED_CLOCK.instant(),
+                "KIS_WEBSOCKET_INDEX",
+                "868.41"));
+        MarketDataService service = marketDataService(
+                realtimeCache,
+                new InMemoryMarketIndexSnapshotRepository());
+
+        List<MarketIndexQuote> indices = service.getIndices();
+
+        assertThat(indices).isEmpty();
     }
 
     @Test
@@ -1511,11 +1609,20 @@ class MarketDataServiceTest {
     }
 
     private MarketIndexQuote indexQuote(String indexCode, String indexName, String source) {
+        return indexQuote(indexCode, indexName, "KOSPI", "2800.12", source);
+    }
+
+    private MarketIndexQuote indexQuote(
+            String indexCode,
+            String indexName,
+            String market,
+            String currentValue,
+            String source) {
         return new MarketIndexQuote(
                 indexCode,
                 indexName,
-                "KOSPI",
-                new BigDecimal("2800.12"),
+                market,
+                new BigDecimal(currentValue),
                 "2",
                 new BigDecimal("1.23"),
                 new BigDecimal("0.44"),
@@ -1529,10 +1636,19 @@ class MarketDataServiceTest {
     }
 
     private MarketIndexIntradayPrice indexIntraday(LocalDateTime bucketStart, String closeValue) {
+        return indexIntraday("0001", "KOSPI", "KOSPI", bucketStart, closeValue);
+    }
+
+    private MarketIndexIntradayPrice indexIntraday(
+            String indexCode,
+            String indexName,
+            String market,
+            LocalDateTime bucketStart,
+            String closeValue) {
         return new MarketIndexIntradayPrice(
-                "0001",
-                "KOSPI",
-                "KOSPI",
+                indexCode,
+                indexName,
+                market,
                 bucketStart,
                 new BigDecimal("2880.00"),
                 new BigDecimal("2895.00"),
@@ -1554,12 +1670,22 @@ class MarketDataServiceTest {
             String tradeTime,
             Instant marketDataTime,
             String source) {
+        return indexTick(indexCode, indexName, tradeTime, marketDataTime, source, "2801.50");
+    }
+
+    private KisRealtimeIndexTick indexTick(
+            String indexCode,
+            String indexName,
+            String tradeTime,
+            Instant marketDataTime,
+            String source,
+            String currentValue) {
         return new KisRealtimeIndexTick(
                 indexCode,
                 indexName,
                 "KOSPI",
                 tradeTime,
-                new BigDecimal("2801.50"),
+                new BigDecimal(currentValue),
                 "2",
                 new BigDecimal("2.61"),
                 new BigDecimal("0.09"),
