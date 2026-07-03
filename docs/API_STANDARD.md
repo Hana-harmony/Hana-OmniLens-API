@@ -59,10 +59,19 @@
 - `fromDate`부터 `toDate`까지 이미 저장된 날짜를 제외하고 비어 있는 평일만 과거 provider에서 조회해 저장한다.
 - 과거 provider가 비어 있으면 현재 snapshot을 과거 날짜로 복제하지 않고 `PROVIDER_EMPTY`, `PARTIAL`, `FAILED` 상태로 반환한다.
 
-## Global Peer Match
+## Global Peer Matching
 
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`
 - 종목 상세 화면에서 피어 종목 보기 버튼을 눌렀을 때 호출하는 API다.
 - 응답은 headline, summary, primary peer, peers, confidence, model version, source를 포함한다.
 - 각 peer는 `sector`, `industry`, `businessModel`, `scaleBucket`, `marketCapUsd`, `revenueUsd`, `operatingIncomeUsd`, `netIncomeUsd`, `financialDataSource`, `financialSimilarityScore`, `matchedFactors`, `rationale`을 포함한다.
 - 정상 경로는 Hannah-Montana-AI 글로벌 피어 모델이며, AI 장애 시 검증된 anchor fallback만 제한적으로 사용한다.
+
+## Korean Financial Local Term Explanation
+
+- `POST /api/v1/korean-financial-terms/explain`
+- 뉴스·공시 본문에서 사용자가 클릭한 한국 금융 고유어·전문용어를 외국인 투자자가 이해할 수 있는 영어 해설로 반환한다.
+- 정상 경로는 Hannah-Montana-AI 사전/RAG 엔진이며, 응답은 explanation, evidence, confidence, display mode, cacheable flag를 포함한다.
+- OmniLens는 검증된 Hannah 응답만 TTL cache에 저장하고, confidence가 낮은 신조어는 review 대상 상태로 반환한다.
+- `GET /api/v1/korean-financial-terms/stats`
+- 클릭 통계는 salted SHA-256 사용자/세션 해시만 저장해 인기 용어와 검수 후보를 집계한다.
