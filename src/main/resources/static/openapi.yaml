@@ -1713,6 +1713,21 @@ components:
             type: string
           example:
             - FINANCIAL_GLOSSARY_APPLIED
+        translationProvider:
+          type: string
+          description: Active translation provider or source-language fallback marker.
+          example: openai
+        translationModelVersion:
+          type: string
+          description: Translation model name used by the provider when available.
+          example: gpt-4o-mini
+        translationStatus:
+          type: string
+          enum:
+            - TRANSLATED
+            - PARTIAL_SOURCE_LANGUAGE_FALLBACK
+            - SOURCE_LANGUAGE_FALLBACK
+          description: Whether translated fields came from GPT or were returned as source-language fallback.
         duplicateKey:
           type:
             - string

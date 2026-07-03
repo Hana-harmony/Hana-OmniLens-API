@@ -84,6 +84,15 @@ public class AlertController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "alert event not found")));
     }
 
+    @PostMapping("/events/{alertId}/reprocess")
+    @Operation(summary = "Reprocess stored news or disclosure event summary and translation")
+    public ApiResponse<AlertEvent> reprocessEvent(@PathVariable @Size(min = 1, max = 80) String alertId) {
+        AlertEvent event = alertEventRepository.findByAlertId(alertId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "alert event not found"));
+        partnerAuthorizationService.assertPartnerAccess(event.partnerId());
+        return ApiResponse.success(alertAnalysisPublishingService.reprocess(event));
+    }
+
     @GetMapping("/stocks/{stockCode}/events")
     @Operation(summary = "List stored news and disclosure events for a stock")
     public ApiResponse<AlertEventListResponse> listStockEvents(
@@ -93,6 +102,19 @@ public class AlertController {
         return ApiResponse.success(new AlertEventListResponse(
                 stockCode,
                 alertEventRepository.findByStockCode(stockCode, effectiveLimit)));
+    }
+
+    @PostMapping("/stocks/{stockCode}/events/reprocess")
+    @Operation(summary = "Reprocess stored news and disclosure events for a stock")
+    public ApiResponse<AlertEventListResponse> reprocessStockEvents(
+            @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
+            @RequestParam(defaultValue = "20") int limit) {
+        int effectiveLimit = Math.max(1, Math.min(limit, 100));
+        var events = alertEventRepository.findByStockCode(stockCode, effectiveLimit).stream()
+                .peek(event -> partnerAuthorizationService.assertPartnerAccess(event.partnerId()))
+                .map(alertAnalysisPublishingService::reprocess)
+                .toList();
+        return ApiResponse.success(new AlertEventListResponse(stockCode, events));
     }
 
     @PostMapping("/analyze-and-publish")

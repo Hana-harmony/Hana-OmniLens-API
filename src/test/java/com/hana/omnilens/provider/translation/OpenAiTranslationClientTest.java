@@ -9,39 +9,44 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import java.net.URI;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import com.hana.omnilens.config.ExternalProviderProperties;
 import com.hana.omnilens.provider.ProviderTestResilience;
 
-class DeepLTranslationClientTest {
+class OpenAiTranslationClientTest {
 
     @Test
-    void translateKoToEnSendsDeepLRequestAndMapsTranslatedText() {
+    void translateKoToEnUsesResponsesApiAndMapsOutputText() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        DeepLTranslationClient client = new DeepLTranslationClient(
+        OpenAiTranslationClient client = new OpenAiTranslationClient(
                 builder,
-                properties(),
-                ProviderTestResilience.disabled());
+                ProviderTestResilience.disabled(),
+                "https://api.openai.com",
+                "openai-secret",
+                "gpt-4o-mini");
 
-        server.expect(requestTo("https://api-free.deepl.com/v2/translate"))
+        server.expect(requestTo("https://api.openai.com/v1/responses"))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(header("Authorization", "DeepL-Auth-Key deepl-secret"))
-                .andExpect(content().string(containsString("source_lang=KO")))
-                .andExpect(content().string(containsString("target_lang=EN-US")))
-                .andExpect(content().string(containsString("%EC%82%BC%EC%84%B1%EC%A0%84%EC%9E%90")))
+                .andExpect(header("Authorization", "Bearer openai-secret"))
+                .andExpect(content().string(containsString("\"store\":false")))
+                .andExpect(content().string(containsString("Translate Korean financial news")))
+                .andExpect(content().string(containsString("삼성전자 실적 개선")))
                 .andRespond(withSuccess("""
                         {
-                          "translations": [
+                          "status": "completed",
+                          "output": [
                             {
-                              "detected_source_language": "KO",
-                              "text": "Samsung Electronics earnings improve"
+                              "type": "message",
+                              "content": [
+                                {
+                                  "type": "output_text",
+                                  "text": "Samsung Electronics earnings improve."
+                                }
+                              ]
                             }
                           ]
                         }
@@ -49,19 +54,7 @@ class DeepLTranslationClientTest {
 
         String translatedText = client.translateKoToEn("삼성전자 실적 개선");
 
-        assertThat(translatedText).isEqualTo("Samsung Electronics earnings improve");
+        assertThat(translatedText).isEqualTo("Samsung Electronics earnings improve.");
         server.verify();
-    }
-
-    private ExternalProviderProperties properties() {
-        return new ExternalProviderProperties(
-                null,
-                null,
-                null,
-                null,
-                null,
-                new ExternalProviderProperties.DeepLTranslation(
-                        URI.create("https://api-free.deepl.com"),
-                        "deepl-secret"));
     }
 }

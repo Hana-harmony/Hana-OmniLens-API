@@ -22,6 +22,9 @@ public record MarketNewsEvent(
         String canonicalUrl,
         String sourceLicensePolicy,
         List<AlertGlossaryTerm> glossaryTerms,
+        String translationProvider,
+        String translationModelVersion,
+        String translationStatus,
         String duplicateKey,
         Instant publishedAt,
         Instant createdAt
@@ -31,5 +34,8 @@ public record MarketNewsEvent(
         imageUrls = imageUrls == null ? List.of() : List.copyOf(imageUrls);
         glossaryTerms = glossaryTerms == null ? List.of() : List.copyOf(glossaryTerms);
         summaryLines = summaryLines == null ? AlertSummaryLines.fromSummary(summary) : summaryLines;
+        translationProvider = translationProvider == null ? "" : translationProvider;
+        translationModelVersion = translationModelVersion == null ? "" : translationModelVersion;
+        translationStatus = translationStatus == null ? "" : translationStatus;
     }
 }

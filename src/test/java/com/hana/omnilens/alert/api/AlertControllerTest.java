@@ -28,6 +28,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.hana.omnilens.alert.application.AlertTitleTranslationService;
+import com.hana.omnilens.alert.application.AlertTitleTranslationService.TranslationResult;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
@@ -190,10 +191,10 @@ class AlertControllerTest {
                 0.89,
                 0.93,
                 1.0));
-        when(alertTitleTranslationService.translateTitle(eq("삼성전자 실적 개선"), any()))
-                .thenReturn("Samsung Electronics earnings improve");
-        when(alertTitleTranslationService.translateText(eq("반도체 회복으로 실적 개선 기대"), any()))
-                .thenReturn("Chip recovery raised earnings hopes");
+        when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 실적 개선"), any()))
+                .thenReturn(translated("Samsung Electronics earnings improve"));
+        when(alertTitleTranslationService.translateTextWithResult(eq("반도체 회복으로 실적 개선 기대"), any()))
+                .thenReturn(translated("Chip recovery raised earnings hopes"));
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -259,10 +260,10 @@ class AlertControllerTest {
                 0.89,
                 0.93,
                 1.0));
-        when(alertTitleTranslationService.translateTitle(eq("삼성전자 개미 순매수"), any()))
-                .thenReturn("Samsung Electronics Ants net bought");
-        when(alertTitleTranslationService.translateText(eq("개미가 삼성전자를 순매수했다"), any()))
-                .thenReturn("Ants net bought Samsung Electronics.");
+        when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 개미 순매수"), any()))
+                .thenReturn(translated("Samsung Electronics Ants net bought"));
+        when(alertTitleTranslationService.translateTextWithResult(eq("개미가 삼성전자를 순매수했다"), any()))
+                .thenReturn(translated("Ants net bought Samsung Electronics."));
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -355,10 +356,10 @@ class AlertControllerTest {
                     0.93,
                     1.0);
         });
-        when(alertTitleTranslationService.translateTitle(any(), any()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(alertTitleTranslationService.translateText(any(), any()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
 
         mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -472,6 +473,10 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    private TranslationResult translated(String text) {
+        return new TranslationResult(text, "openai", "gpt-4o-mini", "TRANSLATED");
     }
 
     private void insertPartnerCredential(String partnerId, String apiKey) throws Exception {

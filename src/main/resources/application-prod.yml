@@ -37,9 +37,10 @@ omnilens:
       base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
       client-id: ${NAVER_NEWS_CLIENT_ID}
       client-secret: ${NAVER_NEWS_CLIENT_SECRET}
-    deep-l-translation:
-      base-url: ${DEEPL_TRANSLATION_BASE_URL:https://api-free.deepl.com}
-      api-key: ${DEEPL_API_KEY:}
+    openai-translation:
+      base-url: ${OPENAI_TRANSLATION_BASE_URL:https://api.openai.com}
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_TRANSLATION_MODEL:gpt-4o-mini}
     open-dart:
       base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
       api-key: ${OPEN_DART_API_KEY}

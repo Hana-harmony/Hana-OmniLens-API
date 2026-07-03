@@ -13,8 +13,7 @@ public record ExternalProviderProperties(
         OpenDart openDart,
         Krx krx,
         Kis kis,
-        Kis realKis,
-        DeepLTranslation deepLTranslation
+        Kis realKis
 ) {
 
     @ConstructorBinding
@@ -25,17 +24,6 @@ public record ExternalProviderProperties(
         krx = krx == null ? Krx.defaults() : krx.withDefaults();
         kis = kis == null ? Kis.defaults() : kis.withDefaults();
         realKis = realKis == null ? Kis.defaults() : realKis.withDefaults();
-        deepLTranslation = deepLTranslation == null ? DeepLTranslation.defaults() : deepLTranslation.withDefaults();
-    }
-
-    public ExternalProviderProperties(
-            PublicData publicData,
-            NaverNews naverNews,
-            OpenDart openDart,
-            Krx krx,
-            Kis kis,
-            DeepLTranslation deepLTranslation) {
-        this(publicData, naverNews, openDart, krx, kis, null, deepLTranslation);
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -182,23 +170,6 @@ public record ExternalProviderProperties(
 
         public String requiredApprovalKey() {
             return requireSecret(approvalKey, "omnilens.providers.kis.approval-key");
-        }
-    }
-
-    public record DeepLTranslation(URI baseUrl, String apiKey) {
-
-        private static DeepLTranslation defaults() {
-            return new DeepLTranslation(URI.create("https://api-free.deepl.com"), "");
-        }
-
-        private DeepLTranslation withDefaults() {
-            return new DeepLTranslation(
-                    baseUrl == null ? defaults().baseUrl() : baseUrl,
-                    apiKey == null ? "" : apiKey);
-        }
-
-        public String requiredApiKey() {
-            return requireSecret(apiKey, "omnilens.providers.deep-l-translation.api-key");
         }
     }
 
