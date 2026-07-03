@@ -10,7 +10,7 @@
 | 인기 종목, 외국인 보유 제한 종목, watchlist 종목 주기 수집 | Hana-OmniLens-API | Done |
 | 종목 매핑, 이벤트 분류, 감성, 중요도, 3줄 요약, 중복 키, confidence | Hannah-Montana-AI | Done |
 | DeepL 제목·요약·전문 번역 | Hana-OmniLens-API | Done |
-| 한국 금융 용어 설명, 번역 품질 메타데이터, 용어 클릭 통계 | Hana-OmniLens-API, Hannah-Montana-AI | Done |
+| 한국 금융 고유어·전문용어 해설, 번역 품질 메타데이터, 용어 클릭 통계 | Hana-OmniLens-API, Hannah-Montana-AI | Done |
 | 시장 뉴스 목록, 상세, 트렌딩, 수동 수집 API | Hana-OmniLens-API | Done |
 | 협력사 watchlist 조회·교체 API | Hana-OmniLens-API | Done |
 | 수동 분석 발행과 provider 수집·분석·발행 API | Hana-OmniLens-API | Done |
@@ -23,7 +23,7 @@
 | 기능 | 책임 | 상태 |
 | --- | --- | --- |
 | KIS/KRX 종목 마스터와 현재가 스냅샷 | Hana-OmniLens-API | Done |
-| 종목 검색, 종목 상세, 글로벌 피어 매칭 | Hana-OmniLens-API | Done |
+| 종목 검색, 종목 상세, 글로벌 피어 매칭 | Hana-OmniLens-API, Hannah-Montana-AI | Done |
 | KIS 실시간 체결가·호가 수집과 `/ws/market/quotes` 송신 | Hana-OmniLens-API | Done |
 | 상세 진입 종목 실시간 원천 구독 추가·해제 | Hana-OmniLens-API | Done |
 | 지수 스냅샷, 지수 1D 분봉, 호가, 환율 적용 가격 제공 | Hana-OmniLens-API | Done |

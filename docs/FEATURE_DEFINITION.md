@@ -7,7 +7,7 @@
 | 레포 | 책임 |
 | --- | --- |
 | `Hana-OmniLens-API` | KIS/KRX/환율/뉴스/공시/번역 데이터를 수집·정규화하고 협력사 B2B REST/WebSocket API로 제공 |
-| `Hannah-Montana-AI` | 뉴스·공시 종목 매핑, 이벤트 분류, 감성, 중요도, 3줄 요약, 중복 제거, confidence 산출 |
+| `Hannah-Montana-AI` | 뉴스·공시 종목 매핑, 이벤트 분류, 감성, 중요도, 3줄 요약, 중복 제거, 한국 금융 고유어·전문용어 해설, 글로벌 피어 매칭, confidence 산출 |
 | `Stock-exchange-BE` | 현지 사용자, watchlist, 보유종목, 자체 mock ledger, 알림 매칭, FE용 REST/WebSocket API 제공 |
 | `Stock-exchange-FE` | Flutter iOS/Android 기반 영어 MTS 앱 화면 제공 |
 
@@ -23,7 +23,7 @@
 | 전문 정제 | `Hana-OmniLens-API` | 허용된 원문 기사와 OpenDART document에서 전문, 대표 이미지, 원문 링크 저장 |
 | AI 분석 | `Hannah-Montana-AI` | 종목 매핑, 이벤트 분류, 감성, 중요도, What/Why/Impact 3줄 요약, 중복 키, confidence 생성 |
 | 번역 | `Hana-OmniLens-API` | DeepL로 제목·요약·전문을 번역하고 실패 시 원문 fallback과 cache 상태 제공 |
-| 용어 설명 | `Hana-OmniLens-API`, `Hannah-Montana-AI` | 한국 금융 용어 설명, evidence, confidence, 번역 품질 플래그 제공 |
+| 한국 금융 고유어·전문용어 해설 | `Hana-OmniLens-API`, `Hannah-Montana-AI` | 뉴스·공시 본문에서 클릭한 한국 금융 고유어·전문용어를 Hannah 사전/RAG로 해석하고 evidence, confidence, 번역 품질 플래그 제공 |
 | 용어 통계 | `Hana-OmniLens-API` | 사용자가 클릭한 한국 금융 용어의 해시 기반 통계를 제공 |
 | 시장 뉴스 조회 | `Hana-OmniLens-API` | `/api/v1/market/news`, `/trending`, `/{newsId}`로 시장 뉴스 목록·트렌딩·상세와 조회수 기록 제공 |
 | 시장 뉴스 수집 | `Hana-OmniLens-API` | `/api/v1/market/news/collect`로 운영자가 시장 뉴스 query set을 즉시 수집 |
@@ -46,7 +46,7 @@
 | --- | --- | --- |
 | 종목 마스터 | `Hana-OmniLens-API` | KIS/KRX 기반 종목코드, 국문명, 영문명, 시장, 기준가, 발행주식수 관리 |
 | 종목 검색·상세 | `Hana-OmniLens-API` | 국내 주식 검색, 단건 요약, 거래소 앱 화면용 상세 payload 제공 |
-| 글로벌 피어 | `Hana-OmniLens-API` | 국내 종목의 업종·키워드·규모 기반 글로벌 피어 후보와 매칭 근거 제공 |
+| 글로벌 피어 매칭 | `Hana-OmniLens-API`, `Hannah-Montana-AI` | 국내 종목의 섹터, 산업, 사업모델, 규모, 재무 유사도 기반 해외 상장 peer 후보와 매칭 근거 제공 |
 | 실시간 시세 | `Hana-OmniLens-API` | KIS 실시간 체결가·호가를 수집해 cache와 `/ws/market/quotes`로 제공 |
 | 실시간 원천 구독 | `Hana-OmniLens-API` | 인기 종목은 기본 구독하고, 상세 진입 종목은 KIS 실시간 원천 구독을 추가·해제 |
 | REST 스냅샷 | `Hana-OmniLens-API` | 단건, 다건, 전체 종목, 지수, 호가, 환율 적용 현재가, replay 복구용 스냅샷 제공 |
