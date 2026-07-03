@@ -18,6 +18,8 @@ public interface MarketNewsEventRepository {
 
     List<MarketNewsEvent> findLatest(int limit);
 
+    List<MarketNewsEvent> findSummaryQualityIssues(int limit);
+
     void recordView(String newsId, Instant viewedAt);
 
     List<MarketNewsEvent> findTrending(Instant since, int limit);

@@ -12,4 +12,6 @@ public interface AlertEventRepository {
     Optional<AlertEvent> findByAlertId(String alertId);
 
     List<AlertEvent> findByStockCode(String stockCode, int limit);
+
+    List<AlertEvent> findSummaryQualityIssues(int limit);
 }

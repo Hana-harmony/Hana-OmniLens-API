@@ -111,6 +111,13 @@ public class MarketNewsCollectionService {
                 .toList();
     }
 
+    public List<MarketNewsEvent> reprocessSummaryQualityIssues(int limit) {
+        int effectiveLimit = Math.max(1, Math.min(limit, 100));
+        return marketNewsEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
+                .map(this::reprocess)
+                .toList();
+    }
+
     private void collectQuery(
             String query,
             int display,
@@ -174,7 +181,7 @@ public class MarketNewsCollectionService {
         MarketNewsAnalysis analysis = analyzeAndTranslate(
                 new NaverNewsArticle(
                         event.title(),
-                        event.summary(),
+                        event.title(),
                         event.originalUrl(),
                         event.publishedAt()),
                 event.originalContent(),
@@ -302,7 +309,7 @@ public class MarketNewsCollectionService {
         if (StringUtils.hasText(sanitizedSummary)) {
             return sanitizedSummary;
         }
-        return sanitizeSummary(fallback);
+        return fallbackSummary(fallback);
     }
 
     private String joinSummaryLines(AlertSummaryLines summaryLines) {
@@ -324,23 +331,43 @@ public class MarketNewsCollectionService {
             return "";
         }
         String normalized = value.replaceAll("\\s+", " ").trim();
-        int ellipsisIndex = firstEllipsisIndex(normalized);
-        if (ellipsisIndex >= 0) {
-            normalized = normalized.substring(0, ellipsisIndex).trim();
+        if (containsEllipsis(normalized) || containsSummaryMeta(normalized)) {
+            return "";
+        }
+        if (!endsAsCompleteSentence(normalized)) {
+            return "";
         }
         return normalized;
     }
 
-    private int firstEllipsisIndex(String value) {
-        int ascii = value.indexOf("...");
-        int unicode = value.indexOf("…");
-        if (ascii < 0) {
-            return unicode;
+    private String fallbackSummary(String fallback) {
+        String subject = fallback == null ? "" : fallback
+                .replace("...", " ")
+                .replace("…", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (!StringUtils.hasText(subject)) {
+            return "원문은 최신 시장·기업 이벤트를 다룹니다.";
         }
-        if (unicode < 0) {
-            return ascii;
-        }
-        return Math.min(ascii, unicode);
+        return "원문은 " + subject + " 관련 최신 시장·기업 이벤트를 다룹니다.";
+    }
+
+    private boolean containsEllipsis(String value) {
+        return value.contains("...") || value.contains("…");
+    }
+
+    private boolean containsSummaryMeta(String value) {
+        String lower = value.toLowerCase(Locale.ROOT);
+        return lower.contains("classified")
+                || lower.contains("importance")
+                || lower.contains("sentiment")
+                || value.contains("중요도")
+                || value.contains("감성")
+                || value.contains("분류");
+    }
+
+    private boolean endsAsCompleteSentence(String value) {
+        return value.matches(".*([.!?。]|다|요|니다|습니다|한다|했다|됐다|된다|였다|이다|합니다|했습니다|됩니다|입니다)$");
     }
 
     private AlertSummaryLines translateSummaryLines(
@@ -363,7 +390,7 @@ public class MarketNewsCollectionService {
         if (!StringUtils.hasText(value)) {
             return "";
         }
-        return translationService.translateTextWithResult(value, glossaryTerms).translatedText();
+        return sanitizeSummary(translationService.translateTextWithResult(value, glossaryTerms).translatedText());
     }
 
     private List<AlertGlossaryTerm> toAlertGlossaryTerms(List<HannahAiGlossaryTerm> glossaryTerms) {
