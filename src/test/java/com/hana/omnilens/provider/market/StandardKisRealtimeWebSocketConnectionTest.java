@@ -14,4 +14,12 @@ class StandardKisRealtimeWebSocketConnectionTest {
             assertThat(delaySeconds).isBetween(1L, 30L);
         }
     }
+
+    @Test
+    void sanitizeControlMessageTextMasksApprovalLikeUuid() {
+        String sanitized = StandardKisRealtimeWebSocketConnection.sanitizeControlMessageText(
+                "invalid approval : bb00bc18-d895-47fd-8bc8-25be3e54bcdb");
+
+        assertThat(sanitized).isEqualTo("invalid approval : ***");
+    }
 }

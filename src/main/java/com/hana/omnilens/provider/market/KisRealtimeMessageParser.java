@@ -1,6 +1,7 @@
 package com.hana.omnilens.provider.market;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -30,6 +31,16 @@ public class KisRealtimeMessageParser {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter BUSINESS_DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
     private static final DateTimeFormatter TRADE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HHmmss");
+
+    private final Clock clock;
+
+    public KisRealtimeMessageParser() {
+        this(Clock.system(KOREA_ZONE));
+    }
+
+    public KisRealtimeMessageParser(Clock clock) {
+        this.clock = clock;
+    }
 
     public Optional<KisRealtimeTradeTick> parseTradeTick(String rawMessage) {
         Optional<KisRealtimeTradeTick> regularTrade = payload(rawMessage, KisRealtimeTransaction.TRADE)
@@ -164,9 +175,9 @@ public class KisRealtimeMessageParser {
             time = LocalTime.parse(tradeTime, TRADE_TIME_FORMATTER);
         } catch (DateTimeParseException exception) {
             // 지수 실시간 체결시각이 999999처럼 sentinel 값으로 오는 경우 수신 시각으로 보정한다.
-            return Instant.now();
+            return Instant.now(clock);
         }
-        return LocalDateTime.of(LocalDate.now(KOREA_ZONE), time).atZone(KOREA_ZONE).toInstant();
+        return LocalDateTime.of(LocalDate.now(clock), time).atZone(KOREA_ZONE).toInstant();
     }
 
     private String indexName(String indexCode) {

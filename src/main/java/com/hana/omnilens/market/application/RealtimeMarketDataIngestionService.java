@@ -2,6 +2,7 @@ package com.hana.omnilens.market.application;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,7 +32,10 @@ public class RealtimeMarketDataIngestionService {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter KIS_TIME = DateTimeFormatter.ofPattern("HHmmss");
     private static final String REALTIME_TRADE_SOURCE = "KIS_REALTIME_TRADE";
-    private static final String REALTIME_INDEX_SOURCE = "KIS_REALTIME_INDEX";
+    private static final String REALTIME_INDEX_SOURCE = "KIS_REAL_INDEX_REALTIME";
+    private static final LocalTime REGULAR_MARKET_OPEN = LocalTime.of(9, 0);
+    private static final LocalTime REGULAR_MARKET_CLOSE = LocalTime.of(15, 30);
+    private static final Duration INDEX_TICK_FUTURE_TOLERANCE = Duration.ofMinutes(2);
 
     private final KisRealtimeMessageParser kisRealtimeMessageParser;
     private final RealtimeMarketDataCache realtimeMarketDataCache;
@@ -135,6 +139,14 @@ public class RealtimeMarketDataIngestionService {
         Optional<KisRealtimeIndexTick> indexTick = kisRealtimeMessageParser.parseIndexTick(rawMessage);
         if (indexTick.isPresent()) {
             KisRealtimeIndexTick tick = indexTick.orElseThrow();
+            if (!isUsableRegularSessionIndexTick(tick)) {
+                log.debug(
+                        "Realtime index tick ignored indexCode={} tradeTime={} marketDataTime={}",
+                        tick.indexCode(),
+                        tick.tradeTime(),
+                        tick.marketDataTime());
+                return RealtimeMarketDataIngestionResult.ignored();
+            }
             realtimeMarketDataCache.putIndex(tick);
             MarketIndexQuote quote = new MarketIndexQuote(
                     tick.indexCode(),
@@ -224,6 +236,21 @@ public class RealtimeMarketDataIngestionService {
         return LocalDateTime.ofInstant(quote.marketDataTime(), KOREA_ZONE)
                 .withSecond(0)
                 .withNano(0);
+    }
+
+    private boolean isUsableRegularSessionIndexTick(KisRealtimeIndexTick tick) {
+        if (tick.marketDataTime() == null || tick.currentValue() == null) {
+            return false;
+        }
+        if (!MarketIndexSanityPolicy.isPlausibleCurrentValue(tick.indexCode(), tick.currentValue())) {
+            return false;
+        }
+        Instant receivedAt = Instant.now(clock);
+        if (tick.marketDataTime().isAfter(receivedAt.plus(INDEX_TICK_FUTURE_TOLERANCE))) {
+            return false;
+        }
+        LocalTime tradeTime = LocalDateTime.ofInstant(tick.marketDataTime(), KOREA_ZONE).toLocalTime();
+        return !tradeTime.isBefore(REGULAR_MARKET_OPEN) && !tradeTime.isAfter(REGULAR_MARKET_CLOSE);
     }
 
     private String normalizeTime(String value) {
