@@ -24,14 +24,17 @@ public class AlertCollectionScheduler {
     private final AlertProviderCollectionService alertProviderCollectionService;
     private final AlertCollectionSchedulerProperties properties;
     private final PartnerWatchlistRepository partnerWatchlistRepository;
+    private final AlertCollectionTargetUniverseProvider targetUniverseProvider;
 
     public AlertCollectionScheduler(
             AlertProviderCollectionService alertProviderCollectionService,
             AlertCollectionSchedulerProperties properties,
-            PartnerWatchlistRepository partnerWatchlistRepository) {
+            PartnerWatchlistRepository partnerWatchlistRepository,
+            AlertCollectionTargetUniverseProvider targetUniverseProvider) {
         this.alertProviderCollectionService = alertProviderCollectionService;
         this.properties = properties;
         this.partnerWatchlistRepository = partnerWatchlistRepository;
+        this.targetUniverseProvider = targetUniverseProvider;
     }
 
     @Scheduled(fixedDelayString = "${omnilens.alert.scheduler.fixed-delay-ms:300000}")
@@ -52,6 +55,13 @@ public class AlertCollectionScheduler {
         }
         for (PartnerWatchlist watchlist : partnerWatchlistRepository.findAll()) {
             addWatchlist(stockCodesByPartner, watchlist);
+        }
+        if (properties.defaultUniverseEnabled()) {
+            addWatchlist(stockCodesByPartner, new PartnerWatchlist(
+                    properties.defaultUniversePartnerId(),
+                    targetUniverseProvider.defaultStockCodes(
+                            properties.priorityStockLimit(),
+                            properties.includeForeignOwnershipRestrictedStocks())));
         }
         List<PartnerWatchlist> watchlists = new ArrayList<>();
         for (Map.Entry<String, Set<String>> entry : stockCodesByPartner.entrySet()) {
@@ -75,19 +85,36 @@ public class AlertCollectionScheduler {
             return;
         }
 
+        for (List<String> stockCodes : batches(watchlist.stockCodes())) {
+            collectBatch(watchlist.partnerId(), stockCodes);
+        }
+    }
+
+    private void collectBatch(String partnerId, List<String> stockCodes) {
         try {
             alertProviderCollectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
-                    watchlist.partnerId(),
-                    List.copyOf(watchlist.stockCodes()),
+                    partnerId,
+                    stockCodes,
                     properties.newsDisplay(),
                     properties.disclosureLookbackDays()));
         } catch (RuntimeException exception) {
-            // 장애가 한 협력사의 수집 주기를 전체 스케줄러 중단으로 전파하지 않도록 격리한다.
+            // provider 장애가 다른 협력사나 남은 배치 수집으로 전파되지 않도록 격리한다.
             log.warn(
-                    "Scheduled alert collection failed for partnerId={} stockCount={}",
-                    watchlist.partnerId(),
-                    watchlist.stockCodes().size(),
+                    "Scheduled alert collection failed for partnerId={} stockCount={} firstStockCode={}",
+                    partnerId,
+                    stockCodes.size(),
+                    stockCodes.isEmpty() ? "" : stockCodes.get(0),
                     exception);
         }
+    }
+
+    private List<List<String>> batches(List<String> stockCodes) {
+        int batchSize = properties.collectionBatchSize();
+        List<List<String>> batches = new ArrayList<>();
+        for (int start = 0; start < stockCodes.size(); start += batchSize) {
+            int end = Math.min(start + batchSize, stockCodes.size());
+            batches.add(List.copyOf(stockCodes.subList(start, end)));
+        }
+        return batches;
     }
 }

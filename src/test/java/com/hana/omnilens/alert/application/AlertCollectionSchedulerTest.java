@@ -22,18 +22,21 @@ class AlertCollectionSchedulerTest {
 
     private final AlertProviderCollectionService collectionService = mock(AlertProviderCollectionService.class);
     private final PartnerWatchlistRepository watchlistRepository = mock(PartnerWatchlistRepository.class);
+    private final AlertCollectionTargetUniverseProvider targetUniverseProvider =
+            mock(AlertCollectionTargetUniverseProvider.class);
 
     @Test
     void skipsCollectionWhenSchedulerIsDisabled() {
         AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
                 collectionService,
-                new AlertCollectionSchedulerProperties(
+                schedulerProperties(
                         false,
                         60_000L,
                         5,
                         3,
                         List.of(new PartnerWatchlist("partner-a", List.of("005930")))),
-                watchlistRepository);
+                watchlistRepository,
+                targetUniverseProvider);
 
         scheduler.collectConfiguredWatchlists();
 
@@ -56,13 +59,14 @@ class AlertCollectionSchedulerTest {
                         List.of()));
         AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
                 collectionService,
-                new AlertCollectionSchedulerProperties(
+                schedulerProperties(
                         true,
                         60_000L,
                         7,
                         5,
                         List.of(new PartnerWatchlist("partner-a", List.of("005930", "000660")))),
-                watchlistRepository);
+                watchlistRepository,
+                targetUniverseProvider);
 
         scheduler.collectConfiguredWatchlists();
 
@@ -97,13 +101,14 @@ class AlertCollectionSchedulerTest {
                         List.of()));
         AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
                 collectionService,
-                new AlertCollectionSchedulerProperties(
+                schedulerProperties(
                         true,
                         60_000L,
                         10,
                         7,
                         List.of(new PartnerWatchlist("partner-a", List.of("005930", "000660")))),
-                watchlistRepository);
+                watchlistRepository,
+                targetUniverseProvider);
 
         scheduler.collectConfiguredWatchlists();
 
@@ -135,7 +140,7 @@ class AlertCollectionSchedulerTest {
                         List.of()));
         AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
                 collectionService,
-                new AlertCollectionSchedulerProperties(
+                schedulerProperties(
                         true,
                         60_000L,
                         10,
@@ -143,7 +148,8 @@ class AlertCollectionSchedulerTest {
                         List.of(
                                 new PartnerWatchlist("partner-a", List.of("005930")),
                                 new PartnerWatchlist("partner-b", List.of("000660")))),
-                watchlistRepository);
+                watchlistRepository,
+                targetUniverseProvider);
 
         scheduler.collectConfiguredWatchlists();
 
@@ -153,5 +159,146 @@ class AlertCollectionSchedulerTest {
         assertThat(requestCaptor.getAllValues())
                 .extracting(AlertCollectPublishRequest::partnerId)
                 .containsExactly("partner-a", "partner-b");
+    }
+
+    @Test
+    void collectsDefaultPriorityAndForeignOwnershipUniverse() {
+        when(watchlistRepository.findAll()).thenReturn(List.of());
+        when(targetUniverseProvider.defaultStockCodes(30, true))
+                .thenReturn(List.of("005930", "000660", "015760"));
+        when(collectionService.collectAnalyzeAndPublish(any()))
+                .thenReturn(new AlertCollectPublishResponse(
+                        "omnilens-default-universe",
+                        List.of("005930", "000660", "015760"),
+                        3,
+                        1,
+                        4,
+                        0,
+                        0,
+                        List.of()));
+        AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
+                collectionService,
+                new AlertCollectionSchedulerProperties(
+                        true,
+                        60_000L,
+                        10,
+                        7,
+                        List.of(),
+                        true,
+                        "omnilens-default-universe",
+                        30,
+                        true,
+                        20),
+                watchlistRepository,
+                targetUniverseProvider);
+
+        scheduler.collectConfiguredWatchlists();
+
+        ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
+                ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
+        verify(collectionService).collectAnalyzeAndPublish(requestCaptor.capture());
+        AlertCollectPublishRequest request = requestCaptor.getValue();
+        assertThat(request.partnerId()).isEqualTo("omnilens-default-universe");
+        assertThat(request.stockCodes()).containsExactly("005930", "000660", "015760");
+    }
+
+    @Test
+    void splitsDefaultUniverseIntoApiSizedBatches() {
+        List<String> stockCodes = java.util.stream.IntStream.rangeClosed(1, 23)
+                .mapToObj(value -> String.format("%06d", value))
+                .toList();
+        when(watchlistRepository.findAll()).thenReturn(List.of());
+        when(targetUniverseProvider.defaultStockCodes(30, true)).thenReturn(stockCodes);
+        when(collectionService.collectAnalyzeAndPublish(any()))
+                .thenReturn(new AlertCollectPublishResponse(
+                        "omnilens-default-universe",
+                        stockCodes,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        List.of()));
+        AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
+                collectionService,
+                new AlertCollectionSchedulerProperties(
+                        true,
+                        60_000L,
+                        10,
+                        7,
+                        List.of(),
+                        true,
+                        "omnilens-default-universe",
+                        30,
+                        true,
+                        20),
+                watchlistRepository,
+                targetUniverseProvider);
+
+        scheduler.collectConfiguredWatchlists();
+
+        ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
+                ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
+        verify(collectionService, times(2)).collectAnalyzeAndPublish(requestCaptor.capture());
+        assertThat(requestCaptor.getAllValues().get(0).stockCodes()).hasSize(20);
+        assertThat(requestCaptor.getAllValues().get(1).stockCodes()).hasSize(3);
+    }
+
+    @Test
+    void continuesAfterDefaultUniverseBatchFailure() {
+        List<String> stockCodes = java.util.stream.IntStream.rangeClosed(1, 23)
+                .mapToObj(value -> String.format("%06d", value))
+                .toList();
+        when(watchlistRepository.findAll()).thenReturn(List.of());
+        when(targetUniverseProvider.defaultStockCodes(30, true)).thenReturn(stockCodes);
+        when(collectionService.collectAnalyzeAndPublish(any()))
+                .thenThrow(new IllegalStateException("provider unavailable"))
+                .thenReturn(new AlertCollectPublishResponse(
+                        "omnilens-default-universe",
+                        stockCodes.subList(20, 23),
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        List.of()));
+        AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
+                collectionService,
+                new AlertCollectionSchedulerProperties(
+                        true,
+                        60_000L,
+                        10,
+                        7,
+                        List.of(),
+                        true,
+                        "omnilens-default-universe",
+                        30,
+                        true,
+                        20),
+                watchlistRepository,
+                targetUniverseProvider);
+
+        scheduler.collectConfiguredWatchlists();
+
+        verify(collectionService, times(2)).collectAnalyzeAndPublish(any());
+    }
+
+    private static AlertCollectionSchedulerProperties schedulerProperties(
+            boolean enabled,
+            long fixedDelayMs,
+            int newsDisplay,
+            int disclosureLookbackDays,
+            List<PartnerWatchlist> watchlists) {
+        return new AlertCollectionSchedulerProperties(
+                enabled,
+                fixedDelayMs,
+                newsDisplay,
+                disclosureLookbackDays,
+                watchlists,
+                false,
+                "omnilens-default-universe",
+                30,
+                false,
+                20);
     }
 }
