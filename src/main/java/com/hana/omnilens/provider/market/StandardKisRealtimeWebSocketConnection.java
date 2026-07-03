@@ -130,6 +130,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
         private final List<KisRealtimeSubscriptionFrame> subscriptionFrames;
         private final Consumer<String> messageConsumer;
         private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
+        private final AtomicBoolean reconnectDisabled = new AtomicBoolean(false);
 
         private Handler(
                 URI websocketUrl,
@@ -154,6 +155,10 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
         protected void handleTextMessage(WebSocketSession session, TextMessage message) {
             String payload = message.getPayload();
             logKisMessage(session, payload);
+            if (disableReconnectForFatalControlFailure(payload)) {
+                reconnectDisabled.set(true);
+                return;
+            }
             if (respondToPingPong(session, payload)) {
                 return;
             }
@@ -165,6 +170,9 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             log.warn("KIS realtime websocket transport error sessionId={} error={}",
                     session == null ? "" : session.getId(),
                     exception.toString());
+            if (reconnectDisabled.get()) {
+                return;
+            }
             scheduleReconnectOnce();
         }
 
@@ -173,6 +181,9 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             currentSession.compareAndSet(session, null);
             sentSubscriptionKeys.clear();
             log.warn("KIS realtime websocket closed sessionId={} status={}", session.getId(), status);
+            if (reconnectDisabled.get()) {
+                return;
+            }
             if (!CloseStatus.NORMAL.equals(status)) {
                 scheduleReconnectOnce();
             }
@@ -200,6 +211,20 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
                 log.warn("KIS realtime websocket pingpong response failed sessionId={} error={}",
                         session.getId(),
                         exception.toString());
+                return false;
+            }
+        }
+
+        private boolean disableReconnectForFatalControlFailure(String payload) {
+            if (payload == null || !payload.startsWith("{")) {
+                return false;
+            }
+            try {
+                JsonNode root = objectMapper.readTree(payload);
+                String resultCode = root.path("body").path("rt_cd").asText("");
+                String messageCode = root.path("body").path("msg_cd").asText("");
+                return "1".equals(resultCode) && "OPSP0011".equals(messageCode);
+            } catch (Exception exception) {
                 return false;
             }
         }
@@ -266,9 +291,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             return;
         }
         if (payload.startsWith("{")) {
-            log.info("KIS realtime websocket control message sessionId={} payload={}",
-                    session.getId(),
-                    abbreviate(payload));
+            logControlMessage(session, payload);
             return;
         }
         log.debug("KIS realtime websocket tick message received sessionId={} length={}",
@@ -276,9 +299,33 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
                 payload.length());
     }
 
-    private String abbreviate(String payload) {
-        int maxLength = 500;
-        return payload.length() <= maxLength ? payload : payload.substring(0, maxLength) + "...";
+    private void logControlMessage(WebSocketSession session, String payload) {
+        try {
+            JsonNode root = objectMapper.readTree(payload);
+            JsonNode header = root.path("header");
+            JsonNode body = root.path("body");
+            log.info(
+                    "KIS realtime websocket control message sessionId={} trId={} trKey={} rtCd={} msgCd={} msg={}",
+                    session.getId(),
+                    header.path("tr_id").asText(""),
+                    header.path("tr_key").asText(""),
+                    body.path("rt_cd").asText(""),
+                    body.path("msg_cd").asText(""),
+                    sanitizeControlMessageText(body.path("msg1").asText("")));
+        } catch (JsonProcessingException exception) {
+            log.info("KIS realtime websocket control message sessionId={} parseFailed=true length={}",
+                    session.getId(),
+                    payload.length());
+        }
+    }
+
+    static String sanitizeControlMessageText(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replaceAll(
+                "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+                "***");
     }
 
     private String serialize(KisRealtimeSubscriptionFrame frame) throws JsonProcessingException {

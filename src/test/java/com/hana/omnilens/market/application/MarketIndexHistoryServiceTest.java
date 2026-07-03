@@ -58,7 +58,81 @@ class MarketIndexHistoryServiceTest {
         assertThat(repository.findIntraday("0001", explicitDate, 390)).hasSize(1);
     }
 
+    @Test
+    void getIntradayHistoryIgnoresStoredAfterHoursIndexTicks() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        LocalDate explicitDate = LocalDate.of(2026, 7, 2);
+        repository.recordRealtimeMinute(intraday(LocalDateTime.of(2026, 7, 2, 18, 5), "8088.34"));
+        when(kisClient.findMinutePrices("0001", explicitDate, 390)).thenReturn(List.of(kisPrice(
+                LocalDateTime.of(2026, 7, 2, 10, 46),
+                "2891.00")));
+        MarketIndexHistoryService service = new MarketIndexHistoryService(kisClient, repository, PRE_OPEN_CLOCK);
+
+        List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 390);
+
+        verify(kisClient).findMinutePrices("0001", explicitDate, 390);
+        assertThat(prices).hasSize(1);
+        assertThat(prices.get(0).bucketStart().toLocalTime().toString()).isEqualTo("10:46");
+        assertThat(prices.get(0).closeValue()).isEqualByComparingTo("2891.00");
+    }
+
+    @Test
+    void getIntradayHistoryIgnoresLegacyRealtimeIndexSource() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        LocalDate explicitDate = LocalDate.of(2026, 7, 2);
+        repository.recordRealtimeMinute(intraday(
+                LocalDateTime.of(2026, 7, 2, 10, 46),
+                "8088.34",
+                "KIS_REALTIME_INDEX"));
+        when(kisClient.findMinutePrices("0001", explicitDate, 390)).thenReturn(List.of(kisPrice(
+                LocalDateTime.of(2026, 7, 2, 10, 46),
+                "2891.00")));
+        MarketIndexHistoryService service = new MarketIndexHistoryService(kisClient, repository, PRE_OPEN_CLOCK);
+
+        List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 390);
+
+        verify(kisClient).findMinutePrices("0001", explicitDate, 390);
+        assertThat(prices).hasSize(1);
+        assertThat(prices.get(0).closeValue()).isEqualByComparingTo("2891.00");
+    }
+
+    @Test
+    void getIntradayHistoryDropsImplausibleProviderRows() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        LocalDate explicitDate = LocalDate.of(2026, 7, 2);
+        when(kisClient.findMinutePrices("0001", explicitDate, 390)).thenReturn(List.of(kisPrice(
+                LocalDateTime.of(2026, 7, 2, 10, 46),
+                "8088.34")));
+        MarketIndexHistoryService service = new MarketIndexHistoryService(kisClient, repository, PRE_OPEN_CLOCK);
+
+        List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 390);
+
+        assertThat(prices).isEmpty();
+        assertThat(repository.findIntraday("0001", explicitDate, 390)).isEmpty();
+    }
+
+    @Test
+    void getIntradayHistoryReturnsEmptyWhenProviderFails() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        LocalDate explicitDate = LocalDate.of(2026, 7, 2);
+        when(kisClient.findMinutePrices("0001", explicitDate, 390))
+                .thenThrow(new IllegalStateException("rate limited"));
+        MarketIndexHistoryService service = new MarketIndexHistoryService(kisClient, repository, PRE_OPEN_CLOCK);
+
+        List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 390);
+
+        assertThat(prices).isEmpty();
+    }
+
     private MarketIndexIntradayPrice intraday(LocalDateTime bucketStart, String closeValue) {
+        return intraday(bucketStart, closeValue, "KIS_REAL_INDEX_REALTIME");
+    }
+
+    private MarketIndexIntradayPrice intraday(LocalDateTime bucketStart, String closeValue, String source) {
         return new MarketIndexIntradayPrice(
                 "0001",
                 "KOSPI",
@@ -70,7 +144,7 @@ class MarketIndexHistoryServiceTest {
                 new BigDecimal(closeValue),
                 1_200_000L,
                 new BigDecimal("3400000000000"),
-                "KIS_REALTIME_INDEX",
+                source,
                 Instant.now(PRE_OPEN_CLOCK));
     }
 

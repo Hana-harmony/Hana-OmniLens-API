@@ -26,6 +26,7 @@ import com.hana.omnilens.provider.market.KisRealtimeSubscriptionFrameFactory;
 import com.hana.omnilens.provider.market.KisRealtimeSubscriptionType;
 import com.hana.omnilens.provider.market.KisRealtimeTransaction;
 import com.hana.omnilens.provider.market.KisRealtimeWebSocketConnection;
+import com.hana.omnilens.provider.market.KisProviderSupport;
 
 @Component
 public class KisRealtimeSessionRunner {
@@ -94,7 +95,7 @@ public class KisRealtimeSessionRunner {
             return;
         }
         List<String> stockCodes = realtimeStockCodes();
-        List<String> indexCodes = kisRealtimeProperties.indexCodes();
+        List<String> indexCodes = primaryConnectionIndexCodes();
         if (stockCodes.isEmpty() && indexCodes.isEmpty()) {
             log.warn("KIS realtime session runner is enabled but realtime universe is empty");
             return;
@@ -183,7 +184,7 @@ public class KisRealtimeSessionRunner {
     }
 
     List<KisRealtimeSubscriptionFrame> subscriptionFrames(String approvalKey, List<String> stockCodes) {
-        return subscriptionFrames(approvalKey, stockCodes, kisRealtimeProperties.indexCodes());
+        return subscriptionFrames(approvalKey, stockCodes, primaryConnectionIndexCodes());
     }
 
     List<KisRealtimeSubscriptionFrame> subscriptionFrames(
@@ -236,6 +237,18 @@ public class KisRealtimeSessionRunner {
                     indexCode));
         }
         return List.copyOf(frames);
+    }
+
+    private List<String> primaryConnectionIndexCodes() {
+        return primaryConnectionCanStreamRealIndex()
+                ? kisRealtimeProperties.indexCodes()
+                : List.of();
+    }
+
+    private boolean primaryConnectionCanStreamRealIndex() {
+        return KisProviderSupport.realIndexRealtimeProvider(externalProviderProperties)
+                .filter(provider -> KisProviderSupport.isSameProvider(provider, externalProviderProperties.kis()))
+                .isPresent();
     }
 
     private MarketSession currentMarketSession() {
