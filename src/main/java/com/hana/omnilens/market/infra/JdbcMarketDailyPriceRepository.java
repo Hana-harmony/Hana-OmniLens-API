@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -115,6 +116,27 @@ public class JdbcMarketDailyPriceRepository implements MarketDailyPriceRepositor
                 from,
                 to,
                 limit);
+    }
+
+    @Override
+    public Optional<MarketDailyPrice> findLatestBefore(String stockCode, LocalDate beforeDate) {
+        return jdbcTemplate.query(
+                        """
+                        SELECT stock_code, trade_date, market,
+                               open_price_krw, high_price_krw, low_price_krw, close_price_krw,
+                               change_rate, trading_volume, trading_value_krw, adjusted_close_price_krw,
+                               source, collected_at
+                        FROM market_daily_price
+                        WHERE stock_code = ?
+                          AND trade_date < ?
+                        ORDER BY trade_date DESC
+                        LIMIT 1
+                        """,
+                        ROW_MAPPER,
+                        stockCode,
+                        beforeDate)
+                .stream()
+                .findFirst();
     }
 
     @Override

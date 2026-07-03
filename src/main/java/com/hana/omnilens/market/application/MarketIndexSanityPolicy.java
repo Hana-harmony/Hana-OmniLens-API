@@ -12,9 +12,9 @@ final class MarketIndexSanityPolicy {
             return false;
         }
         return switch (indexCode) {
-            case "0001" -> isBetween(value, "1000", "6000");
-            case "1001" -> isBetween(value, "300", "2000");
-            case "2001" -> isBetween(value, "100", "700");
+            case "0001" -> isBetween(value, "500", "20000");
+            case "1001" -> isBetween(value, "100", "5000");
+            case "2001" -> isBetween(value, "50", "5000");
             default -> value.signum() > 0;
         };
     }

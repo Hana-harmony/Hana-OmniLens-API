@@ -26,8 +26,10 @@ import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
+import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.market.domain.MarketIndexIntradayPrice;
 import com.hana.omnilens.market.domain.MarketIndexQuote;
+import com.hana.omnilens.market.domain.MarketIntradayPrice;
 import com.hana.omnilens.market.domain.MarketQuote;
 import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
@@ -79,6 +81,8 @@ public class MarketDataService {
     private final RealtimeMarketDataCache realtimeMarketDataCache;
     private final MarketIndexSnapshotRepository marketIndexSnapshotRepository;
     private final MarketIndexHistoryService marketIndexHistoryService;
+    private final MarketIntradayPriceRepository marketIntradayPriceRepository;
+    private final MarketDailyPriceRepository marketDailyPriceRepository;
     private final HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient;
     private final ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine;
     private final Clock clock;
@@ -99,6 +103,8 @@ public class MarketDataService {
             RealtimeMarketDataCache realtimeMarketDataCache,
             MarketIndexSnapshotRepository marketIndexSnapshotRepository,
             MarketIndexHistoryService marketIndexHistoryService,
+            MarketIntradayPriceRepository marketIntradayPriceRepository,
+            MarketDailyPriceRepository marketDailyPriceRepository,
             HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine) {
         this(
@@ -114,6 +120,8 @@ public class MarketDataService {
                 realtimeMarketDataCache,
                 marketIndexSnapshotRepository,
                 marketIndexHistoryService,
+                marketIntradayPriceRepository,
+                marketDailyPriceRepository,
                 hannahAiForeignOwnershipPredictionClient,
                 foreignOwnershipPredictionEngine,
                 Clock.system(KOREA_ZONE));
@@ -330,6 +338,44 @@ public class MarketDataService {
             HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
             ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
             Clock clock) {
+        this(
+                publicDataStockSecuritiesClient,
+                kisCurrentPriceClient,
+                kisRestOrderBookClient,
+                kisIndexCurrentPriceClient,
+                stockMasterRepository,
+                foreignOwnershipSnapshotCache,
+                foreignOwnershipDailySnapshotRepository,
+                foreignOwnershipPredictionCache,
+                exchangeRateCache,
+                realtimeMarketDataCache,
+                marketIndexSnapshotRepository,
+                marketIndexHistoryService,
+                null,
+                null,
+                hannahAiForeignOwnershipPredictionClient,
+                foreignOwnershipPredictionEngine,
+                clock);
+    }
+
+    MarketDataService(
+            PublicDataStockSecuritiesClient publicDataStockSecuritiesClient,
+            KisCurrentPriceClient kisCurrentPriceClient,
+            KisRestOrderBookClient kisRestOrderBookClient,
+            KisIndexCurrentPriceClient kisIndexCurrentPriceClient,
+            StockMasterRepository stockMasterRepository,
+            ForeignOwnershipSnapshotCache foreignOwnershipSnapshotCache,
+            ForeignOwnershipDailySnapshotRepository foreignOwnershipDailySnapshotRepository,
+            ForeignOwnershipPredictionCache foreignOwnershipPredictionCache,
+            ExchangeRateCache exchangeRateCache,
+            RealtimeMarketDataCache realtimeMarketDataCache,
+            MarketIndexSnapshotRepository marketIndexSnapshotRepository,
+            MarketIndexHistoryService marketIndexHistoryService,
+            MarketIntradayPriceRepository marketIntradayPriceRepository,
+            MarketDailyPriceRepository marketDailyPriceRepository,
+            HannahAiForeignOwnershipPredictionClient hannahAiForeignOwnershipPredictionClient,
+            ForeignOwnershipPredictionEngine foreignOwnershipPredictionEngine,
+            Clock clock) {
         this.publicDataStockSecuritiesClient = publicDataStockSecuritiesClient;
         this.kisCurrentPriceClient = kisCurrentPriceClient;
         this.kisRestOrderBookClient = kisRestOrderBookClient;
@@ -342,6 +388,8 @@ public class MarketDataService {
         this.realtimeMarketDataCache = realtimeMarketDataCache;
         this.marketIndexSnapshotRepository = marketIndexSnapshotRepository;
         this.marketIndexHistoryService = marketIndexHistoryService;
+        this.marketIntradayPriceRepository = marketIntradayPriceRepository;
+        this.marketDailyPriceRepository = marketDailyPriceRepository;
         this.hannahAiForeignOwnershipPredictionClient = hannahAiForeignOwnershipPredictionClient;
         this.foreignOwnershipPredictionEngine = foreignOwnershipPredictionEngine;
         this.clock = clock;
@@ -370,8 +418,8 @@ public class MarketDataService {
                 stock.stockNameEn(),
                 priceLookup.market().orElse(stock.market()),
                 currentPrice,
-                priceLookup.changeRate().orElse(new BigDecimal("1.42")),
-                priceLookup.volume().orElse(12193000L),
+                priceLookup.changeRate().orElse(BigDecimal.ZERO),
+                priceLookup.volume().orElse(0L),
                 currentPrice,
                 afterHoursTrade.map(KisRealtimeTradeTick::marketSession).orElse(priceLookup.marketSession()),
                 afterHoursPriceKrw,
@@ -519,7 +567,7 @@ public class MarketDataService {
             return false;
         }
         if (source.contains("KIS_INDEX_CURRENT_PRICE")) {
-            return isUsableRealtimeIndexQuote(quote);
+            return isUsableCurrentIndexQuote(quote);
         }
         if (!source.contains("WEBSOCKET_INDEX") && !source.contains("REALTIME_INDEX")) {
             return true;
@@ -881,9 +929,42 @@ public class MarketDataService {
                 return staleCachedPrice.orElseThrow();
             }
         }
+        Optional<PriceLookup> recordedRealtimePrice = latestRecordedIntradayPrice(stockCode);
+        if (recordedRealtimePrice.isPresent()) {
+            return recordedRealtimePrice.orElseThrow();
+        }
         return latestPublicDataSnapshot(stockCode)
                 .map(PriceLookup::publicData)
                 .orElseGet(PriceLookup::empty);
+    }
+
+    private Optional<PriceLookup> latestRecordedIntradayPrice(String stockCode) {
+        if (marketIntradayPriceRepository == null) {
+            return Optional.empty();
+        }
+        try {
+            return marketIntradayPriceRepository.findLatestByStockCodeAndDate(stockCode, LocalDate.now(clock))
+                    .filter(price -> price.closePriceKrw() != null && price.closePriceKrw().signum() > 0)
+                    .map(price -> PriceLookup.intraday(price, latestPreviousDailyPrice(stockCode, price.bucketStart().toLocalDate())));
+        } catch (RuntimeException exception) {
+            // 저장된 실시간 가격 조회 장애가 현재가 API 전체 장애로 번지지 않게 한다.
+            log.warn("Stored intraday price lookup failed for stockCode={}: {}", stockCode, exception.toString());
+            return Optional.empty();
+        }
+    }
+
+    private Optional<MarketDailyPrice> latestPreviousDailyPrice(String stockCode, LocalDate baseDate) {
+        if (marketDailyPriceRepository == null) {
+            return Optional.empty();
+        }
+        try {
+            return marketDailyPriceRepository.findLatestBefore(stockCode, baseDate)
+                    .filter(price -> price.closePriceKrw() != null && price.closePriceKrw().signum() > 0);
+        } catch (RuntimeException exception) {
+            // 등락률 보강 실패가 현재가 표시 자체를 막지 않게 한다.
+            log.warn("Previous daily price lookup failed stockCode={}: {}", stockCode, exception.toString());
+            return Optional.empty();
+        }
     }
 
     private Optional<KisCurrentPriceSnapshot> findKisCurrentPrice(String stockCode) {
@@ -1173,6 +1254,15 @@ public class MarketDataService {
         if (priceSource == PriceSource.KIS_WEBSOCKET_TRADE) {
             return "KIS_WEBSOCKET_TRADE";
         }
+        if (priceSource == PriceSource.KIS_INTRADAY_PRICE && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
+            return "KIS_INTRADAY_PRICE_SNAPSHOT+KRX_FOREIGN_OWNERSHIP_CACHE";
+        }
+        if (priceSource == PriceSource.KIS_INTRADAY_PRICE && foreignOwnershipSource == ForeignOwnershipSource.KIS_CURRENT_PRICE) {
+            return "KIS_INTRADAY_PRICE_SNAPSHOT+KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP";
+        }
+        if (priceSource == PriceSource.KIS_INTRADAY_PRICE) {
+            return "KIS_INTRADAY_PRICE_SNAPSHOT";
+        }
         if (priceSource == PriceSource.KIS_OPEN_API && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
             return "KIS_OPEN_API+KRX_FOREIGN_OWNERSHIP_CACHE";
         }
@@ -1258,6 +1348,28 @@ public class MarketDataService {
                     PriceSource.PUBLIC_DATA);
         }
 
+        private static PriceLookup intraday(MarketIntradayPrice price, Optional<MarketDailyPrice> previousDailyPrice) {
+            return new PriceLookup(
+                    Optional.empty(),
+                    Optional.ofNullable(price.market()).filter(market -> !market.isBlank()),
+                    Optional.of(price.closePriceKrw()),
+                    previousDailyPrice.map(previous -> changeRate(price.closePriceKrw(), previous.closePriceKrw())),
+                    Optional.empty(),
+                    Optional.of(price.bucketStart().toLocalDate()),
+                    Optional.empty(),
+                    KisRealtimeTradeTick.REGULAR_SESSION,
+                    PriceSource.KIS_INTRADAY_PRICE);
+        }
+
+        private static BigDecimal changeRate(BigDecimal currentPrice, BigDecimal previousClose) {
+            if (previousClose == null || previousClose.signum() <= 0) {
+                return BigDecimal.ZERO;
+            }
+            return currentPrice.subtract(previousClose)
+                    .multiply(new BigDecimal("100"))
+                    .divide(previousClose, 4, RoundingMode.HALF_UP);
+        }
+
         private static PriceLookup empty() {
             return new PriceLookup(
                     Optional.empty(),
@@ -1290,6 +1402,7 @@ public class MarketDataService {
 
     private enum PriceSource {
         KIS_WEBSOCKET_TRADE,
+        KIS_INTRADAY_PRICE,
         KIS_OPEN_API,
         PUBLIC_DATA,
         NONE
