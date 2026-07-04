@@ -31,6 +31,10 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
             OR event_json LIKE '%투자 권유%'
             OR event_json LIKE '%최종 판단%'
             OR event_json LIKE '%투자자 본인%'
+            OR event_json ~ '"summaryLines"\\s*:\\s*null'
+            OR event_json ~ '"what"\\s*:\\s*""'
+            OR event_json ~ '"why"\\s*:\\s*""'
+            OR event_json ~ '"impact"\\s*:\\s*""'
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -164,6 +168,12 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
     }
 
     private boolean hasSummaryQualityIssue(AlertEvent event) {
+        if (event.summaryLines() == null
+                || isBlank(event.summaryLines().what())
+                || isBlank(event.summaryLines().why())
+                || isBlank(event.summaryLines().impact())) {
+            return true;
+        }
         String summaryLines = event.summaryLines() == null
                 ? ""
                 : String.join(" ",
@@ -185,6 +195,10 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
                 || payload.contains("투자 권유")
                 || payload.contains("최종 판단")
                 || payload.contains("투자자 본인");
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     private String nullToEmpty(String value) {

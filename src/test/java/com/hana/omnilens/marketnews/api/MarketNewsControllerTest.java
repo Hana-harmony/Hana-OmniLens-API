@@ -326,6 +326,94 @@ class MarketNewsControllerTest {
                 .contains("반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했다.");
     }
 
+    @Test
+    void reprocessQualityIssuesFixesBlankMarketNewsSummaryLines() throws Exception {
+        jdbcTemplate.update(
+                """
+                INSERT INTO market_news_event (
+                    news_id, query, original_url, duplicate_key, published_at, created_at, event_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                "mkt-blank-lines",
+                "반도체 ETF",
+                "https://news.example.com/market/blank-lines",
+                "mkt-blank-lines-duplicate",
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:00:00Z")),
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:01:00Z")),
+                """
+                {
+                  "newsId": "mkt-blank-lines",
+                  "query": "반도체 ETF",
+                  "title": "반도체 ETF 리밸런싱 SK스퀘어 신규 편입",
+                  "translatedTitle": "Semiconductor ETF rebalance",
+                  "summary": "반도체 ETF가 SK스퀘어를 신규 편입했습니다.",
+                  "summaryLines": {
+                    "what": "반도체 ETF가 SK스퀘어를 신규 편입했습니다.",
+                    "why": "",
+                    "impact": ""
+                  },
+                  "translatedSummary": "반도체 ETF가 SK스퀘어를 신규 편입했습니다.",
+                  "originalContent": "반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했다. SK하이닉스와 삼성전자 비중 조정이 주요 배경이다. 투자자는 편입 종목의 수급과 변동성을 확인해야 한다.",
+                  "translatedContent": "",
+                  "imageUrls": [],
+                  "contentAvailability": "FULL_TEXT",
+                  "originalUrl": "https://news.example.com/market/blank-lines",
+                  "canonicalUrl": "https://news.example.com/market/blank-lines",
+                  "sourceLicensePolicy": "licensed_naver_original_full_text_v1",
+                  "glossaryTerms": [],
+                  "translationProvider": "old-provider",
+                  "translationModelVersion": "old-model",
+                  "translationStatus": "TRANSLATED",
+                  "duplicateKey": "mkt-blank-lines-duplicate",
+                  "publishedAt": "2026-06-18T07:00:00Z",
+                  "createdAt": "2026-06-18T07:01:00Z"
+                }
+                """);
+        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
+                "402340",
+                "SK스퀘어",
+                "NEWS",
+                "반도체 ETF 리밸런싱 SK스퀘어 신규 편입",
+                "반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했습니다.",
+                new AlertSummaryLines(
+                        "반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했습니다.",
+                        "SK하이닉스와 삼성전자 비중 조정이 주요 배경입니다.",
+                        "투자자는 편입 종목의 수급과 변동성을 확인해야 합니다."),
+                "FULL_TEXT",
+                "",
+                List.of(),
+                List.of("GENERAL_MARKET"),
+                "NEUTRAL",
+                "MEDIUM",
+                List.of("402340"),
+                false,
+                true,
+                List.of(),
+                List.of(),
+                "blank-lines-duplicate",
+                "blank-lines-cluster",
+                "financial-ml-tfidf-logreg-test",
+                0.75,
+                0.75,
+                0.75,
+                0.75));
+        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.newsCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.news[0].summaryLines.why",
+                        equalTo("SK하이닉스와 삼성전자 비중 조정이 주요 배경입니다.")))
+                .andExpect(jsonPath("$.data.news[0].summaryLines.impact",
+                        equalTo("투자자는 편입 종목의 수급과 변동성을 확인해야 합니다.")));
+    }
+
     private TranslationResult translated(String text) {
         return new TranslationResult(text, "openai", "gpt-4o-mini", "TRANSLATED");
     }
