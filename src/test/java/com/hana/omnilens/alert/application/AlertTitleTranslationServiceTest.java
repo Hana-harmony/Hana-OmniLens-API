@@ -77,6 +77,19 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
+    void translateTextRejectsProviderOutputWithHangul() {
+        when(openAiTranslationClient.translateKoToEn("삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다."))
+                .thenReturn("Samsung Electronics expects 실적 improvement from AI server investment.");
+
+        AlertTitleTranslationService.TranslationResult result = translationService.translateTextWithResult(
+                "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다.",
+                List.of());
+
+        assertThat(result.translatedText()).isEqualTo("삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다.");
+        assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
+    }
+
+    @Test
     void translateTextKeepsProviderSurfaceTermForGlossaryClickMapping() {
         when(openAiTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
                 .thenReturn("Ants net bought Samsung Electronics.");

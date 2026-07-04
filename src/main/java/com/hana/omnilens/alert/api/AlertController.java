@@ -126,7 +126,7 @@ public class AlertController {
         int effectiveLimit = Math.max(1, Math.min(limit, 100));
         var events = alertEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
                 .peek(event -> partnerAuthorizationService.assertPartnerAccess(event.partnerId()))
-                .map(alertAnalysisPublishingService::reprocessIfPossible)
+                .map(alertAnalysisPublishingService::repairQualityIssueIfPossible)
                 .flatMap(Optional::stream)
                 .toList();
         return ApiResponse.success(new AlertEventReprocessResponse(events.size(), events));

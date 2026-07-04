@@ -23,7 +23,7 @@ import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
 public class AlertTitleTranslationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AlertTitleTranslationService.class);
-    private static final int MAX_CHUNK_CHARS = 4_000;
+    private static final int MAX_CHUNK_CHARS = 1_800;
     private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
     public static final String STATUS_TRANSLATED = "TRANSLATED";
     public static final String STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK = "PARTIAL_SOURCE_LANGUAGE_FALLBACK";
@@ -190,7 +190,7 @@ public class AlertTitleTranslationService {
         while (matcher.find()) {
             hangulCount++;
         }
-        return hangulCount <= Math.max(3, translatedText.length() / 20);
+        return hangulCount == 0;
     }
 
     private String aggregateProvider(List<TranslationResult> results) {

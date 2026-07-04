@@ -344,13 +344,6 @@ class MarketNewsControllerTest {
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
                 .doesNotContain("감성");
-        ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
-                ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
-        verify(hannahAiAnalysisClient).analyze(requestCaptor.capture());
-        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().snippet())
-                .isEqualTo("반도체 ETF 리밸런싱...SK스퀘어 신규 편입");
-        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().content())
-                .contains("반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했다.");
     }
 
     @Test

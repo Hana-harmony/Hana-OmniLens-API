@@ -46,11 +46,13 @@ public class OpenAiTranslationClient {
                         Translate Korean financial news into natural, concise English.
                         Return only the translation. Preserve stock codes, numbers, dates, URLs, and company names.
                         Translate Korean market localisms so foreign investors can understand them.
+                        Do not leave any Korean Hangul characters in the output; romanize proper nouns when needed.
+                        Translate every sentence from the input and do not summarize or truncate the article.
                         """,
                         List.of(new InputMessage("user", text)),
                         false,
                         0,
-                        4096))
+                        8192))
                 .retrieve()
                 .body(OpenAiResponsesResponse.class));
         return response == null ? "" : response.content();

@@ -78,6 +78,9 @@ public class AlertAnalysisPublishingService {
         TranslationResult translatedTitle = alertTitleTranslationService.translateTitleWithResult(
                 analysis.originalTitle(),
                 glossaryTerms);
+        String translatedTitleText = EnglishNewsQualityGate.englishTextOrFallback(
+                translatedTitle.translatedText(),
+                "Korean company update");
         AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
                 analysis.summary(),
                 analysis.summaryLines(),
@@ -87,20 +90,28 @@ public class AlertAnalysisPublishingService {
                 sourceSummary,
                 glossaryTerms);
         TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
-        AlertSummaryLines translatedSummaryLines = translateSummaryLines(
-                sourceSummaryLines,
-                glossaryTerms,
-                translatedSummary.translatedText());
+        AlertSummaryLines translatedSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrFallback(
+                translateSummaryLines(
+                        sourceSummaryLines,
+                        glossaryTerms,
+                        translatedSummary.translatedText()),
+                translatedTitleText);
+        String translatedSummaryText = EnglishNewsQualityGate.englishSummaryTextOrFallback(
+                translatedSummary.translatedText(),
+                joinSummaryLines(translatedSummaryLines));
+        String translatedContentText = EnglishNewsQualityGate.englishTextOrFallback(
+                translatedContent.translatedText(),
+                EnglishNewsQualityGate.englishContentFallback(originalContent, translatedTitleText, translatedSummaryLines));
         List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
                 glossaryTerms,
-                translatedTitle.translatedText(),
-                translatedSummary.translatedText(),
-                translatedContent.translatedText());
+                translatedTitleText,
+                translatedSummaryText,
+                translatedContentText);
         displayGlossaryTerms = glossaryTermExtractor.supplement(
                 displayGlossaryTerms,
-                translatedTitle.translatedText(),
-                translatedSummary.translatedText(),
-                translatedContent.translatedText());
+                translatedTitleText,
+                translatedSummaryText,
+                translatedContentText);
 
         return new AlertPublishRequest(
                 request.partnerId(),
@@ -108,12 +119,12 @@ public class AlertAnalysisPublishingService {
                 resolvedStock.stockName(),
                 analysis.sourceType(),
                 analysis.originalTitle(),
-                translatedTitle.translatedText(),
+                translatedTitleText,
                 sourceSummary,
                 translatedSummaryLines,
-                translatedSummary.translatedText(),
+                translatedSummaryText,
                 originalContent,
-                translatedContent.translatedText(),
+                translatedContentText,
                 imageUrls(analysis, request),
                 contentAvailability(analysis, request),
                 request.originalUrl(),
@@ -178,12 +189,81 @@ public class AlertAnalysisPublishingService {
         }
     }
 
+    public Optional<AlertEvent> repairQualityIssueIfPossible(AlertEvent event) {
+        try {
+            return Optional.of(repairQualityIssue(event));
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Skipping alert summary quality repair: alertId={}, stockCode={}",
+                    event.alertId(),
+                    event.stockCode(),
+                    exception);
+            return Optional.empty();
+        }
+    }
+
     public List<AlertEvent> reprocessSummaryQualityIssues(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit, 100));
         return alertEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
-                .map(this::reprocessIfPossible)
+                .map(this::repairQualityIssueIfPossible)
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    private AlertEvent repairQualityIssue(AlertEvent event) {
+        String translatedTitle = EnglishNewsQualityGate.englishTextOrFallback(
+                event.translatedTitle(),
+                "Korean company update");
+        AlertSummaryLines summaryLines = EnglishNewsQualityGate.englishSummaryLinesOrFallback(
+                event.summaryLines(),
+                translatedTitle);
+        String translatedSummary = EnglishNewsQualityGate.englishSummaryTextOrFallback(
+                event.translatedSummary(),
+                joinSummaryLines(summaryLines));
+        String translatedContent = EnglishNewsQualityGate.englishTextOrFallback(
+                event.translatedContent(),
+                EnglishNewsQualityGate.englishContentFallback(event.originalContent(), translatedTitle, summaryLines));
+        boolean repaired = !safeEquals(translatedTitle, event.translatedTitle())
+                || !safeEquals(translatedSummary, event.translatedSummary())
+                || !safeEquals(translatedContent, event.translatedContent())
+                || !safeEquals(joinSummaryLines(summaryLines), joinSummaryLines(event.summaryLines()));
+        AlertEvent repairedEvent = new AlertEvent(
+                event.alertId(),
+                event.partnerId(),
+                event.stockCode(),
+                event.stockName(),
+                event.sourceType(),
+                event.originalTitle(),
+                translatedTitle,
+                event.summary(),
+                summaryLines,
+                translatedSummary,
+                event.originalContent(),
+                translatedContent,
+                event.imageUrls(),
+                event.contentAvailability(),
+                event.originalUrl(),
+                event.publishedAt(),
+                event.eventTags(),
+                event.sentiment(),
+                event.importance(),
+                event.relatedStocks(),
+                event.holderTarget(),
+                event.watchlistTarget(),
+                event.glossaryTerms(),
+                event.translationQualityFlags(),
+                event.translationProvider(),
+                event.translationModelVersion(),
+                repaired ? AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK : event.translationStatus(),
+                event.duplicateKey(),
+                event.clusterKey(),
+                event.modelVersion(),
+                event.eventConfidence(),
+                event.sentimentConfidence(),
+                event.importanceConfidence(),
+                event.stockMatchConfidence(),
+                event.createdAt());
+        return alertEventRepository.save(repairedEvent);
     }
 
     private AlertEvent toExistingEvent(String alertId, Instant createdAt, AlertPublishRequest request) {
@@ -464,6 +544,10 @@ public class AlertAnalysisPublishingService {
 
     private boolean endsAsCompleteSentence(String value) {
         return value.matches(".*([.!?。]|다|요|니다|습니다|한다|했다|됐다|된다|였다|이다|합니다|했습니다|됩니다|입니다)$");
+    }
+
+    private boolean safeEquals(String left, String right) {
+        return (left == null ? "" : left).equals(right == null ? "" : right);
     }
 
     private String originalContent(HannahAiAnalysisResponse analysis, AlertAnalysisPublishRequest request) {

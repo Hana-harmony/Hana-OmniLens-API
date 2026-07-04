@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hana.omnilens.alert.application.EnglishNewsQualityGate;
 import com.hana.omnilens.marketnews.application.MarketNewsEventRepository;
 import com.hana.omnilens.marketnews.domain.MarketNewsEvent;
 
@@ -35,6 +36,7 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
             OR event_json ~ '"what"\\s*:\\s*""'
             OR event_json ~ '"why"\\s*:\\s*""'
             OR event_json ~ '"impact"\\s*:\\s*""'
+            OR event_json ~ '[가-힣]'
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -209,7 +211,8 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
         if (event.summaryLines() == null
                 || isBlank(event.summaryLines().what())
                 || isBlank(event.summaryLines().why())
-                || isBlank(event.summaryLines().impact())) {
+                || isBlank(event.summaryLines().impact())
+                || !EnglishNewsQualityGate.hasUsableEnglishSummaryLines(event.summaryLines())) {
             return true;
         }
         String summaryLines = event.summaryLines() == null
@@ -219,11 +222,12 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
                         nullToEmpty(event.summaryLines().why()),
                         nullToEmpty(event.summaryLines().impact()));
         String payload = String.join(" ",
-                nullToEmpty(event.summary()),
                 nullToEmpty(event.translatedSummary()),
                 summaryLines);
         String lower = payload.toLowerCase(Locale.ROOT);
-        return lower.contains("...")
+        return EnglishNewsQualityGate.containsHangul(event.translatedSummary())
+                || EnglishNewsQualityGate.containsHangul(event.translatedContent())
+                || lower.contains("...")
                 || lower.contains("…")
                 || lower.contains("classified")
                 || lower.contains("importance")

@@ -34,6 +34,8 @@ class OpenAiTranslationClientTest {
                 .andExpect(header("Authorization", "Bearer openai-secret"))
                 .andExpect(content().string(containsString("\"store\":false")))
                 .andExpect(content().string(containsString("Translate Korean financial news")))
+                .andExpect(content().string(containsString("Do not leave any Korean Hangul characters")))
+                .andExpect(content().string(containsString("\"max_output_tokens\":8192")))
                 .andExpect(content().string(containsString("삼성전자 실적 개선")))
                 .andRespond(withSuccess("""
                         {

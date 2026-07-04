@@ -22,6 +22,7 @@ import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.alert.domain.AlertSummaryLines;
 import com.hana.omnilens.alert.application.AlertTitleTranslationService;
 import com.hana.omnilens.alert.application.AlertTitleTranslationService.TranslationResult;
+import com.hana.omnilens.alert.application.EnglishNewsQualityGate;
 import com.hana.omnilens.alert.application.KoreanMarketGlossaryTermExtractor;
 import com.hana.omnilens.config.MarketNewsCollectionProperties;
 import com.hana.omnilens.marketnews.domain.MarketNewsEvent;
@@ -114,8 +115,51 @@ public class MarketNewsCollectionService {
     public List<MarketNewsEvent> reprocessSummaryQualityIssues(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit, 100));
         return marketNewsEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
-                .map(this::reprocess)
+                .map(this::repairQualityIssue)
                 .toList();
+    }
+
+    private MarketNewsEvent repairQualityIssue(MarketNewsEvent event) {
+        String translatedTitle = EnglishNewsQualityGate.englishTextOrFallback(
+                event.translatedTitle(),
+                "Korean market update");
+        AlertSummaryLines summaryLines = EnglishNewsQualityGate.englishSummaryLinesOrFallback(
+                event.summaryLines(),
+                translatedTitle);
+        String translatedSummary = EnglishNewsQualityGate.englishSummaryTextOrFallback(
+                event.translatedSummary(),
+                joinSummaryLines(summaryLines));
+        String translatedContent = EnglishNewsQualityGate.englishTextOrFallback(
+                event.translatedContent(),
+                EnglishNewsQualityGate.englishContentFallback(event.originalContent(), translatedTitle, summaryLines));
+        boolean repaired = !safeEquals(translatedTitle, event.translatedTitle())
+                || !safeEquals(translatedSummary, event.translatedSummary())
+                || !safeEquals(translatedContent, event.translatedContent())
+                || !safeEquals(joinSummaryLines(summaryLines), joinSummaryLines(event.summaryLines()));
+        return marketNewsEventRepository.update(new MarketNewsEvent(
+                event.newsId(),
+                event.query(),
+                event.title(),
+                translatedTitle,
+                event.summary(),
+                summaryLines,
+                translatedSummary,
+                event.originalContent(),
+                translatedContent,
+                event.imageUrls(),
+                event.contentAvailability(),
+                event.originalUrl(),
+                event.canonicalUrl(),
+                event.sourceLicensePolicy(),
+                event.glossaryTerms(),
+                event.sentiment(),
+                event.importance(),
+                event.translationProvider(),
+                event.translationModelVersion(),
+                repaired ? AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK : event.translationStatus(),
+                event.duplicateKey(),
+                event.publishedAt(),
+                event.createdAt()));
     }
 
     private void collectQuery(
@@ -258,19 +302,24 @@ public class MarketNewsCollectionService {
                     summary,
                     glossaryTerms);
             TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
-            String translatedTitleText = englishTextOrFallback(
+            String translatedTitleText = EnglishNewsQualityGate.englishTextOrFallback(
                     translatedTitle.translatedText(),
                     "Korean market update");
-            AlertSummaryLines translatedSummaryLines = translateSummaryLines(
-                    sourceSummaryLines,
-                    glossaryTerms,
+            AlertSummaryLines translatedSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrFallback(
+                    translateSummaryLines(
+                            sourceSummaryLines,
+                            glossaryTerms,
+                            translatedTitleText),
                     translatedTitleText);
-            String translatedSummaryText = englishTextOrFallback(
+            String translatedSummaryText = EnglishNewsQualityGate.englishSummaryTextOrFallback(
                     translatedSummary.translatedText(),
                     joinSummaryLines(translatedSummaryLines));
-            String translatedContentText = englishTextOrFallback(
+            String translatedContentText = EnglishNewsQualityGate.englishTextOrFallback(
                     translatedContent.translatedText(),
-                    englishContentFallback(originalContent, translatedTitleText, translatedSummaryLines));
+                    EnglishNewsQualityGate.englishContentFallback(
+                            originalContent,
+                            translatedTitleText,
+                            translatedSummaryLines));
             List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
                     glossaryTerms,
                     translatedTitleText,
@@ -300,14 +349,16 @@ public class MarketNewsCollectionService {
             String summary = joinSummaryLines(sourceSummaryLines);
             TranslationResult translatedSummary = translationService.translateTextWithResult(summary, glossaryTerms);
             TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
-            String translatedTitleText = englishTextOrFallback(
+            String translatedTitleText = EnglishNewsQualityGate.englishTextOrFallback(
                     translatedTitle.translatedText(),
                     "Korean market update");
-            AlertSummaryLines translatedSummaryLines = translateSummaryLines(
-                    sourceSummaryLines,
-                    glossaryTerms,
+            AlertSummaryLines translatedSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrFallback(
+                    translateSummaryLines(
+                            sourceSummaryLines,
+                            glossaryTerms,
+                            translatedTitleText),
                     translatedTitleText);
-            String translatedSummaryText = englishTextOrFallback(
+            String translatedSummaryText = EnglishNewsQualityGate.englishSummaryTextOrFallback(
                     translatedSummary.translatedText(),
                     joinSummaryLines(translatedSummaryLines));
             return new MarketNewsAnalysis(
@@ -315,9 +366,12 @@ public class MarketNewsCollectionService {
                     translatedTitleText,
                     translatedSummaryLines,
                     translatedSummaryText,
-                    englishTextOrFallback(
+                    EnglishNewsQualityGate.englishTextOrFallback(
                             translatedContent.translatedText(),
-                            englishContentFallback(originalContent, translatedTitleText, translatedSummaryLines)),
+                            EnglishNewsQualityGate.englishContentFallback(
+                                    originalContent,
+                                    translatedTitleText,
+                                    translatedSummaryLines)),
                     glossaryTerms,
                     "NEUTRAL",
                     "MEDIUM",
@@ -332,27 +386,6 @@ public class MarketNewsCollectionService {
             return new TranslationResult("", "", "", "");
         }
         return translationService.translateTextWithResult(originalContent, glossaryTerms);
-    }
-
-    private String englishTextOrFallback(String value, String fallback) {
-        if (StringUtils.hasText(value) && !containsHangul(value)) {
-            return value;
-        }
-        return fallback == null ? "" : fallback;
-    }
-
-    private String englishContentFallback(
-            String originalContent,
-            String translatedTitle,
-            AlertSummaryLines summaryLines) {
-        if (!StringUtils.hasText(originalContent)) {
-            return "";
-        }
-        return String.join("\n\n",
-                englishSubject(translatedTitle),
-                "What: " + summaryLines.what(),
-                "Why: " + summaryLines.why(),
-                "Impact: " + summaryLines.impact());
     }
 
     private AlertSummaryLines sourceSummaryLines(String summary, AlertSummaryLines summaryLines, String fallback) {
@@ -469,14 +502,10 @@ public class MarketNewsCollectionService {
         String what = translateSummaryLine(completedSourceLines.what(), glossaryTerms);
         String why = translateSummaryLine(completedSourceLines.why(), glossaryTerms);
         String impact = translateSummaryLine(completedSourceLines.impact(), glossaryTerms);
-        AlertSummaryLines translatedLines = completeSummaryLines(new AlertSummaryLines(
+        return completeSummaryLines(new AlertSummaryLines(
                 StringUtils.hasText(what) ? what : completedSourceLines.what(),
                 StringUtils.hasText(why) ? why : completedSourceLines.why(),
                 StringUtils.hasText(impact) ? impact : completedSourceLines.impact()), fallbackSummary);
-        if (containsHangul(joinSummaryLines(translatedLines))) {
-            return englishSummaryFallbackLines(fallbackSummary);
-        }
-        return translatedLines;
     }
 
     private String translateSummaryLine(String value, List<AlertGlossaryTerm> glossaryTerms) {
@@ -484,29 +513,6 @@ public class MarketNewsCollectionService {
             return "";
         }
         return sanitizeSummary(translationService.translateTextWithResult(value, glossaryTerms).translatedText());
-    }
-
-    private AlertSummaryLines englishSummaryFallbackLines(String subject) {
-        String displaySubject = englishSubject(subject);
-        return new AlertSummaryLines(
-                "This item covers " + displaySubject + " from Korean market news.",
-                "The key background is the latest market or company context confirmed in the source article.",
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.");
-    }
-
-    private String englishSubject(String subject) {
-        if (!StringUtils.hasText(subject) || containsHangul(subject)) {
-            return "a Korean market update";
-        }
-        String normalized = subject.replaceAll("\\s+", " ").trim();
-        if (containsEllipsis(normalized)) {
-            return "a Korean market update";
-        }
-        return normalized;
-    }
-
-    private boolean containsHangul(String value) {
-        return value != null && Pattern.compile("[가-힣]").matcher(value).find();
     }
 
     private String normalizeSentiment(String value) {
@@ -604,6 +610,10 @@ public class MarketNewsCollectionService {
 
     private String firstText(String primary, String fallback) {
         return StringUtils.hasText(primary) ? primary : fallback;
+    }
+
+    private boolean safeEquals(String left, String right) {
+        return (left == null ? "" : left).equals(right == null ? "" : right);
     }
 
     private String translationProvider(TranslationResult... results) {
