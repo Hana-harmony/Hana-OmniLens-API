@@ -444,38 +444,47 @@ public class MarketDataService {
     }
 
     public StockDetail getStockDetail(String stockCode, String localCurrency, BigDecimal fxRate) {
-        MarketQuote quote = getQuote(stockCode, localCurrency, fxRate);
+        StockSummary stock = getStock(stockCode);
+        PriceLookup priceLookup = latestPriceSnapshot(stockCode);
+        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock, priceLookup);
         Orderability orderability = getOrderability(stockCode, "BUY", 1);
         ForeignOwnershipPrediction prediction = orderability.foreignOwnershipPrediction();
+        BigDecimal currentPriceKrw = priceLookup.currentPriceKrw().orElse(null);
+        FxLookup fxLookup = currentPriceKrw == null ? null : resolveFxRateOrNull(localCurrency, fxRate);
+        BigDecimal localCurrencyPrice = fxLookup == null
+                ? null
+                : currentPriceKrw.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
+        Optional<ForeignOwnershipSnapshot> ownershipSnapshot = foreignOwnership.snapshot();
+
         return new StockDetail(
-                quote.stockCode(),
-                quote.stockName(),
-                quote.stockNameEn(),
-                quote.market(),
+                stock.stockCode(),
+                priceLookup.stockName().orElse(stock.stockName()),
+                stock.stockNameEn(),
+                priceLookup.market().orElse(stock.market()),
                 null,
-                quote.currentPriceKrw(),
-                quote.changeRate(),
-                quote.volume(),
-                quote.localCurrency(),
-                quote.localCurrencyPrice(),
-                quote.marketDataTime(),
-                quote.foreignOwnedQuantity(),
-                quote.foreignOwnershipRate(),
-                quote.foreignLimitExhaustionRate(),
-                quote.foreignOwnershipRate(),
-                quote.foreignOwnershipRate(),
+                currentPriceKrw,
+                priceLookup.changeRate().orElse(null),
+                priceLookup.volume().orElse(0L),
+                localCurrency,
+                localCurrencyPrice,
+                currentPriceKrw == null ? null : Instant.now(clock),
+                ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(0L),
+                ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
+                ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(null),
+                ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
+                ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
                 prediction.minForeignLimitExhaustionRate(),
                 prediction.maxForeignLimitExhaustionRate(),
                 prediction.confidenceLevel(),
                 prediction.confidenceScore(),
                 prediction.modelVersion(),
-                quote.foreignOwnershipBaseDate(),
+                ownershipSnapshot.map(ForeignOwnershipSnapshot::baseDate).orElse(null),
                 orderability.viActive(),
                 orderability.singlePriceTrading(),
                 orderability.priceLimitState(),
                 orderability.tradingHalted(),
                 orderability.orderable(),
-                quote.source() + "+" + orderability.source());
+                source(priceLookup.source(), foreignOwnership.source()) + "+" + orderability.source());
     }
 
     public List<MarketQuote> getQuotes(
@@ -887,6 +896,15 @@ public class MarketDataService {
                         "No FX provider or partner exchange rate is available for currency=" + localCurrency));
     }
 
+    private FxLookup resolveFxRateOrNull(String localCurrency, BigDecimal requestFxRate) {
+        try {
+            return resolveFxRate(localCurrency, requestFxRate);
+        } catch (MarketDataUnavailableException exception) {
+            log.warn("FX lookup skipped for stock detail currency={}: {}", localCurrency, exception.toString());
+            return null;
+        }
+    }
+
     private List<String> resolveStockCodes(List<String> stockCodes) {
         if (stockCodes == null || stockCodes.isEmpty()) {
             return List.of();
@@ -1281,7 +1299,13 @@ public class MarketDataService {
         if (priceSource == PriceSource.PUBLIC_DATA) {
             return "PUBLIC_DATA_STOCK_SECURITIES";
         }
-        return "MARKET_DATA_UNAVAILABLE";
+        if (priceSource == PriceSource.NONE && foreignOwnershipSource == ForeignOwnershipSource.CACHE) {
+            return "QUOTE_UNAVAILABLE+KRX_FOREIGN_OWNERSHIP_CACHE";
+        }
+        if (priceSource == PriceSource.NONE && foreignOwnershipSource == ForeignOwnershipSource.KIS_CURRENT_PRICE) {
+            return "QUOTE_UNAVAILABLE+KIS_CURRENT_PRICE_FOREIGN_OWNERSHIP";
+        }
+        return "QUOTE_UNAVAILABLE";
     }
 
     private static boolean isKisRateLimitError(RuntimeException exception) {

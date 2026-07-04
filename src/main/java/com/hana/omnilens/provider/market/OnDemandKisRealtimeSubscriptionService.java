@@ -6,6 +6,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -19,6 +21,7 @@ import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 @Service
 public class OnDemandKisRealtimeSubscriptionService {
 
+    private static final Logger log = LoggerFactory.getLogger(OnDemandKisRealtimeSubscriptionService.class);
     private static final String REGULAR = "REGULAR";
     private static final String AFTER_HOURS_REAL = "AFTER_HOURS_REAL";
 
@@ -58,32 +61,40 @@ public class OnDemandKisRealtimeSubscriptionService {
 
     public KisRealtimeSubscriptionRequestResult subscribeRegular(String stockCode) {
         ensureStockExists(stockCode);
-        String approvalKey = regularApprovalKeyProvider.approvalKey();
-        regularConnection.subscribe(List.of(frame(
-                approvalKey,
-                KisRealtimeTransaction.TRADE,
-                KisRealtimeSubscriptionType.SUBSCRIBE,
-                stockCode)));
-        return new KisRealtimeSubscriptionRequestResult(
-                stockCode,
-                REGULAR,
-                "SUBSCRIBED",
-                "KIS regular realtime source subscription requested");
+        try {
+            String approvalKey = regularApprovalKeyProvider.approvalKey();
+            regularConnection.subscribe(List.of(frame(
+                    approvalKey,
+                    KisRealtimeTransaction.TRADE,
+                    KisRealtimeSubscriptionType.SUBSCRIBE,
+                    stockCode)));
+            return new KisRealtimeSubscriptionRequestResult(
+                    stockCode,
+                    REGULAR,
+                    "SUBSCRIBED",
+                    "KIS regular realtime source subscription requested");
+        } catch (RuntimeException exception) {
+            return providerUnavailableResult(stockCode, REGULAR, "subscribe", exception);
+        }
     }
 
     public KisRealtimeSubscriptionRequestResult unsubscribeRegular(String stockCode) {
         ensureStockExists(stockCode);
-        String approvalKey = regularApprovalKeyProvider.approvalKey();
-        regularConnection.unsubscribe(List.of(frame(
-                approvalKey,
-                KisRealtimeTransaction.TRADE,
-                KisRealtimeSubscriptionType.UNSUBSCRIBE,
-                stockCode)));
-        return new KisRealtimeSubscriptionRequestResult(
-                stockCode,
-                REGULAR,
-                "UNSUBSCRIBED",
-                "KIS regular realtime source unsubscribe requested");
+        try {
+            String approvalKey = regularApprovalKeyProvider.approvalKey();
+            regularConnection.unsubscribe(List.of(frame(
+                    approvalKey,
+                    KisRealtimeTransaction.TRADE,
+                    KisRealtimeSubscriptionType.UNSUBSCRIBE,
+                    stockCode)));
+            return new KisRealtimeSubscriptionRequestResult(
+                    stockCode,
+                    REGULAR,
+                    "UNSUBSCRIBED",
+                    "KIS regular realtime source unsubscribe requested");
+        } catch (RuntimeException exception) {
+            return providerUnavailableResult(stockCode, REGULAR, "unsubscribe", exception);
+        }
     }
 
     public KisRealtimeSubscriptionRequestResult subscribeRealAfterHours(String stockCode) {
@@ -95,26 +106,30 @@ public class OnDemandKisRealtimeSubscriptionService {
                     "DISABLED",
                     "Real KIS credential is not configured");
         }
-        String approvalKey = realApprovalKeyProvider.approvalKey();
-        startRealAfterHoursConnectionIfNeeded();
-        String previousStockCode = activeAfterHoursStockCode.getAndSet(stockCode);
-        if (StringUtils.hasText(previousStockCode) && !previousStockCode.equals(stockCode)) {
-            realAfterHoursConnection.unsubscribe(List.of(frame(
+        try {
+            String approvalKey = realApprovalKeyProvider.approvalKey();
+            startRealAfterHoursConnectionIfNeeded();
+            String previousStockCode = activeAfterHoursStockCode.getAndSet(stockCode);
+            if (StringUtils.hasText(previousStockCode) && !previousStockCode.equals(stockCode)) {
+                realAfterHoursConnection.unsubscribe(List.of(frame(
+                        approvalKey,
+                        KisRealtimeTransaction.AFTER_HOURS_TRADE,
+                        KisRealtimeSubscriptionType.UNSUBSCRIBE,
+                        previousStockCode)));
+            }
+            realAfterHoursConnection.subscribe(List.of(frame(
                     approvalKey,
                     KisRealtimeTransaction.AFTER_HOURS_TRADE,
-                    KisRealtimeSubscriptionType.UNSUBSCRIBE,
-                    previousStockCode)));
+                    KisRealtimeSubscriptionType.SUBSCRIBE,
+                    stockCode)));
+            return new KisRealtimeSubscriptionRequestResult(
+                    stockCode,
+                    AFTER_HOURS_REAL,
+                    "SUBSCRIBED",
+                    "Real KIS after-hours source subscription requested");
+        } catch (RuntimeException exception) {
+            return providerUnavailableResult(stockCode, AFTER_HOURS_REAL, "subscribe", exception);
         }
-        realAfterHoursConnection.subscribe(List.of(frame(
-                approvalKey,
-                KisRealtimeTransaction.AFTER_HOURS_TRADE,
-                KisRealtimeSubscriptionType.SUBSCRIBE,
-                stockCode)));
-        return new KisRealtimeSubscriptionRequestResult(
-                stockCode,
-                AFTER_HOURS_REAL,
-                "SUBSCRIBED",
-                "Real KIS after-hours source subscription requested");
     }
 
     public KisRealtimeSubscriptionRequestResult unsubscribeRealAfterHours(String stockCode) {
@@ -134,18 +149,22 @@ public class OnDemandKisRealtimeSubscriptionService {
                     "UNCHANGED",
                     "Requested stock is not the active real after-hours subscription");
         }
-        String approvalKey = realApprovalKeyProvider.approvalKey();
-        activeAfterHoursStockCode.compareAndSet(stockCode, "");
-        realAfterHoursConnection.unsubscribe(List.of(frame(
-                approvalKey,
-                KisRealtimeTransaction.AFTER_HOURS_TRADE,
-                KisRealtimeSubscriptionType.UNSUBSCRIBE,
-                stockCode)));
-        return new KisRealtimeSubscriptionRequestResult(
-                stockCode,
-                AFTER_HOURS_REAL,
-                "UNSUBSCRIBED",
-                "Real KIS after-hours source unsubscribe requested");
+        try {
+            String approvalKey = realApprovalKeyProvider.approvalKey();
+            activeAfterHoursStockCode.compareAndSet(stockCode, "");
+            realAfterHoursConnection.unsubscribe(List.of(frame(
+                    approvalKey,
+                    KisRealtimeTransaction.AFTER_HOURS_TRADE,
+                    KisRealtimeSubscriptionType.UNSUBSCRIBE,
+                    stockCode)));
+            return new KisRealtimeSubscriptionRequestResult(
+                    stockCode,
+                    AFTER_HOURS_REAL,
+                    "UNSUBSCRIBED",
+                    "Real KIS after-hours source unsubscribe requested");
+        } catch (RuntimeException exception) {
+            return providerUnavailableResult(stockCode, AFTER_HOURS_REAL, "unsubscribe", exception);
+        }
     }
 
     private void startRealAfterHoursConnectionIfNeeded() {
@@ -174,5 +193,22 @@ public class OnDemandKisRealtimeSubscriptionService {
     private boolean hasRealKisCredential() {
         return StringUtils.hasText(realKisProperties.appKey())
                 && StringUtils.hasText(realKisProperties.appSecret());
+    }
+
+    private KisRealtimeSubscriptionRequestResult providerUnavailableResult(
+            String stockCode,
+            String session,
+            String action,
+            RuntimeException exception) {
+        log.warn("KIS realtime source {} rejected stockCode={} session={}: {}",
+                action,
+                stockCode,
+                session,
+                exception.toString());
+        return new KisRealtimeSubscriptionRequestResult(
+                stockCode,
+                session,
+                "REJECTED",
+                "KIS realtime source is temporarily unavailable");
     }
 }
