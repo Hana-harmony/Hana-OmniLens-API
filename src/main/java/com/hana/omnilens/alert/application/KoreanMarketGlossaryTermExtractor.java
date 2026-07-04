@@ -54,6 +54,15 @@ public class KoreanMarketGlossaryTermExtractor {
             new DictionaryTerm("품절주", "Limited-float stock", "market_slang",
                     List.of("limited-float stock", "scarce-float stock"),
                     "A stock with very limited tradable float, often prone to sharp price moves."),
+            new DictionaryTerm("빚투", "Leveraged retail investing", "risk_slang",
+                    List.of("leveraged retail investing", "debt-funded investing"),
+                    "Korean market slang for leveraged retail investing funded with borrowed money."),
+            new DictionaryTerm("어닝쇼크", "Earnings shock", "event",
+                    List.of("earnings shock"),
+                    "An earnings result materially below market expectations."),
+            new DictionaryTerm("어닝서프라이즈", "Earnings surprise", "event",
+                    List.of("earnings surprise"),
+                    "An earnings result materially above market expectations."),
             new DictionaryTerm("삼전닉스", "Samjeon Nix", "market_slang",
                     List.of("Samjeon Nix", "Samjeon Nix Gaja", "Samjeon-Nix", "SamjeonNix",
                             "삼전닉스", "삼전 닉스", "삼전·닉스", "삼전-닉스"),
@@ -68,8 +77,11 @@ public class KoreanMarketGlossaryTermExtractor {
         Map<String, AlertGlossaryTerm> termsBySurface = new LinkedHashMap<>();
         if (existingTerms != null) {
             for (AlertGlossaryTerm term : existingTerms) {
-                if (StringUtils.hasText(term.sourceTerm())) {
-                    termsBySurface.put(term.sourceTerm().toLowerCase(Locale.ROOT), term);
+                if (isDictionaryTerm(term)) {
+                    String key = termKey(term);
+                    if (StringUtils.hasText(key)) {
+                        termsBySurface.put(key, term);
+                    }
                 }
             }
         }
@@ -107,6 +119,19 @@ public class KoreanMarketGlossaryTermExtractor {
         return new ArrayList<>(termsBySurface.values());
     }
 
+    public List<AlertGlossaryTerm> filterDisplayableTerms(List<AlertGlossaryTerm> terms) {
+        if (terms == null || terms.isEmpty()) {
+            return List.of();
+        }
+        List<AlertGlossaryTerm> displayableTerms = new ArrayList<>();
+        for (AlertGlossaryTerm term : terms) {
+            if (isDictionaryTerm(term)) {
+                displayableTerms.add(term);
+            }
+        }
+        return displayableTerms;
+    }
+
     private List<String> nonNullTexts(String... texts) {
         List<String> values = new ArrayList<>();
         if (texts == null) {
@@ -131,6 +156,48 @@ public class KoreanMarketGlossaryTermExtractor {
             }
         }
         return "";
+    }
+
+    private boolean isDictionaryTerm(AlertGlossaryTerm term) {
+        if (term == null) {
+            return false;
+        }
+        for (DictionaryTerm dictionaryTerm : TERMS) {
+            if (matches(dictionaryTerm, term.normalizedTerm())
+                    || matches(dictionaryTerm, term.sourceTerm())
+                    || matches(dictionaryTerm, term.englishTerm())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matches(DictionaryTerm dictionaryTerm, String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        String normalizedValue = value.trim();
+        if (dictionaryTerm.normalizedTerm().equalsIgnoreCase(normalizedValue)
+                || dictionaryTerm.englishTerm().equalsIgnoreCase(normalizedValue)) {
+            return true;
+        }
+        return dictionaryTerm.surfaces().stream()
+                .anyMatch(surface -> surface.equalsIgnoreCase(normalizedValue));
+    }
+
+    private String termKey(AlertGlossaryTerm term) {
+        String key = firstText(term.sourceTerm(), term.normalizedTerm(), term.englishTerm());
+        return StringUtils.hasText(key) ? key.toLowerCase(Locale.ROOT) : "";
+    }
+
+    private String firstText(String first, String second, String third) {
+        if (StringUtils.hasText(first)) {
+            return first;
+        }
+        if (StringUtils.hasText(second)) {
+            return second;
+        }
+        return third;
     }
 
     private record DictionaryTerm(

@@ -133,7 +133,7 @@ public class AlertAnalysisPublishingService {
                 analysis.holderTarget(),
                 analysis.watchlistTarget(),
                 displayGlossaryTerms,
-                analysis.translationQualityFlags() == null ? List.of() : analysis.translationQualityFlags(),
+                displayTranslationQualityFlags(analysis.translationQualityFlags(), displayGlossaryTerms),
                 translationProvider(translatedTitle, translatedSummary, translatedContent),
                 translationModelVersion(translatedTitle, translatedSummary, translatedContent),
                 translationStatus(translatedTitle, translatedSummary, translatedContent),
@@ -378,13 +378,26 @@ public class AlertAnalysisPublishingService {
         if (glossaryTerms == null) {
             return List.of();
         }
-        return glossaryTerms.stream()
+        List<AlertGlossaryTerm> alertGlossaryTerms = glossaryTerms.stream()
                 .map(term -> new AlertGlossaryTerm(
                         term.sourceTerm(),
                         term.normalizedTerm(),
                         term.englishTerm(),
                         term.category(),
                         term.description()))
+                .toList();
+        return glossaryTermExtractor.filterDisplayableTerms(alertGlossaryTerms);
+    }
+
+    private List<String> displayTranslationQualityFlags(
+            List<String> qualityFlags,
+            List<AlertGlossaryTerm> displayGlossaryTerms) {
+        if (qualityFlags == null || qualityFlags.isEmpty()) {
+            return List.of();
+        }
+        boolean hasDisplayGlossary = displayGlossaryTerms != null && !displayGlossaryTerms.isEmpty();
+        return qualityFlags.stream()
+                .filter(flag -> hasDisplayGlossary || !"FINANCIAL_GLOSSARY_APPLIED".equals(flag))
                 .toList();
     }
 

@@ -90,9 +90,8 @@ class AlertWebSocketContractTest {
         assertThat(partnerEvent.partnerId()).isEqualTo("partner-a");
         assertThat(partnerEvent.stockCode()).isEqualTo("005930");
         assertThat(partnerEvent.eventTags()).containsExactly("EARNINGS");
-        assertThat(partnerEvent.glossaryTerms()).hasSize(1);
-        assertThat(partnerEvent.glossaryTerms().get(0).englishTerm()).isEqualTo("earnings");
-        assertThat(partnerEvent.translationQualityFlags()).containsExactly("FINANCIAL_GLOSSARY_APPLIED");
+        assertThat(partnerEvent.glossaryTerms()).isEmpty();
+        assertThat(partnerEvent.translationQualityFlags()).isEmpty();
         assertThat(partnerEvent.duplicateKey()).isEqualTo("manual-duplicate");
         assertThat(partnerEvent.modelVersion()).isEqualTo("manual-publisher");
         assertThat(partnerEvent.eventConfidence()).isEqualTo(0.91);
