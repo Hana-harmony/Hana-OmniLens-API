@@ -227,6 +227,7 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
         String lower = payload.toLowerCase(Locale.ROOT);
         return EnglishNewsQualityGate.containsHangul(event.translatedSummary())
                 || EnglishNewsQualityGate.containsHangul(event.translatedContent())
+                || (!isBlank(event.originalContent()) && isBlank(event.translatedContent()))
                 || lower.contains("...")
                 || lower.contains("…")
                 || lower.contains("classified")

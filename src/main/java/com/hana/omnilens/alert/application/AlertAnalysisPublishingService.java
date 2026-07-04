@@ -220,9 +220,7 @@ public class AlertAnalysisPublishingService {
         String translatedSummary = EnglishNewsQualityGate.englishSummaryTextOrFallback(
                 event.translatedSummary(),
                 joinSummaryLines(summaryLines));
-        String translatedContent = EnglishNewsQualityGate.englishTextOrFallback(
-                event.translatedContent(),
-                EnglishNewsQualityGate.englishContentFallback(event.originalContent(), translatedTitle, summaryLines));
+        String translatedContent = repairedTranslatedContent(event, translatedTitle, summaryLines);
         boolean repaired = !safeEquals(translatedTitle, event.translatedTitle())
                 || !safeEquals(translatedSummary, event.translatedSummary())
                 || !safeEquals(translatedContent, event.translatedContent())
@@ -264,6 +262,34 @@ public class AlertAnalysisPublishingService {
                 event.stockMatchConfidence(),
                 event.createdAt());
         return alertEventRepository.save(repairedEvent);
+    }
+
+    private String repairedTranslatedContent(
+            AlertEvent event,
+            String translatedTitle,
+            AlertSummaryLines summaryLines) {
+        String fallback = EnglishNewsQualityGate.englishContentFallback(
+                event.originalContent(),
+                translatedTitle,
+                summaryLines);
+        if (EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())) {
+            return EnglishNewsQualityGate.englishTextOrFallback(event.translatedContent(), fallback);
+        }
+        if (!StringUtils.hasText(event.originalContent())) {
+            return fallback;
+        }
+        try {
+            TranslationResult translatedOriginalContent = translateContent(event.originalContent(), event.glossaryTerms());
+            if (translatedOriginalContent == null) {
+                return fallback;
+            }
+            return EnglishNewsQualityGate.englishTextOrFallback(
+                    translatedOriginalContent.translatedText(),
+                    fallback);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to retranslate alert content during quality repair: alertId={}", event.alertId(), exception);
+            return fallback;
+        }
     }
 
     private AlertEvent toExistingEvent(String alertId, Instant createdAt, AlertPublishRequest request) {

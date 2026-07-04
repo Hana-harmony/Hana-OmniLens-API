@@ -423,8 +423,17 @@ class AlertControllerTest {
                 1.0));
         when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        String repairedTranslatedContent = "Samsung Electronics expects earnings to improve as HBM demand expands. "
+                + "Data center investment is the main driver. "
+                + "Investors should monitor the pace of operating-profit recovery.";
         when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+                .thenAnswer(invocation -> {
+                    String text = invocation.getArgument(0, String.class);
+                    if (text.equals("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다. 데이터센터 투자가 주요 배경이다. 투자자는 영업이익 회복 속도를 확인해야 한다.")) {
+                        return translated(repairedTranslatedContent);
+                    }
+                    return translated(text);
+                });
         String englishFallbackWhat = "This item covers Korean company update from Korean market news.";
         String englishFallbackWhy =
                 "The key background is the latest market or company context confirmed in the source article.";
@@ -450,6 +459,7 @@ class AlertControllerTest {
                 .contains(englishFallbackWhat)
                 .contains(englishFallbackWhy)
                 .contains(englishFallbackImpact)
+                .contains(repairedTranslatedContent)
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
                 .doesNotContain("감성");

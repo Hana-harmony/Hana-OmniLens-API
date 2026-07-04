@@ -319,8 +319,17 @@ class MarketNewsControllerTest {
                 0.75));
         when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        String repairedTranslatedContent = "The semiconductor ETF completed its regular rebalance and added SK Square. "
+                + "Adjustments to SK Hynix and Samsung Electronics weights were the main background. "
+                + "Investors should monitor supply-demand and volatility for the added constituents.";
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+                .thenAnswer(invocation -> {
+                    String text = invocation.getArgument(0, String.class);
+                    if (text.equals("반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했다. SK하이닉스와 삼성전자 비중 조정이 주요 배경이다. 투자자는 편입 종목의 수급과 변동성을 확인해야 한다.")) {
+                        return translated(repairedTranslatedContent);
+                    }
+                    return translated(text);
+                });
         String englishFallbackWhat = "This item covers Korean market update from Korean market news.";
         String englishFallbackImpact =
                 "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
@@ -341,6 +350,7 @@ class MarketNewsControllerTest {
         org.assertj.core.api.Assertions.assertThat(storedPayload)
                 .contains(englishFallbackWhat)
                 .contains(englishFallbackImpact)
+                .contains(repairedTranslatedContent)
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
                 .doesNotContain("감성");

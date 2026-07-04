@@ -14,6 +14,8 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -38,6 +40,7 @@ import com.hana.omnilens.provider.news.OriginalArticleContent;
 @Service
 public class MarketNewsCollectionService {
 
+    private static final Logger log = LoggerFactory.getLogger(MarketNewsCollectionService.class);
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final NaverNewsClient naverNewsClient;
@@ -129,9 +132,7 @@ public class MarketNewsCollectionService {
         String translatedSummary = EnglishNewsQualityGate.englishSummaryTextOrFallback(
                 event.translatedSummary(),
                 joinSummaryLines(summaryLines));
-        String translatedContent = EnglishNewsQualityGate.englishTextOrFallback(
-                event.translatedContent(),
-                EnglishNewsQualityGate.englishContentFallback(event.originalContent(), translatedTitle, summaryLines));
+        String translatedContent = repairedTranslatedContent(event, translatedTitle, summaryLines);
         boolean repaired = !safeEquals(translatedTitle, event.translatedTitle())
                 || !safeEquals(translatedSummary, event.translatedSummary())
                 || !safeEquals(translatedContent, event.translatedContent())
@@ -160,6 +161,34 @@ public class MarketNewsCollectionService {
                 event.duplicateKey(),
                 event.publishedAt(),
                 event.createdAt()));
+    }
+
+    private String repairedTranslatedContent(
+            MarketNewsEvent event,
+            String translatedTitle,
+            AlertSummaryLines summaryLines) {
+        String fallback = EnglishNewsQualityGate.englishContentFallback(
+                event.originalContent(),
+                translatedTitle,
+                summaryLines);
+        if (EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())) {
+            return EnglishNewsQualityGate.englishTextOrFallback(event.translatedContent(), fallback);
+        }
+        if (!StringUtils.hasText(event.originalContent())) {
+            return fallback;
+        }
+        try {
+            TranslationResult translatedOriginalContent = translateContent(event.originalContent(), event.glossaryTerms());
+            if (translatedOriginalContent == null) {
+                return fallback;
+            }
+            return EnglishNewsQualityGate.englishTextOrFallback(
+                    translatedOriginalContent.translatedText(),
+                    fallback);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to retranslate market news content during quality repair: newsId={}", event.newsId(), exception);
+            return fallback;
+        }
     }
 
     private void collectQuery(

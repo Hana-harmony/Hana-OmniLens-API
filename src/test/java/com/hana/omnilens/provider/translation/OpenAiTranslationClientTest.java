@@ -23,9 +23,8 @@ class OpenAiTranslationClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         OpenAiTranslationClient client = new OpenAiTranslationClient(
-                builder,
+                builder.baseUrl("https://api.openai.com").build(),
                 ProviderTestResilience.disabled(),
-                "https://api.openai.com",
                 "openai-secret",
                 "gpt-4o-mini");
 

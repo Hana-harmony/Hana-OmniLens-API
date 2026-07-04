@@ -41,10 +41,15 @@ public final class EnglishNewsQualityGate {
 
     public static String englishTextOrFallback(String value, String fallback) {
         String normalized = normalizeWhitespace(value);
-        if (StringUtils.hasText(normalized) && !containsHangul(normalized) && !containsEllipsis(normalized)) {
+        if (hasUsableEnglishText(normalized)) {
             return normalized;
         }
         return fallback == null ? "" : fallback;
+    }
+
+    public static boolean hasUsableEnglishText(String value) {
+        String normalized = normalizeWhitespace(value);
+        return StringUtils.hasText(normalized) && !containsHangul(normalized) && !containsEllipsis(normalized);
     }
 
     public static String englishSummaryTextOrFallback(String value, String fallback) {
