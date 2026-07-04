@@ -1,6 +1,7 @@
 package com.hana.omnilens.alert.api;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -694,15 +695,17 @@ class AlertControllerTest {
                 "005930",
                 "삼성전자",
                 "NEWS",
-                "삼성전자 개미 순매수",
-                "개미가 삼성전자를 순매수했다",
+                "삼성전자 개미 순매수와 대장주 강세",
+                "개미가 삼성전자를 순매수했고 대장주 흐름이 이어졌다",
                 List.of("MARKET"),
                 "POSITIVE",
                 "HIGH",
                 List.of("005930"),
                 true,
                 true,
-                List.of(new HannahAiGlossaryTerm("개미", "개미", "retail investors", "market_slang")),
+                List.of(
+                        new HannahAiGlossaryTerm("개미", "개미", "retail investors", "market_slang"),
+                        new HannahAiGlossaryTerm("대장주", "대장주", "bellwether stock", "market_slang")),
                 List.of("FINANCIAL_GLOSSARY_APPLIED"),
                 "duplicate-key-ant-surface",
                 "financial-keyword-baseline-2026-06-04",
@@ -710,12 +713,14 @@ class AlertControllerTest {
                 0.89,
                 0.93,
                 1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 개미 순매수"), any()))
-                .thenReturn(translated("Samsung Electronics Ants net bought"));
+        when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 개미 순매수와 대장주 강세"), any()))
+                .thenReturn(translated("Samsung Electronics Ants net bought while Daejangju rallied"));
         when(alertTitleTranslationService.translateTextWithResult(any(), any()))
                 .thenAnswer(invocation -> {
                     String text = invocation.getArgument(0, String.class);
-                    return translated(text.replace("개미가 삼성전자를 순매수했다", "Ants net bought Samsung Electronics."));
+                    return translated(text.replace(
+                            "개미가 삼성전자를 순매수했고 대장주 흐름이 이어졌다",
+                            "Ants net bought Samsung Electronics and Daejangju momentum continued."));
                 });
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
@@ -725,8 +730,8 @@ class AlertControllerTest {
                                 {
                                   "partnerId": "partner-a",
                                   "sourceType": "NEWS",
-                                  "title": "삼성전자 개미 순매수",
-                                  "snippet": "개미가 삼성전자를 순매수했다",
+                                  "title": "삼성전자 개미 순매수와 대장주 강세",
+                                  "snippet": "개미가 삼성전자를 순매수했고 대장주 흐름이 이어졌다",
                                   "originalUrl": "https://example.com/news/ant-surface",
                                   "publishedAt": "2026-06-04T00:00:00Z",
                                   "stockUniverse": [
@@ -741,7 +746,11 @@ class AlertControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("Ants")))
                 .andExpect(jsonPath("$.data.glossaryTerms[0].normalizedTerm", equalTo("개미")))
-                .andExpect(jsonPath("$.data.glossaryTerms[0].englishTerm", equalTo("retail investors")));
+                .andExpect(jsonPath("$.data.glossaryTerms[0].englishTerm", equalTo("retail investors")))
+                .andExpect(jsonPath("$.data.glossaryTerms[*].sourceTerm", hasItem("Daejangju")))
+                .andExpect(jsonPath("$.data.glossaryTerms[*].englishTerm", hasItem("Market Leader")))
+                .andExpect(jsonPath("$.data.glossaryTerms[*].description", hasItem(
+                        "Refers to the leading stock in a particular sector or the entire market that dictates the overall trend.")));
     }
 
     @Test
