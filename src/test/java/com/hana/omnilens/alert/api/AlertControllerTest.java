@@ -448,6 +448,114 @@ class AlertControllerTest {
     }
 
     @Test
+    void reprocessQualityIssuesFixesBlankAlertSummaryLines() throws Exception {
+        jdbcTemplate.update("DELETE FROM alert_event");
+        jdbcTemplate.update(
+                """
+                INSERT INTO alert_event (
+                    alert_id, partner_id, stock_code, source_type, original_url,
+                    duplicate_key, cluster_key, content_availability, published_at, created_at, event_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                "alert-blank-lines",
+                "partner-a",
+                "005930",
+                "NEWS",
+                "https://news.example.com/alert/blank-lines",
+                "alert-blank-lines-duplicate",
+                "alert-blank-lines-cluster",
+                "FULL_TEXT",
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:00:00Z")),
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:01:00Z")),
+                """
+                {
+                  "alertId": "alert-blank-lines",
+                  "partnerId": "partner-a",
+                  "stockCode": "005930",
+                  "stockName": "삼성전자",
+                  "sourceType": "NEWS",
+                  "originalTitle": "삼성전자 실적 개선 HBM 수요 확대",
+                  "translatedTitle": "Samsung earnings improve",
+                  "summary": "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                  "summaryLines": {
+                    "what": "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                    "why": "",
+                    "impact": ""
+                  },
+                  "translatedSummary": "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                  "originalContent": "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다. 데이터센터 투자가 주요 배경이다. 투자자는 영업이익 회복 속도를 확인해야 한다.",
+                  "translatedContent": "",
+                  "imageUrls": [],
+                  "contentAvailability": "FULL_TEXT",
+                  "originalUrl": "https://news.example.com/alert/blank-lines",
+                  "publishedAt": "2026-06-18T07:00:00Z",
+                  "eventTags": ["EARNINGS"],
+                  "sentiment": "POSITIVE",
+                  "importance": "HIGH",
+                  "relatedStocks": ["005930"],
+                  "holderTarget": true,
+                  "watchlistTarget": true,
+                  "glossaryTerms": [],
+                  "translationQualityFlags": [],
+                  "translationProvider": "old-provider",
+                  "translationModelVersion": "old-model",
+                  "translationStatus": "TRANSLATED",
+                  "duplicateKey": "alert-blank-lines-duplicate",
+                  "clusterKey": "alert-blank-lines-cluster",
+                  "modelVersion": "old-model",
+                  "eventConfidence": 0.55,
+                  "sentimentConfidence": 0.55,
+                  "importanceConfidence": 0.55,
+                  "stockMatchConfidence": 1.0,
+                  "createdAt": "2026-06-18T07:01:00Z"
+                }
+                """);
+        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
+                "005930",
+                "삼성전자",
+                "NEWS",
+                "삼성전자 실적 개선 HBM 수요 확대",
+                "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                new AlertSummaryLines(
+                        "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
+                        "데이터센터 투자가 주요 배경입니다.",
+                        "투자자는 영업이익 회복 속도를 확인해야 합니다."),
+                "FULL_TEXT",
+                "",
+                List.of(),
+                List.of("EARNINGS"),
+                "POSITIVE",
+                "HIGH",
+                List.of("005930"),
+                true,
+                true,
+                List.of(),
+                List.of(),
+                "blank-alert-duplicate",
+                "blank-alert-cluster",
+                "financial-keyword-baseline-2026-06-04",
+                0.75,
+                0.75,
+                0.75,
+                1.0));
+        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        mockMvc.perform(post("/api/v1/alerts/events/reprocess/quality-issues")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.eventCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.why",
+                        equalTo("데이터센터 투자가 주요 배경입니다.")))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.impact",
+                        equalTo("투자자는 영업이익 회복 속도를 확인해야 합니다.")));
+    }
+
+    @Test
     void reprocessQualityIssuesSkipsFailedAlertAndContinues() throws Exception {
         jdbcTemplate.update("DELETE FROM alert_event");
         insertBrokenAlertEvent(
