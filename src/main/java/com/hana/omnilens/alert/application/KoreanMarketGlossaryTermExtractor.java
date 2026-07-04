@@ -16,29 +16,48 @@ public class KoreanMarketGlossaryTermExtractor {
 
     private static final List<DictionaryTerm> TERMS = List.of(
             new DictionaryTerm("사이드카", "Sidecar", "market_mechanism",
-                    List.of("sell-side sidecar", "buy-side sidecar", "sidecar")),
+                    List.of("sell-side sidecar", "buy-side sidecar", "sidecar"),
+                    "Temporary program-trading halt used in Korea when index futures move sharply."),
             new DictionaryTerm("서킷브레이커", "Circuit breaker", "market_mechanism",
-                    List.of("sell-side circuit breaker", "buy-side circuit breaker", "circuit breaker")),
+                    List.of("sell-side circuit breaker", "buy-side circuit breaker", "circuit breaker"),
+                    "Market-wide trading halt triggered by a large index move."),
             new DictionaryTerm("코스피", "KOSPI", "index",
-                    List.of("KOSPI")),
+                    List.of("KOSPI"),
+                    "Korea Composite Stock Price Index, the main benchmark for listed Korean equities."),
             new DictionaryTerm("코스닥", "KOSDAQ", "index",
-                    List.of("KOSDAQ")),
+                    List.of("KOSDAQ"),
+                    "Korea's growth-stock market index, similar in role to a tech-heavy exchange benchmark."),
             new DictionaryTerm("코스피200", "KOSPI 200", "index",
-                    List.of("KOSPI 200")),
+                    List.of("KOSPI 200"),
+                    "Index of 200 major KOSPI-listed stocks used for futures, options, and ETFs."),
             new DictionaryTerm("코스닥150", "KOSDAQ 150", "index",
-                    List.of("KOSDAQ 150")),
+                    List.of("KOSDAQ 150"),
+                    "Index of 150 representative KOSDAQ stocks used for ETFs and derivatives."),
             new DictionaryTerm("코리아 디스카운트", "Korea discount", "market_term",
-                    List.of("Korea discount")),
+                    List.of("Korea discount"),
+                    "Valuation discount often applied to Korean equities due to governance, dividend, or geopolitical concerns."),
             new DictionaryTerm("밸류업", "Value-up", "policy_term",
-                    List.of("value-up", "Value-up")),
+                    List.of("value-up", "Value-up"),
+                    "Korean market policy theme encouraging companies to improve valuation and shareholder returns."),
             new DictionaryTerm("저PBR", "Low PBR", "valuation_term",
-                    List.of("low PBR", "Low PBR")),
+                    List.of("low PBR", "Low PBR"),
+                    "Low price-to-book ratio stock, often mentioned in Korea's value-up policy context."),
             new DictionaryTerm("개미", "Retail investors", "investor_slang",
-                    List.of("retail investors", "ants", "ant", "gaemee", "gaemi")),
+                    List.of("retail investors", "ants", "ant", "gaemee", "gaemi"),
+                    "Korean stock-market slang for individual retail investors."),
             new DictionaryTerm("따따블", "Ttattabeul", "ipo_slang",
-                    List.of("ttattabeul", "quadruple debut", "fourfold debut")),
+                    List.of("ttattabeul", "quadruple debut", "fourfold debut"),
+                    "Korean IPO slang for a stock jumping to four times its offering price on debut."),
             new DictionaryTerm("품절주", "Limited-float stock", "market_slang",
-                    List.of("limited-float stock", "scarce-float stock")));
+                    List.of("limited-float stock", "scarce-float stock"),
+                    "A stock with very limited tradable float, often prone to sharp price moves."),
+            new DictionaryTerm("삼전닉스", "Samjeon Nix", "market_slang",
+                    List.of("Samjeon Nix", "Samjeon Nix Gaja", "Samjeon-Nix", "SamjeonNix",
+                            "삼전닉스", "삼전 닉스", "삼전·닉스", "삼전-닉스"),
+                    "Korean market slang combining Samsung Electronics and SK Hynix, usually referring to the two dominant semiconductor bellwethers."),
+            new DictionaryTerm("가즈아", "Gaja", "market_slang",
+                    List.of("Gaja", "go go", "가즈아"),
+                    "Korean investor slang used like a rallying cry meaning roughly 'let's go' for a rising trade."));
 
     public List<AlertGlossaryTerm> supplement(
             List<AlertGlossaryTerm> existingTerms,
@@ -59,9 +78,27 @@ public class KoreanMarketGlossaryTermExtractor {
         for (DictionaryTerm term : TERMS) {
             String surface = firstSurface(joinedText, term.surfaces());
             if (StringUtils.hasText(surface)) {
-                termsBySurface.putIfAbsent(
-                        surface.toLowerCase(Locale.ROOT),
-                        new AlertGlossaryTerm(surface, term.normalizedTerm(), term.englishTerm(), term.category()));
+                String key = surface.toLowerCase(Locale.ROOT);
+                AlertGlossaryTerm existingTerm = termsBySurface.get(key);
+                if (existingTerm == null) {
+                    termsBySurface.put(
+                            key,
+                            new AlertGlossaryTerm(
+                                    surface,
+                                    term.normalizedTerm(),
+                                    term.englishTerm(),
+                                    term.category(),
+                                    term.description()));
+                } else if (!StringUtils.hasText(existingTerm.description())) {
+                    termsBySurface.put(
+                            key,
+                            new AlertGlossaryTerm(
+                                    existingTerm.sourceTerm(),
+                                    existingTerm.normalizedTerm(),
+                                    existingTerm.englishTerm(),
+                                    existingTerm.category(),
+                                    term.description()));
+                }
             }
         }
         return new ArrayList<>(termsBySurface.values());
@@ -97,7 +134,8 @@ public class KoreanMarketGlossaryTermExtractor {
             String normalizedTerm,
             String englishTerm,
             String category,
-            List<String> surfaces
+            List<String> surfaces,
+            String description
     ) {
     }
 }

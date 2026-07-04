@@ -1788,6 +1788,9 @@ components:
         category:
           type: string
           example: event
+        description:
+          type: string
+          example: Korean market slang combining Samsung Electronics and SK Hynix.
     AlertAnalysisPublishRequest:
       type: object
       required:

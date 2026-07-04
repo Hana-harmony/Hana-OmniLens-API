@@ -126,6 +126,13 @@ public class AlertTitleTranslationService {
                 case "품절주" -> replaceIfMissing(result, "low-float stock", List.of(
                         "scarce-float stock",
                         "thin-float stock"));
+                case "삼전닉스" -> replaceIfMissing(result, "Samjeon Nix", List.of(
+                        "Samsung Electronics and SK Hynix",
+                        "Samsung Electronics-SK Hynix",
+                        "Samsung Electronics/SK Hynix",
+                        "Samsung Electronics and SK hynix",
+                        "Samsung Electronics-SK hynix",
+                        "Samsung Electronics/SK hynix"));
                 default -> result;
             };
         }
