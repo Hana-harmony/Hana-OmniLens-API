@@ -196,8 +196,18 @@ class AlertControllerTest {
                 1.0));
         when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 실적 개선"), any()))
                 .thenReturn(translated("Samsung Electronics earnings improve"));
-        when(alertTitleTranslationService.translateTextWithResult(eq("반도체 회복으로 실적 개선 기대가 커졌습니다."), any()))
-                .thenReturn(translated("Chip recovery raised earnings hopes."));
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> {
+                    String text = invocation.getArgument(0, String.class);
+                    if ("반도체 회복으로 실적 개선 기대가 커졌습니다.".equals(text)) {
+                        return translated("Chip recovery raised earnings hopes.");
+                    }
+                    return translated(text);
+                });
+        String expectedSummary = String.join("\n",
+                "반도체 회복으로 실적 개선 기대가 커졌습니다.",
+                "삼성전자 실적 개선의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.",
+                "투자자는 삼성전자 실적 개선 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -226,10 +236,14 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
                 .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
                 .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
-	                .andExpect(jsonPath("$.data.translatedTitle", equalTo("Samsung Electronics earnings improve")))
-	                .andExpect(jsonPath("$.data.summary", equalTo("반도체 회복으로 실적 개선 기대가 커졌습니다.")))
-	                .andExpect(jsonPath("$.data.summaryLines.what", equalTo("Chip recovery raised earnings hopes.")))
-	                .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
+		                .andExpect(jsonPath("$.data.translatedTitle", equalTo("Samsung Electronics earnings improve")))
+		                .andExpect(jsonPath("$.data.summary", equalTo(expectedSummary)))
+		                .andExpect(jsonPath("$.data.summaryLines.what", equalTo("Chip recovery raised earnings hopes.")))
+		                .andExpect(jsonPath("$.data.summaryLines.why",
+		                        equalTo("삼성전자 실적 개선의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.")))
+		                .andExpect(jsonPath("$.data.summaryLines.impact",
+		                        equalTo("투자자는 삼성전자 실적 개선 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.")))
+		                .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
                 .andExpect(jsonPath("$.data.holderTarget", equalTo(true)))
                 .andExpect(jsonPath("$.data.watchlistTarget", equalTo(true)))
                 .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("earnings")))
@@ -277,6 +291,9 @@ class AlertControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
 
         String fallbackSummary = "원문은 삼성전자 실적 개선 HBM 수요 확대 관련 최신 시장·기업 이벤트를 다룹니다.";
+        String fallbackWhy = "삼성전자 실적 개선 HBM 수요 확대의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
+        String fallbackImpact = "투자자는 삼성전자 실적 개선 HBM 수요 확대 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.";
+        String fallbackThreeLineSummary = String.join("\n", fallbackSummary, fallbackWhy, fallbackImpact);
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -297,12 +314,12 @@ class AlertControllerTest {
                                     }
                                   ]
                                 }
-                                """))
+	                                """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.summary", equalTo(fallbackSummary)))
+                .andExpect(jsonPath("$.data.summary", equalTo(fallbackThreeLineSummary)))
                 .andExpect(jsonPath("$.data.summaryLines.what", equalTo(fallbackSummary)))
-                .andExpect(jsonPath("$.data.summaryLines.why", equalTo("")))
-                .andExpect(jsonPath("$.data.summaryLines.impact", equalTo("")));
+                .andExpect(jsonPath("$.data.summaryLines.why", equalTo(fallbackWhy)))
+                .andExpect(jsonPath("$.data.summaryLines.impact", equalTo(fallbackImpact)));
     }
 
     @Test
@@ -588,8 +605,11 @@ class AlertControllerTest {
                 1.0));
         when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 개미 순매수"), any()))
                 .thenReturn(translated("Samsung Electronics Ants net bought"));
-        when(alertTitleTranslationService.translateTextWithResult(eq("개미가 삼성전자를 순매수했다"), any()))
-                .thenReturn(translated("Ants net bought Samsung Electronics."));
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> {
+                    String text = invocation.getArgument(0, String.class);
+                    return translated(text.replace("개미가 삼성전자를 순매수했다", "Ants net bought Samsung Electronics."));
+                });
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
