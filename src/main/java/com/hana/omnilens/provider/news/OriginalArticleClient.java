@@ -19,6 +19,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -32,11 +33,14 @@ public class OriginalArticleClient {
     public static final String LICENSED_NAVER_ORIGINAL_FULL_TEXT = "licensed_naver_original_full_text_v1";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OriginalArticleClient.class);
+    private static final int MAX_REDIRECTS = 5;
     private static final int MAX_CONTENT_CHARS = 20_000;
     private static final int MIN_ARTICLE_BODY_CHARS = 60;
     private static final int MAX_IMAGES = 10;
     private static final List<String> ARTICLE_BODY_SELECTORS = List.of(
+            "#divNewsContent",
             "[itemprop=articleBody]",
+            ".section-content[itemprop=articleBody]",
             "#article-view-content-div",
             ".article-body-only",
             "#articleBody",
@@ -55,6 +59,50 @@ public class OriginalArticleClient {
             ".go_trans._article_content",
             "main article",
             "article");
+    private static final List<String> IMAGE_URL_ATTRIBUTES = List.of(
+            "src",
+            "data-src",
+            "data-original",
+            "data-lazy-src",
+            "data-original-src",
+            "data-url",
+            "data-image");
+    private static final List<String> IMAGE_SRCSET_ATTRIBUTES = List.of(
+            "srcset",
+            "data-srcset",
+            "data-original-set");
+    private static final String NON_CONTENT_SELECTOR = String.join(",",
+            "script",
+            "style",
+            "noscript",
+            "iframe",
+            "form",
+            "button",
+            "nav",
+            "aside",
+            "ins",
+            "table",
+            ".ad",
+            ".ads",
+            ".advertisement",
+            ".advertisement-area",
+            ".adv-area",
+            "[class*=advert]",
+            "[id*=advert]",
+            "[class*=banner]",
+            "[id*=banner]",
+            "[class*=share]",
+            "[id*=share]",
+            "[class*=sns]",
+            "[id*=sns]",
+            "[class*=recommend]",
+            "[id*=recommend]",
+            "[class*=related]",
+            "[id*=related]",
+            "[class*=copyright]",
+            "[id*=copyright]",
+            "[class*=reporter]",
+            "[id*=reporter]");
 
     private final RestClient restClient;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
@@ -73,17 +121,33 @@ public class OriginalArticleClient {
         }
 
         try {
-            String html = resiliencePolicy.execute("news-original-content", () -> restClient.get()
-                    .uri(uri)
-                    .header("User-Agent", "Hana-OmniLensBot/1.0 (+https://github.com/Hana-harmony)")
-                    .retrieve()
-                    .body(String.class));
-            return parse(uri, html);
+            FetchedHtml fetched = resiliencePolicy.execute("news-original-content", () -> fetchHtml(uri, 0));
+            return parse(fetched.sourceUri(), fetched.html());
         } catch (RestClientException | IllegalArgumentException exception) {
             LOGGER.warn("Original article fetch failed. url={}, reason={}",
                     uri, exception.getClass().getSimpleName());
             return Optional.empty();
         }
+    }
+
+    private FetchedHtml fetchHtml(URI uri, int redirectCount) {
+        ResponseEntity<String> response = restClient.get()
+                .uri(uri)
+                .header("User-Agent", "Hana-OmniLensBot/1.0 (+https://github.com/Hana-harmony)")
+                .retrieve()
+                .toEntity(String.class);
+        if (response.getStatusCode().is3xxRedirection()) {
+            URI location = response.getHeaders().getLocation();
+            if (location == null || redirectCount >= MAX_REDIRECTS) {
+                return new FetchedHtml("", uri);
+            }
+            URI redirectedUri = safeHttpUri(uri.resolve(location).toString());
+            if (redirectedUri == null) {
+                return new FetchedHtml("", uri);
+            }
+            return fetchHtml(redirectedUri, redirectCount + 1);
+        }
+        return new FetchedHtml(response.getBody(), uri);
     }
 
     private Optional<OriginalArticleContent> parse(URI sourceUri, String html) {
@@ -123,27 +187,11 @@ public class OriginalArticleClient {
             return "";
         }
         Element copy = article.clone();
-        copy.select(String.join(",",
-                "script",
-                "style",
-                "noscript",
-                "iframe",
-                "form",
-                "button",
-                "nav",
-                "aside",
-                "ins",
-                "table",
-                "[class*=ad]",
-                "[id*=ad]",
-                "[class*=share]",
-                "[id*=share]",
-                "[class*=sns]",
-                "[id*=sns]",
-                "[class*=recommend]",
-                "[class*=related]",
-                "[class*=copyright]",
-                "[class*=reporter]")).remove();
+        copy.select(NON_CONTENT_SELECTOR).forEach(element -> {
+            if (element != copy) {
+                element.remove();
+            }
+        });
         return normalize(copy.text());
     }
 
@@ -168,25 +216,115 @@ public class OriginalArticleClient {
     private List<String> imageUrls(Document document, URI sourceUri) {
         Set<String> urls = new LinkedHashSet<>();
         addImageUrl(urls, document.selectFirst("meta[property=og:image]"), "content", sourceUri);
+        addImageUrl(urls, document.selectFirst("meta[property=og:image:url]"), "content", sourceUri);
+        addImageUrl(urls, document.selectFirst("meta[property=og:image:secure_url]"), "content", sourceUri);
         addImageUrl(urls, document.selectFirst("meta[name=twitter:image]"), "content", sourceUri);
-        for (Element image : document.select("article img[src], main img[src], body img[src]")) {
-            addImageUrl(urls, image, "src", sourceUri);
+        addImageUrl(urls, document.selectFirst("meta[name=twitter:image:src]"), "content", sourceUri);
+        addImageUrl(urls, document.selectFirst("meta[itemprop=image]"), "content", sourceUri);
+        addImageUrl(urls, document.selectFirst("meta[itemprop=thumbnailUrl]"), "content", sourceUri);
+        addImageUrl(urls, document.selectFirst("meta[name=thumbnail]"), "content", sourceUri);
+        addImageUrl(urls, document.selectFirst("meta[name=image]"), "content", sourceUri);
+        addImageUrl(urls, document.selectFirst("link[rel=image_src]"), "href", sourceUri);
+        Element article = firstArticleImageRoot(document);
+        if (article != null) {
+            addImageUrlsFrom(urls, article, sourceUri);
+        } else {
+            for (Element root : document.select("article, main, body")) {
+                addImageUrlsFrom(urls, root, sourceUri);
+                if (urls.size() >= MAX_IMAGES) {
+                    break;
+                }
+            }
+        }
+        return urls.stream().limit(MAX_IMAGES).toList();
+    }
+
+    private Element firstArticleImageRoot(Document document) {
+        for (String selector : ARTICLE_BODY_SELECTORS) {
+            Element article = document.selectFirst(selector);
+            if (article != null) {
+                return article;
+            }
+        }
+        return null;
+    }
+
+    private void addImageUrlsFrom(Set<String> urls, Element root, URI sourceUri) {
+        for (Element image : root.select("img")) {
+            if (urls.size() >= MAX_IMAGES) {
+                return;
+            }
+            for (String attribute : IMAGE_URL_ATTRIBUTES) {
+                addImageUrl(urls, image, attribute, sourceUri);
+            }
+            for (String attribute : IMAGE_SRCSET_ATTRIBUTES) {
+                addImageSrcSetUrls(urls, image.attr(attribute), sourceUri);
+            }
             if (urls.size() >= MAX_IMAGES) {
                 break;
             }
         }
-        return urls.stream().limit(MAX_IMAGES).toList();
     }
 
     private void addImageUrl(Set<String> urls, Element element, String attribute, URI sourceUri) {
         if (element == null || urls.size() >= MAX_IMAGES) {
             return;
         }
-        String rawUrl = element.attr(attribute);
-        URI imageUri = safeHttpUri(sourceUri.resolve(rawUrl).toString());
-        if (imageUri != null) {
+        addImageUrl(urls, element.attr(attribute), sourceUri);
+    }
+
+    private void addImageSrcSetUrls(Set<String> urls, String rawSrcSet, URI sourceUri) {
+        if (!StringUtils.hasText(rawSrcSet) || urls.size() >= MAX_IMAGES) {
+            return;
+        }
+        for (String candidate : rawSrcSet.split(",")) {
+            if (urls.size() >= MAX_IMAGES) {
+                return;
+            }
+            String rawUrl = candidate.trim().split("\\s+")[0];
+            addImageUrl(urls, rawUrl, sourceUri);
+        }
+    }
+
+    private void addImageUrl(Set<String> urls, String rawUrl, URI sourceUri) {
+        if (!StringUtils.hasText(rawUrl) || urls.size() >= MAX_IMAGES) {
+            return;
+        }
+        String normalizedUrl = rawUrl.trim();
+        if (normalizedUrl.startsWith("data:")
+                || normalizedUrl.startsWith("blob:")
+                || normalizedUrl.startsWith("javascript:")
+                || normalizedUrl.contains("{{")) {
+            return;
+        }
+        URI imageUri = safeHttpUri(sourceUri.resolve(normalizedUrl).toString());
+        if (imageUri != null && !isLikelyNonArticleImage(imageUri)) {
             urls.add(imageUri.toString());
         }
+    }
+
+    private boolean isLikelyNonArticleImage(URI imageUri) {
+        String path = Optional.ofNullable(imageUri.getPath()).orElse("").toLowerCase(Locale.ROOT);
+        String query = Optional.ofNullable(imageUri.getQuery()).orElse("").toLowerCase(Locale.ROOT);
+        String value = path + "?" + query;
+        return path.endsWith(".svg")
+                || value.contains("logo")
+                || value.contains("sns")
+                || value.contains("share")
+                || value.contains("icon")
+                || value.contains("utilbar")
+                || value.contains("quick")
+                || value.contains("btn_")
+                || value.contains("profile")
+                || value.contains("reporter")
+                || value.contains("banner")
+                || value.contains("sample")
+                || value.contains("spacer")
+                || value.contains("blank")
+                || value.contains("no_image")
+                || value.contains("noimage")
+                || value.contains("1x1")
+                || value.contains("trans_");
     }
 
     private String canonicalUrl(Document document, URI sourceUri) {
@@ -251,5 +389,8 @@ public class OriginalArticleClient {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }
+    }
+
+    private record FetchedHtml(String html, URI sourceUri) {
     }
 }

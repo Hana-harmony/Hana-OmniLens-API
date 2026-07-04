@@ -115,6 +115,11 @@ public class MarketNewsCollectionService {
                 .toList();
     }
 
+    public Optional<MarketNewsEvent> reprocessByNewsId(String newsId) {
+        return marketNewsEventRepository.findByNewsId(newsId)
+                .map(this::reprocess);
+    }
+
     public List<MarketNewsEvent> reprocessSummaryQualityIssues(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit, 100));
         return marketNewsEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
@@ -137,13 +142,21 @@ public class MarketNewsCollectionService {
     }
 
     private MarketNewsEvent repairQualityIssue(MarketNewsEvent event) {
+        Optional<OriginalArticleContent> fullContent = fullContentForReprocess(event);
+        String originalContent = refreshedOriginalContent(event, fullContent);
+        List<String> imageUrls = refreshedImageUrls(event, fullContent);
+        String contentAvailability = refreshedContentAvailability(event, fullContent);
+        String canonicalUrl = refreshedCanonicalUrl(event, fullContent);
+        String sourceLicensePolicy = refreshedSourceLicensePolicy(event, fullContent);
         String translatedTitle = repairedTranslatedTitle(event);
         AlertSummaryLines summaryLines = repairedSummaryLines(event);
         String translatedSummary = joinSummaryLines(summaryLines);
-        String translatedContent = repairedTranslatedContent(event);
+        String translatedContent = repairedTranslatedContent(event, originalContent);
         boolean repaired = !safeEquals(translatedTitle, event.translatedTitle())
                 || !safeEquals(translatedSummary, event.translatedSummary())
                 || !safeEquals(translatedContent, event.translatedContent())
+                || !safeEquals(originalContent, event.originalContent())
+                || !imageUrls.equals(event.imageUrls())
                 || !safeEquals(joinSummaryLines(summaryLines), joinSummaryLines(event.summaryLines()));
         return marketNewsEventRepository.update(new MarketNewsEvent(
                 event.newsId(),
@@ -153,13 +166,13 @@ public class MarketNewsCollectionService {
                 event.summary(),
                 summaryLines,
                 translatedSummary,
-                event.originalContent(),
+                originalContent,
                 translatedContent,
-                event.imageUrls(),
-                event.contentAvailability(),
+                imageUrls,
+                contentAvailability,
                 event.originalUrl(),
-                event.canonicalUrl(),
-                event.sourceLicensePolicy(),
+                canonicalUrl,
+                sourceLicensePolicy,
                 event.glossaryTerms(),
                 event.sentiment(),
                 event.importance(),
@@ -196,15 +209,15 @@ public class MarketNewsCollectionService {
                 "market news summary repair");
     }
 
-    private String repairedTranslatedContent(MarketNewsEvent event) {
+    private String repairedTranslatedContent(MarketNewsEvent event, String originalContent) {
         if (EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())) {
             return EnglishNewsQualityGate.englishTextOrEmpty(event.translatedContent());
         }
-        if (!StringUtils.hasText(event.originalContent())) {
+        if (!StringUtils.hasText(originalContent)) {
             return "";
         }
         try {
-            TranslationResult translatedOriginalContent = translateContent(event.originalContent(), event.glossaryTerms());
+            TranslationResult translatedOriginalContent = translateContent(originalContent, event.glossaryTerms());
             if (translatedOriginalContent == null) {
                 throw new IllegalStateException("English translation failed: market news content repair");
             }
@@ -284,16 +297,21 @@ public class MarketNewsCollectionService {
     }
 
     private MarketNewsEvent reprocess(MarketNewsEvent event) {
-        Optional<OriginalArticleContent> fullContent = fullContentFromEvent(event);
+        Optional<OriginalArticleContent> fullContent = fullContentForReprocess(event);
+        String originalContent = refreshedOriginalContent(event, fullContent);
+        List<String> imageUrls = refreshedImageUrls(event, fullContent);
+        String contentAvailability = refreshedContentAvailability(event, fullContent);
+        String canonicalUrl = refreshedCanonicalUrl(event, fullContent);
+        String sourceLicensePolicy = refreshedSourceLicensePolicy(event, fullContent);
         MarketNewsAnalysis analysis = analyzeAndTranslate(
                 new NaverNewsArticle(
                         event.title(),
                         event.title(),
                         event.originalUrl(),
                         event.publishedAt()),
-                event.originalContent(),
+                originalContent,
                 fullContent,
-                event.contentAvailability());
+                contentAvailability);
         MarketNewsEvent updated = new MarketNewsEvent(
                 event.newsId(),
                 event.query(),
@@ -302,13 +320,13 @@ public class MarketNewsCollectionService {
                 analysis.summary(),
                 analysis.summaryLines(),
                 analysis.translatedSummary(),
-                event.originalContent(),
+                originalContent,
                 analysis.translatedContent(),
-                event.imageUrls(),
-                event.contentAvailability(),
+                imageUrls,
+                contentAvailability,
                 event.originalUrl(),
-                event.canonicalUrl(),
-                event.sourceLicensePolicy(),
+                canonicalUrl,
+                sourceLicensePolicy,
                 analysis.glossaryTerms(),
                 analysis.sentiment(),
                 analysis.importance(),
@@ -321,6 +339,26 @@ public class MarketNewsCollectionService {
         return marketNewsEventRepository.update(updated);
     }
 
+    private Optional<OriginalArticleContent> fullContentForReprocess(MarketNewsEvent event) {
+        Optional<OriginalArticleContent> storedContent = fullContentFromEvent(event);
+        if (!StringUtils.hasText(event.originalUrl())) {
+            return storedContent;
+        }
+        try {
+            Optional<OriginalArticleContent> refreshedContent = originalArticleClient.fetch(event.originalUrl());
+            if (refreshedContent.isPresent()) {
+                return refreshedContent;
+            }
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Failed to refetch original market news content during reprocess: newsId={}, url={}",
+                    event.newsId(),
+                    event.originalUrl(),
+                    exception);
+        }
+        return storedContent;
+    }
+
     private Optional<OriginalArticleContent> fullContentFromEvent(MarketNewsEvent event) {
         if (!StringUtils.hasText(event.originalContent())) {
             return Optional.empty();
@@ -331,6 +369,38 @@ public class MarketNewsCollectionService {
                 firstText(event.canonicalUrl(), event.originalUrl()),
                 sha256(event.originalContent()),
                 firstText(event.sourceLicensePolicy(), event.contentAvailability())));
+    }
+
+    private String refreshedOriginalContent(MarketNewsEvent event, Optional<OriginalArticleContent> fullContent) {
+        return fullContent
+                .map(OriginalArticleContent::content)
+                .filter(StringUtils::hasText)
+                .orElse(event.originalContent());
+    }
+
+    private List<String> refreshedImageUrls(MarketNewsEvent event, Optional<OriginalArticleContent> fullContent) {
+        return fullContent
+                .map(OriginalArticleContent::imageUrls)
+                .filter(urls -> !urls.isEmpty())
+                .orElse(event.imageUrls());
+    }
+
+    private String refreshedContentAvailability(MarketNewsEvent event, Optional<OriginalArticleContent> fullContent) {
+        return fullContent.isPresent() ? "FULL_TEXT" : event.contentAvailability();
+    }
+
+    private String refreshedCanonicalUrl(MarketNewsEvent event, Optional<OriginalArticleContent> fullContent) {
+        return fullContent
+                .map(OriginalArticleContent::canonicalUrl)
+                .filter(StringUtils::hasText)
+                .orElse(event.canonicalUrl());
+    }
+
+    private String refreshedSourceLicensePolicy(MarketNewsEvent event, Optional<OriginalArticleContent> fullContent) {
+        return fullContent
+                .map(OriginalArticleContent::sourceLicensePolicy)
+                .filter(StringUtils::hasText)
+                .orElse(event.sourceLicensePolicy());
     }
 
     private MarketNewsAnalysis analyzeAndTranslate(
@@ -671,7 +741,8 @@ public class MarketNewsCollectionService {
                         term.sourceTerm(),
                         term.normalizedTerm(),
                         term.englishTerm(),
-                        term.category()))
+                        term.category(),
+                        term.description()))
                 .toList();
     }
 
@@ -692,7 +763,8 @@ public class MarketNewsCollectionService {
                         displaySourceTerm(term, translatedText),
                         term.normalizedTerm(),
                         term.englishTerm(),
-                        term.category()))
+                        term.category(),
+                        term.description()))
                 .toList();
     }
 
@@ -709,6 +781,16 @@ public class MarketNewsCollectionService {
     private List<String> translatedSurfaceCandidates(AlertGlossaryTerm term) {
         if ("개미".equals(term.normalizedTerm())) {
             return List.of(term.englishTerm(), "ants", "ant", "gaemee", "gaemi", term.sourceTerm());
+        }
+        if ("삼전닉스".equals(term.normalizedTerm())) {
+            return List.of(
+                    term.englishTerm(),
+                    "Samjeon Nix",
+                    "Samjeon-Nix",
+                    "SamjeonNix",
+                    "Samsung Electronics and SK Hynix",
+                    term.sourceTerm(),
+                    term.normalizedTerm());
         }
         return List.of(term.englishTerm(), term.sourceTerm(), term.normalizedTerm());
     }

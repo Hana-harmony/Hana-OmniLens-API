@@ -88,6 +88,15 @@ public class MarketNewsController {
         return ApiResponse.success(new MarketNewsListResponse(news.size(), news));
     }
 
+    @PostMapping("/{newsId}/reprocess")
+    @Operation(summary = "Reprocess one stored Korean market-wide news item")
+    public ApiResponse<MarketNewsEvent> reprocessMarketNews(
+            @PathVariable @Size(min = 1, max = 80) String newsId) {
+        var event = marketNewsCollectionService.reprocessByNewsId(newsId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "market news not found"));
+        return ApiResponse.success(event);
+    }
+
     @PostMapping("/reprocess/quality-issues")
     @Operation(summary = "Reprocess stored Korean market-wide news with broken summaries or translations")
     public ApiResponse<MarketNewsListResponse> reprocessMarketNewsQualityIssues(

@@ -383,7 +383,8 @@ public class AlertAnalysisPublishingService {
                         term.sourceTerm(),
                         term.normalizedTerm(),
                         term.englishTerm(),
-                term.category()))
+                        term.category(),
+                        term.description()))
                 .toList();
     }
 
@@ -404,7 +405,8 @@ public class AlertAnalysisPublishingService {
                         displaySourceTerm(term, translatedText),
                         term.normalizedTerm(),
                         term.englishTerm(),
-                        term.category()))
+                        term.category(),
+                        term.description()))
                 .toList();
     }
 
@@ -421,6 +423,16 @@ public class AlertAnalysisPublishingService {
     private List<String> translatedSurfaceCandidates(AlertGlossaryTerm term) {
         if ("개미".equals(term.normalizedTerm())) {
             return List.of(term.englishTerm(), "ants", "ant", "gaemee", "gaemi", term.sourceTerm());
+        }
+        if ("삼전닉스".equals(term.normalizedTerm())) {
+            return List.of(
+                    term.englishTerm(),
+                    "Samjeon Nix",
+                    "Samjeon-Nix",
+                    "SamjeonNix",
+                    "Samsung Electronics and SK Hynix",
+                    term.sourceTerm(),
+                    term.normalizedTerm());
         }
         return List.of(term.englishTerm(), term.sourceTerm(), term.normalizedTerm());
     }
