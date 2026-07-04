@@ -245,13 +245,17 @@ public class MarketNewsCollectionService {
             TranslationResult translatedTitle = translationService.translateTitleWithResult(
                     firstText(ai.originalTitle(), article.title()),
                     glossaryTerms);
-            String summary = summaryText(ai.summary(), ai.summaryLines(), article.title());
+            AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
+                    ai.summary(),
+                    ai.summaryLines(),
+                    article.title());
+            String summary = joinSummaryLines(sourceSummaryLines);
             TranslationResult translatedSummary = translationService.translateTextWithResult(
                     summary,
                     glossaryTerms);
             TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
             AlertSummaryLines translatedSummaryLines = translateSummaryLines(
-                    ai.summaryLines() == null ? AlertSummaryLines.fromSummary(ai.summary()) : ai.summaryLines(),
+                    sourceSummaryLines,
                     glossaryTerms,
                     translatedSummary.translatedText());
             List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
@@ -277,13 +281,14 @@ public class MarketNewsCollectionService {
         } catch (RuntimeException exception) {
             List<AlertGlossaryTerm> glossaryTerms = List.of();
             TranslationResult translatedTitle = translationService.translateTitleWithResult(article.title(), glossaryTerms);
-            String summary = summaryText("", null, article.title());
+            AlertSummaryLines sourceSummaryLines = sourceSummaryLines("", null, article.title());
+            String summary = joinSummaryLines(sourceSummaryLines);
             TranslationResult translatedSummary = translationService.translateTextWithResult(summary, glossaryTerms);
             TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
             return new MarketNewsAnalysis(
                     summary,
                     translatedTitle.translatedText(),
-                    AlertSummaryLines.fromSummary(translatedSummary.translatedText()),
+                    translateSummaryLines(sourceSummaryLines, glossaryTerms, translatedSummary.translatedText()),
                     translatedSummary.translatedText(),
                     translatedContent.translatedText(),
                     glossaryTerms,
@@ -300,16 +305,16 @@ public class MarketNewsCollectionService {
         return translationService.translateTextWithResult(originalContent, glossaryTerms);
     }
 
-    private String summaryText(String summary, AlertSummaryLines summaryLines, String fallback) {
+    private AlertSummaryLines sourceSummaryLines(String summary, AlertSummaryLines summaryLines, String fallback) {
         String joinedLines = joinSummaryLines(summaryLines);
         if (StringUtils.hasText(joinedLines)) {
-            return joinedLines;
+            return completeSummaryLines(summaryLines, fallback);
         }
         String sanitizedSummary = sanitizeSummary(summary);
         if (StringUtils.hasText(sanitizedSummary)) {
-            return sanitizedSummary;
+            return completeSummaryLines(AlertSummaryLines.fromSummary(sanitizedSummary), fallback);
         }
-        return fallbackSummary(fallback);
+        return completeSummaryLines(null, fallback);
     }
 
     private String joinSummaryLines(AlertSummaryLines summaryLines) {
@@ -340,16 +345,49 @@ public class MarketNewsCollectionService {
         return normalized;
     }
 
+    private AlertSummaryLines completeSummaryLines(AlertSummaryLines summaryLines, String fallback) {
+        String what = summaryLines == null ? "" : sanitizeSummary(summaryLines.what());
+        String why = summaryLines == null ? "" : sanitizeSummary(summaryLines.why());
+        String impact = summaryLines == null ? "" : sanitizeSummary(summaryLines.impact());
+
+        if (!StringUtils.hasText(what)) {
+            what = fallbackSummary(fallback);
+        }
+        if (!StringUtils.hasText(why) || why.equals(what)) {
+            why = fallbackWhySummary(fallback);
+        }
+        if (!StringUtils.hasText(impact) || impact.equals(what) || impact.equals(why)) {
+            impact = fallbackImpactSummary(fallback);
+        }
+        return new AlertSummaryLines(what, why, impact);
+    }
+
     private String fallbackSummary(String fallback) {
+        String subject = fallbackSubject(fallback);
+        if ("해당 이벤트".equals(subject)) {
+            return "원문은 최신 시장·기업 이벤트를 다룹니다.";
+        }
+        return "원문은 " + subject + " 관련 최신 시장·기업 이벤트를 다룹니다.";
+    }
+
+    private String fallbackWhySummary(String fallback) {
+        return fallbackSubject(fallback) + "의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
+    }
+
+    private String fallbackImpactSummary(String fallback) {
+        return "투자자는 " + fallbackSubject(fallback) + " 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.";
+    }
+
+    private String fallbackSubject(String fallback) {
         String subject = fallback == null ? "" : fallback
                 .replace("...", " ")
                 .replace("…", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
         if (!StringUtils.hasText(subject)) {
-            return "원문은 최신 시장·기업 이벤트를 다룹니다.";
+            return "해당 이벤트";
         }
-        return "원문은 " + subject + " 관련 최신 시장·기업 이벤트를 다룹니다.";
+        return subject;
     }
 
     private boolean containsEllipsis(String value) {
@@ -375,15 +413,16 @@ public class MarketNewsCollectionService {
             List<AlertGlossaryTerm> glossaryTerms,
             String fallbackSummary) {
         if (summaryLines == null) {
-            return AlertSummaryLines.fromSummary(fallbackSummary);
+            return completeSummaryLines(null, fallbackSummary);
         }
-        String what = translateSummaryLine(summaryLines.what(), glossaryTerms);
-        String why = translateSummaryLine(summaryLines.why(), glossaryTerms);
-        String impact = translateSummaryLine(summaryLines.impact(), glossaryTerms);
-        if (!StringUtils.hasText(what) && !StringUtils.hasText(why) && !StringUtils.hasText(impact)) {
-            return AlertSummaryLines.fromSummary(fallbackSummary);
-        }
-        return new AlertSummaryLines(what, why, impact);
+        AlertSummaryLines completedSourceLines = completeSummaryLines(summaryLines, fallbackSummary);
+        String what = translateSummaryLine(completedSourceLines.what(), glossaryTerms);
+        String why = translateSummaryLine(completedSourceLines.why(), glossaryTerms);
+        String impact = translateSummaryLine(completedSourceLines.impact(), glossaryTerms);
+        return completeSummaryLines(new AlertSummaryLines(
+                StringUtils.hasText(what) ? what : completedSourceLines.what(),
+                StringUtils.hasText(why) ? why : completedSourceLines.why(),
+                StringUtils.hasText(impact) ? impact : completedSourceLines.impact()), fallbackSummary);
     }
 
     private String translateSummaryLine(String value, List<AlertGlossaryTerm> glossaryTerms) {

@@ -111,6 +111,10 @@ class MarketNewsControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        String expectedSummary = String.join("\n",
+                "한국 증시 전문에 근거한 요약입니다.",
+                "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.",
+                "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -126,7 +130,7 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.storedCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.events[0].query", equalTo("한국 증시")))
                 .andExpect(jsonPath("$.data.events[0].title", equalTo("코스피 상승 마감")))
-                .andExpect(jsonPath("$.data.events[0].summary", equalTo("한국 증시 전문에 근거한 요약입니다.")))
+                .andExpect(jsonPath("$.data.events[0].summary", equalTo(expectedSummary)))
                 .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
                 .andExpect(jsonPath("$.data.events[0].translationProvider", equalTo("openai")))
                 .andExpect(jsonPath("$.data.events[0].translationStatus", equalTo("TRANSLATED")));
@@ -197,6 +201,9 @@ class MarketNewsControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
 
         String fallbackSummary = "원문은 NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 최신 시장·기업 이벤트를 다룹니다.";
+        String fallbackWhy = "NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
+        String fallbackImpact = "투자자는 NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.";
+        String fallbackThreeLineSummary = String.join("\n", fallbackSummary, fallbackWhy, fallbackImpact);
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -206,12 +213,12 @@ class MarketNewsControllerTest {
                                   "queries": ["반도체 ETF"],
                                   "display": 1
                                 }
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.events[0].summary", equalTo(fallbackSummary)))
+                """))
+        .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.events[0].summary", equalTo(fallbackThreeLineSummary)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(fallbackSummary)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo("")))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo("")));
+                .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(fallbackWhy)))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(fallbackImpact)));
     }
 
     @Test
