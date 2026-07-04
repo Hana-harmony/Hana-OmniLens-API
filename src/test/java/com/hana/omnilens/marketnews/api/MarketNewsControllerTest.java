@@ -115,6 +115,16 @@ class MarketNewsControllerTest {
                 "한국 증시 전문에 근거한 요약입니다.",
                 "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.",
                 "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
+        String expectedEnglishWhat = "This item covers Korean market update from Korean market news.";
+        String expectedEnglishWhy =
+                "The key background is the latest market or company context confirmed in the source article.";
+        String expectedEnglishImpact =
+                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
+        String expectedTranslatedContent = String.join("\n\n",
+                "Korean market update",
+                "What: " + expectedEnglishWhat,
+                "Why: " + expectedEnglishWhy,
+                "Impact: " + expectedEnglishImpact);
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -131,6 +141,13 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.events[0].query", equalTo("한국 증시")))
                 .andExpect(jsonPath("$.data.events[0].title", equalTo("코스피 상승 마감")))
                 .andExpect(jsonPath("$.data.events[0].summary", equalTo(expectedSummary)))
+                .andExpect(jsonPath("$.data.events[0].translatedTitle", equalTo("Korean market update")))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(expectedEnglishWhat)))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(expectedEnglishWhy)))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(expectedEnglishImpact)))
+                .andExpect(jsonPath("$.data.events[0].translatedContent", equalTo(expectedTranslatedContent)))
+                .andExpect(jsonPath("$.data.events[0].sentiment", equalTo("POSITIVE")))
+                .andExpect(jsonPath("$.data.events[0].importance", equalTo("MEDIUM")))
                 .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
                 .andExpect(jsonPath("$.data.events[0].translationProvider", equalTo("openai")))
                 .andExpect(jsonPath("$.data.events[0].translationStatus", equalTo("TRANSLATED")));
@@ -204,6 +221,11 @@ class MarketNewsControllerTest {
         String fallbackWhy = "NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
         String fallbackImpact = "투자자는 NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.";
         String fallbackThreeLineSummary = String.join("\n", fallbackSummary, fallbackWhy, fallbackImpact);
+        String englishFallbackWhat = "This item covers Korean market update from Korean market news.";
+        String englishFallbackWhy =
+                "The key background is the latest market or company context confirmed in the source article.";
+        String englishFallbackImpact =
+                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -216,9 +238,11 @@ class MarketNewsControllerTest {
                 """))
         .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.events[0].summary", equalTo(fallbackThreeLineSummary)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(fallbackSummary)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(fallbackWhy)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(fallbackImpact)));
+                .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(englishFallbackWhat)))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(englishFallbackWhy)))
+                .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(englishFallbackImpact)))
+                .andExpect(jsonPath("$.data.events[0].sentiment", equalTo("NEUTRAL")))
+                .andExpect(jsonPath("$.data.events[0].importance", equalTo("MEDIUM")));
     }
 
     @Test
@@ -297,6 +321,9 @@ class MarketNewsControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        String englishFallbackWhat = "This item covers Korean market update from Korean market news.";
+        String englishFallbackImpact =
+                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -304,16 +331,16 @@ class MarketNewsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.news[0].summaryLines.what",
-                        equalTo("반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했습니다.")))
+                        equalTo(englishFallbackWhat)))
                 .andExpect(jsonPath("$.data.news[0].summaryLines.impact",
-                        equalTo("투자자는 편입 종목의 수급과 변동성을 확인해야 합니다.")));
+                        equalTo(englishFallbackImpact)));
 
         String storedPayload = jdbcTemplate.queryForObject(
                 "SELECT event_json FROM market_news_event WHERE news_id = 'mkt-quality-issue'",
                 String.class);
         org.assertj.core.api.Assertions.assertThat(storedPayload)
-                .contains("반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했습니다.")
-                .contains("투자자는 편입 종목의 수급과 변동성을 확인해야 합니다.")
+                .contains(englishFallbackWhat)
+                .contains(englishFallbackImpact)
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
                 .doesNotContain("감성");
@@ -402,6 +429,10 @@ class MarketNewsControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        String englishFallbackWhy =
+                "The key background is the latest market or company context confirmed in the source article.";
+        String englishFallbackImpact =
+                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -409,9 +440,9 @@ class MarketNewsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.news[0].summaryLines.why",
-                        equalTo("SK하이닉스와 삼성전자 비중 조정이 주요 배경입니다.")))
+                        equalTo(englishFallbackWhy)))
                 .andExpect(jsonPath("$.data.news[0].summaryLines.impact",
-                        equalTo("투자자는 편입 종목의 수급과 변동성을 확인해야 합니다.")));
+                        equalTo(englishFallbackImpact)));
     }
 
     private TranslationResult translated(String text) {

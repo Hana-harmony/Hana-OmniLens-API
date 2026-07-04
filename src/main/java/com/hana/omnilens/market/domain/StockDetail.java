@@ -8,6 +8,7 @@ public record StockDetail(
         String stockCode,
         String stockName,
         String stockNameEn,
+        String logoUrl,
         String market,
         String sector,
         BigDecimal currentPriceKrw,
@@ -34,4 +35,69 @@ public record StockDetail(
         boolean orderable,
         String source
 ) {
+    public StockDetail(
+            String stockCode,
+            String stockName,
+            String stockNameEn,
+            String market,
+            String sector,
+            BigDecimal currentPriceKrw,
+            BigDecimal changeRate,
+            long volume,
+            String localCurrency,
+            BigDecimal localCurrencyPrice,
+            Instant marketDataTime,
+            long foreignOwnedQuantity,
+            BigDecimal foreignOwnershipRate,
+            BigDecimal foreignLimitExhaustionRate,
+            BigDecimal predictedForeignOwnershipRateMin,
+            BigDecimal predictedForeignOwnershipRateMax,
+            BigDecimal predictedForeignLimitExhaustionRateMin,
+            BigDecimal predictedForeignLimitExhaustionRateMax,
+            String foreignOwnershipPredictionConfidenceLevel,
+            BigDecimal foreignOwnershipPredictionConfidenceScore,
+            String foreignOwnershipPredictionModelVersion,
+            LocalDate foreignOwnershipBaseDate,
+            boolean viActive,
+            boolean singlePriceTrading,
+            String priceLimitState,
+            boolean tradingHalted,
+            boolean orderable,
+            String source
+    ) {
+        this(
+                stockCode,
+                stockName,
+                stockNameEn,
+                StockLogoUrlResolver.koreanStockLogoUrl(stockCode),
+                market,
+                sector,
+                currentPriceKrw,
+                changeRate,
+                volume,
+                localCurrency,
+                localCurrencyPrice,
+                marketDataTime,
+                foreignOwnedQuantity,
+                foreignOwnershipRate,
+                foreignLimitExhaustionRate,
+                predictedForeignOwnershipRateMin,
+                predictedForeignOwnershipRateMax,
+                predictedForeignLimitExhaustionRateMin,
+                predictedForeignLimitExhaustionRateMax,
+                foreignOwnershipPredictionConfidenceLevel,
+                foreignOwnershipPredictionConfidenceScore,
+                foreignOwnershipPredictionModelVersion,
+                foreignOwnershipBaseDate,
+                viActive,
+                singlePriceTrading,
+                priceLimitState,
+                tradingHalted,
+                orderable,
+                source);
+    }
+
+    public StockDetail {
+        logoUrl = logoUrl == null ? "" : logoUrl;
+    }
 }

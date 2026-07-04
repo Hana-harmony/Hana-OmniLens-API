@@ -168,6 +168,8 @@ public class MarketNewsCollectionService {
                 fullContent.map(OriginalArticleContent::canonicalUrl).orElse(article.originalUrl()),
                 fullContent.map(OriginalArticleContent::sourceLicensePolicy).orElse("DISCOVERY_ONLY"),
                 analysis.glossaryTerms(),
+                analysis.sentiment(),
+                analysis.importance(),
                 analysis.translationProvider(),
                 analysis.translationModelVersion(),
                 analysis.translationStatus(),
@@ -203,6 +205,8 @@ public class MarketNewsCollectionService {
                 event.canonicalUrl(),
                 event.sourceLicensePolicy(),
                 analysis.glossaryTerms(),
+                analysis.sentiment(),
+                analysis.importance(),
                 analysis.translationProvider(),
                 analysis.translationModelVersion(),
                 analysis.translationStatus(),
@@ -254,27 +258,38 @@ public class MarketNewsCollectionService {
                     summary,
                     glossaryTerms);
             TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
+            String translatedTitleText = englishTextOrFallback(
+                    translatedTitle.translatedText(),
+                    "Korean market update");
             AlertSummaryLines translatedSummaryLines = translateSummaryLines(
                     sourceSummaryLines,
                     glossaryTerms,
-                    translatedSummary.translatedText());
+                    translatedTitleText);
+            String translatedSummaryText = englishTextOrFallback(
+                    translatedSummary.translatedText(),
+                    joinSummaryLines(translatedSummaryLines));
+            String translatedContentText = englishTextOrFallback(
+                    translatedContent.translatedText(),
+                    englishContentFallback(originalContent, translatedTitleText, translatedSummaryLines));
             List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
                     glossaryTerms,
-                    translatedTitle.translatedText(),
-                    translatedSummary.translatedText(),
-                    translatedContent.translatedText());
+                    translatedTitleText,
+                    translatedSummaryText,
+                    translatedContentText);
             displayGlossaryTerms = glossaryTermExtractor.supplement(
                     displayGlossaryTerms,
-                    translatedTitle.translatedText(),
-                    translatedSummary.translatedText(),
-                    translatedContent.translatedText());
+                    translatedTitleText,
+                    translatedSummaryText,
+                    translatedContentText);
             return new MarketNewsAnalysis(
                     summary,
-                    translatedTitle.translatedText(),
+                    translatedTitleText,
                     translatedSummaryLines,
-                    translatedSummary.translatedText(),
-                    translatedContent.translatedText(),
+                    translatedSummaryText,
+                    translatedContentText,
                     displayGlossaryTerms,
+                    normalizeSentiment(ai.sentiment()),
+                    normalizeImportance(ai.importance()),
                     translationProvider(translatedTitle, translatedSummary, translatedContent),
                     translationModelVersion(translatedTitle, translatedSummary, translatedContent),
                     translationStatus(translatedTitle, translatedSummary, translatedContent));
@@ -285,13 +300,27 @@ public class MarketNewsCollectionService {
             String summary = joinSummaryLines(sourceSummaryLines);
             TranslationResult translatedSummary = translationService.translateTextWithResult(summary, glossaryTerms);
             TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
+            String translatedTitleText = englishTextOrFallback(
+                    translatedTitle.translatedText(),
+                    "Korean market update");
+            AlertSummaryLines translatedSummaryLines = translateSummaryLines(
+                    sourceSummaryLines,
+                    glossaryTerms,
+                    translatedTitleText);
+            String translatedSummaryText = englishTextOrFallback(
+                    translatedSummary.translatedText(),
+                    joinSummaryLines(translatedSummaryLines));
             return new MarketNewsAnalysis(
                     summary,
-                    translatedTitle.translatedText(),
-                    translateSummaryLines(sourceSummaryLines, glossaryTerms, translatedSummary.translatedText()),
-                    translatedSummary.translatedText(),
-                    translatedContent.translatedText(),
+                    translatedTitleText,
+                    translatedSummaryLines,
+                    translatedSummaryText,
+                    englishTextOrFallback(
+                            translatedContent.translatedText(),
+                            englishContentFallback(originalContent, translatedTitleText, translatedSummaryLines)),
                     glossaryTerms,
+                    "NEUTRAL",
+                    "MEDIUM",
                     translationProvider(translatedTitle, translatedSummary, translatedContent),
                     translationModelVersion(translatedTitle, translatedSummary, translatedContent),
                     translationStatus(translatedTitle, translatedSummary, translatedContent));
@@ -303,6 +332,27 @@ public class MarketNewsCollectionService {
             return new TranslationResult("", "", "", "");
         }
         return translationService.translateTextWithResult(originalContent, glossaryTerms);
+    }
+
+    private String englishTextOrFallback(String value, String fallback) {
+        if (StringUtils.hasText(value) && !containsHangul(value)) {
+            return value;
+        }
+        return fallback == null ? "" : fallback;
+    }
+
+    private String englishContentFallback(
+            String originalContent,
+            String translatedTitle,
+            AlertSummaryLines summaryLines) {
+        if (!StringUtils.hasText(originalContent)) {
+            return "";
+        }
+        return String.join("\n\n",
+                englishSubject(translatedTitle),
+                "What: " + summaryLines.what(),
+                "Why: " + summaryLines.why(),
+                "Impact: " + summaryLines.impact());
     }
 
     private AlertSummaryLines sourceSummaryLines(String summary, AlertSummaryLines summaryLines, String fallback) {
@@ -419,10 +469,14 @@ public class MarketNewsCollectionService {
         String what = translateSummaryLine(completedSourceLines.what(), glossaryTerms);
         String why = translateSummaryLine(completedSourceLines.why(), glossaryTerms);
         String impact = translateSummaryLine(completedSourceLines.impact(), glossaryTerms);
-        return completeSummaryLines(new AlertSummaryLines(
+        AlertSummaryLines translatedLines = completeSummaryLines(new AlertSummaryLines(
                 StringUtils.hasText(what) ? what : completedSourceLines.what(),
                 StringUtils.hasText(why) ? why : completedSourceLines.why(),
                 StringUtils.hasText(impact) ? impact : completedSourceLines.impact()), fallbackSummary);
+        if (containsHangul(joinSummaryLines(translatedLines))) {
+            return englishSummaryFallbackLines(fallbackSummary);
+        }
+        return translatedLines;
     }
 
     private String translateSummaryLine(String value, List<AlertGlossaryTerm> glossaryTerms) {
@@ -430,6 +484,51 @@ public class MarketNewsCollectionService {
             return "";
         }
         return sanitizeSummary(translationService.translateTextWithResult(value, glossaryTerms).translatedText());
+    }
+
+    private AlertSummaryLines englishSummaryFallbackLines(String subject) {
+        String displaySubject = englishSubject(subject);
+        return new AlertSummaryLines(
+                "This item covers " + displaySubject + " from Korean market news.",
+                "The key background is the latest market or company context confirmed in the source article.",
+                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.");
+    }
+
+    private String englishSubject(String subject) {
+        if (!StringUtils.hasText(subject) || containsHangul(subject)) {
+            return "a Korean market update";
+        }
+        String normalized = subject.replaceAll("\\s+", " ").trim();
+        if (containsEllipsis(normalized)) {
+            return "a Korean market update";
+        }
+        return normalized;
+    }
+
+    private boolean containsHangul(String value) {
+        return value != null && Pattern.compile("[가-힣]").matcher(value).find();
+    }
+
+    private String normalizeSentiment(String value) {
+        if (value == null) {
+            return "NEUTRAL";
+        }
+        return switch (value.trim().toUpperCase(Locale.ROOT)) {
+            case "POSITIVE" -> "POSITIVE";
+            case "NEGATIVE" -> "NEGATIVE";
+            default -> "NEUTRAL";
+        };
+    }
+
+    private String normalizeImportance(String value) {
+        if (value == null) {
+            return "MEDIUM";
+        }
+        return switch (value.trim().toUpperCase(Locale.ROOT)) {
+            case "LOW" -> "LOW";
+            case "HIGH", "CRITICAL" -> "HIGH";
+            default -> "MEDIUM";
+        };
     }
 
     private List<AlertGlossaryTerm> toAlertGlossaryTerms(List<HannahAiGlossaryTerm> glossaryTerms) {
@@ -575,6 +674,8 @@ public class MarketNewsCollectionService {
             String translatedSummary,
             String translatedContent,
             List<AlertGlossaryTerm> glossaryTerms,
+            String sentiment,
+            String importance,
             String translationProvider,
             String translationModelVersion,
             String translationStatus

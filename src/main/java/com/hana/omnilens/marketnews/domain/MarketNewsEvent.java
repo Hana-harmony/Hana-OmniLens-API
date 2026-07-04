@@ -22,6 +22,8 @@ public record MarketNewsEvent(
         String canonicalUrl,
         String sourceLicensePolicy,
         List<AlertGlossaryTerm> glossaryTerms,
+        String sentiment,
+        String importance,
         String translationProvider,
         String translationModelVersion,
         String translationStatus,
@@ -34,6 +36,8 @@ public record MarketNewsEvent(
         imageUrls = imageUrls == null ? List.of() : List.copyOf(imageUrls);
         glossaryTerms = glossaryTerms == null ? List.of() : List.copyOf(glossaryTerms);
         summaryLines = summaryLines == null ? AlertSummaryLines.fromSummary(summary) : summaryLines;
+        sentiment = sentiment == null || sentiment.isBlank() ? "NEUTRAL" : sentiment;
+        importance = importance == null || importance.isBlank() ? "MEDIUM" : importance;
         translationProvider = translationProvider == null ? "" : translationProvider;
         translationModelVersion = translationModelVersion == null ? "" : translationModelVersion;
         translationStatus = translationStatus == null ? "" : translationStatus;

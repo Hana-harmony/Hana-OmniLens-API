@@ -26,8 +26,6 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
             lower(event_json) LIKE '%...%'
             OR lower(event_json) LIKE '%…%'
             OR lower(event_json) LIKE '%classified%'
-            OR lower(event_json) LIKE '%importance%'
-            OR lower(event_json) LIKE '%sentiment%'
             OR event_json LIKE '%중요도%'
             OR event_json LIKE '%감성%'
             OR event_json LIKE '%투자 권유%'
