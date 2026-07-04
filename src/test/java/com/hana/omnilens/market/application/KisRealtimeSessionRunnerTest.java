@@ -233,6 +233,24 @@ class KisRealtimeSessionRunnerTest {
                 .containsOnly("000660");
     }
 
+    @Test
+    void subscribeStockCodesRejectsDemandStockWhenApprovalKeyProviderFails() {
+        FakeConnection connection = new FakeConnection();
+        KisRealtimeApprovalKeyProvider approvalKeyProvider = mock(KisRealtimeApprovalKeyProvider.class);
+        when(approvalKeyProvider.approvalKey()).thenThrow(new IllegalStateException("approval timeout"));
+        KisRealtimeSessionRunner runner = newRunner(
+                new KisRealtimeProperties(true, List.of("005930"), 2500, 40, true),
+                connection,
+                new InMemoryRealtimeMarketDataCache(),
+                approvalKeyProvider);
+
+        KisRealtimeDynamicSubscriptionResult result = runner.subscribeStockCodes(List.of("000660"));
+
+        assertThat(result.subscribedStockCodes()).isEmpty();
+        assertThat(result.rejectedStockCodes()).containsExactly("000660");
+        assertThat(connection.sentFrames).isEmpty();
+    }
+
     private KisRealtimeSessionRunner newRunner(
             KisRealtimeProperties properties,
             FakeConnection connection,

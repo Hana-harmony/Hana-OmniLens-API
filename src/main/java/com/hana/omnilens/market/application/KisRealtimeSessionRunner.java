@@ -141,37 +141,48 @@ public class KisRealtimeSessionRunner {
                     List.of());
         }
         String approvalKey = activeApprovalKey;
-        if (approvalKey == null || approvalKey.isBlank()) {
-            approvalKey = approvalKeyProvider.approvalKey();
-            activeApprovalKey = approvalKey;
-        }
-
         List<String> subscribed = new ArrayList<>();
         List<String> alreadySubscribed = new ArrayList<>();
         List<String> unsupported = new ArrayList<>();
         List<String> rejected = new ArrayList<>();
         List<KisRealtimeSubscriptionFrame> newFrames = new ArrayList<>();
-        for (String stockCode : normalizedStockCodes) {
-            if (activeStockCodes.contains(stockCode)) {
-                alreadySubscribed.add(stockCode);
-                continue;
+        try {
+            if (approvalKey == null || approvalKey.isBlank()) {
+                approvalKey = approvalKeyProvider.approvalKey();
+                activeApprovalKey = approvalKey;
             }
-            if (stockMasterRepository.findByCode(stockCode).isEmpty()) {
-                unsupported.add(stockCode);
-                continue;
+            for (String stockCode : normalizedStockCodes) {
+                if (activeStockCodes.contains(stockCode)) {
+                    alreadySubscribed.add(stockCode);
+                    continue;
+                }
+                if (stockMasterRepository.findByCode(stockCode).isEmpty()) {
+                    unsupported.add(stockCode);
+                    continue;
+                }
+                List<KisRealtimeSubscriptionFrame> frames = subscriptionFrames(approvalKey, List.of(stockCode), List.of());
+                if (activeSubscriptionFrameCount() + newFrames.size() + frames.size() > subscriptionFrameLimit()) {
+                    rejected.add(stockCode);
+                    continue;
+                }
+                newFrames.addAll(frames);
+                subscribed.add(stockCode);
             }
-            List<KisRealtimeSubscriptionFrame> frames = subscriptionFrames(approvalKey, List.of(stockCode), List.of());
-            if (activeSubscriptionFrameCount() + newFrames.size() + frames.size() > subscriptionFrameLimit()) {
-                rejected.add(stockCode);
-                continue;
+            if (!newFrames.isEmpty()) {
+                webSocketConnection.subscribe(newFrames);
+                activeStockCodes.addAll(subscribed);
+                activeSubscriptionFrameKeys.addAll(frameKeys(newFrames));
             }
-            newFrames.addAll(frames);
-            subscribed.add(stockCode);
-        }
-        if (!newFrames.isEmpty()) {
-            webSocketConnection.subscribe(newFrames);
-            activeStockCodes.addAll(subscribed);
-            activeSubscriptionFrameKeys.addAll(frameKeys(newFrames));
+        } catch (RuntimeException exception) {
+            log.warn("KIS realtime dynamic subscription failed stockCodes={}: {}",
+                    normalizedStockCodes,
+                    exception.toString());
+            subscribed.clear();
+            rejected.addAll(normalizedStockCodes.stream()
+                    .filter(stockCode -> !alreadySubscribed.contains(stockCode)
+                            && !unsupported.contains(stockCode)
+                            && !rejected.contains(stockCode))
+                    .toList());
         }
         return new KisRealtimeDynamicSubscriptionResult(
                 true,

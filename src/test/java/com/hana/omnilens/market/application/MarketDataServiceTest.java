@@ -28,6 +28,7 @@ import com.hana.omnilens.market.domain.Orderability;
 import com.hana.omnilens.market.domain.OrderBook;
 import com.hana.omnilens.market.domain.ForeignOwnershipDailySnapshot;
 import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
+import com.hana.omnilens.market.domain.StockDetail;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipPredictionClient;
 import com.hana.omnilens.provider.ai.HannahAiForeignOwnershipPredictionResponse;
@@ -564,6 +565,49 @@ class MarketDataServiceTest {
     }
 
     @Test
+    void getStockDetailKeepsMasterAndOwnershipWhenQuoteProviderIsUnavailable() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                cache,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        cache.put(foreignOwnershipSnapshot());
+        when(kisCurrentPriceClient.findCurrentPrice("005930"))
+                .thenThrow(new IllegalStateException("kis is not configured"));
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
+                .thenThrow(new IllegalStateException("provider is not configured"));
+
+        StockDetail detail = service.getStockDetail("005930", "USD", null);
+
+        assertThat(detail.stockCode()).isEqualTo("005930");
+        assertThat(detail.stockName()).isEqualTo("삼성전자");
+        assertThat(detail.stockNameEn()).isEqualTo("Samsung Electronics");
+        assertThat(detail.market()).isEqualTo("KOSPI");
+        assertThat(detail.currentPriceKrw()).isNull();
+        assertThat(detail.localCurrencyPrice()).isNull();
+        assertThat(detail.changeRate()).isNull();
+        assertThat(detail.volume()).isZero();
+        assertThat(detail.marketDataTime()).isNull();
+        assertThat(detail.foreignOwnedQuantity()).isEqualTo(3_400_000_000L);
+        assertThat(detail.foreignOwnershipRate()).isEqualByComparingTo("51.01");
+        assertThat(detail.foreignLimitExhaustionRate()).isEqualByComparingTo("50.99");
+        assertThat(detail.foreignOwnershipPredictionConfidenceLevel())
+                .isEqualTo("FOREIGN_LIMIT_NOT_APPLICABLE");
+        assertThat(detail.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2025, 6, 2));
+        assertThat(detail.orderable()).isTrue();
+        assertThat(detail.source()).contains("QUOTE_UNAVAILABLE+KRX_FOREIGN_OWNERSHIP_CACHE");
+    }
+
+    @Test
     void getQuoteUsesCachedForeignOwnershipWhenPresent() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
@@ -1034,7 +1078,7 @@ class MarketDataServiceTest {
         assertThat(orderability.priceLimitState()).isEqualTo("UNKNOWN");
         assertThat(orderability.viActive()).isFalse();
         assertThat(orderability.source())
-                .isEqualTo("ORDERABILITY_MARKET_DATA_UNAVAILABLE+MARKET_STATUS_UNAVAILABLE");
+                .isEqualTo("ORDERABILITY_QUOTE_UNAVAILABLE+KRX_FOREIGN_OWNERSHIP_CACHE+MARKET_STATUS_UNAVAILABLE");
     }
 
     @Test
@@ -1068,7 +1112,7 @@ class MarketDataServiceTest {
         assertThat(orderability.priceLimitState()).isEqualTo("UPPER_LIMIT");
         assertThat(orderability.viActive()).isFalse();
         assertThat(orderability.source())
-                .isEqualTo("ORDERABILITY_MARKET_DATA_UNAVAILABLE+KIS_REST_ORDERBOOK_STATUS_FALLBACK");
+                .isEqualTo("ORDERABILITY_QUOTE_UNAVAILABLE+KRX_FOREIGN_OWNERSHIP_CACHE+KIS_REST_ORDERBOOK_STATUS_FALLBACK");
     }
 
     @Test
