@@ -23,9 +23,8 @@ class OpenAiTranslationClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         OpenAiTranslationClient client = new OpenAiTranslationClient(
-                builder,
+                builder.baseUrl("https://api.openai.com").build(),
                 ProviderTestResilience.disabled(),
-                "https://api.openai.com",
                 "openai-secret",
                 "gpt-4o-mini");
 
@@ -34,6 +33,8 @@ class OpenAiTranslationClientTest {
                 .andExpect(header("Authorization", "Bearer openai-secret"))
                 .andExpect(content().string(containsString("\"store\":false")))
                 .andExpect(content().string(containsString("Translate Korean financial news")))
+                .andExpect(content().string(containsString("Do not leave any Korean Hangul characters")))
+                .andExpect(content().string(containsString("\"max_output_tokens\":8192")))
                 .andExpect(content().string(containsString("삼성전자 실적 개선")))
                 .andRespond(withSuccess("""
                         {

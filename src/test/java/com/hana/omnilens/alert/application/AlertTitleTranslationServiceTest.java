@@ -32,23 +32,23 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
-    void translateTitleFallsBackToOriginalWhenProviderFails() {
+    void translateTitleReturnsBlankWhenProviderFails() {
         when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
                 .thenThrow(new IllegalStateException("missing openai secret"));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
-        assertThat(translatedTitle).isEqualTo("삼성전자 실적 개선");
+        assertThat(translatedTitle).isEmpty();
     }
 
     @Test
-    void translateTitleFallsBackToOriginalWhenProviderReturnsBlank() {
+    void translateTitleReturnsBlankWhenProviderReturnsBlank() {
         when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
                 .thenReturn("");
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
-        assertThat(translatedTitle).isEqualTo("삼성전자 실적 개선");
+        assertThat(translatedTitle).isEmpty();
     }
 
     @Test
@@ -59,7 +59,7 @@ class AlertTitleTranslationServiceTest {
         AlertTitleTranslationService.TranslationResult result =
                 translationService.translateTitleWithResult("삼성전자 실적 개선", List.of());
 
-        assertThat(result.translatedText()).isEqualTo("삼성전자 실적 개선");
+        assertThat(result.translatedText()).isEmpty();
         assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
     }
@@ -74,6 +74,19 @@ class AlertTitleTranslationServiceTest {
 
         assertThat(translatedText).contains("EN:");
         verify(openAiTranslationClient, atLeast(2)).translateKoToEn(any());
+    }
+
+    @Test
+    void translateTextRejectsProviderOutputWithHangul() {
+        when(openAiTranslationClient.translateKoToEn("삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다."))
+                .thenReturn("Samsung Electronics expects 실적 improvement from AI server investment.");
+
+        AlertTitleTranslationService.TranslationResult result = translationService.translateTextWithResult(
+                "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다.",
+                List.of());
+
+        assertThat(result.translatedText()).isEmpty();
+        assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
     }
 
     @Test

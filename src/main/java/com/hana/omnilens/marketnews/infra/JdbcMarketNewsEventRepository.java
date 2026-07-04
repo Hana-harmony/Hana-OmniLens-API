@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hana.omnilens.alert.application.EnglishNewsQualityGate;
 import com.hana.omnilens.marketnews.application.MarketNewsEventRepository;
 import com.hana.omnilens.marketnews.domain.MarketNewsEvent;
 
@@ -23,18 +24,18 @@ import com.hana.omnilens.marketnews.domain.MarketNewsEvent;
 public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository {
 
     private static final String SUMMARY_QUALITY_CANDIDATE_FILTER = """
-            lower(event_json) LIKE '%...%'
-            OR lower(event_json) LIKE '%…%'
-            OR lower(event_json) LIKE '%classified%'
-            OR event_json LIKE '%중요도%'
-            OR event_json LIKE '%감성%'
-            OR event_json LIKE '%투자 권유%'
-            OR event_json LIKE '%최종 판단%'
-            OR event_json LIKE '%투자자 본인%'
+            lower(event_json) ~ '"(translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(\\.\\.\\.|…|classified|i''m sorry|i can’t assist|i can''t assist|please provide|as an ai|publisher of this newspaper|columnist|this item covers|latest market or company context confirmed in the source article|investors should review possible effects on prices, earnings, liquidity, and watched holdings)'
+            OR lower(event_json) ~ '"(translatedtitle|translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(korean company update|korean market update)'
+            OR lower(event_json) ~ '"(what|why|impact)"\\s*:\\s*"[^"]*[a-z0-9]"'
             OR event_json ~ '"summaryLines"\\s*:\\s*null'
             OR event_json ~ '"what"\\s*:\\s*""'
             OR event_json ~ '"why"\\s*:\\s*""'
             OR event_json ~ '"impact"\\s*:\\s*""'
+            OR (event_json ~ '"originalContent"\\s*:\\s*"[^"]+' AND event_json ~ '"translatedContent"\\s*:\\s*""')
+            OR event_json ~ '"translatedTitle"\\s*:\\s*"[^"]*[가-힣]'
+            OR event_json ~ '"translatedSummary"\\s*:\\s*"[^"]*[가-힣]'
+            OR event_json ~ '"translatedContent"\\s*:\\s*"[^"]*[가-힣]'
+            OR event_json ~ '"summaryLines"\\s*:\\s*\\{[^}]*[가-힣]'
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -137,7 +138,7 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
 
     @Override
     public List<MarketNewsEvent> findSummaryQualityIssues(int limit) {
-        int candidateLimit = Math.min(Math.max(limit * 50, limit), 10_000);
+        int candidateLimit = Math.min(Math.max(limit * 100, 1_000), 10_000);
         return jdbcTemplate.queryForList(
                 """
                 SELECT event_json
@@ -209,7 +210,8 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
         if (event.summaryLines() == null
                 || isBlank(event.summaryLines().what())
                 || isBlank(event.summaryLines().why())
-                || isBlank(event.summaryLines().impact())) {
+                || isBlank(event.summaryLines().impact())
+                || !EnglishNewsQualityGate.hasUsableEnglishSummaryLines(event.summaryLines())) {
             return true;
         }
         String summaryLines = event.summaryLines() == null
@@ -219,15 +221,27 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
                         nullToEmpty(event.summaryLines().why()),
                         nullToEmpty(event.summaryLines().impact()));
         String payload = String.join(" ",
-                nullToEmpty(event.summary()),
                 nullToEmpty(event.translatedSummary()),
                 summaryLines);
         String lower = payload.toLowerCase(Locale.ROOT);
-        return lower.contains("...")
+        return EnglishNewsQualityGate.containsHangul(event.translatedSummary())
+                || EnglishNewsQualityGate.containsHangul(event.translatedContent())
+                || EnglishNewsQualityGate.containsGenericFallback(event.translatedTitle())
+                || EnglishNewsQualityGate.containsGenericFallback(payload)
+                || EnglishNewsQualityGate.containsGenericFallback(event.translatedContent())
+                || (!isBlank(event.originalContent()) && isBlank(event.translatedContent()))
+                || lower.contains("...")
                 || lower.contains("…")
                 || lower.contains("classified")
                 || lower.contains("importance")
                 || lower.contains("sentiment")
+                || lower.contains("i'm sorry")
+                || lower.contains("i can’t assist")
+                || lower.contains("i can't assist")
+                || lower.contains("please provide")
+                || lower.contains("as an ai")
+                || lower.contains("publisher of this newspaper")
+                || lower.contains("columnist")
                 || payload.contains("중요도")
                 || payload.contains("감성")
                 || payload.contains("투자 권유")

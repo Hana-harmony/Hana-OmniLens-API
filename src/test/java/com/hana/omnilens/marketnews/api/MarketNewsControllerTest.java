@@ -32,6 +32,7 @@ import com.hana.omnilens.alert.application.AlertTitleTranslationService.Translat
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisResponse;
+import com.hana.omnilens.provider.ai.HannahAiGlossaryTerm;
 import com.hana.omnilens.provider.news.NaverNewsArticle;
 import com.hana.omnilens.provider.news.NaverNewsClient;
 import com.hana.omnilens.provider.news.OriginalArticleClient;
@@ -115,16 +116,12 @@ class MarketNewsControllerTest {
                 "한국 증시 전문에 근거한 요약입니다.",
                 "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.",
                 "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
-        String expectedEnglishWhat = "This item covers Korean market update from Korean market news.";
-        String expectedEnglishWhy =
-                "The key background is the latest market or company context confirmed in the source article.";
-        String expectedEnglishImpact =
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
-        String expectedTranslatedContent = String.join("\n\n",
-                "Korean market update",
-                "What: " + expectedEnglishWhat,
-                "Why: " + expectedEnglishWhy,
-                "Impact: " + expectedEnglishImpact);
+        String expectedEnglishWhat = englishTextFor("한국 증시 전문에 근거한 요약입니다.");
+        String expectedEnglishWhy = englishTextFor(
+                "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
+        String expectedEnglishImpact = englishTextFor(
+                "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
+        String expectedTranslatedContent = englishTextFor("한국 증시 전문");
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -141,7 +138,7 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.events[0].query", equalTo("한국 증시")))
                 .andExpect(jsonPath("$.data.events[0].title", equalTo("코스피 상승 마감")))
                 .andExpect(jsonPath("$.data.events[0].summary", equalTo(expectedSummary)))
-                .andExpect(jsonPath("$.data.events[0].translatedTitle", equalTo("Korean market update")))
+                .andExpect(jsonPath("$.data.events[0].translatedTitle", equalTo("KOSPI closes higher")))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(expectedEnglishWhat)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(expectedEnglishWhy)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(expectedEnglishImpact)))
@@ -221,11 +218,9 @@ class MarketNewsControllerTest {
         String fallbackWhy = "NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
         String fallbackImpact = "투자자는 NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.";
         String fallbackThreeLineSummary = String.join("\n", fallbackSummary, fallbackWhy, fallbackImpact);
-        String englishFallbackWhat = "This item covers Korean market update from Korean market news.";
-        String englishFallbackWhy =
-                "The key background is the latest market or company context confirmed in the source article.";
-        String englishFallbackImpact =
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
+        String englishFallbackWhat = englishTextFor(fallbackSummary);
+        String englishFallbackWhy = englishTextFor(fallbackWhy);
+        String englishFallbackImpact = englishTextFor(fallbackImpact);
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -319,11 +314,21 @@ class MarketNewsControllerTest {
                 0.75));
         when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        String repairedTranslatedContent = "The semiconductor ETF completed its regular rebalance and added SK Square. "
+                + "Adjustments to SK Hynix and Samsung Electronics weights were the main background. "
+                + "Investors should monitor supply-demand and volatility for the added constituents.";
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String englishFallbackWhat = "This item covers Korean market update from Korean market news.";
-        String englishFallbackImpact =
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
+                .thenAnswer(invocation -> {
+                    String text = invocation.getArgument(0, String.class);
+                    if (text.equals("반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했다. SK하이닉스와 삼성전자 비중 조정이 주요 배경이다. 투자자는 편입 종목의 수급과 변동성을 확인해야 한다.")) {
+                        return translated(repairedTranslatedContent);
+                    }
+                    return translated(text);
+                });
+        String englishFallbackWhat = englishTextFor(
+                "원문은 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 최신 시장·기업 이벤트를 다룹니다.");
+        String englishFallbackImpact = englishTextFor(
+                "투자자는 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -341,16 +346,10 @@ class MarketNewsControllerTest {
         org.assertj.core.api.Assertions.assertThat(storedPayload)
                 .contains(englishFallbackWhat)
                 .contains(englishFallbackImpact)
+                .contains(repairedTranslatedContent)
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
                 .doesNotContain("감성");
-        ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
-                ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
-        verify(hannahAiAnalysisClient).analyze(requestCaptor.capture());
-        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().snippet())
-                .isEqualTo("반도체 ETF 리밸런싱...SK스퀘어 신규 편입");
-        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().content())
-                .contains("반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했다.");
     }
 
     @Test
@@ -429,10 +428,10 @@ class MarketNewsControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String englishFallbackWhy =
-                "The key background is the latest market or company context confirmed in the source article.";
-        String englishFallbackImpact =
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
+        String englishFallbackWhy = englishTextFor(
+                "반도체 ETF 리밸런싱 SK스퀘어 신규 편입의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
+        String englishFallbackImpact = englishTextFor(
+                "투자자는 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -445,7 +444,174 @@ class MarketNewsControllerTest {
                         equalTo(englishFallbackImpact)));
     }
 
+    @Test
+    void reprocessByNewsIdRefetchesMissingOriginalContentImagesAndGlossaryDescriptions() throws Exception {
+        jdbcTemplate.update(
+                """
+                INSERT INTO market_news_event (
+                    news_id, query, original_url, duplicate_key, published_at, created_at, event_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                "mkt-samjeon-nix",
+                "한국 증시",
+                "https://news.example.com/market/samjeon-nix",
+                "mkt-samjeon-nix-duplicate",
+                java.sql.Timestamp.from(Instant.parse("2026-07-04T07:00:00Z")),
+                java.sql.Timestamp.from(Instant.parse("2026-07-04T07:01:00Z")),
+                """
+                {
+                  "newsId": "mkt-samjeon-nix",
+                  "query": "한국 증시",
+                  "title": "\\"삼전닉스\\" 수익률 안부럽다",
+                  "translatedTitle": "Samjeon Nix returns are enviable.",
+                  "summary": "",
+                  "summaryLines": {
+                    "what": "",
+                    "why": "",
+                    "impact": ""
+                  },
+                  "translatedSummary": "",
+                  "originalContent": "",
+                  "translatedContent": "",
+                  "imageUrls": [],
+                  "contentAvailability": "DISCOVERY_ONLY",
+                  "originalUrl": "https://news.example.com/market/samjeon-nix",
+                  "canonicalUrl": "https://news.example.com/market/samjeon-nix",
+                  "sourceLicensePolicy": "DISCOVERY_ONLY",
+                  "glossaryTerms": [],
+                  "sentiment": "POSITIVE",
+                  "importance": "MEDIUM",
+                  "translationProvider": "old-provider",
+                  "translationModelVersion": "old-model",
+                  "translationStatus": "TRANSLATED",
+                  "duplicateKey": "mkt-samjeon-nix-duplicate",
+                  "publishedAt": "2026-07-04T07:00:00Z",
+                  "createdAt": "2026-07-04T07:01:00Z"
+                }
+                """);
+        when(originalArticleClient.fetch("https://news.example.com/market/samjeon-nix"))
+                .thenReturn(Optional.of(new OriginalArticleContent(
+                        "삼전닉스는 삼성전자와 SK하이닉스를 함께 부르는 시장 신조어다. 외국인 순매수가 반도체 대형주 강세를 이끌었다. 투자자는 반도체 대형주의 수급과 실적 기대를 확인해야 한다.",
+                        List.of("https://img.example.com/news/samjeon-nix.png"),
+                        "https://news.example.com/market/samjeon-nix",
+                        "refetched-content-hash",
+                        "licensed_naver_original_full_text_v1")));
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
+            HannahAiAnalysisRequest request = invocation.getArgument(0);
+            org.assertj.core.api.Assertions.assertThat(request.content()).contains("삼전닉스는");
+            org.assertj.core.api.Assertions.assertThat(request.imageUrls())
+                    .containsExactly("https://img.example.com/news/samjeon-nix.png");
+            return new HannahAiAnalysisResponse(
+                    "",
+                    "",
+                    "NEWS",
+                    request.title(),
+                    "삼전닉스 수익률 강세가 시장 관심을 끌었습니다.",
+                    new AlertSummaryLines(
+                            "삼전닉스 수익률 강세가 시장 관심을 끌었습니다.",
+                            "외국인 순매수와 반도체 업황 기대가 주요 배경입니다.",
+                            "투자자는 반도체 대형주의 수급과 실적 기대를 확인해야 합니다."),
+                    "FULL_TEXT",
+                    request.content(),
+                    request.imageUrls(),
+                    List.of("GENERAL_MARKET"),
+                    "POSITIVE",
+                    "MEDIUM",
+                    List.of(),
+                    false,
+                    true,
+                    List.of(new HannahAiGlossaryTerm(
+                            "삼전닉스",
+                            "삼전닉스",
+                            "Samjeon Nix",
+                            "market_slang")),
+                    List.of("FINANCIAL_GLOSSARY_APPLIED"),
+                    "samjeon-nix-duplicate",
+                    "samjeon-nix-cluster",
+                    "financial-ml-tfidf-logreg-test",
+                    0.75,
+                    0.75,
+                    0.75,
+                    0.0);
+        });
+        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
+                .thenAnswer(invocation -> {
+                    String text = invocation.getArgument(0, String.class);
+                    if (text.contains("삼전닉스")) {
+                        return translated("Samjeon Nix returns are drawing market attention.");
+                    }
+                    return translated(text);
+                });
+        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
+                .thenAnswer(invocation -> {
+                    String text = invocation.getArgument(0, String.class);
+                    if (text.contains("삼전닉스 수익률 강세")) {
+                        return translated("Samjeon Nix returns are drawing market attention.");
+                    }
+                    if (text.contains("외국인 순매수와 반도체 업황")) {
+                        return translated("Foreign buying and semiconductor-cycle expectations are the main background.");
+                    }
+                    if (text.contains("반도체 대형주의 수급과 실적")) {
+                        return translated("Investors should monitor supply-demand and earnings expectations for major semiconductor stocks.");
+                    }
+                    if (text.contains("삼전닉스는 삼성전자")) {
+                        return translated("Samjeon Nix is Korean market slang for Samsung Electronics and SK Hynix. Foreign buying led strength in major semiconductor stocks. Investors should monitor supply-demand and earnings expectations.");
+                    }
+                    return translated(text);
+                });
+
+        mockMvc.perform(post("/api/v1/market/news/{newsId}/reprocess", "mkt-samjeon-nix")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.newsId", equalTo("mkt-samjeon-nix")))
+                .andExpect(jsonPath("$.data.originalContent").value(org.hamcrest.Matchers.containsString("삼전닉스는")))
+                .andExpect(jsonPath("$.data.imageUrls[0]",
+                        equalTo("https://img.example.com/news/samjeon-nix.png")))
+                .andExpect(jsonPath("$.data.contentAvailability", equalTo("FULL_TEXT")))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("Samjeon Nix")))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].description").value(
+                        org.hamcrest.Matchers.containsString("Samsung Electronics and SK Hynix")));
+    }
+
     private TranslationResult translated(String text) {
-        return new TranslationResult(text, "openai", "gpt-4o-mini", "TRANSLATED");
+        return new TranslationResult(englishTextFor(text), "openai", "gpt-4o-mini", "TRANSLATED");
+    }
+
+    private String englishTextFor(String text) {
+        if (text == null || text.isBlank() || !containsHangul(text)) {
+            return text;
+        }
+        int marker = Math.abs(text.hashCode());
+        if (text.contains("핵심 배경") || text.contains("주요 배경")) {
+            return "The source article explains the main background for this market update " + marker + ".";
+        }
+        if (text.contains("투자자는")) {
+            return "Investors should monitor supply, demand, and price effects for watched holdings " + marker + ".";
+        }
+        if (text.contains("원문은")) {
+            return "The source article reports a verified market-wide development " + marker + ".";
+        }
+        if (text.contains("코스피 상승 마감")) {
+            return "KOSPI closes higher";
+        }
+        if (text.contains("한국 증시 전문")) {
+            return "The Korean market article summarizes the latest index move.";
+        }
+        if (text.contains("반도체 ETF가 정기 리밸런싱")) {
+            return "The semiconductor ETF completed its regular rebalance and added SK Square.";
+        }
+        if (text.contains("SK하이닉스와 삼성전자 비중 조정")) {
+            return "Adjustments to SK Hynix and Samsung Electronics weights were the main background.";
+        }
+        if (text.contains("편입 종목의 수급과 변동성")) {
+            return "Investors should monitor supply-demand and volatility for the added constituents.";
+        }
+        return "The source article reports a verified market development " + marker + ".";
+    }
+
+    private boolean containsHangul(String text) {
+        return text.chars().anyMatch(character -> character >= '가' && character <= '힣');
     }
 }

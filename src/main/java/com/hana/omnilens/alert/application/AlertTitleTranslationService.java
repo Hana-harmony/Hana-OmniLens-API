@@ -23,7 +23,7 @@ import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
 public class AlertTitleTranslationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AlertTitleTranslationService.class);
-    private static final int MAX_CHUNK_CHARS = 4_000;
+    private static final int MAX_CHUNK_CHARS = 1_800;
     private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
     public static final String STATUS_TRANSLATED = "TRANSLATED";
     public static final String STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK = "PARTIAL_SOURCE_LANGUAGE_FALLBACK";
@@ -95,7 +95,7 @@ public class AlertTitleTranslationService {
                         openAiTranslationClient.model(),
                         STATUS_TRANSLATED)
                 : TranslationResult.sourceFallback(
-                        applyLocalismSurfaceTerms(originalText, glossaryTerms),
+                        "",
                         openAiTranslationClient.model());
         translationCache.put(cacheKey, result);
         return result;
@@ -126,6 +126,13 @@ public class AlertTitleTranslationService {
                 case "품절주" -> replaceIfMissing(result, "low-float stock", List.of(
                         "scarce-float stock",
                         "thin-float stock"));
+                case "삼전닉스" -> replaceIfMissing(result, "Samjeon Nix", List.of(
+                        "Samsung Electronics and SK Hynix",
+                        "Samsung Electronics-SK Hynix",
+                        "Samsung Electronics/SK Hynix",
+                        "Samsung Electronics and SK hynix",
+                        "Samsung Electronics-SK hynix",
+                        "Samsung Electronics/SK hynix"));
                 default -> result;
             };
         }
@@ -175,7 +182,7 @@ public class AlertTitleTranslationService {
         try {
             return openAiTranslationClient.translateKoToEn(originalText);
         } catch (RuntimeException exception) {
-            LOGGER.warn("GPT alert translation failed. Falling back to source text: {}",
+            LOGGER.warn("GPT alert translation failed. Marking translation as unavailable: {}",
                     exception.getClass().getSimpleName());
             return "";
         }
@@ -190,7 +197,7 @@ public class AlertTitleTranslationService {
         while (matcher.find()) {
             hangulCount++;
         }
-        return hangulCount <= Math.max(3, translatedText.length() / 20);
+        return hangulCount == 0;
     }
 
     private String aggregateProvider(List<TranslationResult> results) {

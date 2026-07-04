@@ -34,6 +34,8 @@ omnilens:
       base-url: ${OPENAI_TRANSLATION_BASE_URL:https://api.openai.com}
       api-key: ${OPENAI_API_KEY:}
       model: ${OPENAI_TRANSLATION_MODEL:gpt-4o-mini}
+      connect-timeout: ${OPENAI_TRANSLATION_CONNECT_TIMEOUT:5s}
+      read-timeout: ${OPENAI_TRANSLATION_READ_TIMEOUT:60s}
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: "replace-with-open-dart-api-key"

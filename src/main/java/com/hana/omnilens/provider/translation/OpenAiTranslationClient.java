@@ -1,11 +1,14 @@
 package com.hana.omnilens.provider.translation;
 
+import java.time.Duration;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -20,13 +23,33 @@ public class OpenAiTranslationClient {
     private final String apiKey;
     private final String model;
 
+    @Autowired
     public OpenAiTranslationClient(
             RestClient.Builder restClientBuilder,
             ExternalProviderResiliencePolicy resiliencePolicy,
             @Value("${omnilens.providers.openai-translation.base-url:https://api.openai.com}") String baseUrl,
             @Value("${omnilens.providers.openai-translation.api-key:${OPENAI_API_KEY:}}") String apiKey,
-            @Value("${omnilens.providers.openai-translation.model:gpt-4o-mini}") String model) {
-        this.restClient = restClientBuilder.baseUrl(baseUrl).build();
+            @Value("${omnilens.providers.openai-translation.model:gpt-4o-mini}") String model,
+            @Value("${omnilens.providers.openai-translation.connect-timeout:5s}") Duration connectTimeout,
+            @Value("${omnilens.providers.openai-translation.read-timeout:60s}") Duration readTimeout) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
+        this.restClient = restClientBuilder
+                .requestFactory(requestFactory)
+                .baseUrl(baseUrl)
+                .build();
+        this.resiliencePolicy = resiliencePolicy;
+        this.apiKey = apiKey == null ? "" : apiKey;
+        this.model = StringUtils.hasText(model) ? model : "gpt-4o-mini";
+    }
+
+    OpenAiTranslationClient(
+            RestClient restClient,
+            ExternalProviderResiliencePolicy resiliencePolicy,
+            String apiKey,
+            String model) {
+        this.restClient = restClient;
         this.resiliencePolicy = resiliencePolicy;
         this.apiKey = apiKey == null ? "" : apiKey;
         this.model = StringUtils.hasText(model) ? model : "gpt-4o-mini";
@@ -46,11 +69,13 @@ public class OpenAiTranslationClient {
                         Translate Korean financial news into natural, concise English.
                         Return only the translation. Preserve stock codes, numbers, dates, URLs, and company names.
                         Translate Korean market localisms so foreign investors can understand them.
+                        Do not leave any Korean Hangul characters in the output; romanize proper nouns when needed.
+                        Translate every sentence from the input and do not summarize or truncate the article.
                         """,
                         List.of(new InputMessage("user", text)),
                         false,
                         0,
-                        4096))
+                        8192))
                 .retrieve()
                 .body(OpenAiResponsesResponse.class));
         return response == null ? "" : response.content();
