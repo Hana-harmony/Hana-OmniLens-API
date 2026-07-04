@@ -58,7 +58,6 @@ public class MarketDataService {
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private static final BigDecimal FOREIGN_LIMIT_WARNING_RATE = new BigDecimal("100.0000");
     private static final Duration PRICE_CACHE_TTL = Duration.ofSeconds(20);
-    private static final Duration PRICE_CACHE_STALE_TTL = Duration.ofMinutes(10);
     private static final Duration INDEX_CURRENT_CACHE_TTL = Duration.ofSeconds(20);
     private static final Duration INDEX_TICK_FUTURE_TOLERANCE = Duration.ofMinutes(2);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(1_200);
@@ -398,49 +397,7 @@ public class MarketDataService {
     public MarketQuote getQuote(String stockCode, String localCurrency, BigDecimal fxRate) {
         PriceLookup priceLookup = latestPriceSnapshot(stockCode);
         StockSummary stock = getStock(stockCode);
-        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock, priceLookup);
-        Optional<KisRealtimeTradeTick> afterHoursTrade = realtimeMarketDataCache.latestTrade(stockCode)
-                .filter(KisRealtimeTradeTick::afterHours);
-
-        BigDecimal currentPrice = priceLookup.currentPriceKrw()
-                .orElseThrow(() -> new MarketDataUnavailableException(
-                        "No live provider price is available for stockCode=" + stockCode));
-        FxLookup fxLookup = resolveFxRate(localCurrency, fxRate);
-        BigDecimal localPrice = currentPrice.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
-        BigDecimal afterHoursPriceKrw = afterHoursTrade.map(KisRealtimeTradeTick::currentPriceKrw).orElse(null);
-        BigDecimal afterHoursLocalCurrencyPrice = afterHoursPriceKrw == null
-                ? null
-                : afterHoursPriceKrw.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
-
-        return new MarketQuote(
-                stockCode,
-                priceLookup.stockName().orElse(stock.stockName()),
-                stock.stockNameEn(),
-                priceLookup.market().orElse(stock.market()),
-                currentPrice,
-                priceLookup.changeRate().orElse(BigDecimal.ZERO),
-                priceLookup.volume().orElse(0L),
-                currentPrice,
-                afterHoursTrade.map(KisRealtimeTradeTick::marketSession).orElse(priceLookup.marketSession()),
-                afterHoursPriceKrw,
-                afterHoursLocalCurrencyPrice,
-                afterHoursTrade.map(KisRealtimeTradeTick::changeRate).orElse(null),
-                afterHoursTrade.map(KisRealtimeTradeTick::accumulatedVolume).orElse(null),
-                afterHoursTrade.map(tick -> Instant.now(clock)).orElse(null),
-                "KRW",
-                localPrice,
-                localCurrency,
-                fxLookup.fxRate(),
-                fxLookup.fxRateTime(),
-                fxLookup.fxRateSource(),
-                fxLookup.stale(),
-                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(0L),
-                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
-                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(null),
-                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::baseDate).orElse(null),
-                Instant.now(clock),
-                source(priceLookup.source(), foreignOwnership.source()))
-        ;
+        return toMarketQuote(stock, priceLookup, localCurrency, fxRate, true);
     }
 
     public StockDetail getStockDetail(String stockCode, String localCurrency, BigDecimal fxRate) {
@@ -498,23 +455,85 @@ public class MarketDataService {
         if (resolvedStockCodes.isEmpty()) {
             return stockMasterRepository.findAll(limit).stream()
                     .filter(stock -> normalizedMarket == null || normalizedMarket.equals(stock.market()))
-                    .flatMap(stock -> quoteOrEmpty(stock.stockCode(), localCurrency, fxRate).stream())
+                    .map(stock -> quoteOrUnavailable(stock, localCurrency, fxRate))
                     .toList();
         }
         return resolvedStockCodes.stream()
-                .flatMap(stockCode -> quoteOrEmpty(stockCode, localCurrency, fxRate).stream())
+                .flatMap(stockCode -> quoteOrUnavailable(stockCode, localCurrency, fxRate).stream())
                 .filter(quote -> normalizedMarket == null || normalizedMarket.equals(quote.market()))
                 .toList();
     }
 
-    private Optional<MarketQuote> quoteOrEmpty(String stockCode, String localCurrency, BigDecimal fxRate) {
+    private Optional<MarketQuote> quoteOrUnavailable(String stockCode, String localCurrency, BigDecimal fxRate) {
         try {
-            return Optional.of(getQuote(stockCode, localCurrency, fxRate));
-        } catch (MarketDataUnavailableException exception) {
-            // 목록 API는 한 종목의 외부 데이터 장애가 전체 홈 화면을 막지 않도록 종목 단위로 격리한다.
-            log.warn("Market quote skipped stockCode={}: {}", stockCode, exception.toString());
+            StockSummary stock = getStock(stockCode);
+            return Optional.of(quoteOrUnavailable(stock, localCurrency, fxRate));
+        } catch (StockMasterNotFoundException exception) {
+            // 종목 마스터가 없는 잘못된 요청은 목록 응답에서만 제외한다.
+            log.warn("Market quote excluded stockCode={}: {}", stockCode, exception.toString());
             return Optional.empty();
         }
+    }
+
+    private MarketQuote quoteOrUnavailable(StockSummary stock, String localCurrency, BigDecimal fxRate) {
+        PriceLookup priceLookup = latestPriceSnapshot(stock.stockCode());
+        return toMarketQuote(stock, priceLookup, localCurrency, fxRate, true);
+    }
+
+    private MarketQuote toMarketQuote(
+            StockSummary stock,
+            PriceLookup priceLookup,
+            String localCurrency,
+            BigDecimal fxRate,
+            boolean requirePrice) {
+        ForeignOwnershipLookup foreignOwnership = latestForeignOwnershipSnapshot(stock, priceLookup);
+        Optional<KisRealtimeTradeTick> afterHoursTrade = realtimeMarketDataCache.latestTrade(stock.stockCode())
+                .filter(KisRealtimeTradeTick::afterHours);
+        BigDecimal currentPrice = priceLookup.currentPriceKrw().orElse(null);
+        if (requirePrice && currentPrice == null) {
+            throw new MarketDataUnavailableException(
+                    "No live provider price is available for stockCode=" + stock.stockCode());
+        }
+
+        FxLookup fxLookup = currentPrice == null
+                ? null
+                : requirePrice ? resolveFxRate(localCurrency, fxRate) : resolveFxRateOrNull(localCurrency, fxRate);
+        BigDecimal localPrice = currentPrice == null || fxLookup == null
+                ? null
+                : currentPrice.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal afterHoursPriceKrw = afterHoursTrade.map(KisRealtimeTradeTick::currentPriceKrw).orElse(null);
+        BigDecimal afterHoursLocalCurrencyPrice = afterHoursPriceKrw == null || fxLookup == null
+                ? null
+                : afterHoursPriceKrw.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
+
+        return new MarketQuote(
+                stock.stockCode(),
+                priceLookup.stockName().orElse(stock.stockName()),
+                stock.stockNameEn(),
+                priceLookup.market().orElse(stock.market()),
+                currentPrice,
+                priceLookup.changeRate().orElse(BigDecimal.ZERO),
+                priceLookup.volume().orElse(0L),
+                currentPrice,
+                afterHoursTrade.map(KisRealtimeTradeTick::marketSession).orElse(priceLookup.marketSession()),
+                afterHoursPriceKrw,
+                afterHoursLocalCurrencyPrice,
+                afterHoursTrade.map(KisRealtimeTradeTick::changeRate).orElse(null),
+                afterHoursTrade.map(KisRealtimeTradeTick::accumulatedVolume).orElse(null),
+                afterHoursTrade.map(tick -> Instant.now(clock)).orElse(null),
+                "KRW",
+                localPrice,
+                localCurrency,
+                fxLookup == null ? null : fxLookup.fxRate(),
+                fxLookup == null ? null : fxLookup.fxRateTime(),
+                fxLookup == null ? "QUOTE_UNAVAILABLE" : fxLookup.fxRateSource(),
+                fxLookup == null || fxLookup.stale(),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(0L),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(null),
+                foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::baseDate).orElse(null),
+                currentPrice == null ? null : Instant.now(clock),
+                source(priceLookup.source(), foreignOwnership.source()));
     }
 
     public List<MarketIndexQuote> getIndices() {
@@ -940,12 +959,10 @@ public class MarketDataService {
                 return priceLookup;
             }
         } catch (RuntimeException exception) {
-            // KIS 인증 또는 일시 장애가 있어도 공공데이터 snapshot으로 시세 응답을 유지한다.
+            // KIS 연결 장애는 저장값으로 가리지 않고 클라이언트에 명확히 전달한다.
             log.warn("KIS current price lookup failed for stockCode={}: {}", stockCode, exception.toString());
-            Optional<PriceLookup> staleCachedPrice = cachedPrice(stockCode, PRICE_CACHE_STALE_TTL);
-            if (staleCachedPrice.isPresent()) {
-                return staleCachedPrice.orElseThrow();
-            }
+            throw new MarketDataUnavailableException(
+                    "KIS market data provider is unavailable for stockCode=" + stockCode);
         }
         Optional<PriceLookup> recordedRealtimePrice = latestRecordedIntradayPrice(stockCode);
         if (recordedRealtimePrice.isPresent()) {

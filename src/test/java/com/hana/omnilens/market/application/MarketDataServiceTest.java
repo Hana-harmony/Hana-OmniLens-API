@@ -506,8 +506,7 @@ class MarketDataServiceTest {
                         "KOSPI",
                         "KR7005930003",
                         "00126380")));
-        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenThrow(
-                new IllegalStateException("kis is not configured"));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
         cache.put(foreignOwnershipSnapshot());
         when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.of(
                 new PublicDataStockPriceSnapshot(
@@ -556,12 +555,10 @@ class MarketDataServiceTest {
                         "00126380")));
         when(kisCurrentPriceClient.findCurrentPrice("005930"))
                 .thenThrow(new IllegalStateException("kis is not configured"));
-        when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
-                .thenThrow(new IllegalStateException("provider is not configured"));
 
         assertThatThrownBy(() -> service.getQuote("005930", "USD", new BigDecimal("0.00072")))
                 .isInstanceOf(MarketDataUnavailableException.class)
-                .hasMessageContaining("No live provider price");
+                .hasMessageContaining("KIS market data provider is unavailable");
     }
 
     @Test
@@ -581,10 +578,8 @@ class MarketDataServiceTest {
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
         cache.put(foreignOwnershipSnapshot());
-        when(kisCurrentPriceClient.findCurrentPrice("005930"))
-                .thenThrow(new IllegalStateException("kis is not configured"));
-        when(client.findPrice("005930", LocalDate.of(2025, 6, 3)))
-                .thenThrow(new IllegalStateException("provider is not configured"));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(client.findPrice("005930", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
 
         StockDetail detail = service.getStockDetail("005930", "USD", null);
 
@@ -830,6 +825,43 @@ class MarketDataServiceTest {
     }
 
     @Test
+    void getQuotesFailsWhenQuoteProviderConnectionIsUnavailable() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                cache,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+        StockSummary skHynix = new StockSummary(
+                "000660",
+                "SK하이닉스",
+                "SK hynix",
+                "KOSPI",
+                "KR7000660001",
+                "00164779");
+
+        when(repository.findByCode("000660")).thenReturn(Optional.of(skHynix));
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        when(kisCurrentPriceClient.findCurrentPrice("000660"))
+                .thenThrow(new IllegalStateException("kis endpoint unavailable"));
+
+        assertThatThrownBy(() -> service.getQuotes(
+                List.of("000660", "005930"),
+                "KOSPI",
+                "USD",
+                null,
+                10))
+                .isInstanceOf(MarketDataUnavailableException.class)
+                .hasMessageContaining("KIS market data provider is unavailable");
+    }
+
+    @Test
     void getQuoteUsesRealtimeTradeCacheBeforeKisRest() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
@@ -867,7 +899,7 @@ class MarketDataServiceTest {
     }
 
     @Test
-    void getQuoteUsesStoredIntradaySnapshotWhenKisRestIsTemporarilyUnavailable() {
+    void getQuoteUsesStoredIntradaySnapshotWhenKisRestReturnsNoCurrentPrice() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
@@ -895,8 +927,7 @@ class MarketDataServiceTest {
 
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
         cache.put(foreignOwnershipSnapshot());
-        when(kisCurrentPriceClient.findCurrentPrice("005930"))
-                .thenThrow(new IllegalStateException("kis access token is temporarily rate limited"));
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
         when(intradayPriceRepository.findLatestByStockCodeAndDate("005930", LocalDate.of(2025, 6, 4)))
                 .thenReturn(Optional.of(new MarketIntradayPrice(
                         "005930",
