@@ -118,21 +118,29 @@ public class MarketNewsCollectionService {
     public List<MarketNewsEvent> reprocessSummaryQualityIssues(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit, 100));
         return marketNewsEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
-                .map(this::repairQualityIssue)
+                .map(this::repairQualityIssueIfPossible)
+                .flatMap(Optional::stream)
                 .toList();
     }
 
+    private Optional<MarketNewsEvent> repairQualityIssueIfPossible(MarketNewsEvent event) {
+        try {
+            return Optional.of(repairQualityIssue(event));
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Skipping market news quality repair: newsId={}, query={}",
+                    event.newsId(),
+                    event.query(),
+                    exception);
+            return Optional.empty();
+        }
+    }
+
     private MarketNewsEvent repairQualityIssue(MarketNewsEvent event) {
-        String translatedTitle = EnglishNewsQualityGate.englishTextOrFallback(
-                event.translatedTitle(),
-                "Korean market update");
-        AlertSummaryLines summaryLines = EnglishNewsQualityGate.englishSummaryLinesOrFallback(
-                event.summaryLines(),
-                translatedTitle);
-        String translatedSummary = EnglishNewsQualityGate.englishSummaryTextOrFallback(
-                event.translatedSummary(),
-                joinSummaryLines(summaryLines));
-        String translatedContent = repairedTranslatedContent(event, translatedTitle, summaryLines);
+        String translatedTitle = repairedTranslatedTitle(event);
+        AlertSummaryLines summaryLines = repairedSummaryLines(event);
+        String translatedSummary = joinSummaryLines(summaryLines);
+        String translatedContent = repairedTranslatedContent(event);
         boolean repaired = !safeEquals(translatedTitle, event.translatedTitle())
                 || !safeEquals(translatedSummary, event.translatedSummary())
                 || !safeEquals(translatedContent, event.translatedContent())
@@ -155,39 +163,55 @@ public class MarketNewsCollectionService {
                 event.glossaryTerms(),
                 event.sentiment(),
                 event.importance(),
-                event.translationProvider(),
+                repaired ? "openai" : event.translationProvider(),
                 event.translationModelVersion(),
-                repaired ? AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK : event.translationStatus(),
+                repaired ? AlertTitleTranslationService.STATUS_TRANSLATED : event.translationStatus(),
                 event.duplicateKey(),
                 event.publishedAt(),
                 event.createdAt()));
     }
 
-    private String repairedTranslatedContent(
-            MarketNewsEvent event,
-            String translatedTitle,
-            AlertSummaryLines summaryLines) {
-        String fallback = EnglishNewsQualityGate.englishContentFallback(
-                event.originalContent(),
-                translatedTitle,
-                summaryLines);
+    private String repairedTranslatedTitle(MarketNewsEvent event) {
+        String currentTitle = EnglishNewsQualityGate.englishTextOrEmpty(event.translatedTitle());
+        if (StringUtils.hasText(currentTitle)) {
+            return currentTitle;
+        }
+        return requireEnglishText(
+                translationService.translateTitleWithResult(event.title(), event.glossaryTerms()),
+                "market news title repair");
+    }
+
+    private AlertSummaryLines repairedSummaryLines(MarketNewsEvent event) {
+        AlertSummaryLines currentLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(event.summaryLines());
+        if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(currentLines)) {
+            return currentLines;
+        }
+        AlertSummaryLines sourceSummaryLines = sourceSummaryLines(event.summary(), null, event.title());
+        TranslationResult translatedSummary = translationService.translateTextWithResult(
+                joinSummaryLines(sourceSummaryLines),
+                event.glossaryTerms());
+        return requireEnglishSummaryLines(
+                translateSummaryLines(sourceSummaryLines, event.glossaryTerms()),
+                translatedSummary,
+                "market news summary repair");
+    }
+
+    private String repairedTranslatedContent(MarketNewsEvent event) {
         if (EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())) {
-            return EnglishNewsQualityGate.englishTextOrFallback(event.translatedContent(), fallback);
+            return EnglishNewsQualityGate.englishTextOrEmpty(event.translatedContent());
         }
         if (!StringUtils.hasText(event.originalContent())) {
-            return fallback;
+            return "";
         }
         try {
             TranslationResult translatedOriginalContent = translateContent(event.originalContent(), event.glossaryTerms());
             if (translatedOriginalContent == null) {
-                return fallback;
+                throw new IllegalStateException("English translation failed: market news content repair");
             }
-            return EnglishNewsQualityGate.englishTextOrFallback(
-                    translatedOriginalContent.translatedText(),
-                    fallback);
+            return requireEnglishText(translatedOriginalContent, "market news content repair");
         } catch (RuntimeException exception) {
             log.warn("Failed to retranslate market news content during quality repair: newsId={}", event.newsId(), exception);
-            return fallback;
+            throw exception;
         }
     }
 
@@ -204,14 +228,22 @@ public class MarketNewsCollectionService {
                 counters.duplicateCount++;
                 continue;
             }
-            MarketNewsEvent event = toEvent(query, article, duplicateKey);
-            MarketNewsEvent saved = marketNewsEventRepository.save(event);
-            if (saved.newsId().equals(event.newsId())) {
-                counters.storedCount++;
-            } else {
-                counters.duplicateCount++;
+            try {
+                MarketNewsEvent event = toEvent(query, article, duplicateKey);
+                MarketNewsEvent saved = marketNewsEventRepository.save(event);
+                if (saved.newsId().equals(event.newsId())) {
+                    counters.storedCount++;
+                } else {
+                    counters.duplicateCount++;
+                }
+                events.add(saved);
+            } catch (RuntimeException exception) {
+                log.warn(
+                        "Skipping market news article because analysis or translation failed: query={}, url={}",
+                        query,
+                        article.originalUrl(),
+                        exception);
             }
-            events.add(saved);
         }
     }
 
@@ -306,108 +338,62 @@ public class MarketNewsCollectionService {
             String originalContent,
             Optional<OriginalArticleContent> fullContent,
             String contentAvailability) {
-        try {
-            HannahAiAnalysisResponse ai = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
-                    "NEWS",
-                    article.title(),
-                    article.snippet(),
-                    originalContent,
-                    fullContent.map(OriginalArticleContent::imageUrls).orElse(List.of()),
-                    fullContent.map(OriginalArticleContent::canonicalUrl).orElse(article.originalUrl()),
-                    fullContent.map(OriginalArticleContent::contentHash).orElse(""),
-                    fullContent.map(OriginalArticleContent::sourceLicensePolicy).orElse(contentAvailability),
-                    article.originalUrl(),
-                    List.of()));
-            List<AlertGlossaryTerm> glossaryTerms = toAlertGlossaryTerms(ai.glossaryTerms());
-            TranslationResult translatedTitle = translationService.translateTitleWithResult(
-                    firstText(ai.originalTitle(), article.title()),
-                    glossaryTerms);
-            AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
-                    ai.summary(),
-                    ai.summaryLines(),
-                    article.title());
-            String summary = joinSummaryLines(sourceSummaryLines);
-            TranslationResult translatedSummary = translationService.translateTextWithResult(
-                    summary,
-                    glossaryTerms);
-            TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
-            String translatedTitleText = EnglishNewsQualityGate.englishTextOrFallback(
-                    translatedTitle.translatedText(),
-                    "Korean market update");
-            AlertSummaryLines translatedSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrFallback(
-                    translateSummaryLines(
-                            sourceSummaryLines,
-                            glossaryTerms,
-                            translatedTitleText),
-                    translatedTitleText);
-            String translatedSummaryText = EnglishNewsQualityGate.englishSummaryTextOrFallback(
-                    translatedSummary.translatedText(),
-                    joinSummaryLines(translatedSummaryLines));
-            String translatedContentText = EnglishNewsQualityGate.englishTextOrFallback(
-                    translatedContent.translatedText(),
-                    EnglishNewsQualityGate.englishContentFallback(
-                            originalContent,
-                            translatedTitleText,
-                            translatedSummaryLines));
-            List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
-                    glossaryTerms,
-                    translatedTitleText,
-                    translatedSummaryText,
-                    translatedContentText);
-            displayGlossaryTerms = glossaryTermExtractor.supplement(
-                    displayGlossaryTerms,
-                    translatedTitleText,
-                    translatedSummaryText,
-                    translatedContentText);
-            return new MarketNewsAnalysis(
-                    summary,
-                    translatedTitleText,
-                    translatedSummaryLines,
-                    translatedSummaryText,
-                    translatedContentText,
-                    displayGlossaryTerms,
-                    normalizeSentiment(ai.sentiment()),
-                    normalizeImportance(ai.importance()),
-                    translationProvider(translatedTitle, translatedSummary, translatedContent),
-                    translationModelVersion(translatedTitle, translatedSummary, translatedContent),
-                    translationStatus(translatedTitle, translatedSummary, translatedContent));
-        } catch (RuntimeException exception) {
-            List<AlertGlossaryTerm> glossaryTerms = List.of();
-            TranslationResult translatedTitle = translationService.translateTitleWithResult(article.title(), glossaryTerms);
-            AlertSummaryLines sourceSummaryLines = sourceSummaryLines("", null, article.title());
-            String summary = joinSummaryLines(sourceSummaryLines);
-            TranslationResult translatedSummary = translationService.translateTextWithResult(summary, glossaryTerms);
-            TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
-            String translatedTitleText = EnglishNewsQualityGate.englishTextOrFallback(
-                    translatedTitle.translatedText(),
-                    "Korean market update");
-            AlertSummaryLines translatedSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrFallback(
-                    translateSummaryLines(
-                            sourceSummaryLines,
-                            glossaryTerms,
-                            translatedTitleText),
-                    translatedTitleText);
-            String translatedSummaryText = EnglishNewsQualityGate.englishSummaryTextOrFallback(
-                    translatedSummary.translatedText(),
-                    joinSummaryLines(translatedSummaryLines));
-            return new MarketNewsAnalysis(
-                    summary,
-                    translatedTitleText,
-                    translatedSummaryLines,
-                    translatedSummaryText,
-                    EnglishNewsQualityGate.englishTextOrFallback(
-                            translatedContent.translatedText(),
-                            EnglishNewsQualityGate.englishContentFallback(
-                                    originalContent,
-                                    translatedTitleText,
-                                    translatedSummaryLines)),
-                    glossaryTerms,
-                    "NEUTRAL",
-                    "MEDIUM",
-                    translationProvider(translatedTitle, translatedSummary, translatedContent),
-                    translationModelVersion(translatedTitle, translatedSummary, translatedContent),
-                    translationStatus(translatedTitle, translatedSummary, translatedContent));
-        }
+        HannahAiAnalysisResponse ai = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
+                "NEWS",
+                article.title(),
+                article.snippet(),
+                originalContent,
+                fullContent.map(OriginalArticleContent::imageUrls).orElse(List.of()),
+                fullContent.map(OriginalArticleContent::canonicalUrl).orElse(article.originalUrl()),
+                fullContent.map(OriginalArticleContent::contentHash).orElse(""),
+                fullContent.map(OriginalArticleContent::sourceLicensePolicy).orElse(contentAvailability),
+                article.originalUrl(),
+                List.of()));
+        List<AlertGlossaryTerm> glossaryTerms = toAlertGlossaryTerms(ai.glossaryTerms());
+        TranslationResult translatedTitle = translationService.translateTitleWithResult(
+                firstText(ai.originalTitle(), article.title()),
+                glossaryTerms);
+        AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
+                ai.summary(),
+                ai.summaryLines(),
+                article.title());
+        String summary = joinSummaryLines(sourceSummaryLines);
+        TranslationResult translatedSummary = translationService.translateTextWithResult(
+                summary,
+                glossaryTerms);
+        TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
+        String translatedTitleText = requireEnglishText(translatedTitle, "market news title");
+        AlertSummaryLines translatedSummaryLines = requireEnglishSummaryLines(
+                translateSummaryLines(sourceSummaryLines, glossaryTerms),
+                translatedSummary,
+                "market news summary");
+        String translatedSummaryText = joinSummaryLines(translatedSummaryLines);
+        String translatedContentText = requireOptionalEnglishContent(
+                translatedContent,
+                originalContent,
+                "market news content");
+        List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
+                glossaryTerms,
+                translatedTitleText,
+                translatedSummaryText,
+                translatedContentText);
+        displayGlossaryTerms = glossaryTermExtractor.supplement(
+                displayGlossaryTerms,
+                translatedTitleText,
+                translatedSummaryText,
+                translatedContentText);
+        return new MarketNewsAnalysis(
+                summary,
+                translatedTitleText,
+                translatedSummaryLines,
+                translatedSummaryText,
+                translatedContentText,
+                displayGlossaryTerms,
+                normalizeSentiment(ai.sentiment()),
+                normalizeImportance(ai.importance()),
+                translationProvider(translatedTitle, translatedSummary, translatedContent),
+                translationModelVersion(translatedTitle, translatedSummary, translatedContent),
+                translationStatus(translatedTitle, translatedSummary, translatedContent));
     }
 
     private TranslationResult translateContent(String originalContent, List<AlertGlossaryTerm> glossaryTerms) {
@@ -417,16 +403,119 @@ public class MarketNewsCollectionService {
         return translationService.translateTextWithResult(originalContent, glossaryTerms);
     }
 
+    private String requireEnglishText(TranslationResult result, String context) {
+        if (result == null || !AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())) {
+            throw new IllegalStateException("English translation failed: " + context);
+        }
+        String englishText = EnglishNewsQualityGate.englishTextOrEmpty(result.translatedText());
+        if (!StringUtils.hasText(englishText)) {
+            throw new IllegalStateException("English translation failed: " + context);
+        }
+        return englishText;
+    }
+
+    private String requireOptionalEnglishContent(
+            TranslationResult result,
+            String originalContent,
+            String context) {
+        if (!StringUtils.hasText(originalContent)) {
+            return "";
+        }
+        return requireEnglishText(result, context);
+    }
+
+    private AlertSummaryLines requireEnglishSummaryLines(
+            AlertSummaryLines translatedLines,
+            TranslationResult translatedSummary,
+            String context) {
+        AlertSummaryLines sanitizedLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(translatedLines);
+        if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(sanitizedLines)) {
+            return sanitizedLines;
+        }
+        if (translatedSummary != null
+                && AlertTitleTranslationService.STATUS_TRANSLATED.equals(translatedSummary.status())) {
+            AlertSummaryLines summaryTextLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
+                    englishSummaryLinesFromText(translatedSummary.translatedText()));
+            if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(summaryTextLines)) {
+                return summaryTextLines;
+            }
+        }
+        throw new IllegalStateException("English summary translation failed: " + context);
+    }
+
+    private AlertSummaryLines englishSummaryLinesFromText(String summary) {
+        if (!StringUtils.hasText(summary)) {
+            return new AlertSummaryLines("", "", "");
+        }
+        List<String> lines = summary.lines()
+                .map(EnglishNewsQualityGate::englishSummaryLineOrEmpty)
+                .filter(StringUtils::hasText)
+                .toList();
+        if (lines.size() < 3) {
+            lines = englishSentences(summary);
+        }
+        return new AlertSummaryLines(
+                lines.size() > 0 ? lines.get(0) : "",
+                lines.size() > 1 ? lines.get(1) : "",
+                lines.size() > 2 ? lines.get(2) : "");
+    }
+
+    private List<String> englishSentences(String summary) {
+        Matcher matcher = Pattern.compile("[^.!?]+[.!?][\"')\\]]*").matcher(summary.replaceAll("\\s+", " ").trim());
+        List<String> sentences = new ArrayList<>();
+        while (matcher.find()) {
+            String sentence = EnglishNewsQualityGate.englishSummaryLineOrEmpty(matcher.group());
+            if (StringUtils.hasText(sentence)) {
+                sentences.add(sentence);
+            }
+        }
+        return sentences;
+    }
+
     private AlertSummaryLines sourceSummaryLines(String summary, AlertSummaryLines summaryLines, String fallback) {
         String joinedLines = joinSummaryLines(summaryLines);
         if (StringUtils.hasText(joinedLines)) {
             return completeSummaryLines(summaryLines, fallback);
+        }
+        AlertSummaryLines parsedSummaryLines = summaryLinesFromText(summary);
+        if (parsedSummaryLines != null) {
+            return completeSummaryLines(parsedSummaryLines, fallback);
         }
         String sanitizedSummary = sanitizeSummary(summary);
         if (StringUtils.hasText(sanitizedSummary)) {
             return completeSummaryLines(AlertSummaryLines.fromSummary(sanitizedSummary), fallback);
         }
         return completeSummaryLines(null, fallback);
+    }
+
+    private AlertSummaryLines summaryLinesFromText(String summary) {
+        if (!StringUtils.hasText(summary)) {
+            return null;
+        }
+        List<String> lines = summary.lines()
+                .map(this::sanitizeSummary)
+                .filter(StringUtils::hasText)
+                .toList();
+        if (lines.size() >= 3) {
+            return new AlertSummaryLines(lines.get(0), lines.get(1), lines.get(2));
+        }
+        if (lines.size() == 2) {
+            return new AlertSummaryLines(lines.get(0), lines.get(1), "");
+        }
+        if (lines.size() == 1) {
+            if (isImpactOnlySummary(lines.get(0))) {
+                return null;
+            }
+            return AlertSummaryLines.fromSummary(lines.get(0));
+        }
+        return null;
+    }
+
+    private boolean isImpactOnlySummary(String value) {
+        String lower = value.toLowerCase(Locale.ROOT);
+        return value.startsWith("투자자는")
+                || lower.startsWith("investors should")
+                || lower.startsWith("investors need");
     }
 
     private String joinSummaryLines(AlertSummaryLines summaryLines) {
@@ -511,37 +600,44 @@ public class MarketNewsCollectionService {
         return lower.contains("classified")
                 || lower.contains("importance")
                 || lower.contains("sentiment")
+                || lower.contains("i'm sorry")
+                || lower.contains("i can’t assist")
+                || lower.contains("i can't assist")
+                || lower.contains("please provide")
+                || lower.contains("as an ai")
+                || lower.contains("publisher of this newspaper")
+                || lower.contains("columnist")
                 || value.contains("중요도")
                 || value.contains("감성")
                 || value.contains("분류");
     }
 
     private boolean endsAsCompleteSentence(String value) {
-        return value.matches(".*([.!?。]|다|요|니다|습니다|한다|했다|됐다|된다|였다|이다|합니다|했습니다|됩니다|입니다)$");
+        return value.matches(".*((?:[.!?。])|(?:다|요|니다|습니다|한다|했다|됐다|된다|였다|이다|합니다|했습니다|됩니다|입니다))[\"')\\]]*$");
     }
 
     private AlertSummaryLines translateSummaryLines(
             AlertSummaryLines summaryLines,
-            List<AlertGlossaryTerm> glossaryTerms,
-            String fallbackSummary) {
+            List<AlertGlossaryTerm> glossaryTerms) {
         if (summaryLines == null) {
-            return completeSummaryLines(null, fallbackSummary);
+            return new AlertSummaryLines("", "", "");
         }
-        AlertSummaryLines completedSourceLines = completeSummaryLines(summaryLines, fallbackSummary);
+        AlertSummaryLines completedSourceLines = completeSummaryLines(summaryLines, "");
         String what = translateSummaryLine(completedSourceLines.what(), glossaryTerms);
         String why = translateSummaryLine(completedSourceLines.why(), glossaryTerms);
         String impact = translateSummaryLine(completedSourceLines.impact(), glossaryTerms);
-        return completeSummaryLines(new AlertSummaryLines(
-                StringUtils.hasText(what) ? what : completedSourceLines.what(),
-                StringUtils.hasText(why) ? why : completedSourceLines.why(),
-                StringUtils.hasText(impact) ? impact : completedSourceLines.impact()), fallbackSummary);
+        return new AlertSummaryLines(what, why, impact);
     }
 
     private String translateSummaryLine(String value, List<AlertGlossaryTerm> glossaryTerms) {
         if (!StringUtils.hasText(value)) {
             return "";
         }
-        return sanitizeSummary(translationService.translateTextWithResult(value, glossaryTerms).translatedText());
+        TranslationResult result = translationService.translateTextWithResult(value, glossaryTerms);
+        if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())) {
+            return "";
+        }
+        return EnglishNewsQualityGate.englishSummaryLineOrEmpty(result.translatedText());
     }
 
     private String normalizeSentiment(String value) {

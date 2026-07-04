@@ -14,87 +14,74 @@ public final class EnglishNewsQualityGate {
     private EnglishNewsQualityGate() {
     }
 
-    public static AlertSummaryLines englishSummaryLinesOrFallback(AlertSummaryLines summaryLines, String subject) {
-        AlertSummaryLines fallback = englishSummaryFallbackLines(subject);
+    public static AlertSummaryLines englishSummaryLinesOrEmpty(AlertSummaryLines summaryLines) {
         if (summaryLines == null) {
-            return fallback;
+            return new AlertSummaryLines("", "", "");
         }
-        String what = sanitizeEnglishSummaryLine(summaryLines.what());
-        String why = sanitizeEnglishSummaryLine(summaryLines.why());
-        String impact = sanitizeEnglishSummaryLine(summaryLines.impact());
+        String what = englishSummaryLineOrEmpty(summaryLines.what());
+        String why = englishSummaryLineOrEmpty(summaryLines.why());
+        String impact = englishSummaryLineOrEmpty(summaryLines.impact());
         return new AlertSummaryLines(
-                StringUtils.hasText(what) ? what : fallback.what(),
-                StringUtils.hasText(why) && !why.equals(what) ? why : fallback.why(),
+                what,
+                StringUtils.hasText(why) && !why.equals(what) ? why : "",
                 StringUtils.hasText(impact) && !impact.equals(what) && !impact.equals(why)
                         ? impact
-                        : fallback.impact());
+                        : "");
     }
 
     public static boolean hasUsableEnglishSummaryLines(AlertSummaryLines summaryLines) {
         if (summaryLines == null) {
             return false;
         }
-        return StringUtils.hasText(sanitizeEnglishSummaryLine(summaryLines.what()))
-                && StringUtils.hasText(sanitizeEnglishSummaryLine(summaryLines.why()))
-                && StringUtils.hasText(sanitizeEnglishSummaryLine(summaryLines.impact()));
+        AlertSummaryLines sanitized = englishSummaryLinesOrEmpty(summaryLines);
+        return StringUtils.hasText(sanitized.what())
+                && StringUtils.hasText(sanitized.why())
+                && StringUtils.hasText(sanitized.impact());
     }
 
-    public static String englishTextOrFallback(String value, String fallback) {
+    public static String englishTextOrEmpty(String value) {
         String normalized = normalizeWhitespace(value);
         if (hasUsableEnglishText(normalized)) {
             return normalized;
         }
-        return fallback == null ? "" : fallback;
+        return "";
     }
 
     public static boolean hasUsableEnglishText(String value) {
         String normalized = normalizeWhitespace(value);
-        return StringUtils.hasText(normalized) && !containsHangul(normalized) && !containsEllipsis(normalized);
+        return StringUtils.hasText(normalized)
+                && !containsHangul(normalized)
+                && !containsGenericFallback(normalized);
     }
 
-    public static String englishSummaryTextOrFallback(String value, String fallback) {
+    public static String englishSummaryTextOrEmpty(String value) {
         String normalized = normalizeWhitespace(value);
         if (StringUtils.hasText(normalized)
                 && !containsHangul(normalized)
                 && !containsEllipsis(normalized)
-                && !containsSummaryMeta(normalized)) {
+                && !containsSummaryMeta(normalized)
+                && !containsGenericFallback(normalized)) {
             return normalized;
         }
-        return fallback == null ? "" : fallback;
+        return "";
     }
 
-    public static String englishContentFallback(
-            String originalContent,
-            String translatedTitle,
-            AlertSummaryLines summaryLines) {
-        if (!StringUtils.hasText(originalContent)) {
-            return "";
-        }
-        return String.join("\n\n",
-                englishSubject(translatedTitle),
-                "What: " + summaryLines.what(),
-                "Why: " + summaryLines.why(),
-                "Impact: " + summaryLines.impact());
-    }
-
-    public static AlertSummaryLines englishSummaryFallbackLines(String subject) {
-        String displaySubject = englishSubject(subject);
-        return new AlertSummaryLines(
-                "This item covers " + displaySubject + " from Korean market news.",
-                "The key background is the latest market or company context confirmed in the source article.",
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.");
-    }
-
-    public static String englishSubject(String subject) {
-        String normalized = normalizeWhitespace(subject);
-        if (!StringUtils.hasText(normalized) || containsHangul(normalized) || containsEllipsis(normalized)) {
-            return "a Korean market update";
-        }
-        return normalized.length() > 160 ? "a Korean market update" : normalized;
+    public static String englishSummaryLineOrEmpty(String value) {
+        return sanitizeEnglishSummaryLine(value);
     }
 
     public static boolean containsHangul(String value) {
         return value != null && HANGUL_PATTERN.matcher(value).find();
+    }
+
+    public static boolean containsGenericFallback(String value) {
+        String lower = normalizeWhitespace(value).toLowerCase(Locale.ROOT);
+        return lower.contains("korean company update")
+                || lower.contains("korean market update")
+                || lower.contains("a korean market update")
+                || lower.contains("this item covers") && lower.contains("from korean market news")
+                || lower.contains("latest market or company context confirmed in the source article")
+                || lower.contains("investors should review possible effects on prices, earnings, liquidity, and watched holdings");
     }
 
     private static String sanitizeEnglishSummaryLine(String value) {
@@ -103,6 +90,7 @@ public final class EnglishNewsQualityGate {
                 || containsHangul(normalized)
                 || containsEllipsis(normalized)
                 || containsSummaryMeta(normalized)
+                || containsGenericFallback(normalized)
                 || !endsAsEnglishSentence(normalized)) {
             return "";
         }
@@ -125,6 +113,13 @@ public final class EnglishNewsQualityGate {
         return lower.contains("classified")
                 || lower.contains("importance")
                 || lower.contains("sentiment")
+                || lower.contains("i'm sorry")
+                || lower.contains("i can’t assist")
+                || lower.contains("i can't assist")
+                || lower.contains("please provide")
+                || lower.contains("as an ai")
+                || lower.contains("publisher of this newspaper")
+                || lower.contains("columnist")
                 || value.contains("중요도")
                 || value.contains("감성")
                 || value.contains("분류");

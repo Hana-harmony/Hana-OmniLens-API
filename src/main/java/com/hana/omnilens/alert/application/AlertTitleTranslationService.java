@@ -95,7 +95,7 @@ public class AlertTitleTranslationService {
                         openAiTranslationClient.model(),
                         STATUS_TRANSLATED)
                 : TranslationResult.sourceFallback(
-                        applyLocalismSurfaceTerms(originalText, glossaryTerms),
+                        "",
                         openAiTranslationClient.model());
         translationCache.put(cacheKey, result);
         return result;
@@ -175,7 +175,7 @@ public class AlertTitleTranslationService {
         try {
             return openAiTranslationClient.translateKoToEn(originalText);
         } catch (RuntimeException exception) {
-            LOGGER.warn("GPT alert translation failed. Falling back to source text: {}",
+            LOGGER.warn("GPT alert translation failed. Marking translation as unavailable: {}",
                     exception.getClass().getSimpleName());
             return "";
         }

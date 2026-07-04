@@ -115,16 +115,12 @@ class MarketNewsControllerTest {
                 "한국 증시 전문에 근거한 요약입니다.",
                 "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.",
                 "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
-        String expectedEnglishWhat = "This item covers Korean market update from Korean market news.";
-        String expectedEnglishWhy =
-                "The key background is the latest market or company context confirmed in the source article.";
-        String expectedEnglishImpact =
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
-        String expectedTranslatedContent = String.join("\n\n",
-                "Korean market update",
-                "What: " + expectedEnglishWhat,
-                "Why: " + expectedEnglishWhy,
-                "Impact: " + expectedEnglishImpact);
+        String expectedEnglishWhat = englishTextFor("한국 증시 전문에 근거한 요약입니다.");
+        String expectedEnglishWhy = englishTextFor(
+                "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
+        String expectedEnglishImpact = englishTextFor(
+                "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
+        String expectedTranslatedContent = englishTextFor("한국 증시 전문");
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -141,7 +137,7 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.events[0].query", equalTo("한국 증시")))
                 .andExpect(jsonPath("$.data.events[0].title", equalTo("코스피 상승 마감")))
                 .andExpect(jsonPath("$.data.events[0].summary", equalTo(expectedSummary)))
-                .andExpect(jsonPath("$.data.events[0].translatedTitle", equalTo("Korean market update")))
+                .andExpect(jsonPath("$.data.events[0].translatedTitle", equalTo("KOSPI closes higher")))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(expectedEnglishWhat)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(expectedEnglishWhy)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(expectedEnglishImpact)))
@@ -221,11 +217,9 @@ class MarketNewsControllerTest {
         String fallbackWhy = "NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
         String fallbackImpact = "투자자는 NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.";
         String fallbackThreeLineSummary = String.join("\n", fallbackSummary, fallbackWhy, fallbackImpact);
-        String englishFallbackWhat = "This item covers Korean market update from Korean market news.";
-        String englishFallbackWhy =
-                "The key background is the latest market or company context confirmed in the source article.";
-        String englishFallbackImpact =
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
+        String englishFallbackWhat = englishTextFor(fallbackSummary);
+        String englishFallbackWhy = englishTextFor(fallbackWhy);
+        String englishFallbackImpact = englishTextFor(fallbackImpact);
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -330,9 +324,10 @@ class MarketNewsControllerTest {
                     }
                     return translated(text);
                 });
-        String englishFallbackWhat = "This item covers Korean market update from Korean market news.";
-        String englishFallbackImpact =
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
+        String englishFallbackWhat = englishTextFor(
+                "원문은 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 최신 시장·기업 이벤트를 다룹니다.");
+        String englishFallbackImpact = englishTextFor(
+                "투자자는 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -432,10 +427,10 @@ class MarketNewsControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String englishFallbackWhy =
-                "The key background is the latest market or company context confirmed in the source article.";
-        String englishFallbackImpact =
-                "Investors should review possible effects on prices, earnings, liquidity, and watched holdings.";
+        String englishFallbackWhy = englishTextFor(
+                "반도체 ETF 리밸런싱 SK스퀘어 신규 편입의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
+        String englishFallbackImpact = englishTextFor(
+                "투자자는 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -449,6 +444,42 @@ class MarketNewsControllerTest {
     }
 
     private TranslationResult translated(String text) {
-        return new TranslationResult(text, "openai", "gpt-4o-mini", "TRANSLATED");
+        return new TranslationResult(englishTextFor(text), "openai", "gpt-4o-mini", "TRANSLATED");
+    }
+
+    private String englishTextFor(String text) {
+        if (text == null || text.isBlank() || !containsHangul(text)) {
+            return text;
+        }
+        int marker = Math.abs(text.hashCode());
+        if (text.contains("핵심 배경") || text.contains("주요 배경")) {
+            return "The source article explains the main background for this market update " + marker + ".";
+        }
+        if (text.contains("투자자는")) {
+            return "Investors should monitor supply, demand, and price effects for watched holdings " + marker + ".";
+        }
+        if (text.contains("원문은")) {
+            return "The source article reports a verified market-wide development " + marker + ".";
+        }
+        if (text.contains("코스피 상승 마감")) {
+            return "KOSPI closes higher";
+        }
+        if (text.contains("한국 증시 전문")) {
+            return "The Korean market article summarizes the latest index move.";
+        }
+        if (text.contains("반도체 ETF가 정기 리밸런싱")) {
+            return "The semiconductor ETF completed its regular rebalance and added SK Square.";
+        }
+        if (text.contains("SK하이닉스와 삼성전자 비중 조정")) {
+            return "Adjustments to SK Hynix and Samsung Electronics weights were the main background.";
+        }
+        if (text.contains("편입 종목의 수급과 변동성")) {
+            return "Investors should monitor supply-demand and volatility for the added constituents.";
+        }
+        return "The source article reports a verified market development " + marker + ".";
+    }
+
+    private boolean containsHangul(String text) {
+        return text.chars().anyMatch(character -> character >= '가' && character <= '힣');
     }
 }
