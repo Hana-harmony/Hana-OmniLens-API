@@ -9,7 +9,7 @@
 | OpenDART 공시 목록·document 원문 수집 | Hana-OmniLens-API | Done |
 | 인기 종목, 외국인 보유 제한 종목, watchlist 종목 주기 수집 | Hana-OmniLens-API | Done |
 | 종목 매핑, 이벤트 분류, 감성, 중요도, 3줄 요약, 중복 키, confidence | Hannah-Montana-AI | Done |
-| OpenAI GPT 제목·요약·전문 번역 | Hana-OmniLens-API | Done |
+| Hannah Qwen3 제목·요약·전문 번역 | Hana-OmniLens-API, Hannah-Montana-AI | Done |
 | 한국 금융 고유어·전문용어 해설, 번역 품질 메타데이터, 용어 클릭 통계 | Hana-OmniLens-API, Hannah-Montana-AI | Done |
 | 시장 뉴스 목록, 상세, 트렌딩, 수동 수집 API | Hana-OmniLens-API | Done |
 | 협력사 watchlist 조회·교체 API | Hana-OmniLens-API | Done |

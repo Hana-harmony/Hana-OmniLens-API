@@ -13,18 +13,24 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
-import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
+import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationClient;
+import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationRequest;
+import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationResponse;
 
 class AlertTitleTranslationServiceTest {
 
-    private final OpenAiTranslationClient openAiTranslationClient = mock(OpenAiTranslationClient.class);
+    private static final String PROVIDER = "local-open-source-qwen3-translation";
+    private static final String MODEL = "local-llm:mlx-community/Qwen3-0.6B-4bit";
+
+    private final HannahAiKoreanTranslationClient hannahTranslationClient =
+            mock(HannahAiKoreanTranslationClient.class);
     private final AlertTitleTranslationService translationService =
-            new AlertTitleTranslationService(openAiTranslationClient);
+            new AlertTitleTranslationService(hannahTranslationClient);
 
     @Test
-    void translateTitleReturnsGptTranslationFirst() {
-        when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenReturn("Samsung Electronics earnings improve");
+    void translateTitleReturnsLocalQwenTranslationFirst() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("Samsung Electronics earnings improve"));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
@@ -33,8 +39,8 @@ class AlertTitleTranslationServiceTest {
 
     @Test
     void translateTitleReturnsBlankWhenProviderFails() {
-        when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenThrow(new IllegalStateException("missing openai secret"));
+        when(hannahTranslationClient.translate(any()))
+                .thenThrow(new IllegalStateException("hannah ai unavailable"));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
@@ -43,8 +49,8 @@ class AlertTitleTranslationServiceTest {
 
     @Test
     void translateTitleReturnsBlankWhenProviderReturnsBlank() {
-        when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenReturn("");
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated(""));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
@@ -52,34 +58,38 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
-    void translateTitleResultExposesSourceFallbackStatusWhenGptFails() {
-        when(openAiTranslationClient.translateKoToEn("삼성전자 실적 개선"))
-                .thenReturn("");
+    void translateTitleResultExposesSourceFallbackStatusWhenLocalQwenFails() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(sourceFallback());
 
         AlertTitleTranslationService.TranslationResult result =
                 translationService.translateTitleWithResult("삼성전자 실적 개선", List.of());
 
         assertThat(result.translatedText()).isEmpty();
         assertThat(result.provider()).isEqualTo("source-language-fallback");
+        assertThat(result.modelVersion()).isEqualTo(MODEL);
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
     }
 
     @Test
     void translateTextSplitsLongContentIntoChunks() {
         String longText = "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다. ".repeat(120);
-        when(openAiTranslationClient.translateKoToEn(any()))
-                .thenAnswer(invocation -> "EN:" + invocation.getArgument(0, String.class).length());
+        when(hannahTranslationClient.translate(any()))
+                .thenAnswer(invocation -> {
+                    HannahAiKoreanTranslationRequest request = invocation.getArgument(0);
+                    return translated("EN:" + request.text().length());
+                });
 
         String translatedText = translationService.translateText(longText);
 
         assertThat(translatedText).contains("EN:");
-        verify(openAiTranslationClient, atLeast(2)).translateKoToEn(any());
+        verify(hannahTranslationClient, atLeast(2)).translate(any());
     }
 
     @Test
     void translateTextRejectsProviderOutputWithHangul() {
-        when(openAiTranslationClient.translateKoToEn("삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다."))
-                .thenReturn("Samsung Electronics expects 실적 improvement from AI server investment.");
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("Samsung Electronics expects 실적 improvement from AI server investment."));
 
         AlertTitleTranslationService.TranslationResult result = translationService.translateTextWithResult(
                 "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다.",
@@ -91,8 +101,8 @@ class AlertTitleTranslationServiceTest {
 
     @Test
     void translateTextKeepsProviderSurfaceTermForGlossaryClickMapping() {
-        when(openAiTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
-                .thenReturn("Ants net bought Samsung Electronics.");
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("Ants net bought Samsung Electronics."));
 
         String translatedText = translationService.translateText("개미가 삼성전자를 순매수했다.");
 
@@ -101,8 +111,8 @@ class AlertTitleTranslationServiceTest {
 
     @Test
     void translateTextPreservesLocalismSurfaceTermWhenProviderUsesGenericEnglish() {
-        when(openAiTranslationClient.translateKoToEn("개미가 삼성전자를 순매수했다."))
-                .thenReturn("Retail investors net bought Samsung Electronics.");
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("Retail investors net bought Samsung Electronics."));
 
         String plainTranslation = translationService.translateText("개미가 삼성전자를 순매수했다.");
         String glossaryTranslation = translationService.translateText(
@@ -111,6 +121,26 @@ class AlertTitleTranslationServiceTest {
 
         assertThat(plainTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
         assertThat(glossaryTranslation).isEqualTo("Ants net bought Samsung Electronics.");
-        verify(openAiTranslationClient, times(2)).translateKoToEn("개미가 삼성전자를 순매수했다.");
+        verify(hannahTranslationClient, times(2)).translate(any());
+    }
+
+    private HannahAiKoreanTranslationResponse translated(String text) {
+        return new HannahAiKoreanTranslationResponse(
+                text,
+                PROVIDER,
+                MODEL,
+                "TRANSLATED",
+                "ko-en-qwen3-financial-translation-v1",
+                List.of());
+    }
+
+    private HannahAiKoreanTranslationResponse sourceFallback() {
+        return new HannahAiKoreanTranslationResponse(
+                "",
+                "source-language-fallback",
+                MODEL,
+                "SOURCE_LANGUAGE_FALLBACK",
+                "ko-en-qwen3-financial-translation-v1",
+                List.of("LOCAL_TRANSLATION_PROVIDER_ERROR"));
     }
 }

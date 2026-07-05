@@ -27,12 +27,12 @@
 ## M3 뉴스·공시 알림
 - Naver News Search 수집 endpoint 연결 완료
 - OpenDART 공시 수집 endpoint 연결 완료
-- OpenAI GPT 번역 공급자 어댑터 완료
+- Hannah Qwen3 번역 공급자 어댑터 완료
 - Hannah-Montana-AI 분석 API 연동 완료
 - Redis TTL 기반 중복 제거 완료
 - 협력사별 watchlist 기반 주기 수집 스케줄러 완료
 - 협력사별 watchlist DB 관리 API 완료
-- full-content news v2: DB 이벤트 저장소, REST 목록·상세, v2 필드 포함 저장 이벤트 WebSocket, Hannah 전문 기반 분석·What/Why/Impact 요약 모델 연동, 사용 허가 원문 전문·이미지 수집, OpenDART document 전문 수집, GPT 전문 chunk 번역 완료. 전체 종목 shard 운영 최적화와 provider별 권리 확인은 지속
+- full-content news v2: DB 이벤트 저장소, REST 목록·상세, v2 필드 포함 저장 이벤트 WebSocket, Hannah 전문 기반 분석·What/Why/Impact 요약 모델 연동, 사용 허가 원문 전문·이미지 수집, OpenDART document 전문 수집, Hannah Qwen3 전문 chunk 번역 완료. 전체 종목 shard 운영 최적화와 provider별 권리 확인은 지속
 
 ## M4 운영 하드닝
 - 협력사별 rate limit 완료

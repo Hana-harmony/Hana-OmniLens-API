@@ -176,7 +176,7 @@ public class MarketNewsCollectionService {
                 event.glossaryTerms(),
                 event.sentiment(),
                 event.importance(),
-                repaired ? "openai" : event.translationProvider(),
+                repaired ? AlertTitleTranslationService.PROVIDER_LOCAL_OPEN_SOURCE_QWEN : event.translationProvider(),
                 event.translationModelVersion(),
                 repaired ? AlertTitleTranslationService.STATUS_TRANSLATED : event.translationStatus(),
                 event.duplicateKey(),
@@ -423,25 +423,36 @@ public class MarketNewsCollectionService {
         TranslationResult translatedTitle = translationService.translateTitleWithResult(
                 firstText(ai.originalTitle(), article.title()),
                 glossaryTerms);
+        String translatedTitleText = requireEnglishText(translatedTitle, "market news title");
         AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
                 ai.summary(),
                 ai.summaryLines(),
                 article.title());
         String summary = joinSummaryLines(sourceSummaryLines);
-        TranslationResult translatedSummary = translationService.translateTextWithResult(
-                summary,
-                glossaryTerms);
+        AlertSummaryLines alreadyEnglishSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
+                sourceSummaryLines);
+        boolean alreadyEnglishSummary = EnglishNewsQualityGate.hasUsableEnglishSummaryLines(
+                alreadyEnglishSummaryLines);
+        TranslationResult translatedSummary = alreadyEnglishSummary
+                ? alreadyEnglishSummaryResult(alreadyEnglishSummaryLines, translatedTitle)
+                : translationService.translateTextWithResult(summary, glossaryTerms);
         TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
-        String translatedTitleText = requireEnglishText(translatedTitle, "market news title");
-        AlertSummaryLines translatedSummaryLines = requireEnglishSummaryLines(
-                translateSummaryLines(sourceSummaryLines, glossaryTerms),
-                translatedSummary,
-                "market news summary");
+        AlertSummaryLines translatedSummaryLines = alreadyEnglishSummary
+                ? alreadyEnglishSummaryLines
+                : requireEnglishSummaryLines(
+                        translateSummaryLines(sourceSummaryLines, glossaryTerms),
+                        translatedSummary,
+                        "market news summary");
         String translatedSummaryText = joinSummaryLines(translatedSummaryLines);
         String translatedContentText = requireOptionalEnglishContent(
                 translatedContent,
                 originalContent,
                 "market news content");
+        TranslationResult effectiveTranslatedSummary = translatedSummaryResult(
+                translatedSummaryText,
+                translatedSummary,
+                translatedTitle,
+                translatedContent);
         List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
                 glossaryTerms,
                 translatedTitleText,
@@ -461,9 +472,9 @@ public class MarketNewsCollectionService {
                 displayGlossaryTerms,
                 normalizeSentiment(ai.sentiment()),
                 normalizeImportance(ai.importance()),
-                translationProvider(translatedTitle, translatedSummary, translatedContent),
-                translationModelVersion(translatedTitle, translatedSummary, translatedContent),
-                translationStatus(translatedTitle, translatedSummary, translatedContent));
+                translationProvider(translatedTitle, effectiveTranslatedSummary, translatedContent),
+                translationModelVersion(translatedTitle, effectiveTranslatedSummary, translatedContent),
+                translationStatus(translatedTitle, effectiveTranslatedSummary, translatedContent));
     }
 
     private TranslationResult translateContent(String originalContent, List<AlertGlossaryTerm> glossaryTerms) {
@@ -710,6 +721,26 @@ public class MarketNewsCollectionService {
         return EnglishNewsQualityGate.englishSummaryLineOrEmpty(result.translatedText());
     }
 
+    private TranslationResult alreadyEnglishSummaryResult(
+            AlertSummaryLines summaryLines,
+            TranslationResult referenceResult) {
+        return new TranslationResult(
+                joinSummaryLines(summaryLines),
+                referenceResult == null ? "" : referenceResult.provider(),
+                referenceResult == null ? "" : referenceResult.modelVersion(),
+                AlertTitleTranslationService.STATUS_TRANSLATED);
+    }
+
+    private TranslationResult translatedSummaryResult(
+            String translatedSummaryText,
+            TranslationResult... references) {
+        return new TranslationResult(
+                translatedSummaryText,
+                translationProvider(references),
+                translationModelVersion(references),
+                AlertTitleTranslationService.STATUS_TRANSLATED);
+    }
+
     private String normalizeSentiment(String value) {
         if (value == null) {
             return "NEUTRAL";
@@ -826,7 +857,8 @@ public class MarketNewsCollectionService {
 
     private String translationProvider(TranslationResult... results) {
         for (TranslationResult result : results) {
-            if ("openai".equals(result.provider())) {
+            if (StringUtils.hasText(result.provider())
+                    && !"source-language-fallback".equals(result.provider())) {
                 return result.provider();
             }
         }
@@ -849,9 +881,12 @@ public class MarketNewsCollectionService {
             if (!StringUtils.hasText(result.status())) {
                 continue;
             }
-            translated = translated || AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status());
+            translated = translated
+                    || AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+                    || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
             fallback = fallback
-                    || AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
+                    || AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                    || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
         }
         if (translated && fallback) {
             return AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK;

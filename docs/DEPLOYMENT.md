@@ -55,6 +55,8 @@ docker compose -f compose.local.yml up -d
 - `SERVER_SSL_TRUST_STORE_BASE64`: 협력사 client certificate CA truststore 파일을 base64 인코딩한 값. CI/CD가 원격 서버 `tls/` 디렉터리에 자동 생성한다.
 - `HEALTHCHECK_SCHEME`: 컨테이너 healthcheck scheme. TLS 활성화 시 `https`로 설정한다.
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
+- `HANNAH_AI_CONNECT_TIMEOUT`: Hannah-Montana-AI 내부 호출 connect timeout. 기본값은 `2s`이다.
+- `HANNAH_AI_READ_TIMEOUT`: Hannah-Montana-AI 분석·번역·글로벌 피어·금융용어 호출 read timeout. 기본값은 `90s`이며 로컬/sidecar Qwen3 생성 시간이 외부 provider 공통 timeout보다 길 수 있어 별도로 관리한다.
 - `OMNILENS_TERM_ANALYTICS_HASH_SALT`: 한국 금융 용어 클릭 로그의 사용자/세션 식별자 salted hash에 사용하는 salt다. 운영에서는 GitHub Secrets 또는 서버 env로만 주입한다.
 - `KRX_OPEN_API_BASE_URL`: KRX Open API 실제 호출 endpoint 주소. 기본값은 `https://data-dbg.krx.co.kr`이다.
 - `KRX_OPEN_API_AUTH_KEY`: KRX Open API `AUTH_KEY` 헤더로 전달하는 인증키다.
@@ -79,9 +81,9 @@ docker compose -f compose.local.yml up -d
 - `KIS_BASE_URL`: KIS 모의투자 REST endpoint 주소. 기본값은 `https://openapivts.koreainvestment.com:29443`이다.
 - `KIS_WEBSOCKET_URL`: KIS 모의투자 WebSocket endpoint 주소. 기본값은 `ws://ops.koreainvestment.com:31000`이다.
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.
-- `OPENAI_TRANSLATION_BASE_URL`: OpenAI-compatible GPT 번역 endpoint 주소. 기본값은 `https://api.openai.com`이다.
-- `OPENAI_API_KEY`: GPT 번역 API key. 환경변수 또는 Secret으로만 주입하며 없거나 실패하면 원문과 fallback 상태를 payload에 남긴다.
-- `OPENAI_TRANSLATION_MODEL`: GPT 번역 모델명. 기본값은 `gpt-4o-mini`이다.
+- `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 endpoint 주소. 번역, 분석, 글로벌 피어, 금융용어 해설을 같은 내부망에서 호출한다.
+- `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`: Hannah-Montana-AI 내부 endpoint 전용 timeout이다. `PROVIDER_READ_TIMEOUT`은 KIS, Naver, KRX 같은 외부 provider에만 적용한다.
+- `OPENAI_TRANSLATION_BASE_URL`, `OPENAI_TRANSLATION_MODEL`, `OPENAI_API_KEY`: legacy 비교 smoke와 명시적으로 켠 OpenAI 금융용어 fallback에만 사용한다. live 뉴스·공시 번역 경로는 Hannah Qwen3다.
 - `OMNILENS_RATE_LIMIT_ENABLED`: API key fingerprint 단위 rate limit 활성화 여부. 기본값은 `true`이다.
 - `OMNILENS_RATE_LIMIT_CAPACITY`: bucket 최대 요청 수. 기본값은 `120`이다.
 - `OMNILENS_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
@@ -148,7 +150,7 @@ HEALTHCHECK_SCHEME=https
 - `KIS_APP_KEY`, `KIS_APP_SECRET`: KIS Open API credential
 - `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API credential
 - `OPEN_DART_API_KEY`: OpenDART API credential
-- `OPENAI_API_KEY`: GPT 번역 credential
+- `OPENAI_API_KEY`: legacy OpenAI 비교 smoke 또는 명시적 OpenAI 금융용어 fallback credential
 ## 원격 서버 준비
 원격 서버에는 아래 런타임이 미리 설치되어 있어야 한다.
 

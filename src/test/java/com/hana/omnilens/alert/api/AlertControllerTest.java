@@ -1088,7 +1088,11 @@ class AlertControllerTest {
     }
 
     private TranslationResult translated(String text) {
-        return new TranslationResult(englishTextFor(text), "openai", "gpt-4o-mini", "TRANSLATED");
+        return new TranslationResult(
+                englishTextFor(text),
+                "local-open-source-qwen3-translation",
+                "local-llm:mlx-community/Qwen3-0.6B-4bit",
+                "TRANSLATED");
     }
 
     private String englishTextFor(String text) {

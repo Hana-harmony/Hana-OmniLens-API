@@ -8,13 +8,10 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import java.net.URI;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import com.hana.omnilens.config.HannahAiProperties;
 import com.hana.omnilens.provider.ProviderTestResilience;
 
 class HannahAiKoreanFinancialTermClientTest {
@@ -24,8 +21,7 @@ class HannahAiKoreanFinancialTermClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         HannahAiKoreanFinancialTermClient client = new HannahAiKoreanFinancialTermClient(
-                builder,
-                new HannahAiProperties(URI.create("http://localhost:8000")),
+                builder.baseUrl("http://localhost:8000").build(),
                 ProviderTestResilience.disabled());
 
         server.expect(requestTo("http://localhost:8000/api/v1/korean-financial-terms/explain"))

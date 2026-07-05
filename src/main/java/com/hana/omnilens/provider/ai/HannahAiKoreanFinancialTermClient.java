@@ -2,6 +2,7 @@ package com.hana.omnilens.provider.ai;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -14,13 +15,17 @@ public class HannahAiKoreanFinancialTermClient {
     private final RestClient restClient;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
 
+    @Autowired
     public HannahAiKoreanFinancialTermClient(
             RestClient.Builder restClientBuilder,
             HannahAiProperties properties,
             ExternalProviderResiliencePolicy resiliencePolicy) {
-        this.restClient = restClientBuilder
-                .baseUrl(properties.baseUrl().toString())
-                .build();
+        this.restClient = HannahAiRestClientFactory.create(restClientBuilder, properties);
+        this.resiliencePolicy = resiliencePolicy;
+    }
+
+    HannahAiKoreanFinancialTermClient(RestClient restClient, ExternalProviderResiliencePolicy resiliencePolicy) {
+        this.restClient = restClient;
         this.resiliencePolicy = resiliencePolicy;
     }
 

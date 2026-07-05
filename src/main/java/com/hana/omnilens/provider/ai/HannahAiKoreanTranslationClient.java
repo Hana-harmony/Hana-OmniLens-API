@@ -2,6 +2,7 @@ package com.hana.omnilens.provider.ai;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -9,12 +10,13 @@ import com.hana.omnilens.config.HannahAiProperties;
 import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
 
 @Component
-public class HannahAiGlobalPeerMatchClient {
+public class HannahAiKoreanTranslationClient {
 
     private final RestClient restClient;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
 
-    public HannahAiGlobalPeerMatchClient(
+    @Autowired
+    public HannahAiKoreanTranslationClient(
             RestClient.Builder restClientBuilder,
             HannahAiProperties properties,
             ExternalProviderResiliencePolicy resiliencePolicy) {
@@ -22,16 +24,21 @@ public class HannahAiGlobalPeerMatchClient {
         this.resiliencePolicy = resiliencePolicy;
     }
 
-    public HannahAiGlobalPeerMatchResponse match(HannahAiGlobalPeerMatchRequest request) {
-        HannahAiApiResponse<HannahAiGlobalPeerMatchResponse> response =
-                resiliencePolicy.execute("hannah-ai-global-peer-match", () -> restClient.post()
-                        .uri("/api/v1/market/global-peers/match")
+    HannahAiKoreanTranslationClient(RestClient restClient, ExternalProviderResiliencePolicy resiliencePolicy) {
+        this.restClient = restClient;
+        this.resiliencePolicy = resiliencePolicy;
+    }
+
+    public HannahAiKoreanTranslationResponse translate(HannahAiKoreanTranslationRequest request) {
+        HannahAiApiResponse<HannahAiKoreanTranslationResponse> response =
+                resiliencePolicy.execute("hannah-ai-korean-translation", () -> restClient.post()
+                        .uri("/api/v1/translation/ko-en")
                         .body(request)
                         .retrieve()
-                        .body(HannahAiGlobalPeerMatchEnvelope.TYPE));
+                        .body(HannahAiKoreanTranslationEnvelope.TYPE));
 
         if (response == null || !response.success() || response.data() == null) {
-            throw new IllegalStateException("Hannah AI returned an empty global peer response");
+            throw new IllegalStateException("Hannah AI returned an empty Korean translation response");
         }
         return response.data();
     }
@@ -45,9 +52,9 @@ public class HannahAiGlobalPeerMatchClient {
     ) {
     }
 
-    private static final class HannahAiGlobalPeerMatchEnvelope {
+    private static final class HannahAiKoreanTranslationEnvelope {
         private static final org.springframework.core.ParameterizedTypeReference<
-                HannahAiApiResponse<HannahAiGlobalPeerMatchResponse>> TYPE =
+                HannahAiApiResponse<HannahAiKoreanTranslationResponse>> TYPE =
                 new org.springframework.core.ParameterizedTypeReference<>() {
                 };
     }
