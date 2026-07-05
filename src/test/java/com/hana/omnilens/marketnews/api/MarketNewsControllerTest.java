@@ -146,7 +146,8 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.events[0].sentiment", equalTo("POSITIVE")))
                 .andExpect(jsonPath("$.data.events[0].importance", equalTo("MEDIUM")))
                 .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
-                .andExpect(jsonPath("$.data.events[0].translationProvider", equalTo("openai")))
+                .andExpect(jsonPath("$.data.events[0].translationProvider",
+                        equalTo("local-open-source-qwen3-translation")))
                 .andExpect(jsonPath("$.data.events[0].translationStatus", equalTo("TRANSLATED")));
 
         ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
@@ -576,7 +577,11 @@ class MarketNewsControllerTest {
     }
 
     private TranslationResult translated(String text) {
-        return new TranslationResult(englishTextFor(text), "openai", "gpt-4o-mini", "TRANSLATED");
+        return new TranslationResult(
+                englishTextFor(text),
+                "local-open-source-qwen3-translation",
+                "local-llm:mlx-community/Qwen3-0.6B-4bit",
+                "TRANSLATED");
     }
 
     private String englishTextFor(String text) {

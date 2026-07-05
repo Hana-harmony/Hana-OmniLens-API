@@ -10,7 +10,7 @@
 - Hannah-Montana-AI 분석 결과로 종목 매핑, 이벤트 분류, 감성, 중요도, What/Why/Impact 3줄 요약, 중복 키, confidence를 제공한다.
 - 시장 뉴스 목록·상세·트렌딩 조회와 수동 수집 API를 제공한다.
 - 협력사 watchlist 관리, 수동 분석 발행, 수집·분석·발행 API를 제공한다.
-- DeepL 번역 결과와 번역 품질 플래그를 REST/WebSocket payload로 전달한다.
+- Hannah-Montana-AI Qwen3 번역 결과와 번역 품질 플래그를 REST/WebSocket payload로 전달한다.
 - 한국 금융 고유어·전문용어 해설 API는 뉴스·공시 본문에서 클릭한 용어를 Hannah 사전/RAG로 해석해 evidence, confidence, cache 상태, 클릭 통계를 제공한다.
 
 ## 핵심 기능 02. 실시간 주식 정보 제공 및 주문 제한 필터링 시스템

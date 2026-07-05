@@ -56,7 +56,7 @@
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART 공시검색 API 인증키
-- `OPENAI_API_KEY`: GPT translation API key
+- `OPENAI_API_KEY`: legacy OpenAI comparison smoke 또는 명시적 OpenAI 금융용어 fallback API key
 - `OMNILENS_SIGNATURE_SECRET`: 협력사 요청 서명 검증용 HMAC secret
 - `SERVER_SSL_KEY_STORE_PASSWORD`: 서버 TLS keystore 비밀번호
 - `SERVER_SSL_TRUST_STORE_PASSWORD`: 협력사 client certificate CA truststore 비밀번호
@@ -64,7 +64,7 @@
 
 ## 내부 AI 통신
 - Hannah-Montana-AI는 스프링 컨테이너 내부 네트워크에서만 접근 가능하게 배치한다.
-- `HANNAH_AI_BASE_URL`은 주소 설정값이며 secret으로 분류하지 않는다.
+- `HANNAH_AI_BASE_URL`, `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`은 내부 AI 호출 설정값이며 secret으로 분류하지 않는다.
 - `KRX_OPEN_API_BASE_URL`은 KRX Open API 실제 호출 endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - `KIS_BASE_URL`은 KIS endpoint 주소 설정값이며 secret으로 분류하지 않는다.
 - `KIS_WEBSOCKET_URL`은 KIS WebSocket endpoint 주소 설정값이며 secret으로 분류하지 않는다.
@@ -76,4 +76,4 @@
 ## 향후 강화
 - abuse detection
 - 감사 로그 무결성 보장
-- 외부 번역 공급자 전송 데이터 최소화와 개인정보 제거
+- 외부 AI 공급자 전송 데이터 최소화와 개인정보 제거

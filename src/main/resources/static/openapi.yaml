@@ -1716,18 +1716,18 @@ components:
         translationProvider:
           type: string
           description: Active translation provider or source-language fallback marker.
-          example: openai
+          example: local-open-source-qwen3-translation
         translationModelVersion:
           type: string
           description: Translation model name used by the provider when available.
-          example: gpt-4o-mini
+          example: local-llm:mlx-community/Qwen3-0.6B-4bit
         translationStatus:
           type: string
           enum:
             - TRANSLATED
             - PARTIAL_SOURCE_LANGUAGE_FALLBACK
             - SOURCE_LANGUAGE_FALLBACK
-          description: Whether translated fields came from GPT or were returned as source-language fallback.
+          description: Whether translated fields came from Hannah Qwen3 or were returned as source-language fallback.
         duplicateKey:
           type:
             - string

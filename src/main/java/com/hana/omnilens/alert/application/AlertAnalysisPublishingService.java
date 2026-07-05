@@ -84,21 +84,32 @@ public class AlertAnalysisPublishingService {
                 analysis.summaryLines(),
                 analysis.originalTitle());
         String sourceSummary = joinSummaryLines(sourceSummaryLines);
-        TranslationResult translatedSummary = alertTitleTranslationService.translateTextWithResult(
-                sourceSummary,
-                glossaryTerms);
+        AlertSummaryLines alreadyEnglishSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
+                sourceSummaryLines);
+        boolean alreadyEnglishSummary = EnglishNewsQualityGate.hasUsableEnglishSummaryLines(
+                alreadyEnglishSummaryLines);
+        TranslationResult translatedSummary = alreadyEnglishSummary
+                ? alreadyEnglishSummaryResult(alreadyEnglishSummaryLines, translatedTitle)
+                : alertTitleTranslationService.translateTextWithResult(sourceSummary, glossaryTerms);
         TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
-        AlertSummaryLines translatedSummaryLines = requireEnglishSummaryLines(
-                translateSummaryLines(
-                        sourceSummaryLines,
-                        glossaryTerms),
-                translatedSummary,
-                "alert summary");
+        AlertSummaryLines translatedSummaryLines = alreadyEnglishSummary
+                ? alreadyEnglishSummaryLines
+                : requireEnglishSummaryLines(
+                        translateSummaryLines(
+                                sourceSummaryLines,
+                                glossaryTerms),
+                        translatedSummary,
+                        "alert summary");
         String translatedSummaryText = joinSummaryLines(translatedSummaryLines);
         String translatedContentText = requireOptionalEnglishContent(
                 translatedContent,
                 originalContent,
                 "alert content");
+        TranslationResult effectiveTranslatedSummary = translatedSummaryResult(
+                translatedSummaryText,
+                translatedSummary,
+                translatedTitle,
+                translatedContent);
         List<AlertGlossaryTerm> displayGlossaryTerms = toDisplayGlossaryTerms(
                 glossaryTerms,
                 translatedTitleText,
@@ -134,9 +145,9 @@ public class AlertAnalysisPublishingService {
                 analysis.watchlistTarget(),
                 displayGlossaryTerms,
                 displayTranslationQualityFlags(analysis.translationQualityFlags(), displayGlossaryTerms),
-                translationProvider(translatedTitle, translatedSummary, translatedContent),
-                translationModelVersion(translatedTitle, translatedSummary, translatedContent),
-                translationStatus(translatedTitle, translatedSummary, translatedContent),
+                translationProvider(translatedTitle, effectiveTranslatedSummary, translatedContent),
+                translationModelVersion(translatedTitle, effectiveTranslatedSummary, translatedContent),
+                translationStatus(translatedTitle, effectiveTranslatedSummary, translatedContent),
                 analysis.duplicateKey(),
                 analysis.clusterKey(),
                 analysis.modelVersion(),
@@ -241,7 +252,7 @@ public class AlertAnalysisPublishingService {
                 event.watchlistTarget(),
                 event.glossaryTerms(),
                 event.translationQualityFlags(),
-                repaired ? "openai" : event.translationProvider(),
+                repaired ? AlertTitleTranslationService.PROVIDER_LOCAL_OPEN_SOURCE_QWEN : event.translationProvider(),
                 event.translationModelVersion(),
                 repaired ? AlertTitleTranslationService.STATUS_TRANSLATED : event.translationStatus(),
                 event.duplicateKey(),
@@ -570,6 +581,26 @@ public class AlertAnalysisPublishingService {
         return EnglishNewsQualityGate.englishSummaryLineOrEmpty(result.translatedText());
     }
 
+    private TranslationResult alreadyEnglishSummaryResult(
+            AlertSummaryLines summaryLines,
+            TranslationResult referenceResult) {
+        return new TranslationResult(
+                joinSummaryLines(summaryLines),
+                referenceResult == null ? "" : referenceResult.provider(),
+                referenceResult == null ? "" : referenceResult.modelVersion(),
+                AlertTitleTranslationService.STATUS_TRANSLATED);
+    }
+
+    private TranslationResult translatedSummaryResult(
+            String translatedSummaryText,
+            TranslationResult... references) {
+        return new TranslationResult(
+                translatedSummaryText,
+                translationProvider(references),
+                translationModelVersion(references),
+                AlertTitleTranslationService.STATUS_TRANSLATED);
+    }
+
     private AlertSummaryLines sourceSummaryLines(String summary, AlertSummaryLines summaryLines, String fallback) {
         String joinedLines = joinSummaryLines(summaryLines);
         if (StringUtils.hasText(joinedLines)) {
@@ -744,7 +775,8 @@ public class AlertAnalysisPublishingService {
 
     private String translationProvider(TranslationResult... results) {
         for (TranslationResult result : results) {
-            if ("openai".equals(result.provider())) {
+            if (StringUtils.hasText(result.provider())
+                    && !"source-language-fallback".equals(result.provider())) {
                 return result.provider();
             }
         }
@@ -767,9 +799,12 @@ public class AlertAnalysisPublishingService {
             if (!StringUtils.hasText(result.status())) {
                 continue;
             }
-            translated = translated || AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status());
+            translated = translated
+                    || AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+                    || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
             fallback = fallback
-                    || AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
+                    || AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                    || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
         }
         if (translated && fallback) {
             return AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK;

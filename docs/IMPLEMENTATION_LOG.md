@@ -1,5 +1,11 @@
 # 구현 기록
 
+## 2026-07-05 Hannah Qwen3 번역 live 경로 전환
+- `AlertTitleTranslationService`의 live 번역 provider를 OpenAI Responses API에서 Hannah-Montana-AI `/api/v1/translation/ko-en`으로 전환했다.
+- OmniLens는 제목, What/Why/Impact 요약, 전문 chunk를 Hannah Qwen3 번역 endpoint로 보내고, provider/model/status를 REST/WebSocket payload에 전파한다.
+- provider 장애, 빈 응답, 한글 잔존 결과는 기존처럼 `source-language-fallback`과 `SOURCE_LANGUAGE_FALLBACK`으로 차단한다.
+- repair 경로와 market news 집계에서 `openai` provider 하드코딩을 제거하고 실제 Hannah provider를 사용하도록 수정했다.
+
 ## 2026-07-01 한국 금융 용어 해설 RAG 연동
 - `POST /api/v1/korean-financial-terms/explain`와 `GET /api/v1/korean-financial-terms/stats`를 추가했다. 협력사 FE/BE가 뉴스·공시 본문에서 클릭한 한국 금융 용어를 보내면 OmniLens가 Hannah-Montana-AI 사전/RAG 해설 엔진을 호출한다.
 - 검증된 `EXPLANATION` 응답은 `korean_financial_term_explanation_cache`에 TTL cache로 저장하고, `REVIEW_REQUIRED` 또는 AI 장애 응답은 cache하지 않는다.
@@ -15,14 +21,14 @@
 ## 2026-07-04 뉴스·공시 요약 품질과 GPT 번역 경로
 - market news 수집에서 사용 허가 전문이 있으면 Hannah 분석 요청의 `content`에 반드시 전달하도록 수정했다.
 - Hannah 요약은 글자 수 hard cut 대신 문장 경계 기반 truncate와 품질 gate를 사용하며, snippet 생략부호와 중요도/감성 분류 메타 문장을 사용자 요약에서 제거한다.
-- 번역 경로는 OpenAI Responses API와 `OPENAI_API_KEY` 환경변수 기반 GPT 번역으로 전환했다. DeepL/Papago 호출 가능한 runtime adapter는 제거하고 legacy report만 남긴다.
+- 당시 번역 경로는 OpenAI Responses API와 `OPENAI_API_KEY` 환경변수 기반 GPT 번역으로 전환했다. 2026-07-05 이후 live 번역 경로는 Hannah Qwen3 endpoint다.
 - 번역 실패 시 `translationStatus`, `translationProvider`, `translationModelVersion`을 이벤트 payload에 남기고 원문 fallback을 명시한다.
 - 시장 뉴스와 알림 이벤트의 운영 재처리를 위해 저장 이벤트 reprocess API를 추가했다.
 
 ## 2026-06-22 실제 원문 전문 수집·번역 경로
 - Naver News Search 발견 URL에서 사용 허가된 기사 원문 HTML을 fetch해 본문, canonical URL, 대표 이미지 URL, content hash를 추출한다.
 - OpenDART `document.xml` 접수번호 원문을 zip/XML 양쪽으로 처리해 공시 전문을 정제하고 Hannah 분석 입력으로 전달한다.
-- GPT 번역 서비스는 제목뿐 아니라 What/Why/Impact 요약과 전문을 chunk 단위로 번역하고 SHA-256 cache로 중복 호출을 줄인다.
+- 번역 서비스는 제목뿐 아니라 What/Why/Impact 요약과 전문을 chunk 단위로 번역하고 SHA-256 cache로 중복 호출을 줄인다.
 - 수집 발행 경로는 전문이 있으면 `FULL_TEXT`, `originalContent`, `translatedContent`, `imageUrls`, `sourceLicensePolicy`, `contentHash`를 포함해 DB/REST/WebSocket 이벤트로 저장한다.
 
 ## 2026-06-19 하네스·문서 최신화
@@ -217,18 +223,18 @@
 - 단위 테스트로 KIS 요청 헤더·쿼리·응답 매핑, MarketDataService의 KIS 우선 사용, 공공데이터 fallback을 검증했다.
 
 ## 2026-06-04 Papago NMT 알림 제목 번역
-- 폐기된 초기 구현 이력이다. 현재 번역 provider는 GPT이며 Papago credential slot과 runtime adapter는 운영 경로에서 제거됐다.
+- 폐기된 초기 구현 이력이다. Papago credential slot과 runtime adapter는 운영 경로에서 제거됐고, 현재 live 번역 provider는 Hannah Qwen3다.
 - smoke report에는 Papago를 `legacy_disabled` 상태로만 기록한다.
 
 ## 2026-06-19 legacy 번역 provider fallback chain
 - 이전 DeepL 계약은 2026-07-04 GPT 전환으로 폐기했다.
 - 운영 설정은 `OPENAI_API_KEY` 환경변수 슬롯만 사용하고, 실제 값은 커밋하지 않는다.
-- `AlertTitleTranslationService`는 GPT를 시도하고, 키 미설정·장애·빈 결과 시 원문과 fallback 상태를 payload에 남긴다.
-- 단위 테스트로 OpenAI Responses API 요청 계약, GPT 우선 번역, provider 실패 시 원문 fallback을 검증한다.
+- 이 fallback chain은 legacy 이력이다. 현재 `AlertTitleTranslationService`는 Hannah Qwen3 번역을 시도하고, 장애·빈 결과·한글 잔존 시 원문과 fallback 상태를 payload에 남긴다.
+- legacy 단위 테스트는 OpenAI Responses API 어댑터 계약만 검증하고, live 번역 우선순위는 Hannah Qwen3 client 테스트가 검증한다.
 
 ## 2026-06-20 legacy provider smoke report
 - `build_deepl_translation_smoke_report.py`는 더 이상 외부 API를 호출하지 않고 legacy provider disabled 상태만 `reports/deepl-translation-smoke-report.json`에 기록한다.
-- 실제 live smoke는 `build_openai_translation_smoke_report.py`가 `OPENAI_API_KEY` 환경변수 기반으로 수행한다.
+- OpenAI smoke는 legacy 비교 리포트로만 유지한다.
 - Papago는 레거시 provider로 제거된 상태를 유지하며 smoke report에는 `legacy_disabled`로 기록한다.
 
 ## 2026-06-04 HMAC 요청 서명 인증
@@ -435,7 +441,7 @@
 - 협력사 watchlist를 DB에서 관리하는 저장소를 추가한다.
 ## 2026-06-21 뉴스·공시 인텔리전스 v2 보강 계약
 - v1 완료 범위를 Naver News Search 제목/snippet 기반 watchlist 알림으로 명확히 분리했다.
-- v2 목표를 전체 종목 shard 수집, 전문·이미지 권리 확인 수집, DB 이벤트 저장소, What/Why/Impact 요약, 제목·요약·전문 GPT 번역, REST 목록·상세, WebSocket 저장 이벤트 송신으로 정의했다.
+- v2 목표를 전체 종목 shard 수집, 전문·이미지 권리 확인 수집, DB 이벤트 저장소, What/Why/Impact 요약, 제목·요약·전문 번역, REST 목록·상세, WebSocket 저장 이벤트 송신으로 정의했다.
 - Naver News Search는 기사 전문과 이미지 URL을 보장하지 않으므로 발견 데이터로만 사용하고, 재배포 권리가 불확실한 본문은 저장·응답하지 않는 정책을 문서화했다.
 
 ## 2026-06-21 뉴스·공시 v2 이벤트 저장소와 REST 조회

@@ -96,6 +96,8 @@ omnilens:
   ai:
     hannah:
       base-url: http://hannah-montana-ai:8000
+      connect-timeout: 2s
+      read-timeout: 90s
   term:
     analytics:
       hash-salt: ${OMNILENS_TERM_ANALYTICS_HASH_SALT:local-term-analytics-salt}

@@ -9,7 +9,6 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.math.BigDecimal;
-import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -17,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import com.hana.omnilens.config.HannahAiProperties;
 import com.hana.omnilens.provider.ProviderTestResilience;
 
 class HannahAiForeignOwnershipPredictionClientTest {
@@ -27,8 +25,7 @@ class HannahAiForeignOwnershipPredictionClientTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         HannahAiForeignOwnershipPredictionClient client = new HannahAiForeignOwnershipPredictionClient(
-                builder,
-                new HannahAiProperties(URI.create("http://localhost:8000")),
+                builder.baseUrl("http://localhost:8000").build(),
                 ProviderTestResilience.disabled());
 
         server.expect(requestTo("http://localhost:8000/api/v1/market/foreign-ownership/predict"))
