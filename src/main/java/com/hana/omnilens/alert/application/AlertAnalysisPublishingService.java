@@ -63,9 +63,9 @@ public class AlertAnalysisPublishingService {
                 request.snippet() == null ? "" : request.snippet(),
                 request.content() == null ? "" : request.content(),
                 request.imageUrls() == null ? List.of() : request.imageUrls(),
-                request.canonicalUrl(),
-                request.contentHash(),
-                request.sourceLicensePolicy(),
+                textOrEmpty(request.canonicalUrl()),
+                textOrEmpty(request.contentHash()),
+                textOrEmpty(request.sourceLicensePolicy()),
                 request.originalUrl(),
                 toStockUniverse(request.stockUniverse())));
 
@@ -486,6 +486,10 @@ public class AlertAnalysisPublishingService {
             return new TranslationResult("", "", "", "");
         }
         return alertTitleTranslationService.translateTextWithResult(originalContent, glossaryTerms);
+    }
+
+    private String textOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private String requireEnglishText(TranslationResult result, String context) {

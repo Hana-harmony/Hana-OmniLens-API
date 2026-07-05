@@ -255,6 +255,13 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")))
                 .andExpect(jsonPath("$.data.eventConfidence", equalTo(0.91)))
                 .andExpect(jsonPath("$.data.stockMatchConfidence", equalTo(1.0)));
+
+        ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
+                ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
+        verify(hannahAiAnalysisClient).analyze(requestCaptor.capture());
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().canonicalUrl()).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().contentHash()).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().sourceLicensePolicy()).isEmpty();
     }
 
     @Test
@@ -938,6 +945,77 @@ class AlertControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void collectAndPublishSkipsOneArticleWhenTranslationQualityGateFails() throws Exception {
+        when(naverNewsClient.search("삼성전자", 2)).thenReturn(List.of(
+                new NaverNewsArticle(
+                        "번역 실패 기사",
+                        "코스피 VI 관련 오역 가능 기사",
+                        "https://news.example.com/translation-fail",
+                        Instant.parse("2026-06-04T00:00:00Z")),
+                new NaverNewsArticle(
+                        "삼성전자 실적 개선",
+                        "반도체 회복으로 실적 개선 기대",
+                        "https://news.example.com/translation-ok",
+                        Instant.parse("2026-06-04T00:01:00Z"))));
+        when(openDartDisclosureClient.search(eq("00126380"), any(), any()))
+                .thenReturn(List.of());
+        when(originalArticleClient.fetch(any())).thenReturn(Optional.empty());
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
+            HannahAiAnalysisRequest request = invocation.getArgument(0);
+            return new HannahAiAnalysisResponse(
+                    "005930",
+                    "삼성전자",
+                    request.sourceType(),
+                    request.title(),
+                    request.snippet(),
+                    List.of("EARNINGS"),
+                    "POSITIVE",
+                    "HIGH",
+                    List.of("005930"),
+                    true,
+                    true,
+                    List.of(),
+                    List.of(),
+                    "duplicate-" + Math.abs(request.title().hashCode()),
+                    "financial-ml-tfidf-logreg-test",
+                    0.91,
+                    0.89,
+                    0.93,
+                    1.0);
+        });
+        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
+                .thenAnswer(invocation -> {
+                    String title = invocation.getArgument(0, String.class);
+                    if (title.contains("번역 실패")) {
+                        return sourceLanguageFallback();
+                    }
+                    return translated(title);
+                });
+        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerId": "partner-a",
+                                  "stockCodes": ["005930"],
+                                  "newsDisplay": 2,
+                                  "disclosureLookbackDays": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", equalTo(true)))
+                .andExpect(jsonPath("$.data.collectedNewsCount", equalTo(2)))
+                .andExpect(jsonPath("$.data.collectedDisclosureCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.publishedCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.skippedDuplicateCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.failedAnalysisCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.events[0].originalTitle", equalTo("삼성전자 실적 개선")));
+    }
+
     private void insertBrokenAlertEvent(
             String alertId,
             String stockCode,
@@ -1093,6 +1171,14 @@ class AlertControllerTest {
                 "local-open-source-qwen3-translation",
                 "local-llm:mlx-community/Qwen3-0.6B-4bit",
                 "TRANSLATED");
+    }
+
+    private TranslationResult sourceLanguageFallback() {
+        return new TranslationResult(
+                "",
+                "source-language-fallback",
+                "local-llm:mlx-community/Qwen3-0.6B-4bit",
+                "SOURCE_LANGUAGE_FALLBACK");
     }
 
     private String englishTextFor(String text) {

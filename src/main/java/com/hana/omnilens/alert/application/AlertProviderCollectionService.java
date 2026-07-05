@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ import com.hana.omnilens.provider.news.OriginalArticleContent;
 @Service
 public class AlertProviderCollectionService {
 
+    private static final Logger log = LoggerFactory.getLogger(AlertProviderCollectionService.class);
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final NaverNewsClient naverNewsClient;
@@ -215,6 +218,15 @@ public class AlertProviderCollectionService {
             }
             events.add(alertAnalysisPublishingService.publishAnalyzed(analyzedAlert));
         } catch (ResponseStatusException exception) {
+            alertDedupeStore.remove(sourceKey);
+            counters.failedAnalysisCount++;
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Skipping alert article because analysis or translation failed: sourceType={}, stockCode={}, url={}",
+                    sourceType,
+                    stock.stockCode(),
+                    originalUrl,
+                    exception);
             alertDedupeStore.remove(sourceKey);
             counters.failedAnalysisCount++;
         }
