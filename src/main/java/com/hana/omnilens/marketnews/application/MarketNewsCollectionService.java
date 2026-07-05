@@ -736,7 +736,7 @@ public class MarketNewsCollectionService {
         if (glossaryTerms == null) {
             return List.of();
         }
-        return glossaryTerms.stream()
+        List<AlertGlossaryTerm> alertGlossaryTerms = glossaryTerms.stream()
                 .map(term -> new AlertGlossaryTerm(
                         term.sourceTerm(),
                         term.normalizedTerm(),
@@ -744,6 +744,7 @@ public class MarketNewsCollectionService {
                         term.category(),
                         term.description()))
                 .toList();
+        return glossaryTermExtractor.filterDisplayableTerms(alertGlossaryTerms);
     }
 
     private List<AlertGlossaryTerm> toDisplayGlossaryTerms(

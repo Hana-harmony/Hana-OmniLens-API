@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import com.hana.omnilens.alert.api.AlertPublishRequest;
 import com.hana.omnilens.alert.domain.AlertEvent;
+import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.alert.domain.AlertSummaryLines;
 import com.hana.omnilens.alert.stream.AlertEventRawStreamingService;
 
@@ -18,6 +19,7 @@ public class AlertStreamingService {
     private final SimpMessagingTemplate messagingTemplate;
     private final AlertEventRepository alertEventRepository;
     private final AlertEventRawStreamingService rawStreamingService;
+    private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
 
     public AlertStreamingService(
             SimpMessagingTemplate messagingTemplate,
@@ -29,6 +31,8 @@ public class AlertStreamingService {
     }
 
     public AlertEvent publish(AlertPublishRequest request) {
+        List<AlertGlossaryTerm> glossaryTerms = glossaryTermExtractor.filterDisplayableTerms(
+                request.glossaryTerms() == null ? List.of() : request.glossaryTerms());
         AlertEvent event = new AlertEvent(
                 UUID.randomUUID().toString(),
                 request.partnerId(),
@@ -52,8 +56,8 @@ public class AlertStreamingService {
                 request.relatedStocks(),
                 request.holderTarget(),
                 request.watchlistTarget(),
-                request.glossaryTerms() == null ? List.of() : request.glossaryTerms(),
-                request.translationQualityFlags() == null ? List.of() : request.translationQualityFlags(),
+                glossaryTerms,
+                displayTranslationQualityFlags(request.translationQualityFlags(), glossaryTerms),
                 request.effectiveTranslationProvider(),
                 request.effectiveTranslationModelVersion(),
                 request.effectiveTranslationStatus(),
@@ -74,5 +78,19 @@ public class AlertStreamingService {
         messagingTemplate.convertAndSend("/topic/stocks/" + request.stockCode() + "/alerts", event);
         rawStreamingService.publish(event);
         return event;
+    }
+
+    private List<String> displayTranslationQualityFlags(
+            List<String> qualityFlags,
+            List<AlertGlossaryTerm> glossaryTerms) {
+        if (qualityFlags == null || qualityFlags.isEmpty()) {
+            return List.of();
+        }
+        if (glossaryTerms != null && !glossaryTerms.isEmpty()) {
+            return qualityFlags;
+        }
+        return qualityFlags.stream()
+                .filter(flag -> !"FINANCIAL_GLOSSARY_APPLIED".equals(flag))
+                .toList();
     }
 }
