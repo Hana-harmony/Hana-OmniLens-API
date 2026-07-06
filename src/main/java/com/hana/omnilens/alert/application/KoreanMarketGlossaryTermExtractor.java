@@ -65,8 +65,8 @@ public class KoreanMarketGlossaryTermExtractor {
                     "An earnings result materially above market expectations."),
             new DictionaryTerm("삼전닉스", "Samjeon Nix", "market_slang",
                     List.of("Samjeon Nix", "Samjeon Nix Gaja", "Samjeon-Nix", "SamjeonNix",
-                            "삼전닉스", "삼전 닉스", "삼전·닉스", "삼전-닉스"),
-                    "Korean market slang combining Samsung Electronics and SK Hynix, usually referring to the two dominant semiconductor bellwethers."),
+                            "Samnick", "삼닉", "삼닉스", "삼전닉스", "삼전 닉스", "삼전·닉스", "삼전-닉스"),
+                    "Korean market slang combining Samsung Electronics and SK Hynix, usually referring to the two dominant semiconductor bellwethers; 삼닉 is a shorter variant."),
             new DictionaryTerm("가즈아", "Gaja", "market_slang",
                     List.of("Gaja", "go go", "가즈아"),
                     "Korean investor slang used like a rallying cry meaning roughly 'let's go' for a rising trade."));

@@ -41,4 +41,15 @@ class KoreanMarketGlossaryTermExtractorTest {
                     assertThat(term.description()).contains("individual retail investors");
                 });
     }
+
+    @Test
+    void supplementRecognizesSamnikAsSamjeonNixDictionaryTerm() {
+        List<AlertGlossaryTerm> terms = extractor.supplement(
+                List.of(),
+                "삼닉 레버리지로 손실 입은 개미들이 매도 여부를 고민했다.");
+
+        assertThat(terms)
+                .extracting(AlertGlossaryTerm::sourceTerm, AlertGlossaryTerm::normalizedTerm)
+                .contains(org.assertj.core.api.Assertions.tuple("삼닉", "삼전닉스"));
+    }
 }

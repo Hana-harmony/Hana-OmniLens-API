@@ -118,12 +118,13 @@ public class AlertTitleTranslationService {
         String result = text;
         for (AlertGlossaryTerm term : glossaryTerms) {
             result = switch (term.normalizedTerm()) {
-                case "개미" -> replaceIfMissing(result, "Ants", List.of(
-                        "retail investors",
-                        "retail investor",
-                        "individual investors",
-                        "individual investor",
-                        "ant investors"));
+                case "개미" -> replaceIfMissing(result, "retail investors", List.of(
+                        "Ants",
+                        "Ant",
+                        "Gaemi",
+                        "Gaemee",
+                        "ant investors",
+                        "ant investor"));
                 case "대장주" -> replaceIfMissing(result, "bellwether stock", List.of(
                         "sector leader stock",
                         "leading stock",
@@ -142,7 +143,11 @@ public class AlertTitleTranslationService {
                         "Samsung Electronics/SK Hynix",
                         "Samsung Electronics and SK hynix",
                         "Samsung Electronics-SK hynix",
-                        "Samsung Electronics/SK hynix"));
+                        "Samsung Electronics/SK hynix",
+                        "Samnick",
+                        "Samnik",
+                        "Samnic",
+                        "Sam Nix"));
                 default -> result;
             };
         }
@@ -158,10 +163,27 @@ public class AlertTitleTranslationService {
             Pattern pattern = Pattern.compile(
                     "\\b" + Pattern.quote(translatedPhrase) + "\\b",
                     Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-            Matcher matcher = pattern.matcher(result);
-            result = matcher.replaceAll(Matcher.quoteReplacement(preferredSurface));
+            String currentResult = result;
+            Matcher matcher = pattern.matcher(currentResult);
+            result = matcher.replaceAll(match -> Matcher.quoteReplacement(
+                    casedReplacement(preferredSurface, currentResult, match.start())));
         }
         return result;
+    }
+
+    private String casedReplacement(String preferredSurface, String text, int matchStart) {
+        if (preferredSurface.isEmpty() || matchStart < 0) {
+            return preferredSurface;
+        }
+        int index = matchStart - 1;
+        while (index >= 0 && Character.isWhitespace(text.charAt(index))) {
+            index--;
+        }
+        boolean sentenceStart = index < 0 || ".!?\"'“”(".indexOf(text.charAt(index)) >= 0;
+        if (!sentenceStart || !Character.isLowerCase(preferredSurface.charAt(0))) {
+            return preferredSurface;
+        }
+        return Character.toUpperCase(preferredSurface.charAt(0)) + preferredSurface.substring(1);
     }
 
     private boolean containsPhrase(String text, String phrase) {
@@ -300,11 +322,23 @@ public class AlertTitleTranslationService {
         }
         for (int index = end; index > start + MAX_CHUNK_CHARS / 2; index--) {
             char current = text.charAt(index - 1);
-            if (current == '.' || current == '\n' || current == '다' || current == '요') {
+            if (current == '.' || current == '\n' || isKoreanSentenceBoundary(text, index)) {
                 return index;
             }
         }
         return end;
+    }
+
+    private boolean isKoreanSentenceBoundary(String text, int index) {
+        char current = text.charAt(index - 1);
+        if (current != '다' && current != '요') {
+            return false;
+        }
+        if (index >= text.length()) {
+            return true;
+        }
+        char next = text.charAt(index);
+        return Character.isWhitespace(next) || next == '"' || next == '\'' || next == '”' || next == ')';
     }
 
     private String sha256Hex(String value) {

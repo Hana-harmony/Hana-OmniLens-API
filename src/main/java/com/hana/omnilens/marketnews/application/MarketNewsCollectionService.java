@@ -27,6 +27,8 @@ import com.hana.omnilens.alert.application.AlertTitleTranslationService.Translat
 import com.hana.omnilens.alert.application.EnglishNewsQualityGate;
 import com.hana.omnilens.alert.application.KoreanMarketGlossaryTermExtractor;
 import com.hana.omnilens.config.MarketNewsCollectionProperties;
+import com.hana.omnilens.market.application.StockMasterRepository;
+import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.marketnews.domain.MarketNewsEvent;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisClient;
 import com.hana.omnilens.provider.ai.HannahAiAnalysisRequest;
@@ -49,6 +51,7 @@ public class MarketNewsCollectionService {
     private final MarketNewsCollectionProperties properties;
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertTitleTranslationService translationService;
+    private final StockMasterRepository stockMasterRepository;
     private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
     private final Clock clock;
 
@@ -59,7 +62,8 @@ public class MarketNewsCollectionService {
             MarketNewsEventRepository marketNewsEventRepository,
             MarketNewsCollectionProperties properties,
             HannahAiAnalysisClient hannahAiAnalysisClient,
-            AlertTitleTranslationService translationService) {
+            AlertTitleTranslationService translationService,
+            StockMasterRepository stockMasterRepository) {
         this(
                 naverNewsClient,
                 originalArticleClient,
@@ -67,6 +71,7 @@ public class MarketNewsCollectionService {
                 properties,
                 hannahAiAnalysisClient,
                 translationService,
+                stockMasterRepository,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -77,6 +82,7 @@ public class MarketNewsCollectionService {
             MarketNewsCollectionProperties properties,
             HannahAiAnalysisClient hannahAiAnalysisClient,
             AlertTitleTranslationService translationService,
+            StockMasterRepository stockMasterRepository,
             Clock clock) {
         this.naverNewsClient = naverNewsClient;
         this.originalArticleClient = originalArticleClient;
@@ -84,6 +90,7 @@ public class MarketNewsCollectionService {
         this.properties = properties;
         this.hannahAiAnalysisClient = hannahAiAnalysisClient;
         this.translationService = translationService;
+        this.stockMasterRepository = stockMasterRepository;
         this.clock = clock;
     }
 
@@ -130,6 +137,15 @@ public class MarketNewsCollectionService {
 
     private Optional<MarketNewsEvent> repairQualityIssueIfPossible(MarketNewsEvent event) {
         try {
+            return Optional.of(reprocess(event));
+        } catch (RuntimeException reprocessException) {
+            log.warn(
+                    "Falling back to market news quality repair after reprocess failed: newsId={}, query={}",
+                    event.newsId(),
+                    event.query(),
+                    reprocessException);
+        }
+        try {
             return Optional.of(repairQualityIssue(event));
         } catch (RuntimeException exception) {
             log.warn(
@@ -144,17 +160,27 @@ public class MarketNewsCollectionService {
     private MarketNewsEvent repairQualityIssue(MarketNewsEvent event) {
         Optional<OriginalArticleContent> fullContent = fullContentForReprocess(event);
         String originalContent = refreshedOriginalContent(event, fullContent);
+        log.info(
+                "Reprocessing market news content: newsId={}, originalLength={}, originalHash={}",
+                event.newsId(),
+                originalContent == null ? 0 : originalContent.length(),
+                StringUtils.hasText(originalContent) ? sha256(originalContent) : "");
         List<String> imageUrls = refreshedImageUrls(event, fullContent);
-        String contentAvailability = refreshedContentAvailability(event, fullContent);
+        String sourceContentAvailability = refreshedContentAvailability(event, fullContent);
         String canonicalUrl = refreshedCanonicalUrl(event, fullContent);
         String sourceLicensePolicy = refreshedSourceLicensePolicy(event, fullContent);
         String translatedTitle = repairedTranslatedTitle(event);
         AlertSummaryLines summaryLines = repairedSummaryLines(event);
         String translatedSummary = joinSummaryLines(summaryLines);
         String translatedContent = repairedTranslatedContent(event, originalContent);
+        String contentAvailability = contentAvailability(
+                originalContent,
+                translatedContent,
+                sourceContentAvailability);
         boolean repaired = !safeEquals(translatedTitle, event.translatedTitle())
                 || !safeEquals(translatedSummary, event.translatedSummary())
                 || !safeEquals(translatedContent, event.translatedContent())
+                || !safeEquals(contentAvailability, event.contentAvailability())
                 || !safeEquals(originalContent, event.originalContent())
                 || !imageUrls.equals(event.imageUrls())
                 || !safeEquals(joinSummaryLines(summaryLines), joinSummaryLines(event.summaryLines()));
@@ -221,7 +247,10 @@ public class MarketNewsCollectionService {
             if (translatedOriginalContent == null) {
                 throw new IllegalStateException("English translation failed: market news content repair");
             }
-            return requireEnglishText(translatedOriginalContent, "market news content repair");
+            return requireOptionalEnglishContent(
+                    translatedOriginalContent,
+                    originalContent,
+                    "market news content repair");
         } catch (RuntimeException exception) {
             log.warn("Failed to retranslate market news content during quality repair: newsId={}", event.newsId(), exception);
             throw exception;
@@ -264,12 +293,15 @@ public class MarketNewsCollectionService {
         Optional<OriginalArticleContent> fullContent = originalArticleClient.fetch(article.originalUrl());
         Instant now = Instant.now(clock);
         String originalContent = fullContent.map(OriginalArticleContent::content).orElse("");
-        String contentAvailability = fullContent.map(ignored -> "FULL_TEXT").orElse("DISCOVERY_ONLY");
+        String sourceContentAvailability = fullContent
+                .map(content -> contentAvailability(content.content()))
+                .orElse("DISCOVERY_ONLY");
         MarketNewsAnalysis analysis = analyzeAndTranslate(
                 article,
                 originalContent,
                 fullContent,
-                contentAvailability);
+                sourceContentAvailability);
+        String contentAvailability = contentAvailability(originalContent, analysis.translatedContent(), sourceContentAvailability);
         return new MarketNewsEvent(
                 "mkt-news-" + duplicateKey.substring(0, 24),
                 query,
@@ -299,8 +331,13 @@ public class MarketNewsCollectionService {
     private MarketNewsEvent reprocess(MarketNewsEvent event) {
         Optional<OriginalArticleContent> fullContent = fullContentForReprocess(event);
         String originalContent = refreshedOriginalContent(event, fullContent);
+        log.info(
+                "Reprocessing market news content: newsId={}, originalLength={}, originalHash={}",
+                event.newsId(),
+                originalContent == null ? 0 : originalContent.length(),
+                StringUtils.hasText(originalContent) ? sha256(originalContent) : "");
         List<String> imageUrls = refreshedImageUrls(event, fullContent);
-        String contentAvailability = refreshedContentAvailability(event, fullContent);
+        String sourceContentAvailability = refreshedContentAvailability(event, fullContent);
         String canonicalUrl = refreshedCanonicalUrl(event, fullContent);
         String sourceLicensePolicy = refreshedSourceLicensePolicy(event, fullContent);
         MarketNewsAnalysis analysis = analyzeAndTranslate(
@@ -311,7 +348,11 @@ public class MarketNewsCollectionService {
                         event.publishedAt()),
                 originalContent,
                 fullContent,
-                contentAvailability);
+                sourceContentAvailability);
+        String contentAvailability = contentAvailability(
+                originalContent,
+                analysis.translatedContent(),
+                sourceContentAvailability);
         MarketNewsEvent updated = new MarketNewsEvent(
                 event.newsId(),
                 event.query(),
@@ -347,6 +388,11 @@ public class MarketNewsCollectionService {
         try {
             Optional<OriginalArticleContent> refreshedContent = originalArticleClient.fetch(event.originalUrl());
             if (refreshedContent.isPresent()) {
+                if (storedContent.isPresent()) {
+                    return Optional.of(mergeStoredContentWithRefreshedMetadata(
+                            storedContent.get(),
+                            refreshedContent.get()));
+                }
                 return refreshedContent;
             }
         } catch (RuntimeException exception) {
@@ -357,6 +403,20 @@ public class MarketNewsCollectionService {
                     exception);
         }
         return storedContent;
+    }
+
+    private OriginalArticleContent mergeStoredContentWithRefreshedMetadata(
+            OriginalArticleContent storedContent,
+            OriginalArticleContent refreshedContent) {
+        List<String> imageUrls = refreshedContent.imageUrls() == null || refreshedContent.imageUrls().isEmpty()
+                ? storedContent.imageUrls()
+                : refreshedContent.imageUrls();
+        return new OriginalArticleContent(
+                storedContent.content(),
+                imageUrls,
+                firstText(refreshedContent.canonicalUrl(), storedContent.canonicalUrl()),
+                sha256(storedContent.content()),
+                firstText(refreshedContent.sourceLicensePolicy(), storedContent.sourceLicensePolicy()));
     }
 
     private Optional<OriginalArticleContent> fullContentFromEvent(MarketNewsEvent event) {
@@ -386,7 +446,26 @@ public class MarketNewsCollectionService {
     }
 
     private String refreshedContentAvailability(MarketNewsEvent event, Optional<OriginalArticleContent> fullContent) {
-        return fullContent.isPresent() ? "FULL_TEXT" : event.contentAvailability();
+        return fullContent
+                .map(content -> contentAvailability(content.content()))
+                .orElse(event.contentAvailability());
+    }
+
+    private String contentAvailability(String originalContent) {
+        return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "FULL_TEXT";
+    }
+
+    private String contentAvailability(
+            String originalContent,
+            String translatedContent,
+            String sourceAvailability) {
+        if (!StringUtils.hasText(originalContent)) {
+            return StringUtils.hasText(sourceAvailability) ? sourceAvailability : "DISCOVERY_ONLY";
+        }
+        if (!StringUtils.hasText(translatedContent)) {
+            return "SUMMARY_ONLY";
+        }
+        return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "FULL_TEXT";
     }
 
     private String refreshedCanonicalUrl(MarketNewsEvent event, Optional<OriginalArticleContent> fullContent) {
@@ -419,7 +498,9 @@ public class MarketNewsCollectionService {
                 fullContent.map(OriginalArticleContent::sourceLicensePolicy).orElse(contentAvailability),
                 article.originalUrl(),
                 List.of()));
-        List<AlertGlossaryTerm> glossaryTerms = toAlertGlossaryTerms(ai.glossaryTerms());
+        List<AlertGlossaryTerm> glossaryTerms = withMatchedStockGlossary(
+                toAlertGlossaryTerms(ai.glossaryTerms()),
+                ai);
         TranslationResult translatedTitle = translationService.translateTitleWithResult(
                 firstText(ai.originalTitle(), article.title()),
                 glossaryTerms);
@@ -485,14 +566,32 @@ public class MarketNewsCollectionService {
     }
 
     private String requireEnglishText(TranslationResult result, String context) {
-        if (result == null || !AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())) {
-            throw new IllegalStateException("English translation failed: " + context);
+        if (result == null || !hasCompleteEnglishTranslationStatus(result)) {
+            throw new IllegalStateException("English translation failed: "
+                    + context + " (" + translationFailureDetails(result) + ")");
         }
         String englishText = EnglishNewsQualityGate.englishTextOrEmpty(result.translatedText());
         if (!StringUtils.hasText(englishText)) {
-            throw new IllegalStateException("English translation failed: " + context);
+            throw new IllegalStateException("English translation failed: "
+                    + context + " (" + translationFailureDetails(result) + ")");
         }
         return englishText;
+    }
+
+    private String translationFailureDetails(TranslationResult result) {
+        if (result == null) {
+            return "result=null";
+        }
+        String translatedText = result.translatedText() == null ? "" : result.translatedText();
+        return "status=%s, provider=%s, model=%s, length=%d, hasHangul=%s, lowQuality=%s, genericFallback=%s"
+                .formatted(
+                        result.status(),
+                        result.provider(),
+                        result.modelVersion(),
+                        translatedText.length(),
+                        EnglishNewsQualityGate.containsHangul(translatedText),
+                        EnglishNewsQualityGate.containsLowQualityTranslation(translatedText),
+                        EnglishNewsQualityGate.containsGenericFallback(translatedText));
     }
 
     private String requireOptionalEnglishContent(
@@ -502,7 +601,70 @@ public class MarketNewsCollectionService {
         if (!StringUtils.hasText(originalContent)) {
             return "";
         }
-        return requireEnglishText(result, context);
+        if (!requiresCompleteContentTranslation(originalContent)) {
+            if (result == null || !hasEnglishTranslationStatus(result)) {
+                return "";
+            }
+            return EnglishNewsQualityGate.englishTextOrEmpty(result.translatedText());
+        }
+        if (result == null || !hasCompleteEnglishTranslationStatus(result)) {
+            throw new IllegalStateException("English translation failed: "
+                    + context + " (" + translationFailureDetails(result) + ")");
+        }
+        String englishText = EnglishNewsQualityGate.englishTextOrEmpty(result.translatedText());
+        if (!StringUtils.hasText(englishText)) {
+            throw new IllegalStateException("English translation failed: "
+                    + context + " (" + translationFailureDetails(result) + ")");
+        }
+        if (isLikelyIncompleteTranslation(originalContent, englishText)) {
+            throw new IllegalStateException("English translation incomplete: "
+                    + context + " (sourceLength=%d, translatedLength=%d)"
+                            .formatted(
+                                    originalContent.replaceAll("\\s+", " ").trim().length(),
+                                    englishText.replaceAll("\\s+", " ").trim().length()));
+        }
+        return englishText;
+    }
+
+    private boolean requiresCompleteContentTranslation(String originalContent) {
+        String normalized = originalContent.replaceAll("\\s+", " ").trim();
+        return normalized.length() >= 160
+                && !hasTruncationMarker(normalized);
+    }
+
+    private boolean hasTruncationMarker(String text) {
+        if (text == null) {
+            return false;
+        }
+        return Pattern.compile("(?:\\.\\.\\.|…)[\\s\"'”’)]*$").matcher(text.trim()).find();
+    }
+
+    private boolean isLikelyIncompleteTranslation(String originalContent, String translatedContent) {
+        String source = originalContent.replaceAll("\\s+", " ").trim();
+        String translated = translatedContent.replaceAll("\\s+", " ").trim();
+        if (source.length() >= 400 && translated.length() < source.length() * 0.25) {
+            return true;
+        }
+        if (source.length() < 320 && translated.length() >= source.length() * 0.8) {
+            return false;
+        }
+        return sourceSentenceCount(source) >= 4 && englishSentenceCount(translated) <= 1;
+    }
+
+    private int sourceSentenceCount(String text) {
+        return (int) Pattern.compile("[.!?。]|(?:다|요|니다|습니다|한다|했다|됐다|된다)(?=\\s|$)")
+                .splitAsStream(text)
+                .filter(StringUtils::hasText)
+                .count();
+    }
+
+    private int englishSentenceCount(String text) {
+        Matcher matcher = Pattern.compile("[^.!?]+[.!?]").matcher(text);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
     }
 
     private AlertSummaryLines requireEnglishSummaryLines(
@@ -513,8 +675,7 @@ public class MarketNewsCollectionService {
         if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(sanitizedLines)) {
             return sanitizedLines;
         }
-        if (translatedSummary != null
-                && AlertTitleTranslationService.STATUS_TRANSLATED.equals(translatedSummary.status())) {
+        if (translatedSummary != null && hasEnglishTranslationStatus(translatedSummary)) {
             AlertSummaryLines summaryTextLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
                     englishSummaryLinesFromText(translatedSummary.translatedText()));
             if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(summaryTextLines)) {
@@ -715,10 +876,20 @@ public class MarketNewsCollectionService {
             return "";
         }
         TranslationResult result = translationService.translateTextWithResult(value, glossaryTerms);
-        if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())) {
+        if (!hasEnglishTranslationStatus(result)) {
             return "";
         }
         return EnglishNewsQualityGate.englishSummaryLineOrEmpty(result.translatedText());
+    }
+
+    private boolean hasEnglishTranslationStatus(TranslationResult result) {
+        return result != null
+                && (AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+                || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status()));
+    }
+
+    private boolean hasCompleteEnglishTranslationStatus(TranslationResult result) {
+        return result != null && AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status());
     }
 
     private TranslationResult alreadyEnglishSummaryResult(
@@ -776,6 +947,34 @@ public class MarketNewsCollectionService {
                         term.description()))
                 .toList();
         return glossaryTermExtractor.filterDisplayableTerms(alertGlossaryTerms);
+    }
+
+    private List<AlertGlossaryTerm> withMatchedStockGlossary(
+            List<AlertGlossaryTerm> glossaryTerms,
+            HannahAiAnalysisResponse ai) {
+        if (ai == null || !StringUtils.hasText(ai.stockCode())) {
+            return glossaryTerms == null ? List.of() : glossaryTerms;
+        }
+        Optional<StockSummary> stock = stockMasterRepository.findByCode(ai.stockCode());
+        if (stock.isEmpty()
+                || !StringUtils.hasText(stock.get().stockName())
+                || !StringUtils.hasText(stock.get().stockNameEn())
+                || stock.get().stockName().equals(stock.get().stockNameEn())) {
+            return glossaryTerms == null ? List.of() : glossaryTerms;
+        }
+        List<AlertGlossaryTerm> merged = new ArrayList<>(glossaryTerms == null ? List.of() : glossaryTerms);
+        boolean exists = merged.stream()
+                .anyMatch(term -> stock.get().stockName().equals(term.normalizedTerm())
+                        || stock.get().stockName().equals(term.sourceTerm()));
+        if (!exists) {
+            merged.add(new AlertGlossaryTerm(
+                    stock.get().stockName(),
+                    stock.get().stockName(),
+                    stock.get().stockNameEn(),
+                    "stock",
+                    ""));
+        }
+        return merged;
     }
 
     private List<AlertGlossaryTerm> toDisplayGlossaryTerms(

@@ -326,10 +326,8 @@ class MarketNewsControllerTest {
                     }
                     return translated(text);
                 });
-        String englishFallbackWhat = englishTextFor(
-                "원문은 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 최신 시장·기업 이벤트를 다룹니다.");
-        String englishFallbackImpact = englishTextFor(
-                "투자자는 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
+        String repairedWhat = "The semiconductor ETF completed its regular rebalance and added SK Square.";
+        String repairedImpact = "Investors should monitor supply-demand and volatility for the added constituents.";
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -337,16 +335,16 @@ class MarketNewsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.news[0].summaryLines.what",
-                        equalTo(englishFallbackWhat)))
+                        equalTo(repairedWhat)))
                 .andExpect(jsonPath("$.data.news[0].summaryLines.impact",
-                        equalTo(englishFallbackImpact)));
+                        equalTo(repairedImpact)));
 
         String storedPayload = jdbcTemplate.queryForObject(
                 "SELECT event_json FROM market_news_event WHERE news_id = 'mkt-quality-issue'",
                 String.class);
         org.assertj.core.api.Assertions.assertThat(storedPayload)
-                .contains(englishFallbackWhat)
-                .contains(englishFallbackImpact)
+                .contains(repairedWhat)
+                .contains(repairedImpact)
                 .contains(repairedTranslatedContent)
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
@@ -429,10 +427,8 @@ class MarketNewsControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String englishFallbackWhy = englishTextFor(
-                "반도체 ETF 리밸런싱 SK스퀘어 신규 편입의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
-        String englishFallbackImpact = englishTextFor(
-                "투자자는 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
+        String repairedWhy = "Adjustments to SK Hynix and Samsung Electronics weights were the main background.";
+        String repairedImpact = "Investors should monitor supply-demand and volatility for the added constituents.";
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -440,9 +436,9 @@ class MarketNewsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.news[0].summaryLines.why",
-                        equalTo(englishFallbackWhy)))
+                        equalTo(repairedWhy)))
                 .andExpect(jsonPath("$.data.news[0].summaryLines.impact",
-                        equalTo(englishFallbackImpact)));
+                        equalTo(repairedImpact)));
     }
 
     @Test
@@ -588,6 +584,15 @@ class MarketNewsControllerTest {
         if (text == null || text.isBlank() || !containsHangul(text)) {
             return text;
         }
+        if (text.contains("반도체 ETF가 정기 리밸런싱")) {
+            return "The semiconductor ETF completed its regular rebalance and added SK Square.";
+        }
+        if (text.contains("SK하이닉스와 삼성전자 비중 조정")) {
+            return "Adjustments to SK Hynix and Samsung Electronics weights were the main background.";
+        }
+        if (text.contains("편입 종목의 수급과 변동성")) {
+            return "Investors should monitor supply-demand and volatility for the added constituents.";
+        }
         int marker = Math.abs(text.hashCode());
         if (text.contains("핵심 배경") || text.contains("주요 배경")) {
             return "The source article explains the main background for this market update " + marker + ".";
@@ -603,15 +608,6 @@ class MarketNewsControllerTest {
         }
         if (text.contains("한국 증시 전문")) {
             return "The Korean market article summarizes the latest index move.";
-        }
-        if (text.contains("반도체 ETF가 정기 리밸런싱")) {
-            return "The semiconductor ETF completed its regular rebalance and added SK Square.";
-        }
-        if (text.contains("SK하이닉스와 삼성전자 비중 조정")) {
-            return "Adjustments to SK Hynix and Samsung Electronics weights were the main background.";
-        }
-        if (text.contains("편입 종목의 수급과 변동성")) {
-            return "Investors should monitor supply-demand and volatility for the added constituents.";
         }
         return "The source article reports a verified market development " + marker + ".";
     }

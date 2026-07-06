@@ -121,24 +121,20 @@ omnilens:
       enabled: true
       stock-codes:
         - "005930"
-      stock-limit: 20
-      shard-size: 40
-      order-book-enabled: true
-      after-hours-enabled: true
         - "000660"
       stock-limit: 20
       shard-size: 40
       order-book-enabled: true
       after-hours-enabled: true
     exchange-rate-refresh:
-      enabled: false
+      enabled: true
       fixed-delay-ms: 300000
       base-date-offset-days: 0
       currencies:
         - "USD"
         - "JPY"
     history-collection:
-      enabled: false
+      enabled: true
       fixed-delay-ms: 86400000
       base-date-offset-days: 1
       provider: KIS_DAILY_CHART

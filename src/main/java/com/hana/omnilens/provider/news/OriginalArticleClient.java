@@ -76,6 +76,8 @@ public class OriginalArticleClient {
             "style",
             "noscript",
             "iframe",
+            "figure",
+            "figcaption",
             "form",
             "button",
             "nav",
@@ -102,7 +104,11 @@ public class OriginalArticleClient {
             "[class*=copyright]",
             "[id*=copyright]",
             "[class*=reporter]",
-            "[id*=reporter]");
+            "[id*=reporter]",
+            ".article_con_img",
+            ".mimg_img",
+            ".mimg_open",
+            ".blind");
 
     private final RestClient restClient;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
@@ -192,7 +198,7 @@ public class OriginalArticleClient {
                 element.remove();
             }
         });
-        return normalize(copy.text());
+        return removeBoilerplateText(normalize(copy.text()));
     }
 
     private boolean isBoilerplate(String value) {
@@ -201,7 +207,31 @@ public class OriginalArticleClient {
                 || normalized.startsWith("share this article send article")
                 || normalized.contains("copy url close")
                 || normalized.contains("all violation of")
-                || normalized.contains("facebook twitter kakao");
+                || normalized.contains("facebook twitter kakao")
+                || normalized.contains("가상커서를 해제")
+                || normalized.contains("읽어주기 기능은")
+                || normalized.contains("댓글 이용시 소셜계정")
+                || normalized.contains("internet explorer 8");
+    }
+
+    private String removeBoilerplateText(String value) {
+        String cleaned = value
+                .replaceAll("잠깐!\\s*현재\\s*Internet Explorer\\s*8이하[^!。.!?]*[!。.!?]", " ")
+                .replaceAll("읽어주기 기능은[^.。!?]*(?:있습니다|하세요)[.。!]?", " ")
+                .replaceAll("센스리더 사용자는[^.。!?]*(?:하세요|이용하세요)[.。!]?", " ")
+                .replaceAll("\\(가상커서 해제 단축키\\s*:[^)]+\\)", " ")
+                .replaceAll("좌\\s*/\\s*우 방향키는[^.。!?]*(?:조절됩니다|이동됩니다)[.。!]?", " ")
+                .replaceAll("상\\s*/\\s*하 방향키는[^.。!?]*(?:조절됩니다|이동됩니다)[.。!]?", " ")
+                .replaceAll("스페이스 바를 누르시면[^.。!?]*됩니다[.。!]?", " ")
+                .replaceAll("댓글 이용시 소셜계정으로 로그인하셔야 하며[^.。!?]*표시됩니다[.。!]?", " ")
+                .replaceAll("이미지\\s*확대보기", " ")
+                .replaceAll(
+                        "[가-힣]{2,4}\\s+[^@\\s]{0,20}\\s*기자\\s+[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+                        " ")
+                .replaceAll("독자들의\\s*PICK!.*$", " ")
+                .replaceAll("머니투데이\\s*주요뉴스.*$", " ")
+                .replaceAll("함께\\s*볼만한\\s*뉴스.*$", " ");
+        return normalize(cleaned);
     }
 
     private String metaDescription(Document document) {
