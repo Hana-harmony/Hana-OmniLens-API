@@ -7,8 +7,11 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -128,6 +131,13 @@ public class AlertProviderCollectionService {
             CollectedContent fullContent = originalArticleClient.fetch(article.originalUrl())
                     .map(CollectedContent::fromArticle)
                     .orElseGet(() -> CollectedContent.discoveryOnly(article.originalUrl()));
+            if (!isStockRelevantArticle(stock, article, fullContent)) {
+                log.info(
+                        "Skipping stock news because collected article does not mention requested stock: stockCode={}, url={}",
+                        stock.stockCode(),
+                        article.originalUrl());
+                continue;
+            }
             publishCollectedAlert(
                     request.partnerId(),
                     stock,
@@ -140,6 +150,102 @@ public class AlertProviderCollectionService {
                     counters,
                     events);
         }
+    }
+
+    private boolean isStockRelevantArticle(
+            StockSummary stock,
+            NaverNewsArticle article,
+            CollectedContent fullContent) {
+        String text = String.join(" ",
+                article.title() == null ? "" : article.title(),
+                fullContent != null && StringUtils.hasText(fullContent.content())
+                        ? fullContent.content()
+                        : article.snippet() == null ? "" : article.snippet());
+        String normalized = normalizeStockMatchText(text);
+        if (!StringUtils.hasText(normalized)) {
+            return false;
+        }
+        List<String> candidates = stockMentionCandidates(stock).stream()
+                .map(this::normalizeStockMatchText)
+                .filter(StringUtils::hasText)
+                .toList();
+        String normalizedTitle = normalizeStockMatchText(article.title());
+        if (candidates.stream().anyMatch(candidate -> containsStockMention(normalizedTitle, candidate))) {
+            return true;
+        }
+        if (fullContent != null && StringUtils.hasText(fullContent.content())) {
+            String normalizedContent = normalizeStockMatchText(fullContent.content());
+            return candidates.stream().anyMatch(candidate -> stockMentionCount(normalizedContent, candidate) >= 2);
+        }
+        return candidates.stream().anyMatch(candidate -> containsStockMention(normalized, candidate));
+    }
+
+    private List<String> stockMentionCandidates(StockSummary stock) {
+        List<String> candidates = new ArrayList<>();
+        candidates.add(stock.stockName());
+        candidates.add(stock.stockNameEn());
+        return candidates.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+    }
+
+    private boolean containsStockMention(String normalizedText, String normalizedCandidate) {
+        if (!StringUtils.hasText(normalizedCandidate)) {
+            return false;
+        }
+        if (containsHangul(normalizedCandidate)) {
+            return normalizedText.contains(normalizedCandidate);
+        }
+        return Pattern.compile(
+                        "(^|[^a-z0-9])" + Pattern.quote(normalizedCandidate) + "([^a-z0-9]|$)",
+                        Pattern.CASE_INSENSITIVE)
+                .matcher(normalizedText)
+                .find();
+    }
+
+    private int stockMentionCount(String normalizedText, String normalizedCandidate) {
+        if (!StringUtils.hasText(normalizedText) || !StringUtils.hasText(normalizedCandidate)) {
+            return 0;
+        }
+        if (containsHangul(normalizedCandidate)) {
+            int count = 0;
+            int fromIndex = 0;
+            while (true) {
+                int index = normalizedText.indexOf(normalizedCandidate, fromIndex);
+                if (index < 0) {
+                    return count;
+                }
+                count++;
+                fromIndex = index + normalizedCandidate.length();
+            }
+        }
+        Matcher matcher = Pattern.compile(
+                        "(^|[^a-z0-9])" + Pattern.quote(normalizedCandidate) + "([^a-z0-9]|$)",
+                        Pattern.CASE_INSENSITIVE)
+                .matcher(normalizedText);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
+    }
+
+    private boolean containsHangul(String value) {
+        return Pattern.compile("[가-힣]").matcher(value).find();
+    }
+
+    private String normalizeStockMatchText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        return value
+                .replaceAll("<[^>]+>", " ")
+                .replace('\u00a0', ' ')
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
     }
 
     private void publishDisclosures(

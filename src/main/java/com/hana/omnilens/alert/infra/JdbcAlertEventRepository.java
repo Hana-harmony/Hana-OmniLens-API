@@ -22,14 +22,15 @@ import com.hana.omnilens.alert.domain.AlertEvent;
 public class JdbcAlertEventRepository implements AlertEventRepository {
 
     private static final String SUMMARY_QUALITY_CANDIDATE_FILTER = """
-            lower(event_json) ~ '"(translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(\\.\\.\\.|…|classified|i''m sorry|i can’t assist|i can''t assist|please provide|as an ai|publisher of this newspaper|columnist|this item covers|latest market or company context confirmed in the source article|investors should review possible effects on prices, earnings, liquidity, and watched holdings)'
+            lower(event_json) ~ '"(translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(\\.\\.\\.|…|classified|i''m sorry|i can’t assist|i can''t assist|please provide|as an ai|publisher of this newspaper|columnist|this item covers|latest market or company context confirmed in the source article|investors should review possible effects on prices, earnings, liquidity, and watched holdings|drew attention in the article|article-backed market context|next disclosure and market reaction|confirmed in the latest news|confirmed in the latest disclosure|the story links the shift to supply|the story links the shift to the article|investors should follow the next disclosure and watch the market reaction)'
             OR lower(event_json) ~ '"(translatedtitle|translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(korean company update|korean market update)'
+            OR lower(event_json) ~ '"(translatedtitle|translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(kang nam-go|pab-wo|dda-jeon|levership|hannak|defi-shares|nanyang dynamics|snicklever|stock-celltrion|hanacorp|sina-combankipt|lg-hydration|iong-wok|nalmalai|without a street|according to a search|three-sentence|effect of the number|dynamic of the|nmsk|auction raise|auction distributor|exchange order|cosby market|capacitor semiconductor|chinese p&t7|lithium supply|dividend price of equity dividends|hanoteoreminder|hyang-yeol|yuseo|hidden world history|korean farmer''s 600-year|fresh water break|i''m going to|power-driven|two-carpet|new bond''s price flow|flowing semiconductor ship|on strike; the actuality|entering the ''sides''|triangle lower limited|us-exited ai-investor|samjeon nix''s trading method does not exist|samjeon nok|future-sustainable capital|adding silicon|european shopping trip|samnick|middle and small businesses fund acts|investors net at the european show|no ai or human|reveal ourselves|countermeasures inspection|approval of the megaproject|core themes of ai and human death|latest market and company interventions|market and business events confirmed|trading by samjeon nix|by samjeon nix as key|latest public news confirmed in the original|impact of this president|holding and surveillance|samjeon nix trading|latest market and corporate events confirmed|krw-3777b|sheriff''s rifle|iseutasi|investor''s net buying flow|entrepreneurhan|hallinkyos|sk hallinkyos|skhinky|sinerlwyk|hyanix|skhynx|klamath stock exchange|north american and south american trade disputes|substitute offering|high-slang|teatr esg|tutat esg|hyundai motor, kia, and mercedes-benz|car insurance and vehicle services|freaked out about the deposits|triple-a hynix|truck-train|kospi faced the kospi market move|investor impact is higher on the flow of earnings|investor impact is higher on ev and hev markets|foreign exchanges as the market becomes more active|national association of churches|18 temples|90 trillion yuan|receivable volume|reception function|periodic allowance)'
             OR lower(event_json) ~ '"(what|why|impact)"\\s*:\\s*"[^"]*[a-z0-9]"'
             OR event_json ~ '"summaryLines"\\s*:\\s*null'
             OR event_json ~ '"what"\\s*:\\s*""'
             OR event_json ~ '"why"\\s*:\\s*""'
             OR event_json ~ '"impact"\\s*:\\s*""'
-            OR (event_json ~ '"originalContent"\\s*:\\s*"[^"]+' AND event_json ~ '"translatedContent"\\s*:\\s*""')
+            OR (event_json ~ '"originalContent"\\s*:\\s*"[^"]+' AND event_json ~ '"translatedContent"\\s*:\\s*(null|"")')
             OR event_json ~ '"translatedTitle"\\s*:\\s*"[^"]*[가-힣]'
             OR event_json ~ '"translatedSummary"\\s*:\\s*"[^"]*[가-힣]'
             OR event_json ~ '"translatedContent"\\s*:\\s*"[^"]*[가-힣]'
@@ -167,6 +168,9 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
     }
 
     private boolean hasSummaryQualityIssue(AlertEvent event) {
+        if (!isBlank(event.originalContent()) && isBlank(event.translatedContent())) {
+            return true;
+        }
         if (event.summaryLines() == null
                 || isBlank(event.summaryLines().what())
                 || isBlank(event.summaryLines().why())
@@ -189,7 +193,9 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
                 || EnglishNewsQualityGate.containsGenericFallback(event.translatedTitle())
                 || EnglishNewsQualityGate.containsGenericFallback(payload)
                 || EnglishNewsQualityGate.containsGenericFallback(event.translatedContent())
-                || (!isBlank(event.originalContent()) && isBlank(event.translatedContent()))
+                || EnglishNewsQualityGate.containsLowQualityTranslation(event.translatedTitle())
+                || EnglishNewsQualityGate.containsLowQualityTranslation(payload)
+                || EnglishNewsQualityGate.containsLowQualityTranslation(event.translatedContent())
                 || lower.contains("...")
                 || lower.contains("…")
                 || lower.contains("classified")

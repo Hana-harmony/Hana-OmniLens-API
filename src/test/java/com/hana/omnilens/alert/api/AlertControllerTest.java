@@ -439,12 +439,9 @@ class AlertControllerTest {
                     }
                     return translated(text);
                 });
-        String englishFallbackWhat = englishTextFor(
-                "원문은 삼성전자 실적 개선 HBM 수요 확대 관련 최신 시장·기업 이벤트를 다룹니다.");
-        String englishFallbackWhy = englishTextFor(
-                "삼성전자 실적 개선 HBM 수요 확대의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
-        String englishFallbackImpact = englishTextFor(
-                "투자자는 삼성전자 실적 개선 HBM 수요 확대 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
+        String repairedWhat = "Samsung Electronics expects stronger earnings as HBM demand expands.";
+        String repairedWhy = "Data center investment is the main background.";
+        String repairedImpact = "Investors should monitor the pace of operating-profit recovery.";
 
         mockMvc.perform(post("/api/v1/alerts/events/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -452,19 +449,19 @@ class AlertControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.eventCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.what",
-                        equalTo(englishFallbackWhat)))
+                        equalTo(repairedWhat)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.why",
-                        equalTo(englishFallbackWhy)))
+                        equalTo(repairedWhy)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.impact",
-                        equalTo(englishFallbackImpact)));
+                        equalTo(repairedImpact)));
 
         String storedPayload = jdbcTemplate.queryForObject(
                 "SELECT event_json FROM alert_event WHERE alert_id = 'alert-quality-issue'",
                 String.class);
         org.assertj.core.api.Assertions.assertThat(storedPayload)
-                .contains(englishFallbackWhat)
-                .contains(englishFallbackWhy)
-                .contains(englishFallbackImpact)
+                .contains(repairedWhat)
+                .contains(repairedWhy)
+                .contains(repairedImpact)
                 .contains(repairedTranslatedContent)
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
@@ -567,10 +564,8 @@ class AlertControllerTest {
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         when(alertTitleTranslationService.translateTextWithResult(any(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String englishFallbackWhy = englishTextFor(
-                "삼성전자 실적 개선 HBM 수요 확대의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
-        String englishFallbackImpact = englishTextFor(
-                "투자자는 삼성전자 실적 개선 HBM 수요 확대 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
+        String repairedWhy = "Data center investment is the main background.";
+        String repairedImpact = "Investors should monitor the pace of operating-profit recovery.";
 
         mockMvc.perform(post("/api/v1/alerts/events/reprocess/quality-issues")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -578,9 +573,9 @@ class AlertControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.eventCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.why",
-                        equalTo(englishFallbackWhy)))
+                        equalTo(repairedWhy)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.impact",
-                        equalTo(englishFallbackImpact)));
+                        equalTo(repairedImpact)));
     }
 
     @Test
@@ -949,8 +944,8 @@ class AlertControllerTest {
     void collectAndPublishSkipsOneArticleWhenTranslationQualityGateFails() throws Exception {
         when(naverNewsClient.search("삼성전자", 2)).thenReturn(List.of(
                 new NaverNewsArticle(
-                        "번역 실패 기사",
-                        "코스피 VI 관련 오역 가능 기사",
+                        "삼성전자 번역 실패 기사",
+                        "삼성전자 코스피 VI 관련 오역 가능 기사",
                         "https://news.example.com/translation-fail",
                         Instant.parse("2026-06-04T00:00:00Z")),
                 new NaverNewsArticle(
@@ -1185,6 +1180,15 @@ class AlertControllerTest {
         if (text == null || text.isBlank() || !containsHangul(text)) {
             return text;
         }
+        if (text.contains("HBM 수요 확대로 실적 개선 기대가 커졌습니다")) {
+            return "Samsung Electronics expects stronger earnings as HBM demand expands.";
+        }
+        if (text.contains("데이터센터 투자가 주요 배경입니다")) {
+            return "Data center investment is the main background.";
+        }
+        if (text.contains("영업이익 회복 속도를 확인해야 합니다")) {
+            return "Investors should monitor the pace of operating-profit recovery.";
+        }
         int marker = Math.abs(text.hashCode());
         if (text.contains("핵심 배경") || text.contains("주요 배경")) {
             return "The source article explains the main background for this market update " + marker + ".";
@@ -1206,15 +1210,6 @@ class AlertControllerTest {
         }
         if (text.contains("개미가 삼성전자를 순매수했다")) {
             return "Ants net bought Samsung Electronics.";
-        }
-        if (text.contains("HBM 수요 확대로 실적 개선 기대가 커졌습니다")) {
-            return "Samsung Electronics expects stronger earnings as HBM demand expands.";
-        }
-        if (text.contains("데이터센터 투자가 주요 배경입니다")) {
-            return "Data center investment is the main background.";
-        }
-        if (text.contains("영업이익 회복 속도를 확인해야 합니다")) {
-            return "Investors should monitor the pace of operating-profit recovery.";
         }
         if (text.contains("AI 서버 투자 확대로 반도체 실적 개선 기대가 커졌다")) {
             return "AI server investment raised expectations for a semiconductor earnings recovery.";

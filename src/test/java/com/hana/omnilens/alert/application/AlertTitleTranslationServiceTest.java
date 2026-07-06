@@ -73,7 +73,7 @@ class AlertTitleTranslationServiceTest {
 
     @Test
     void translateTextSplitsLongContentIntoChunks() {
-        String longText = "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다. ".repeat(120);
+        String longText = "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다. ".repeat(300);
         when(hannahTranslationClient.translate(any()))
                 .thenAnswer(invocation -> {
                     HannahAiKoreanTranslationRequest request = invocation.getArgument(0);
@@ -120,8 +120,20 @@ class AlertTitleTranslationServiceTest {
                 List.of(new AlertGlossaryTerm("개미", "개미", "retail investors", "market_slang")));
 
         assertThat(plainTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
-        assertThat(glossaryTranslation).isEqualTo("Ants net bought Samsung Electronics.");
+        assertThat(glossaryTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
         verify(hannahTranslationClient, times(2)).translate(any());
+    }
+
+    @Test
+    void translateTextRepairsAntSurfaceToNaturalRetailInvestorsWhenGlossaryIsPresent() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("Ants net bought Samsung Electronics."));
+
+        String glossaryTranslation = translationService.translateText(
+                "개미가 삼성전자를 순매수했다.",
+                List.of(new AlertGlossaryTerm("개미", "개미", "retail investors", "market_slang")));
+
+        assertThat(glossaryTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
     }
 
     private HannahAiKoreanTranslationResponse translated(String text) {
