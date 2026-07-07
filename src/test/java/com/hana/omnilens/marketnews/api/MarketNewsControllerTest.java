@@ -442,6 +442,79 @@ class MarketNewsControllerTest {
     }
 
     @Test
+    void reprocessQualityIssuesDoesNotStoreSourceLanguageFallbackAsTranslatedContent() throws Exception {
+        String originalContent = """
+                삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다. 데이터센터 투자가 주요 배경이다.
+                투자자는 영업이익 회복 속도와 메모리 공급 부족 지속 여부를 확인해야 한다.
+                회사는 주요 고객사의 AI 서버 투자가 늘면서 고부가 메모리 판매 비중이 커지고 있다고 설명했다.
+                증권가는 하반기 수급 개선과 가격 반등이 실적에 반영될 가능성이 높다고 평가했다.
+                다만 환율과 글로벌 기술주 변동성이 단기 주가에 영향을 줄 수 있다고 덧붙였다.
+                """;
+        String originalJsonContent = originalContent.replace("\n", "\\n").replace("\"", "\\\"");
+        jdbcTemplate.update(
+                """
+                INSERT INTO market_news_event (
+                    news_id, query, original_url, duplicate_key, published_at, created_at, event_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                "mkt-source-fallback-content",
+                "삼성전자",
+                "https://news.example.com/market/source-fallback",
+                "mkt-source-fallback-duplicate",
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:00:00Z")),
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:01:00Z")),
+                """
+                {
+                  "newsId": "mkt-source-fallback-content",
+                  "query": "삼성전자",
+                  "title": "삼성전자 HBM 수요 확대",
+                  "translatedTitle": "Samsung Electronics HBM demand expands",
+                  "summary": "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다.",
+                  "summaryLines": {
+                    "what": "Samsung Electronics expects earnings to improve as HBM demand expands.",
+                    "why": "Data center investment is the main driver.",
+                    "impact": "Investors should monitor operating-profit recovery."
+                  },
+                  "translatedSummary": "Samsung Electronics expects earnings to improve as HBM demand expands. Data center investment is the main driver. Investors should monitor operating-profit recovery.",
+                  "originalContent": "%s",
+                  "translatedContent": "What: Samsung Electronics expects earnings to improve as HBM demand expands. Why: Data center investment is the main driver. Impact: Investors should monitor operating-profit recovery.",
+                  "imageUrls": [],
+                  "contentAvailability": "FULL_TEXT",
+                  "originalUrl": "https://news.example.com/market/source-fallback",
+                  "canonicalUrl": "https://news.example.com/market/source-fallback",
+                  "sourceLicensePolicy": "licensed_naver_original_full_text_v1",
+                  "glossaryTerms": [],
+                  "translationProvider": "old-provider",
+                  "translationModelVersion": "old-model",
+                  "translationStatus": "TRANSLATED",
+                  "duplicateKey": "mkt-source-fallback-duplicate",
+                  "publishedAt": "2026-06-18T07:00:00Z",
+                  "createdAt": "2026-06-18T07:01:00Z"
+                }
+                """.formatted(originalJsonContent));
+        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
+                .thenAnswer(invocation -> {
+                    String text = invocation.getArgument(0, String.class);
+                    if (text.contains("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다")) {
+                        return sourceLanguageFallback(
+                                "the Korean market source item. The original Korean text is retained because machine translation was unavailable.");
+                    }
+                    return translated(text);
+                });
+
+        mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.newsCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.news[0].translatedContent", equalTo("")))
+                .andExpect(jsonPath("$.data.news[0].contentAvailability", equalTo("ORIGINAL_TEXT_ONLY")));
+    }
+
+    @Test
     void reprocessByNewsIdRefetchesMissingOriginalContentImagesAndGlossaryDescriptions() throws Exception {
         jdbcTemplate.update(
                 """
@@ -578,6 +651,14 @@ class MarketNewsControllerTest {
                 "local-open-source-qwen3-translation",
                 "local-llm:mlx-community/Qwen3-0.6B-4bit",
                 "TRANSLATED");
+    }
+
+    private TranslationResult sourceLanguageFallback(String text) {
+        return new TranslationResult(
+                text,
+                "source-language-fallback",
+                "local-llm:mlx-community/Qwen3-0.6B-4bit",
+                "SOURCE_LANGUAGE_FALLBACK");
     }
 
     private String englishTextFor(String text) {

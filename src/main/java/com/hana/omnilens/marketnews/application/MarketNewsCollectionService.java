@@ -236,7 +236,12 @@ public class MarketNewsCollectionService {
     }
 
     private String repairedTranslatedContent(MarketNewsEvent event, String originalContent) {
-        if (EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())) {
+        if (EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())
+                && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                        event.translatedContent(),
+                        event.summaryLines(),
+                        event.translatedSummary(),
+                        originalContent)) {
             return EnglishNewsQualityGate.englishTextOrEmpty(event.translatedContent());
         }
         if (!StringUtils.hasText(originalContent)) {
@@ -463,7 +468,7 @@ public class MarketNewsCollectionService {
             return StringUtils.hasText(sourceAvailability) ? sourceAvailability : "DISCOVERY_ONLY";
         }
         if (!StringUtils.hasText(translatedContent)) {
-            return "SUMMARY_ONLY";
+            return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "ORIGINAL_TEXT_ONLY";
         }
         return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "FULL_TEXT";
     }
@@ -617,7 +622,9 @@ public class MarketNewsCollectionService {
                     + context + " (" + translationFailureDetails(result) + ")");
         }
         if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())) {
-            return englishText;
+            return EnglishNewsQualityGate.containsHangul(originalContent)
+                    ? ""
+                    : englishText;
         }
         if (isLikelyIncompleteTranslation(originalContent, englishText)) {
             throw new IllegalStateException("English translation incomplete: "
@@ -625,6 +632,9 @@ public class MarketNewsCollectionService {
                             .formatted(
                                     originalContent.replaceAll("\\s+", " ").trim().length(),
                                     englishText.replaceAll("\\s+", " ").trim().length()));
+        }
+        if (EnglishNewsQualityGate.looksLikeStructuredSummaryContent(englishText)) {
+            throw new IllegalStateException("English translation is summary-only: " + context);
         }
         return englishText;
     }

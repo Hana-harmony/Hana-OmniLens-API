@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
+import com.hana.omnilens.alert.domain.AlertSummaryLines;
+
 class EnglishNewsQualityGateTest {
 
     @Test
@@ -93,6 +95,28 @@ class EnglishNewsQualityGateTest {
     void keepsNormalFinancialEnglish() {
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
                 "SK hynix's Nasdaq listing raises questions about its impact on the domestic stock market."))
+                .isTrue();
+    }
+
+    @Test
+    void detectsSummaryLinesMisusedAsArticleContent() {
+        AlertSummaryLines summaryLines = new AlertSummaryLines(
+                "Samsung Electronics expects earnings to improve as HBM demand expands.",
+                "Data center investment is the main driver.",
+                "Investors should monitor operating-profit recovery.");
+
+        assertThat(EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                """
+                What: Samsung Electronics expects earnings to improve as HBM demand expands.
+                Why: Data center investment is the main driver.
+                Impact: Investors should monitor operating-profit recovery.
+                """,
+                summaryLines,
+                "Samsung Electronics expects earnings to improve as HBM demand expands.\n"
+                        + "Data center investment is the main driver.\n"
+                        + "Investors should monitor operating-profit recovery.",
+                "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다. 데이터센터 투자가 주요 배경이다. "
+                        + "투자자는 영업이익 회복 속도를 확인해야 한다."))
                 .isTrue();
     }
 
