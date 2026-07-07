@@ -82,6 +82,9 @@ class EnglishNewsQualityGateTest {
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
                 "The move-digest service was opened at the Youth Center of the 3rd Army of the Republic of China."))
                 .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
+                "The original Korean text is retained because machine translation was unavailable. Review the linked article or filing for price, liquidity, and portfolio impact."))
+                .isFalse();
     }
 
     @Test

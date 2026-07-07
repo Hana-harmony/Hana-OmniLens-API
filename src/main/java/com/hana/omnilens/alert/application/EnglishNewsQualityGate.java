@@ -188,6 +188,8 @@ public final class EnglishNewsQualityGate {
                 || lower.contains("the story links the shift to the article")
                 || lower.contains("investors should follow the next disclosure and watch the market reaction")
                 || lower.contains("investors should track the next disclosure and market reaction as the story develops")
+                || lower.contains("the original korean text is retained because machine translation was unavailable")
+                || lower.contains("review the linked article or filing for price, liquidity, and portfolio impact")
                 || lower.contains("the key background is confirmed in the latest news")
                 || lower.contains("the key background is confirmed in the latest disclosure")
                 || lower.contains("confirmed in the latest news")
