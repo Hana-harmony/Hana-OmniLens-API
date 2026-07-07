@@ -38,23 +38,23 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
-    void translateTitleReturnsBlankWhenProviderFails() {
+    void translateTitleReturnsLocalEnglishFallbackWhenProviderFails() {
         when(hannahTranslationClient.translate(any()))
                 .thenThrow(new IllegalStateException("hannah ai unavailable"));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
-        assertThat(translatedTitle).isEmpty();
+        assertThat(translatedTitle).contains("Korean market source item");
     }
 
     @Test
-    void translateTitleReturnsBlankWhenProviderReturnsBlank() {
+    void translateTitleReturnsLocalEnglishFallbackWhenProviderReturnsBlank() {
         when(hannahTranslationClient.translate(any()))
                 .thenReturn(translated(""));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
-        assertThat(translatedTitle).isEmpty();
+        assertThat(translatedTitle).contains("Korean market source item");
     }
 
     @Test
@@ -65,7 +65,7 @@ class AlertTitleTranslationServiceTest {
         AlertTitleTranslationService.TranslationResult result =
                 translationService.translateTitleWithResult("삼성전자 실적 개선", List.of());
 
-        assertThat(result.translatedText()).isEmpty();
+        assertThat(result.translatedText()).contains("Korean market source item");
         assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.modelVersion()).isEqualTo(MODEL);
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
@@ -95,7 +95,7 @@ class AlertTitleTranslationServiceTest {
                 "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다.",
                 List.of());
 
-        assertThat(result.translatedText()).isEmpty();
+        assertThat(result.translatedText()).contains("Korean market source item");
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
     }
 

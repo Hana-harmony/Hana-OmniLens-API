@@ -20,7 +20,7 @@ import com.hana.omnilens.market.domain.MarketQuote;
 @Service
 public class MarketQuoteStreamingService {
 
-    private static final int REPLAY_LIMIT = 500;
+    private static final int CACHED_REPLAY_LIMIT = 100;
 
     private final MarketDataService marketDataService;
     private final ObjectMapper objectMapper;
@@ -55,12 +55,12 @@ public class MarketQuoteStreamingService {
     }
 
     void replay(WebSocketSession session, String currency) {
-        marketDataService.getQuotes(null, null, currency, null, REPLAY_LIMIT)
+        marketDataService.getRealtimeCachedQuotes(null, null, currency, null, CACHED_REPLAY_LIMIT)
                 .forEach(quote -> send(session, quote));
     }
 
     void replay(WebSocketSession session, String currency, List<String> stockCodes) {
-        marketDataService.getQuotes(stockCodes, null, currency, null, Math.max(stockCodes.size(), 1))
+        marketDataService.getRealtimeCachedQuotes(stockCodes, null, currency, null, Math.max(stockCodes.size(), 1))
                 .forEach(quote -> send(session, quote));
     }
 

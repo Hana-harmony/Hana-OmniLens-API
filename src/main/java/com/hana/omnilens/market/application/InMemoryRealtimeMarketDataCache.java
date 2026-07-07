@@ -40,6 +40,17 @@ public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache 
     }
 
     @Override
+    public List<KisRealtimeTradeTick> latestTrades() {
+        return tradeTicks.values().stream()
+                .sorted(Comparator
+                        .comparing(CachedTradeTick::updatedAt)
+                        .reversed()
+                        .thenComparing(cached -> cached.tick().stockCode()))
+                .map(CachedTradeTick::tick)
+                .toList();
+    }
+
+    @Override
     public Optional<KisRealtimeOrderBookSnapshot> latestOrderBook(String stockCode) {
         return Optional.ofNullable(orderBooks.get(stockCode));
     }
@@ -70,6 +81,13 @@ public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache 
     @Override
     public void putIndex(KisRealtimeIndexTick indexTick) {
         indices.put(indexTick.indexCode(), indexTick);
+    }
+
+    @Override
+    public void clear() {
+        tradeTicks.clear();
+        orderBooks.clear();
+        indices.clear();
     }
 
     private boolean sameTrade(KisRealtimeTradeTick left, KisRealtimeTradeTick right) {

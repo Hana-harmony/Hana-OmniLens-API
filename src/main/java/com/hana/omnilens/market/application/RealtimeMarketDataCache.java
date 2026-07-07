@@ -11,6 +11,8 @@ public interface RealtimeMarketDataCache {
 
     Optional<KisRealtimeTradeTick> latestTrade(String stockCode);
 
+    List<KisRealtimeTradeTick> latestTrades();
+
     Optional<KisRealtimeOrderBookSnapshot> latestOrderBook(String stockCode);
 
     List<KisRealtimeIndexTick> latestIndices();
@@ -20,4 +22,6 @@ public interface RealtimeMarketDataCache {
     void putOrderBook(KisRealtimeOrderBookSnapshot orderBookSnapshot);
 
     void putIndex(KisRealtimeIndexTick indexTick);
+
+    void clear();
 }

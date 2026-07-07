@@ -42,6 +42,20 @@ class InMemoryRealtimeMarketDataCacheTest {
         assertThat(cache.latestTrade("005930").orElseThrow().currentPriceKrw()).isEqualByComparingTo("323000");
     }
 
+    @Test
+    void latestTradesReturnsRecentlyUpdatedTicksFirst() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-06-24T04:00:00Z"));
+        InMemoryRealtimeMarketDataCache cache = new InMemoryRealtimeMarketDataCache(clock);
+
+        cache.putTrade(tick("005930", "322750", 100, 1_000_000));
+        clock.now = clock.now.plusSeconds(1);
+        cache.putTrade(tick("000660", "510000", 100, 1_000_000));
+
+        assertThat(cache.latestTrades())
+                .extracting(KisRealtimeTradeTick::stockCode)
+                .containsExactly("000660", "005930");
+    }
+
     private KisRealtimeTradeTick tick(String stockCode, String price, long executionVolume, long accumulatedVolume) {
         return new KisRealtimeTradeTick(
                 stockCode,

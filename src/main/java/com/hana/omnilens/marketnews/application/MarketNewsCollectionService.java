@@ -616,6 +616,9 @@ public class MarketNewsCollectionService {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
         }
+        if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())) {
+            return englishText;
+        }
         if (isLikelyIncompleteTranslation(originalContent, englishText)) {
             throw new IllegalStateException("English translation incomplete: "
                     + context + " (sourceLength=%d, translatedLength=%d)"
@@ -885,11 +888,16 @@ public class MarketNewsCollectionService {
     private boolean hasEnglishTranslationStatus(TranslationResult result) {
         return result != null
                 && (AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
-                || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status()));
+                || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                || (AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                && EnglishNewsQualityGate.hasUsableEnglishText(result.translatedText())));
     }
 
     private boolean hasCompleteEnglishTranslationStatus(TranslationResult result) {
-        return result != null && AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status());
+        return result != null
+                && (AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+                || (AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                && EnglishNewsQualityGate.hasUsableEnglishText(result.translatedText())));
     }
 
     private TranslationResult alreadyEnglishSummaryResult(

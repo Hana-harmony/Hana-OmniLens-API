@@ -30,12 +30,15 @@ import com.hana.omnilens.provider.market.KisMinuteChartPrice;
 import com.hana.omnilens.provider.market.KisMinuteChartPriceClient;
 import com.hana.omnilens.provider.market.KrxOpenApiDailyTrade;
 import com.hana.omnilens.provider.market.KrxOpenApiDailyTradeClient;
+import com.hana.omnilens.provider.market.YahooStockMinuteChartPriceClient;
 
 class MarketHistoryServiceTest {
 
     private final KrxOpenApiDailyTradeClient krxClient = mock(KrxOpenApiDailyTradeClient.class);
     private final KisDailyChartPriceClient kisDailyChartPriceClient = mock(KisDailyChartPriceClient.class);
     private final KisMinuteChartPriceClient kisMinuteChartPriceClient = mock(KisMinuteChartPriceClient.class);
+    private final YahooStockMinuteChartPriceClient yahooStockMinuteChartPriceClient =
+            mock(YahooStockMinuteChartPriceClient.class);
     private final MarketDailyPriceRepository dailyPriceRepository = mock(MarketDailyPriceRepository.class);
     private final MarketIntradayPriceRepository intradayPriceRepository = mock(MarketIntradayPriceRepository.class);
     private final StockMasterRepository stockMasterRepository = mock(StockMasterRepository.class);
@@ -417,6 +420,49 @@ class MarketHistoryServiceTest {
     }
 
     @Test
+    void getIntradayHistoryUsesYahooMinutePricesBeforeKisRestBackfill() {
+        Clock fixedClock = Clock.fixed(Instant.parse("2025-06-05T01:00:30Z"), ZoneId.of("Asia/Seoul"));
+        MarketHistoryService intradayService = intradayServiceWithYahoo(fixedClock);
+        LocalDate today = LocalDate.of(2025, 6, 5);
+        StockSummary stock = stock();
+        MarketIntradayPrice savedAfterUpsert = new MarketIntradayPrice(
+                "005930",
+                today.atTime(9, 1),
+                "KOSPI",
+                new BigDecimal("58000"),
+                new BigDecimal("58100"),
+                new BigDecimal("57900"),
+                new BigDecimal("58050"),
+                12_345L,
+                new BigDecimal("716000000"),
+                "YAHOO_FINANCE_CHART_PRICE",
+                Instant.parse("2025-06-05T01:00:30Z"));
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(intradayPriceRepository.findByStockCodeAndDate("005930", today, 390))
+                .thenReturn(List.of())
+                .thenReturn(List.of(savedAfterUpsert));
+        when(yahooStockMinuteChartPriceClient.findMinutePrices(stock, today, 390)).thenReturn(List.of(
+                new KisMinuteChartPrice(
+                        today.atTime(9, 1),
+                        new BigDecimal("58000"),
+                        new BigDecimal("58100"),
+                        new BigDecimal("57900"),
+                        new BigDecimal("58050"),
+                        12_345L,
+                        new BigDecimal("716000000"))));
+
+        List<MarketIntradayPrice> prices = intradayService.getIntradayHistory("005930", today, 390);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<MarketIntradayPrice>> captor = ArgumentCaptor.forClass(List.class);
+        verify(intradayPriceRepository).upsertAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
+        assertThat(captor.getValue().get(0).source()).isEqualTo("YAHOO_FINANCE_CHART_PRICE");
+        assertThat(prices).containsExactly(savedAfterUpsert);
+        verifyNoInteractions(kisMinuteChartPriceClient);
+    }
+
+    @Test
     void getIntradayHistoryStoresHistoricalMinutePricesWithDailyChartSource() {
         Clock fixedClock = Clock.fixed(Instant.parse("2025-06-05T01:00:30Z"), ZoneId.of("Asia/Seoul"));
         MarketHistoryService intradayService = intradayService(fixedClock);
@@ -492,6 +538,20 @@ class MarketHistoryServiceTest {
                 krxClient,
                 kisDailyChartPriceClient,
                 kisMinuteChartPriceClient,
+                dailyPriceRepository,
+                intradayPriceRepository,
+                stockMasterRepository,
+                defaultCollectionProperties(),
+                null,
+                clock);
+    }
+
+    private MarketHistoryService intradayServiceWithYahoo(Clock clock) {
+        return new MarketHistoryService(
+                krxClient,
+                kisDailyChartPriceClient,
+                kisMinuteChartPriceClient,
+                yahooStockMinuteChartPriceClient,
                 dailyPriceRepository,
                 intradayPriceRepository,
                 stockMasterRepository,

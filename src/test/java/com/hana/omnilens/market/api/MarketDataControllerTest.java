@@ -30,6 +30,7 @@ import com.hana.omnilens.market.application.ForeignOwnershipRefreshService;
 import com.hana.omnilens.market.application.ForeignOwnershipBackfillResult;
 import com.hana.omnilens.market.application.ForeignOwnershipCollectionResult;
 import com.hana.omnilens.market.application.MarketDailyPriceRepository;
+import com.hana.omnilens.market.application.RealtimeMarketDataCache;
 import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
@@ -38,6 +39,7 @@ import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatchClient;
 import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatchResponse;
 import com.hana.omnilens.provider.market.KisCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
+import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
 
 @SpringBootTest(properties = {
         "omnilens.security.api-key-enabled=true",
@@ -61,6 +63,9 @@ class MarketDataControllerTest {
     @Autowired
     private StockMasterRepository stockMasterRepository;
 
+    @Autowired
+    private RealtimeMarketDataCache realtimeMarketDataCache;
+
     @MockitoBean
     private ForeignOwnershipRefreshService foreignOwnershipRefreshService;
 
@@ -72,6 +77,7 @@ class MarketDataControllerTest {
 
     @BeforeEach
     void setUpKisMarketData() {
+        realtimeMarketDataCache.clear();
         when(kisCurrentPriceClient.findCurrentPrice(anyString()))
                 .thenAnswer(invocation -> Optional.of(kisSnapshot(invocation.getArgument(0))));
         stockMasterRepository.findAll(100)
@@ -255,6 +261,17 @@ class MarketDataControllerTest {
 
     @Test
     void allQuoteApiReturnsSeededStocksWithMarketFilter() throws Exception {
+        stockMasterRepository.findAll(3).forEach(stock -> realtimeMarketDataCache.putTrade(new KisRealtimeTradeTick(
+                stock.stockCode(),
+                "093000",
+                new BigDecimal("81500"),
+                new BigDecimal("1.92"),
+                new BigDecimal("81600"),
+                new BigDecimal("81400"),
+                1200L,
+                16_200_000L,
+                LocalDate.of(2025, 6, 4))));
+
         mockMvc.perform(get("/api/v1/market/quotes")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
                         .param("currency", "USD")

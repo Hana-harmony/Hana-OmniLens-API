@@ -29,6 +29,7 @@ import com.hana.omnilens.provider.market.KisMinuteChartPrice;
 import com.hana.omnilens.provider.market.KisMinuteChartPriceClient;
 import com.hana.omnilens.provider.market.KrxOpenApiDailyTrade;
 import com.hana.omnilens.provider.market.KrxOpenApiDailyTradeClient;
+import com.hana.omnilens.provider.market.YahooStockMinuteChartPriceClient;
 
 @Service
 public class MarketHistoryService {
@@ -38,6 +39,7 @@ public class MarketHistoryService {
     private static final String SOURCE = "KRX_OPEN_API_DAILY_TRADE";
     private static final String KIS_SOURCE = "KIS_DAILY_ITEM_CHART_PRICE";
     private static final String KIS_FALLBACK_MARKET = "KIS_DAILY_CHART";
+    private static final String YAHOO_INTRADAY_SOURCE = "YAHOO_FINANCE_CHART_PRICE";
     private static final int KIS_FALLBACK_STOCK_LIMIT = 2_000;
     private static final Duration KIS_FALLBACK_REQUEST_INTERVAL = Duration.ofMillis(2_200);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(3_000);
@@ -52,6 +54,7 @@ public class MarketHistoryService {
     private final KrxOpenApiDailyTradeClient krxOpenApiDailyTradeClient;
     private final KisDailyChartPriceClient kisDailyChartPriceClient;
     private final KisMinuteChartPriceClient kisMinuteChartPriceClient;
+    private final YahooStockMinuteChartPriceClient yahooStockMinuteChartPriceClient;
     private final MarketDailyPriceRepository marketDailyPriceRepository;
     private final MarketIntradayPriceRepository marketIntradayPriceRepository;
     private final StockMasterRepository stockMasterRepository;
@@ -64,6 +67,7 @@ public class MarketHistoryService {
             KrxOpenApiDailyTradeClient krxOpenApiDailyTradeClient,
             KisDailyChartPriceClient kisDailyChartPriceClient,
             KisMinuteChartPriceClient kisMinuteChartPriceClient,
+            YahooStockMinuteChartPriceClient yahooStockMinuteChartPriceClient,
             MarketDailyPriceRepository marketDailyPriceRepository,
             MarketIntradayPriceRepository marketIntradayPriceRepository,
             StockMasterRepository stockMasterRepository,
@@ -73,6 +77,7 @@ public class MarketHistoryService {
                 krxOpenApiDailyTradeClient,
                 kisDailyChartPriceClient,
                 kisMinuteChartPriceClient,
+                yahooStockMinuteChartPriceClient,
                 marketDailyPriceRepository,
                 marketIntradayPriceRepository,
                 stockMasterRepository,
@@ -92,6 +97,7 @@ public class MarketHistoryService {
                 krxOpenApiDailyTradeClient,
                 kisDailyChartPriceClient,
                 null,
+                null,
                 marketDailyPriceRepository,
                 null,
                 stockMasterRepository,
@@ -110,9 +116,34 @@ public class MarketHistoryService {
             MarketHistoryCollectionProperties collectionProperties,
             MarketChartWarmupProperties chartWarmupProperties,
             Clock clock) {
+        this(
+                krxOpenApiDailyTradeClient,
+                kisDailyChartPriceClient,
+                kisMinuteChartPriceClient,
+                null,
+                marketDailyPriceRepository,
+                marketIntradayPriceRepository,
+                stockMasterRepository,
+                collectionProperties,
+                chartWarmupProperties,
+                clock);
+    }
+
+    MarketHistoryService(
+            KrxOpenApiDailyTradeClient krxOpenApiDailyTradeClient,
+            KisDailyChartPriceClient kisDailyChartPriceClient,
+            KisMinuteChartPriceClient kisMinuteChartPriceClient,
+            YahooStockMinuteChartPriceClient yahooStockMinuteChartPriceClient,
+            MarketDailyPriceRepository marketDailyPriceRepository,
+            MarketIntradayPriceRepository marketIntradayPriceRepository,
+            StockMasterRepository stockMasterRepository,
+            MarketHistoryCollectionProperties collectionProperties,
+            MarketChartWarmupProperties chartWarmupProperties,
+            Clock clock) {
         this.krxOpenApiDailyTradeClient = krxOpenApiDailyTradeClient;
         this.kisDailyChartPriceClient = kisDailyChartPriceClient;
         this.kisMinuteChartPriceClient = kisMinuteChartPriceClient;
+        this.yahooStockMinuteChartPriceClient = yahooStockMinuteChartPriceClient;
         this.marketDailyPriceRepository = marketDailyPriceRepository;
         this.marketIntradayPriceRepository = marketIntradayPriceRepository;
         this.stockMasterRepository = stockMasterRepository;
@@ -187,19 +218,72 @@ public class MarketHistoryService {
         if (!fetchMissing) {
             return savedPrices;
         }
-        if (kisMinuteChartPriceClient == null) {
-            return savedPrices;
-        }
-        List<MarketIntradayPrice> fetchedPrices = kisMinuteChartPriceClient.findMinutePrices(stockCode, resolvedDate, limit)
+        List<MarketIntradayPrice> fetchedPrices = fetchIntradayBackfill(stock, resolvedDate, limit)
                 .stream()
-                .map(price -> toIntradayPrice(stock, price, resolvedDate))
-                .filter(this::isRegularSessionPrice)
+                .map(price -> toIntradayPrice(stock, price.price(), price.source()))
+                .filter(price -> isRegularSessionPrice(price) && isMissingSavedBucket(savedPrices, price))
                 .toList();
         if (marketIntradayPriceRepository != null && !fetchedPrices.isEmpty()) {
             marketIntradayPriceRepository.upsertAll(fetchedPrices);
-            return regularSessionPrices(findSavedIntradayPrices(stockCode, resolvedDate, limit));
+            List<MarketIntradayPrice> reloadedPrices =
+                    regularSessionPrices(findSavedIntradayPrices(stockCode, resolvedDate, limit));
+            return reloadedPrices.isEmpty() ? fetchedPrices : reloadedPrices;
         }
         return fetchedPrices.isEmpty() ? savedPrices : fetchedPrices;
+    }
+
+    private List<IntradayBackfillPrice> fetchIntradayBackfill(StockSummary stock, LocalDate resolvedDate, int limit) {
+        if (yahooStockMinuteChartPriceClient != null) {
+            try {
+                List<IntradayBackfillPrice> yahooPrices = yahooStockMinuteChartPriceClient
+                        .findMinutePrices(stock, resolvedDate, limit)
+                        .stream()
+                        .map(price -> new IntradayBackfillPrice(price, YAHOO_INTRADAY_SOURCE))
+                        .toList();
+                if (!yahooPrices.isEmpty()) {
+                    return yahooPrices;
+                }
+            } catch (RuntimeException exception) {
+                log.warn("Yahoo stock intraday history fetch failed stockCode={} date={}: {}",
+                        stock.stockCode(), resolvedDate, exception.toString());
+            }
+        }
+        if (kisMinuteChartPriceClient == null) {
+            return List.of();
+        }
+        return kisMinuteChartPriceClient.findMinutePrices(stock.stockCode(), resolvedDate, limit)
+                .stream()
+                .map(price -> new IntradayBackfillPrice(price, kisIntradaySource(resolvedDate)))
+                .toList();
+    }
+
+    private boolean isMissingSavedBucket(List<MarketIntradayPrice> savedPrices, MarketIntradayPrice fetchedPrice) {
+        return savedPrices.stream()
+                .noneMatch(savedPrice -> savedPrice.bucketStart().equals(fetchedPrice.bucketStart()));
+    }
+
+    private String kisIntradaySource(LocalDate requestedDate) {
+        return requestedDate.equals(LocalDate.now(clock))
+                ? "KIS_TIME_ITEM_CHART_PRICE"
+                : "KIS_TIME_DAILY_CHART_PRICE";
+    }
+
+    private MarketIntradayPrice toIntradayPrice(
+            StockSummary stock,
+            KisMinuteChartPrice price,
+            String source) {
+        return new MarketIntradayPrice(
+                stock.stockCode(),
+                price.bucketStart(),
+                stock.market(),
+                price.openPriceKrw(),
+                price.highPriceKrw(),
+                price.lowPriceKrw(),
+                price.closePriceKrw(),
+                price.volume(),
+                price.tradingValueKrw(),
+                source,
+                Instant.now(clock));
     }
 
     private List<MarketIntradayPrice> regularSessionPrices(List<MarketIntradayPrice> prices) {
@@ -598,28 +682,16 @@ public class MarketHistoryService {
                 Instant.now(clock));
     }
 
-    private MarketIntradayPrice toIntradayPrice(StockSummary stock, KisMinuteChartPrice price, LocalDate requestedDate) {
-        String source = requestedDate.equals(LocalDate.now(clock))
-                ? "KIS_TIME_ITEM_CHART_PRICE"
-                : "KIS_TIME_DAILY_CHART_PRICE";
-        return new MarketIntradayPrice(
-                stock.stockCode(),
-                price.bucketStart(),
-                stock.market(),
-                price.openPriceKrw(),
-                price.highPriceKrw(),
-                price.lowPriceKrw(),
-                price.closePriceKrw(),
-                price.volume(),
-                price.tradingValueKrw(),
-                source,
-                Instant.now(clock));
-    }
-
     private record CollectionFallbackResult(
             int requestedCount,
             int savedCount,
             MarketHistoryCollectionResult.MarketResult marketResult
+    ) {
+    }
+
+    private record IntradayBackfillPrice(
+            KisMinuteChartPrice price,
+            String source
     ) {
     }
 }

@@ -455,11 +455,31 @@ public class MarketDataService {
         if (resolvedStockCodes.isEmpty()) {
             return stockMasterRepository.findAll(limit).stream()
                     .filter(stock -> normalizedMarket == null || normalizedMarket.equals(stock.market()))
-                    .map(stock -> quoteOrUnavailable(stock, localCurrency, fxRate))
+                    .flatMap(stock -> passiveQuoteOrUnavailable(stock, localCurrency, fxRate).stream())
                     .toList();
         }
         return resolvedStockCodes.stream()
                 .flatMap(stockCode -> quoteOrUnavailable(stockCode, localCurrency, fxRate).stream())
+                .filter(quote -> normalizedMarket == null || normalizedMarket.equals(quote.market()))
+                .toList();
+    }
+
+    public List<MarketQuote> getRealtimeCachedQuotes(
+            List<String> stockCodes,
+            String market,
+            String localCurrency,
+            BigDecimal fxRate,
+            int limit) {
+        List<String> resolvedStockCodes = resolveStockCodes(stockCodes);
+        String normalizedMarket = normalizeMarket(market);
+        List<KisRealtimeTradeTick> ticks = resolvedStockCodes.isEmpty()
+                ? realtimeMarketDataCache.latestTrades()
+                : resolvedStockCodes.stream()
+                        .flatMap(stockCode -> realtimeMarketDataCache.latestTrade(stockCode).stream())
+                        .toList();
+        return ticks.stream()
+                .limit(limit)
+                .flatMap(tick -> realtimeQuoteOrUnavailable(tick, localCurrency, fxRate).stream())
                 .filter(quote -> normalizedMarket == null || normalizedMarket.equals(quote.market()))
                 .toList();
     }
@@ -472,12 +492,41 @@ public class MarketDataService {
             // 종목 마스터가 없는 잘못된 요청은 목록 응답에서만 제외한다.
             log.warn("Market quote excluded stockCode={}: {}", stockCode, exception.toString());
             return Optional.empty();
+        } catch (MarketDataUnavailableException exception) {
+            // 여러 종목 목록에서는 한 종목 장애가 전체 응답/WS replay를 닫지 않게 제외한다.
+            log.warn("Market quote unavailable stockCode={}: {}", stockCode, exception.toString());
+            return Optional.empty();
         }
     }
 
     private MarketQuote quoteOrUnavailable(StockSummary stock, String localCurrency, BigDecimal fxRate) {
         PriceLookup priceLookup = latestPriceSnapshot(stock.stockCode());
         return toMarketQuote(stock, priceLookup, localCurrency, fxRate, true);
+    }
+
+    private Optional<MarketQuote> passiveQuoteOrUnavailable(
+            StockSummary stock,
+            String localCurrency,
+            BigDecimal fxRate) {
+        PriceLookup priceLookup = passivePriceSnapshot(stock.stockCode());
+        if (priceLookup.currentPriceKrw().isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(toMarketQuote(stock, priceLookup, localCurrency, fxRate, false));
+    }
+
+    private Optional<MarketQuote> realtimeQuoteOrUnavailable(
+            KisRealtimeTradeTick tick,
+            String localCurrency,
+            BigDecimal fxRate) {
+        try {
+            StockSummary stock = getStock(tick.stockCode());
+            return Optional.of(toMarketQuote(stock, PriceLookup.realtime(tick), localCurrency, fxRate, false));
+        } catch (StockMasterNotFoundException exception) {
+            // 실시간 구독에 남은 폐지/미등록 종목은 replay에서 제외한다.
+            log.warn("Realtime quote replay excluded stockCode={}: {}", tick.stockCode(), exception.toString());
+            return Optional.empty();
+        }
     }
 
     private MarketQuote toMarketQuote(
@@ -959,10 +1008,22 @@ public class MarketDataService {
                 return priceLookup;
             }
         } catch (RuntimeException exception) {
-            // KIS 연결 장애는 저장값으로 가리지 않고 클라이언트에 명확히 전달한다.
-            log.warn("KIS current price lookup failed for stockCode={}: {}", stockCode, exception.toString());
-            throw new MarketDataUnavailableException(
-                    "KIS market data provider is unavailable for stockCode=" + stockCode);
+            // KIS 제한/장애는 단건 조회에서만 기록하고 저장된 시세 fallback으로 내려간다.
+            log.warn("KIS current price lookup failed for stockCode={}, falling back to cached snapshots: {}",
+                    stockCode,
+                    exception.toString());
+        }
+        return passivePriceSnapshot(stockCode);
+    }
+
+    private PriceLookup passivePriceSnapshot(String stockCode) {
+        Optional<KisRealtimeTradeTick> realtimeTrade = realtimeMarketDataCache.latestTrade(stockCode);
+        if (realtimeTrade.isPresent() && !realtimeTrade.orElseThrow().afterHours()) {
+            return PriceLookup.realtime(realtimeTrade.orElseThrow());
+        }
+        Optional<PriceLookup> freshCachedPrice = cachedPrice(stockCode, PRICE_CACHE_TTL);
+        if (freshCachedPrice.isPresent()) {
+            return freshCachedPrice.orElseThrow();
         }
         Optional<PriceLookup> recordedRealtimePrice = latestRecordedIntradayPrice(stockCode);
         if (recordedRealtimePrice.isPresent()) {
