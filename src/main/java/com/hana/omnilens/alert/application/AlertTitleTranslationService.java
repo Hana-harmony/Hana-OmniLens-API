@@ -13,7 +13,6 @@ import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,7 +21,6 @@ import com.hana.omnilens.provider.ai.HannahAiGlossaryTerm;
 import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationClient;
 import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationRequest;
 import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationResponse;
-import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
 
 @Service
 public class AlertTitleTranslationService {
@@ -34,25 +32,14 @@ public class AlertTitleTranslationService {
     public static final String STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK = "PARTIAL_SOURCE_LANGUAGE_FALLBACK";
     public static final String STATUS_SOURCE_LANGUAGE_FALLBACK = "SOURCE_LANGUAGE_FALLBACK";
     public static final String PROVIDER_LOCAL_OPEN_SOURCE_QWEN = "local-open-source-qwen3-translation";
-    private static final String PROVIDER_OPENAI_TRANSLATION = "openai-gpt-translation";
     private static final String PROVIDER_SOURCE_LANGUAGE_FALLBACK = "source-language-fallback";
     private static final String MODEL_HANNAH_TRANSLATION_UNAVAILABLE = "hannah-ai-translation-unavailable";
-    private static final String MODEL_OPENAI_TRANSLATION_UNAVAILABLE = "openai-translation-unavailable";
 
     private final HannahAiKoreanTranslationClient hannahTranslationClient;
-    private final OpenAiTranslationClient openAiTranslationClient;
     private final Map<String, TranslationResult> translationCache = new ConcurrentHashMap<>();
 
-    @Autowired
-    public AlertTitleTranslationService(
-            HannahAiKoreanTranslationClient hannahTranslationClient,
-            OpenAiTranslationClient openAiTranslationClient) {
-        this.hannahTranslationClient = hannahTranslationClient;
-        this.openAiTranslationClient = openAiTranslationClient;
-    }
-
     public AlertTitleTranslationService(HannahAiKoreanTranslationClient hannahTranslationClient) {
-        this(hannahTranslationClient, null);
+        this.hannahTranslationClient = hannahTranslationClient;
     }
 
     public String translateTitle(String originalTitle) {
@@ -110,17 +97,16 @@ public class AlertTitleTranslationService {
                 ? MODEL_HANNAH_TRANSLATION_UNAVAILABLE
                 : firstText(response.modelVersion(), MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
         String status = normalizeStatus(response == null ? "" : response.status());
-        TranslationResult result;
-        if (usableTranslation(originalText, translatedText)
-                && !STATUS_SOURCE_LANGUAGE_FALLBACK.equals(status)) {
-            result = new TranslationResult(
-                    applyLocalismSurfaceTerms(translatedText, glossaryTerms),
-                    firstText(response.provider(), PROVIDER_SOURCE_LANGUAGE_FALLBACK),
-                    modelVersion,
-                    status);
-        } else {
-            result = translateWithOpenAiFallback(originalText, glossaryTerms, modelVersion);
-        }
+        TranslationResult result = usableTranslation(originalText, translatedText)
+                        && !STATUS_SOURCE_LANGUAGE_FALLBACK.equals(status)
+                ? new TranslationResult(
+                        applyLocalismSurfaceTerms(translatedText, glossaryTerms),
+                        firstText(response.provider(), PROVIDER_SOURCE_LANGUAGE_FALLBACK),
+                        modelVersion,
+                        status)
+                : TranslationResult.sourceFallback(
+                        fallbackEnglishText(originalText, glossaryTerms),
+                        modelVersion);
         translationCache.put(cacheKey, result);
         return result;
     }
@@ -261,33 +247,6 @@ public class AlertTitleTranslationService {
                     exception.getClass().getSimpleName());
             return null;
         }
-    }
-
-    private TranslationResult translateWithOpenAiFallback(
-            String originalText,
-            List<AlertGlossaryTerm> glossaryTerms,
-            String hannahModelVersion) {
-        if (openAiTranslationClient == null) {
-            return TranslationResult.sourceFallback(
-                    fallbackEnglishText(originalText, glossaryTerms),
-                    hannahModelVersion);
-        }
-        try {
-            String translatedText = openAiTranslationClient.translateKoToEn(originalText);
-            if (usableTranslation(originalText, translatedText)) {
-                return new TranslationResult(
-                        applyLocalismSurfaceTerms(translatedText.strip(), glossaryTerms),
-                        PROVIDER_OPENAI_TRANSLATION,
-                        "openai:" + openAiTranslationClient.model(),
-                        STATUS_TRANSLATED);
-            }
-        } catch (RuntimeException exception) {
-            LOGGER.warn("OpenAI alert translation fallback failed. Marking translation as unavailable: {}",
-                    exception.getClass().getSimpleName());
-        }
-        return TranslationResult.sourceFallback(
-                fallbackEnglishText(originalText, glossaryTerms),
-                firstText(hannahModelVersion, MODEL_OPENAI_TRANSLATION_UNAVAILABLE));
     }
 
     private List<HannahAiGlossaryTerm> toHannahGlossaryTerms(List<AlertGlossaryTerm> glossaryTerms) {

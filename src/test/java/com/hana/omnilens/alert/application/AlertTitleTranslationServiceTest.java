@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,7 +16,6 @@ import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationClient;
 import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationRequest;
 import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationResponse;
-import com.hana.omnilens.provider.translation.OpenAiTranslationClient;
 
 class AlertTitleTranslationServiceTest {
 
@@ -26,8 +24,6 @@ class AlertTitleTranslationServiceTest {
 
     private final HannahAiKoreanTranslationClient hannahTranslationClient =
             mock(HannahAiKoreanTranslationClient.class);
-    private final OpenAiTranslationClient openAiTranslationClient =
-            mock(OpenAiTranslationClient.class);
     private final AlertTitleTranslationService translationService =
             new AlertTitleTranslationService(hannahTranslationClient);
 
@@ -39,7 +35,6 @@ class AlertTitleTranslationServiceTest {
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
         assertThat(translatedTitle).isEqualTo("Samsung Electronics earnings improve");
-        verify(openAiTranslationClient, never()).translateKoToEn(any());
     }
 
     @Test
@@ -73,44 +68,6 @@ class AlertTitleTranslationServiceTest {
         assertThat(result.translatedText()).contains("Korean market source item");
         assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.modelVersion()).isEqualTo(MODEL);
-        assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
-    }
-
-    @Test
-    void translateTitleFallsBackToOpenAiWhenLocalQwenIsDisabled() {
-        AlertTitleTranslationService service = new AlertTitleTranslationService(
-                hannahTranslationClient,
-                openAiTranslationClient);
-        when(hannahTranslationClient.translate(any()))
-                .thenReturn(sourceFallback());
-        when(openAiTranslationClient.translateKoToEn(any()))
-                .thenReturn("Samsung Electronics earnings improve.");
-        when(openAiTranslationClient.model()).thenReturn("gpt-4o-mini");
-
-        AlertTitleTranslationService.TranslationResult result =
-                service.translateTitleWithResult("삼성전자 실적 개선", List.of());
-
-        assertThat(result.translatedText()).isEqualTo("Samsung Electronics earnings improve.");
-        assertThat(result.provider()).isEqualTo("openai-gpt-translation");
-        assertThat(result.modelVersion()).isEqualTo("openai:gpt-4o-mini");
-        assertThat(result.status()).isEqualTo("TRANSLATED");
-    }
-
-    @Test
-    void translateTitleRejectsOpenAiFallbackWithHangul() {
-        AlertTitleTranslationService service = new AlertTitleTranslationService(
-                hannahTranslationClient,
-                openAiTranslationClient);
-        when(hannahTranslationClient.translate(any()))
-                .thenReturn(sourceFallback());
-        when(openAiTranslationClient.translateKoToEn(any()))
-                .thenReturn("Samsung Electronics 실적 improve.");
-
-        AlertTitleTranslationService.TranslationResult result =
-                service.translateTitleWithResult("삼성전자 실적 개선", List.of());
-
-        assertThat(result.translatedText()).contains("Korean market source item");
-        assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
     }
 
