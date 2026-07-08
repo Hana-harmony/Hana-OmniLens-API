@@ -63,10 +63,10 @@ paths:
       operationId: verifyTaxDocument
       summary: Verify a tax document through Hannah-Montana-AI OCR.
       description: >
-        Validates OCR confidence, extracted tax fields, and fraud indicators for
-        residence certificates, apostille certificates, and reduced withholding
-        tax applications. Document bytes are base64 encoded and never stored by
-        OmniLens.
+        Sends tax document bytes to Hannah-Montana-AI for OCR, field extraction,
+        and document rule review. Existing partner OCR text can be supplied as
+        extractedText, but OmniLens does not fabricate OCR confidence or fraud
+        scores. Document bytes are base64 encoded and never stored by OmniLens.
       requestBody:
         required: true
         content:
@@ -807,7 +807,7 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-        ocrText:
+        extractedText:
           type: string
           maxLength: 20000
         documentContentBase64:
@@ -822,10 +822,12 @@ components:
           type: number
           minimum: 0
           maximum: 1
+          description: Optional upstream OCR confidence. Omit when sending raw document bytes.
         fraudSignalScore:
           type: number
           minimum: 0
           maximum: 1
+          description: Optional upstream fraud signal. Omit when no fraud detector has run.
         expectedInvestorId:
           type: string
           maxLength: 120
