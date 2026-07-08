@@ -114,10 +114,31 @@ public class AlertTitleTranslationService {
                         modelVersion,
                         status)
                 : TranslationResult.sourceFallback(
-                        "",
+                        fallbackEnglishText(originalText, glossaryTerms),
                         modelVersion);
         translationCache.put(cacheKey, result);
         return result;
+    }
+
+    private String fallbackEnglishText(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
+        String normalized = normalizeWhitespace(originalText);
+        if (!StringUtils.hasText(normalized)) {
+            return "";
+        }
+        if (!HANGUL_PATTERN.matcher(normalized).find()) {
+            return normalized;
+        }
+        String subject = glossaryTerms == null || glossaryTerms.isEmpty()
+                ? "the Korean market source item"
+                : "the Korean market source item covering " + glossaryTerms.stream()
+                        .map(AlertGlossaryTerm::englishTerm)
+                        .filter(StringUtils::hasText)
+                        .distinct()
+                        .limit(3)
+                        .reduce((left, right) -> left + ", " + right)
+                        .orElse("listed securities");
+        return subject + ". The original Korean text is retained because machine translation was unavailable. "
+                + "Review the linked article or filing for price, liquidity, and portfolio impact.";
     }
 
     private String applyLocalismSurfaceTerms(String text, List<AlertGlossaryTerm> glossaryTerms) {
@@ -348,6 +369,10 @@ public class AlertTitleTranslationService {
         }
         char next = text.charAt(index);
         return Character.isWhitespace(next) || next == '"' || next == '\'' || next == '”' || next == ')';
+    }
+
+    private String normalizeWhitespace(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", " ").trim();
     }
 
     private String sha256Hex(String value) {

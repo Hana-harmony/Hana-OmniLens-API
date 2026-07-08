@@ -108,6 +108,7 @@ class MarketQuoteWebSocketContractTest {
     void replayRequestReturnsCurrentQuoteSnapshot() throws Exception {
         BlockingQueue<String> messages = new LinkedBlockingQueue<>();
         WebSocketSession session = connect(messages);
+        ingestionService.ingestKisMessage(kisFrame(KisRealtimeTransaction.TRADE, tradePayload()));
 
         session.sendMessage(new TextMessage("""
                 {"type":"QUOTE_STREAM_REPLAY","currency":"USD","after":"2026-06-18T06:00:00Z"}

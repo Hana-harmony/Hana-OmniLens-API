@@ -236,7 +236,12 @@ public class MarketNewsCollectionService {
     }
 
     private String repairedTranslatedContent(MarketNewsEvent event, String originalContent) {
-        if (EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())) {
+        if (EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())
+                && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                        event.translatedContent(),
+                        event.summaryLines(),
+                        event.translatedSummary(),
+                        originalContent)) {
             return EnglishNewsQualityGate.englishTextOrEmpty(event.translatedContent());
         }
         if (!StringUtils.hasText(originalContent)) {
@@ -463,7 +468,7 @@ public class MarketNewsCollectionService {
             return StringUtils.hasText(sourceAvailability) ? sourceAvailability : "DISCOVERY_ONLY";
         }
         if (!StringUtils.hasText(translatedContent)) {
-            return "SUMMARY_ONLY";
+            return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "ORIGINAL_TEXT_ONLY";
         }
         return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "FULL_TEXT";
     }
@@ -566,7 +571,11 @@ public class MarketNewsCollectionService {
     }
 
     private String requireEnglishText(TranslationResult result, String context) {
-        if (result == null || !hasCompleteEnglishTranslationStatus(result)) {
+        if (result == null) {
+            throw new IllegalStateException("English translation failed: "
+                    + context + " (" + translationFailureDetails(result) + ")");
+        }
+        if (!hasCompleteEnglishTranslationStatus(result)) {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
         }
@@ -607,7 +616,15 @@ public class MarketNewsCollectionService {
             }
             return EnglishNewsQualityGate.englishTextOrEmpty(result.translatedText());
         }
-        if (result == null || !hasCompleteEnglishTranslationStatus(result)) {
+        if (result == null) {
+            throw new IllegalStateException("English translation failed: "
+                    + context + " (" + translationFailureDetails(result) + ")");
+        }
+        if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+                && EnglishNewsQualityGate.containsHangul(originalContent)) {
+            return "";
+        }
+        if (!hasCompleteEnglishTranslationStatus(result)) {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
         }
@@ -616,12 +633,20 @@ public class MarketNewsCollectionService {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
         }
+        if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())) {
+            return EnglishNewsQualityGate.containsHangul(originalContent)
+                    ? ""
+                    : englishText;
+        }
         if (isLikelyIncompleteTranslation(originalContent, englishText)) {
             throw new IllegalStateException("English translation incomplete: "
                     + context + " (sourceLength=%d, translatedLength=%d)"
                             .formatted(
                                     originalContent.replaceAll("\\s+", " ").trim().length(),
                                     englishText.replaceAll("\\s+", " ").trim().length()));
+        }
+        if (EnglishNewsQualityGate.looksLikeStructuredSummaryContent(englishText)) {
+            throw new IllegalStateException("English translation is summary-only: " + context);
         }
         return englishText;
     }
@@ -885,11 +910,16 @@ public class MarketNewsCollectionService {
     private boolean hasEnglishTranslationStatus(TranslationResult result) {
         return result != null
                 && (AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
-                || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status()));
+                || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                || (AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                && EnglishNewsQualityGate.hasUsableEnglishText(result.translatedText())));
     }
 
     private boolean hasCompleteEnglishTranslationStatus(TranslationResult result) {
-        return result != null && AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status());
+        return result != null
+                && (AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+                || (AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                && EnglishNewsQualityGate.hasUsableEnglishText(result.translatedText())));
     }
 
     private TranslationResult alreadyEnglishSummaryResult(

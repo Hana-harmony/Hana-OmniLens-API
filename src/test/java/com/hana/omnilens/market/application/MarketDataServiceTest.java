@@ -558,7 +558,7 @@ class MarketDataServiceTest {
 
         assertThatThrownBy(() -> service.getQuote("005930", "USD", new BigDecimal("0.00072")))
                 .isInstanceOf(MarketDataUnavailableException.class)
-                .hasMessageContaining("KIS market data provider is unavailable");
+                .hasMessageContaining("No live provider price is available");
     }
 
     @Test
@@ -750,18 +750,19 @@ class MarketDataServiceTest {
     }
 
     @Test
-    void getQuotesReturnsAllSeededStocksWhenStockCodesAreMissing() {
+    void getQuotesReturnsPassiveSeededStocksWithoutKisRestFanOut() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
         ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        RealtimeMarketDataCache realtimeCache = new InMemoryRealtimeMarketDataCache();
         MarketDataService service = new MarketDataService(
                 client,
                 kisCurrentPriceClient,
                 repository,
                 cache,
                 new InMemoryExchangeRateCache(),
-                new InMemoryRealtimeMarketDataCache(),
+                realtimeCache,
                 FIXED_CLOCK);
         StockSummary skHynix = new StockSummary(
                 "000660",
@@ -776,13 +777,32 @@ class MarketDataServiceTest {
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
         cache.put(foreignOwnershipSnapshot("000660"));
         cache.put(foreignOwnershipSnapshot("005930"));
-        when(kisCurrentPriceClient.findCurrentPrice("000660")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership("000660")));
-        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.of(kisSnapshotWithForeignOwnership("005930")));
+        realtimeCache.putTrade(new KisRealtimeTradeTick(
+                "000660",
+                "093000",
+                new BigDecimal("510000"),
+                new BigDecimal("1.25"),
+                new BigDecimal("511000"),
+                new BigDecimal("509000"),
+                900L,
+                4_000_000L,
+                LocalDate.of(2025, 6, 4)));
+        realtimeCache.putTrade(new KisRealtimeTradeTick(
+                "005930",
+                "093001",
+                new BigDecimal("81500"),
+                new BigDecimal("1.92"),
+                new BigDecimal("81600"),
+                new BigDecimal("81400"),
+                1200L,
+                16_200_000L,
+                LocalDate.of(2025, 6, 4)));
 
         List<MarketQuote> quotes = service.getQuotes(List.of(), "KOSPI", "USD", new BigDecimal("0.00072"), 10);
 
         assertThat(quotes).extracting(MarketQuote::stockCode).containsExactly("000660", "005930");
         assertThat(quotes).extracting(MarketQuote::fxRateSource).containsOnly("PARTNER_REQUEST");
+        verifyNoInteractions(kisCurrentPriceClient);
     }
 
     @Test
@@ -825,18 +845,30 @@ class MarketDataServiceTest {
     }
 
     @Test
-    void getQuotesFailsWhenQuoteProviderConnectionIsUnavailable() {
+    void getQuotesFallsBackToStoredIntradayWhenKisCurrentPriceIsUnavailable() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
         StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketIntradayPriceRepository intradayRepository = mock(MarketIntradayPriceRepository.class);
+        MarketDailyPriceRepository dailyRepository = mock(MarketDailyPriceRepository.class);
         ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
         MarketDataService service = new MarketDataService(
                 client,
                 kisCurrentPriceClient,
+                null,
+                null,
                 repository,
                 cache,
+                new InMemoryForeignOwnershipDailySnapshotRepository(),
+                new InMemoryForeignOwnershipPredictionCache(),
                 new InMemoryExchangeRateCache(),
                 new InMemoryRealtimeMarketDataCache(),
+                new InMemoryMarketIndexSnapshotRepository(),
+                null,
+                intradayRepository,
+                dailyRepository,
+                null,
+                new ForeignOwnershipPredictionEngine(FIXED_CLOCK),
                 FIXED_CLOCK);
         StockSummary skHynix = new StockSummary(
                 "000660",
@@ -849,16 +881,47 @@ class MarketDataServiceTest {
         when(repository.findByCode("000660")).thenReturn(Optional.of(skHynix));
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
         when(kisCurrentPriceClient.findCurrentPrice("000660"))
-                .thenThrow(new IllegalStateException("kis endpoint unavailable"));
+                .thenThrow(new IllegalStateException("EGW00201"));
+        when(intradayRepository.findLatestByStockCodeAndDate("000660", LocalDate.of(2025, 6, 4)))
+                .thenReturn(Optional.of(new MarketIntradayPrice(
+                        "000660",
+                        LocalDateTime.of(2025, 6, 4, 15, 30),
+                        "KOSPI",
+                        new BigDecimal("509000"),
+                        new BigDecimal("510000"),
+                        new BigDecimal("508000"),
+                        new BigDecimal("510000"),
+                        4_000_000L,
+                        new BigDecimal("2040000000000"),
+                        "KIS_TIME_CHART_PRICE",
+                        FIXED_CLOCK.instant())));
+        when(dailyRepository.findLatestBefore("000660", LocalDate.of(2025, 6, 4)))
+                .thenReturn(Optional.of(new MarketDailyPrice(
+                        "000660",
+                        LocalDate.of(2025, 6, 3),
+                        "KOSPI",
+                        new BigDecimal("500000"),
+                        new BigDecimal("502000"),
+                        new BigDecimal("498000"),
+                        new BigDecimal("500000"),
+                        BigDecimal.ZERO,
+                        3_000_000L,
+                        new BigDecimal("1500000000000"),
+                        new BigDecimal("500000"),
+                        "KRX_DAILY",
+                        FIXED_CLOCK.instant())));
 
-        assertThatThrownBy(() -> service.getQuotes(
+        List<MarketQuote> quotes = service.getQuotes(
                 List.of("000660", "005930"),
                 "KOSPI",
                 "USD",
-                null,
-                10))
-                .isInstanceOf(MarketDataUnavailableException.class)
-                .hasMessageContaining("KIS market data provider is unavailable");
+                new BigDecimal("0.00072"),
+                10);
+
+        assertThat(quotes)
+                .extracting(MarketQuote::stockCode)
+                .containsExactly("000660");
+        assertThat(quotes.get(0).source()).contains("KIS_INTRADAY_PRICE_SNAPSHOT");
     }
 
     @Test

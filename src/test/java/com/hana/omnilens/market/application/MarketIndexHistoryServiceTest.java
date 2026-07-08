@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import com.hana.omnilens.market.domain.MarketIndexIntradayPrice;
 import com.hana.omnilens.provider.market.KisIndexMinuteChartPrice;
 import com.hana.omnilens.provider.market.KisIndexMinuteChartPriceClient;
+import com.hana.omnilens.provider.market.YahooIndexMinuteChartPriceClient;
 
 class MarketIndexHistoryServiceTest {
 
@@ -93,6 +94,78 @@ class MarketIndexHistoryServiceTest {
         verifyNoInteractions(kisClient);
         assertThat(prices).hasSize(1);
         assertThat(prices.get(0).closeValue()).isEqualByComparingTo("8088.34");
+    }
+
+    @Test
+    void getIntradayHistoryKeepsLatestStoredBucketsWhenLimitIsSmallerThanSession() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        LocalDate explicitDate = LocalDate.of(2026, 7, 2);
+        repository.recordRealtimeMinute(intraday(LocalDateTime.of(2026, 7, 2, 9, 0), "2880.00"));
+        repository.recordRealtimeMinute(intraday(LocalDateTime.of(2026, 7, 2, 9, 1), "2881.00"));
+        repository.recordRealtimeMinute(intraday(LocalDateTime.of(2026, 7, 2, 15, 30), "2899.00"));
+        MarketIndexHistoryService service = new MarketIndexHistoryService(kisClient, repository, PRE_OPEN_CLOCK);
+
+        List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 2);
+
+        verifyNoInteractions(kisClient);
+        assertThat(prices)
+                .extracting(price -> price.bucketStart().toLocalTime().toString())
+                .containsExactly("09:01", "15:30");
+    }
+
+    @Test
+    void getIntradayHistoryBackfillsPartialTodaySeries() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        Clock duringMarketClock = Clock.fixed(
+                Instant.parse("2026-07-02T05:00:00Z"),
+                ZoneId.of("Asia/Seoul"));
+        LocalDate explicitDate = LocalDate.of(2026, 7, 2);
+        repository.recordRealtimeMinute(intraday(LocalDateTime.of(2026, 7, 2, 13, 59), "2888.00"));
+        when(kisClient.findMinutePrices("0001", explicitDate, 390)).thenReturn(List.of(
+                kisPrice(LocalDateTime.of(2026, 7, 2, 9, 1), "2881.00"),
+                kisPrice(LocalDateTime.of(2026, 7, 2, 14, 0), "2892.00")));
+        MarketIndexHistoryService service = new MarketIndexHistoryService(kisClient, repository, duringMarketClock);
+
+        List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 390);
+
+        verify(kisClient).findMinutePrices("0001", explicitDate, 390);
+        assertThat(prices)
+                .extracting(price -> price.bucketStart().toLocalTime().toString())
+                .containsExactly("09:01", "13:59", "14:00");
+        assertThat(prices)
+                .extracting(MarketIndexIntradayPrice::closeValue)
+                .containsExactly(new BigDecimal("2881.00"), new BigDecimal("2888.00"), new BigDecimal("2892.00"));
+    }
+
+    @Test
+    void getIntradayHistoryUsesYahooFallbackWhenKisSeriesIsStillTooShort() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        YahooIndexMinuteChartPriceClient yahooClient = mock(YahooIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        Clock afterMarketClock = Clock.fixed(
+                Instant.parse("2026-07-02T07:00:00Z"),
+                ZoneId.of("Asia/Seoul"));
+        LocalDate explicitDate = LocalDate.of(2026, 7, 2);
+        when(kisClient.findMinutePrices("0001", explicitDate, 390)).thenReturn(List.of());
+        when(yahooClient.findMinutePrices("0001", explicitDate, 390)).thenReturn(List.of(
+                kisPrice(LocalDateTime.of(2026, 7, 2, 9, 0), "2880.00"),
+                kisPrice(LocalDateTime.of(2026, 7, 2, 9, 1), "2881.00"),
+                kisPrice(LocalDateTime.of(2026, 7, 2, 15, 30), "2899.00")));
+        MarketIndexHistoryService service =
+                new MarketIndexHistoryService(kisClient, yahooClient, repository, afterMarketClock);
+
+        List<MarketIndexIntradayPrice> prices = service.getIntradayHistory("0001", explicitDate, 390);
+
+        verify(kisClient).findMinutePrices("0001", explicitDate, 390);
+        verify(yahooClient).findMinutePrices("0001", explicitDate, 390);
+        assertThat(prices)
+                .extracting(price -> price.bucketStart().toLocalTime().toString())
+                .containsExactly("09:00", "09:01", "15:30");
+        assertThat(prices)
+                .extracting(MarketIndexIntradayPrice::source)
+                .containsOnly("YAHOO_FINANCE_INDEX_CHART");
     }
 
     @Test

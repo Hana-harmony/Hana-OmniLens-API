@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
+import com.hana.omnilens.alert.domain.AlertSummaryLines;
+
 class EnglishNewsQualityGateTest {
 
     @Test
@@ -86,6 +88,9 @@ class EnglishNewsQualityGateTest {
                 .isFalse();
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText("Korean stock market"))
                 .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
+                "The original Korean text is retained because machine translation was unavailable. Review the linked article or filing for price, liquidity, and portfolio impact."))
+                .isFalse();
     }
 
     @Test
@@ -123,6 +128,28 @@ class EnglishNewsQualityGateTest {
     }
 
     @Test
+    void detectsSummaryLinesMisusedAsArticleContent() {
+        AlertSummaryLines summaryLines = new AlertSummaryLines(
+                "Samsung Electronics expects earnings to improve as HBM demand expands.",
+                "Data center investment is the main driver.",
+                "Investors should monitor operating-profit recovery.");
+
+        assertThat(EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                """
+                What: Samsung Electronics expects earnings to improve as HBM demand expands.
+                Why: Data center investment is the main driver.
+                Impact: Investors should monitor operating-profit recovery.
+                """,
+                summaryLines,
+                "Samsung Electronics expects earnings to improve as HBM demand expands.\n"
+                        + "Data center investment is the main driver.\n"
+                        + "Investors should monitor operating-profit recovery.",
+                "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다. 데이터센터 투자가 주요 배경이다. "
+                        + "투자자는 영업이익 회복 속도를 확인해야 한다."))
+                .isTrue();
+    }
+
+    @Test
     void keepsNormalHyphenatedFinancialAndTechnologyTerms() {
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
                 "Humanoid-robot demand creates a multi-trillion-dollar opportunity, while edge-computing parts and supply-chain suppliers benefit first."))
@@ -132,6 +159,18 @@ class EnglishNewsQualityGateTest {
                 .isTrue();
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
                 "Semiconductor-led flows left price-to-book valuations, interest-rate pressure, and balance-sheet quality in focus."))
+                .isTrue();
+    }
+
+    @Test
+    void keepsLongArticleTranslationWithUnlistedHyphenatedTerms() {
+        String translatedArticle = """
+                A government-led-private-sector investment program expanded as overseas investors rotated
+                back into Korean equities. The article said semiconductor, shipbuilding, battery, and
+                platform companies drew attention as exchange-traded fund demand increased.
+                """.repeat(12);
+
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText(translatedArticle))
                 .isTrue();
     }
 

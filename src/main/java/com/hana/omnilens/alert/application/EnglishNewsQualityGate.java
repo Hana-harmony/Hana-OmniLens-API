@@ -2,6 +2,7 @@ package com.hana.omnilens.alert.application;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.util.StringUtils;
@@ -91,6 +92,67 @@ public final class EnglishNewsQualityGate {
                 && !containsLowQualityTranslation(normalized);
     }
 
+    public static boolean looksLikeStructuredSummaryContent(String value) {
+        String normalized = normalizeWhitespace(value);
+        if (!StringUtils.hasText(normalized)) {
+            return false;
+        }
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        return Pattern.compile("(^|\\s)what\\s*:", Pattern.CASE_INSENSITIVE).matcher(normalized).find()
+                && Pattern.compile("(^|\\s)why\\s*:", Pattern.CASE_INSENSITIVE).matcher(normalized).find()
+                && Pattern.compile("(^|\\s)impact\\s*:", Pattern.CASE_INSENSITIVE).matcher(normalized).find()
+                || lower.startsWith("what happened:")
+                        && lower.contains("why it matters:")
+                        && lower.contains("investor impact:");
+    }
+
+    public static boolean looksLikeSummaryOnlyContent(
+            String content,
+            AlertSummaryLines summaryLines,
+            String translatedSummary,
+            String originalContent) {
+        String normalizedContent = normalizeForComparison(content);
+        if (!StringUtils.hasText(normalizedContent)) {
+            return false;
+        }
+        if (looksLikeStructuredSummaryContent(content)) {
+            return true;
+        }
+        if (equalsNormalized(normalizedContent, translatedSummary)) {
+            return true;
+        }
+        if (summaryLines != null) {
+            String rawSummaryLines = String.join(" ",
+                    nullToEmpty(summaryLines.what()),
+                    nullToEmpty(summaryLines.why()),
+                    nullToEmpty(summaryLines.impact()));
+            String labeledSummaryLines = String.join(" ",
+                    label("What", summaryLines.what()),
+                    label("Why", summaryLines.why()),
+                    label("Impact", summaryLines.impact()));
+            if (equalsNormalized(normalizedContent, rawSummaryLines)
+                    || equalsNormalized(normalizedContent, labeledSummaryLines)) {
+                return true;
+            }
+        }
+        String normalizedOriginal = normalizeWhitespace(originalContent);
+        if (normalizedOriginal.length() < 500) {
+            return false;
+        }
+        int contentLength = normalizedContent.length();
+        int minimumExpectedLength = Math.max(240, (int) (normalizedOriginal.length() * 0.22));
+        if (contentLength >= minimumExpectedLength) {
+            return false;
+        }
+        String lower = normalizedContent.toLowerCase(Locale.ROOT);
+        return englishSentenceCount(normalizedContent) <= 3
+                && (lower.contains("investors should")
+                        || lower.contains("the article cites")
+                        || lower.contains("the disclosure cites")
+                        || lower.contains("the company said")
+                        || lower.contains("market reaction"));
+    }
+
     public static String englishSummaryTextOrEmpty(String value) {
         String normalized = normalizeWhitespace(value);
         if (StringUtils.hasText(normalized)
@@ -129,6 +191,8 @@ public final class EnglishNewsQualityGate {
                 || lower.contains("the story links the shift to the article")
                 || lower.contains("investors should follow the next disclosure and watch the market reaction")
                 || lower.contains("investors should track the next disclosure and market reaction as the story develops")
+                || lower.contains("the original korean text is retained because machine translation was unavailable")
+                || lower.contains("review the linked article or filing for price, liquidity, and portfolio impact")
                 || lower.contains("the key background is confirmed in the latest news")
                 || lower.contains("the key background is confirmed in the latest disclosure")
                 || lower.contains("confirmed in the latest news")
@@ -257,6 +321,9 @@ public final class EnglishNewsQualityGate {
                 || lower.contains("republic of china")) {
             return true;
         }
+        if (lower.length() >= 1_000) {
+            return false;
+        }
         return Pattern.compile("\\b[a-z][a-z]+(?:-[a-z][a-z]+){2,}(?:'s)?\\b")
                 .matcher(lower)
                 .results()
@@ -306,6 +373,37 @@ public final class EnglishNewsQualityGate {
 
     private static boolean startsWithStockCodeSubject(String value) {
         return Pattern.compile("^\\d{6}\\b").matcher(value).find();
+    }
+
+    private static boolean equalsNormalized(String normalizedValue, String other) {
+        String normalizedOther = normalizeForComparison(other);
+        return StringUtils.hasText(normalizedOther) && normalizedValue.equals(normalizedOther);
+    }
+
+    private static String normalizeForComparison(String value) {
+        return normalizeWhitespace(value)
+                .replaceAll("(?i)\\b(what|why|impact|what happened|why it matters|investor impact)\\s*:", "")
+                .replaceAll("[\\p{Punct}&&[^%]]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
+    private static String label(String label, String value) {
+        return StringUtils.hasText(value) ? label + ": " + value : "";
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static int englishSentenceCount(String text) {
+        Matcher matcher = Pattern.compile("[^.!?]+[.!?]").matcher(text);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
     }
 
     private static String normalizeWhitespace(String value) {
