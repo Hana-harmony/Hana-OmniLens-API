@@ -61,8 +61,6 @@ class TaxDocumentVerificationControllerTest {
                                   "fileName": "residence.txt",
                                   "documentContentBase64": "VVM=",
                                   "contentType": "text/plain",
-                                  "ocrConfidence": 0.91,
-                                  "fraudSignalScore": 0.03,
                                   "expectedInvestorId": "US_USER_1234",
                                   "expectedResidencyCountry": "US"
                                 }

@@ -2,6 +2,7 @@ package com.hana.omnilens.provider.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
@@ -30,6 +31,8 @@ class HannahAiTaxDocumentVerificationClientTest {
                 .andExpect(headerDoesNotExist("X-HANNAH-AI-SERVICE-TOKEN"))
                 .andExpect(content().string(containsString("\"document_type\":\"RESIDENCE_CERTIFICATE\"")))
                 .andExpect(content().string(containsString("\"document_content_base64\":\"VVM=\"")))
+                .andExpect(content().string(not(containsString("\"ocr_confidence\""))))
+                .andExpect(content().string(not(containsString("\"fraud_signal_score\""))))
                 .andRespond(withSuccess("""
                         {
                           "success": true,
@@ -60,8 +63,8 @@ class HannahAiTaxDocumentVerificationClientTest {
                         "",
                         "VVM=",
                         "text/plain",
-                        0.91,
-                        0.03,
+                        null,
+                        null,
                         "US_USER_1234",
                         "US",
                         Map.of()));
