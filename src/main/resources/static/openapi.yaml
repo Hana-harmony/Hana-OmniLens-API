@@ -29,6 +29,8 @@ tags:
     description: Partner credential operation APIs.
   - name: Korean Financial Terms
     description: Korean market slang and financial term explanation APIs.
+  - name: Tax OCR
+    description: Tax document OCR verification APIs backed by Hannah-Montana-AI.
 x-websocket:
   alertStream:
     endpoint: /ws/alerts
@@ -54,6 +56,36 @@ x-websocket:
       realtime trade tick. Sending QUOTE_STREAM_REPLAY replays the current
       quote snapshot in the requested local currency.
 paths:
+  /api/v1/tax/documents/verify:
+    post:
+      tags:
+        - Tax OCR
+      operationId: verifyTaxDocument
+      summary: Verify a tax document through Hannah-Montana-AI OCR.
+      description: >
+        Validates OCR confidence, extracted tax fields, and fraud indicators for
+        residence certificates, apostille certificates, and reduced withholding
+        tax applications. Document bytes are base64 encoded and never stored by
+        OmniLens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaxDocumentVerificationRequest"
+      responses:
+        "200":
+          description: Tax document verification result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaxDocumentVerificationApiResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/market/stocks/{stockCode}:
     get:
       tags:
@@ -755,6 +787,107 @@ components:
     ServiceUnavailable:
       description: Server security or provider configuration is incomplete.
   schemas:
+    TaxDocumentVerificationRequest:
+      type: object
+      required:
+        - documentType
+        - fileName
+        - documentContentBase64
+      properties:
+        documentType:
+          type: string
+          enum:
+            - RESIDENCE_CERTIFICATE
+            - APOSTILLE
+            - REDUCED_TAX_APPLICATION
+            - TREATY_APPLICATION
+            - PASSPORT
+            - OTHER
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        ocrText:
+          type: string
+          maxLength: 20000
+        documentContentBase64:
+          type: string
+          maxLength: 14000000
+          description: Base64 encoded document content passed to Hannah-Montana-AI.
+        contentType:
+          type: string
+          maxLength: 120
+          example: application/pdf
+        ocrConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        fraudSignalScore:
+          type: number
+          minimum: 0
+          maximum: 1
+        expectedInvestorId:
+          type: string
+          maxLength: 120
+        expectedResidencyCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+        extractedFields:
+          type: object
+          additionalProperties:
+            type: string
+    TaxDocumentVerification:
+      type: object
+      required:
+        - verificationStatus
+        - ocrConfidence
+        - fraudRiskScore
+        - riskLevel
+        - manualReviewRequired
+        - documentModelVersion
+        - source
+      properties:
+        verificationStatus:
+          type: string
+          enum: [VERIFIED, PENDING, REJECTED]
+        ocrConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        fraudRiskScore:
+          type: number
+          minimum: 0
+          maximum: 1
+        riskLevel:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+        manualReviewRequired:
+          type: boolean
+        extractedFields:
+          type: object
+          additionalProperties:
+            type: string
+        missingRequiredFields:
+          type: array
+          items:
+            type: string
+        rejectionReasons:
+          type: array
+          items:
+            type: string
+        documentModelVersion:
+          type: string
+        source:
+          type: string
+          example: HANNAH_MONTANA_AI_TAX_OCR
+    TaxDocumentVerificationApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/TaxDocumentVerification"
     ApiResponseBase:
       type: object
       required:
