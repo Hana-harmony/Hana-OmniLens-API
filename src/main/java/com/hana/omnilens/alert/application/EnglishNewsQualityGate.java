@@ -337,10 +337,31 @@ public final class EnglishNewsQualityGate {
                 || containsGenericFallback(normalized)
                 || containsLowQualityTranslation(normalized)
                 || startsWithStockCodeSubject(normalized)
+                || isFragmentarySummaryLine(normalized)
                 || !endsAsEnglishSentence(normalized)) {
             return "";
         }
         return normalized;
+    }
+
+    private static boolean isFragmentarySummaryLine(String value) {
+        String lower = value.toLowerCase(Locale.ROOT);
+        if (value.startsWith("()")
+                || value.equals(".")
+                || lower.equals("korean stock market.")
+                || lower.equals("korean stock market")) {
+            return true;
+        }
+        long wordCount = Pattern.compile("[A-Za-z]{2,}").matcher(value).results().count();
+        if (wordCount < 4) {
+            return true;
+        }
+        long letterCount = Pattern.compile("[A-Za-z]").matcher(value).results().count();
+        long punctuationCount = Pattern.compile("[()%,;:·]").matcher(value).results().count();
+        if (letterCount == 0 || punctuationCount * 100 > letterCount * 34) {
+            return true;
+        }
+        return lower.startsWith("the article cites ") && wordCount < 6;
     }
 
     private static boolean startsWithStockCodeSubject(String value) {
