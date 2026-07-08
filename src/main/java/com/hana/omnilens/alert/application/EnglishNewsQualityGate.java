@@ -86,6 +86,7 @@ public final class EnglishNewsQualityGate {
         String normalized = normalizeWhitespace(value);
         return StringUtils.hasText(normalized)
                 && !containsHangul(normalized)
+                && !containsEllipsis(normalized)
                 && !containsGenericFallback(normalized)
                 && !containsLowQualityTranslation(normalized);
     }
@@ -116,6 +117,8 @@ public final class EnglishNewsQualityGate {
         return lower.contains("korean company update")
                 || lower.contains("korean market update")
                 || lower.contains("a korean market update")
+                || lower.equals("korean stock market")
+                || lower.equals("[korean stock market ]")
                 || lower.contains("this item covers") && lower.contains("from korean market news")
                 || lower.contains("latest market or company context confirmed in the source article")
                 || lower.contains("investors should review possible effects on prices, earnings, liquidity, and watched holdings")
@@ -290,8 +293,12 @@ public final class EnglishNewsQualityGate {
             return true;
         }
         long letterCount = Pattern.compile("[A-Za-z]").matcher(value).results().count();
+        long digitCount = Pattern.compile("\\d").matcher(value).results().count();
         long punctuationCount = Pattern.compile("[()%,;:·]").matcher(value).results().count();
         if (letterCount == 0 || punctuationCount * 100 > letterCount * 34) {
+            return true;
+        }
+        if (digitCount > letterCount && wordCount < 7) {
             return true;
         }
         return lower.startsWith("the article cites ") && wordCount < 6;
