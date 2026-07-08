@@ -90,6 +90,18 @@ class EnglishNewsQualityGateTest {
     }
 
     @Test
+    void rejectsFragmentaryTickerAndMarketSummaryLines() {
+        assertThat(EnglishNewsQualityGate.englishSummaryLineOrEmpty(
+                "() crisis intraday Korean stock market."))
+                .isEmpty();
+        assertThat(EnglishNewsQualityGate.englishSummaryLineOrEmpty("."))
+                .isEmpty();
+        assertThat(EnglishNewsQualityGate.englishSummaryLineOrEmpty(
+                "(WTI) 72.69 3% surge (-4.60%), (-3.43%) stock price, SK (-6.34%), (-10.25%) IT· ·."))
+                .isEmpty();
+    }
+
+    @Test
     void keepsNormalFinancialEnglish() {
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
                 "SK hynix's Nasdaq listing raises questions about its impact on the domestic stock market."))
