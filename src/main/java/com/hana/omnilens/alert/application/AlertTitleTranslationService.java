@@ -32,8 +32,9 @@ public class AlertTitleTranslationService {
     public static final String STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK = "PARTIAL_SOURCE_LANGUAGE_FALLBACK";
     public static final String STATUS_SOURCE_LANGUAGE_FALLBACK = "SOURCE_LANGUAGE_FALLBACK";
     public static final String PROVIDER_LOCAL_OPEN_SOURCE_QWEN = "local-open-source-qwen3-translation";
+    public static final String PROVIDER_ALREADY_ENGLISH = "already-english";
     private static final String PROVIDER_SOURCE_LANGUAGE_FALLBACK = "source-language-fallback";
-    private static final String MODEL_HANNAH_TRANSLATION_UNAVAILABLE = "hannah-ai-translation-unavailable";
+    public static final String MODEL_HANNAH_TRANSLATION_UNAVAILABLE = "hannah-ai-translation-unavailable";
 
     private final HannahAiKoreanTranslationClient hannahTranslationClient;
     private final Map<String, TranslationResult> translationCache = new ConcurrentHashMap<>();
@@ -85,6 +86,14 @@ public class AlertTitleTranslationService {
     private TranslationResult translateOrFallback(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
         if (!StringUtils.hasText(originalText)) {
             return TranslationResult.sourceFallback("", MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
+        }
+        String alreadyEnglishText = EnglishNewsQualityGate.englishTextOrEmpty(originalText);
+        if (StringUtils.hasText(alreadyEnglishText)) {
+            return new TranslationResult(
+                    alreadyEnglishText,
+                    PROVIDER_ALREADY_ENGLISH,
+                    MODEL_HANNAH_TRANSLATION_UNAVAILABLE,
+                    STATUS_TRANSLATED);
         }
         String cacheKey = sha256Hex(originalText + "\n" + glossaryFingerprint(glossaryTerms));
         TranslationResult cached = translationCache.get(cacheKey);

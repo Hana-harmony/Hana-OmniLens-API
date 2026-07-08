@@ -945,8 +945,15 @@ public class AlertAnalysisPublishingService {
 
     private String translationProvider(TranslationResult... results) {
         for (TranslationResult result : results) {
-            if (StringUtils.hasText(result.provider())
+            if (result != null
+                    && StringUtils.hasText(result.provider())
+                    && !AlertTitleTranslationService.PROVIDER_ALREADY_ENGLISH.equals(result.provider())
                     && !"source-language-fallback".equals(result.provider())) {
+                return result.provider();
+            }
+        }
+        for (TranslationResult result : results) {
+            if (result != null && StringUtils.hasText(result.provider())) {
                 return result.provider();
             }
         }
@@ -955,7 +962,15 @@ public class AlertAnalysisPublishingService {
 
     private String translationModelVersion(TranslationResult... results) {
         for (TranslationResult result : results) {
-            if (StringUtils.hasText(result.modelVersion())) {
+            if (result != null
+                    && StringUtils.hasText(result.modelVersion())
+                    && !AlertTitleTranslationService.MODEL_HANNAH_TRANSLATION_UNAVAILABLE.equals(
+                            result.modelVersion())) {
+                return result.modelVersion();
+            }
+        }
+        for (TranslationResult result : results) {
+            if (result != null && StringUtils.hasText(result.modelVersion())) {
                 return result.modelVersion();
             }
         }

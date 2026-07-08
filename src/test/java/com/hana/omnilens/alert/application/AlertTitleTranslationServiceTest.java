@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,6 +70,20 @@ class AlertTitleTranslationServiceTest {
         assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.modelVersion()).isEqualTo(MODEL);
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
+    }
+
+    @Test
+    void translateTitleKeepsAlreadyEnglishTextWithoutCallingHannah() {
+        AlertTitleTranslationService.TranslationResult result =
+                translationService.translateTitleWithResult(
+                        "KOSPI and KOSDAQ plunge as sell-side circuit breakers trigger",
+                        List.of());
+
+        assertThat(result.translatedText())
+                .isEqualTo("KOSPI and KOSDAQ plunge as sell-side circuit breakers trigger");
+        assertThat(result.provider()).isEqualTo("already-english");
+        assertThat(result.status()).isEqualTo("TRANSLATED");
+        verify(hannahTranslationClient, never()).translate(any());
     }
 
     @Test
