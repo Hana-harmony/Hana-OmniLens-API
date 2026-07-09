@@ -146,9 +146,6 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
                 """
                 SELECT event_json
                 FROM market_news_event
-                WHERE (
-                """ + SUMMARY_QUALITY_CANDIDATE_FILTER + """
-                )
                 ORDER BY published_at DESC, created_at DESC
                 LIMIT ?
                 """,
@@ -210,6 +207,9 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
     }
 
     private boolean hasSummaryQualityIssue(MarketNewsEvent event) {
+        if (!EnglishNewsQualityGate.hasUsableEnglishHeadlineText(event.translatedTitle())) {
+            return true;
+        }
         if (!isBlank(event.originalContent()) && isBlank(event.translatedContent())) {
             return true;
         }

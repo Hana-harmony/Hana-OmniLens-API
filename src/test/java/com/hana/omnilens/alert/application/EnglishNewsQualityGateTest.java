@@ -88,9 +88,35 @@ class EnglishNewsQualityGateTest {
                 .isFalse();
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText("Korean stock market"))
                 .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("韓Korean stock market \" \""))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("KOSPI 3%↑"))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("[ ] KOSPI, 239.85p(3.31%) 7486.64"))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("KOSPI·, [ ]"))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("[8 ] foreign investor"))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("KOSPI plunge about 5% as semiconductor worries weigh."))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("KOSPI drops sharply as Middle East risk weigh."))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("KOSPI 5% plunge…4..."))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("[news1 PICK] KOSPI· 5%..."))
+                .isFalse();
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
                 "The original Korean text is retained because machine translation was unavailable. Review the linked article or filing for price, liquidity, and portfolio impact."))
                 .isFalse();
+    }
+
+    @Test
+    void rejectsOverlyTerseHeadlineFragmentsOnlyForHeadlines() {
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishHeadlineText("surge"))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText("surge"))
+                .isTrue();
     }
 
     @Test

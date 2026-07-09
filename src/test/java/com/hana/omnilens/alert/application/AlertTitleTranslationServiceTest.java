@@ -58,6 +58,34 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
+    void translateTitleRejectsBrokenHannahTitleFragments() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("韓Korean stock market \" \""));
+
+        AlertTitleTranslationService.TranslationResult result =
+                translationService.translateTitleWithResult(
+                        "장동혁, 韓증시 널뛰기 장세에 \"'블랙 에브리데이' 될까 걱정\"",
+                        List.of());
+
+        assertThat(result.translatedText()).contains("Korean market source item");
+        assertThat(result.provider()).isEqualTo("source-language-fallback");
+        assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
+    }
+
+    @Test
+    void translateTitleRejectsTickerOnlyFragments() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("KOSPI 3%↑"));
+
+        AlertTitleTranslationService.TranslationResult result =
+                translationService.translateTitleWithResult("미국 반도체주 훈풍에 코스피 장초반 3%↑", List.of());
+
+        assertThat(result.translatedText()).contains("Korean market source item");
+        assertThat(result.provider()).isEqualTo("source-language-fallback");
+        assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
+    }
+
+    @Test
     void translateTitleResultExposesSourceFallbackStatusWhenLocalQwenFails() {
         when(hannahTranslationClient.translate(any()))
                 .thenReturn(sourceFallback());
