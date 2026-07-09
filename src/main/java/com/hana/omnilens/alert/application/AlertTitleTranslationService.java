@@ -52,7 +52,7 @@ public class AlertTitleTranslationService {
     }
 
     public TranslationResult translateTitleWithResult(String originalTitle, List<AlertGlossaryTerm> glossaryTerms) {
-        return translateOrFallback(originalTitle, glossaryTerms);
+        return translateOrFallback(originalTitle, glossaryTerms, true);
     }
 
     public String translateText(String originalText) {
@@ -71,7 +71,7 @@ public class AlertTitleTranslationService {
             return TranslationResult.sourceFallback("", MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
         }
         List<TranslationResult> results = chunks(originalText).stream()
-                .map(chunk -> translateOrFallback(chunk, glossaryTerms))
+                .map(chunk -> translateOrFallback(chunk, glossaryTerms, false))
                 .toList();
         String translatedText = String.join("\n", results.stream()
                 .map(TranslationResult::translatedText)
@@ -83,7 +83,10 @@ public class AlertTitleTranslationService {
                 aggregateStatus(results));
     }
 
-    private TranslationResult translateOrFallback(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
+    private TranslationResult translateOrFallback(
+            String originalText,
+            List<AlertGlossaryTerm> glossaryTerms,
+            boolean headlineMode) {
         if (!StringUtils.hasText(originalText)) {
             return TranslationResult.sourceFallback("", MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
         }
@@ -106,7 +109,7 @@ public class AlertTitleTranslationService {
                 ? MODEL_HANNAH_TRANSLATION_UNAVAILABLE
                 : firstText(response.modelVersion(), MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
         String status = normalizeStatus(response == null ? "" : response.status());
-        TranslationResult result = usableTranslation(originalText, translatedText)
+        TranslationResult result = usableTranslation(originalText, translatedText, headlineMode)
                         && !STATUS_SOURCE_LANGUAGE_FALLBACK.equals(status)
                 ? new TranslationResult(
                         applyLocalismSurfaceTerms(translatedText, glossaryTerms),
@@ -272,16 +275,13 @@ public class AlertTitleTranslationService {
                 .toList();
     }
 
-    private boolean usableTranslation(String originalText, String translatedText) {
+    private boolean usableTranslation(String originalText, String translatedText, boolean headlineMode) {
         if (!StringUtils.hasText(translatedText) || originalText.strip().equals(translatedText.strip())) {
             return false;
         }
-        Matcher matcher = HANGUL_PATTERN.matcher(translatedText);
-        int hangulCount = 0;
-        while (matcher.find()) {
-            hangulCount++;
-        }
-        return hangulCount == 0;
+        return headlineMode
+                ? EnglishNewsQualityGate.hasUsableEnglishHeadlineText(translatedText)
+                : EnglishNewsQualityGate.hasUsableEnglishText(translatedText);
     }
 
     private String aggregateProvider(List<TranslationResult> results) {

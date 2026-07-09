@@ -12,6 +12,7 @@ import com.hana.omnilens.alert.domain.AlertSummaryLines;
 public final class EnglishNewsQualityGate {
 
     private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
+    private static final Pattern CJK_PATTERN = Pattern.compile("[\\u3400-\\u4DBF\\u4E00-\\u9FFF]");
     private static final Set<String> ALLOWED_HYPHENATED_TERMS = Set.of(
             "ai-server",
             "article-backed",
@@ -90,6 +91,12 @@ public final class EnglishNewsQualityGate {
                 && !containsEllipsis(normalized)
                 && !containsGenericFallback(normalized)
                 && !containsLowQualityTranslation(normalized);
+    }
+
+    public static boolean hasUsableEnglishHeadlineText(String value) {
+        String normalized = normalizeWhitespace(value);
+        return hasUsableEnglishText(normalized)
+                && !looksLikeOverlyTerseHeadlineFragment(normalized);
     }
 
     public static boolean looksLikeStructuredSummaryContent(String value) {
@@ -200,9 +207,17 @@ public final class EnglishNewsQualityGate {
     }
 
     public static boolean containsLowQualityTranslation(String value) {
-        String lower = normalizeWhitespace(value).toLowerCase(Locale.ROOT);
+        String normalized = normalizeWhitespace(value);
+        String lower = normalized.toLowerCase(Locale.ROOT);
         if (!StringUtils.hasText(lower)) {
             return false;
+        }
+        if (CJK_PATTERN.matcher(normalized).find()
+                || containsBrokenTitlePlaceholder(normalized)
+                || looksLikeBrokenMarketHeadlineGrammar(normalized)
+                || looksLikeBrokenMarketReasonGrammar(normalized)
+                || looksLikeTickerOnlyHeadlineFragment(normalized)) {
+            return true;
         }
         if (lower.contains("kang nam-go")
                 || lower.contains("pab-wo")
@@ -329,6 +344,54 @@ public final class EnglishNewsQualityGate {
                 .results()
                 .map(match -> match.group().replace("'s", ""))
                 .anyMatch(term -> !ALLOWED_HYPHENATED_TERMS.contains(term));
+    }
+
+    private static boolean containsBrokenTitlePlaceholder(String value) {
+        return value.contains("[ ]")
+                || value.contains("[]")
+                || value.contains("\"\"")
+                || value.contains("\" \"")
+                || Pattern.compile("\\[[\\s\\d]*]").matcher(value).find()
+                || value.contains("↑")
+                || value.contains("↓")
+                || value.contains("·,")
+                || value.endsWith("·");
+    }
+
+    private static boolean looksLikeOverlyTerseHeadlineFragment(String value) {
+        if (value.length() >= 120) {
+            return false;
+        }
+        long wordCount = Pattern.compile("[A-Za-z]{2,}").matcher(value).results().count();
+        return wordCount > 0 && wordCount < 3;
+    }
+
+    private static boolean looksLikeTickerOnlyHeadlineFragment(String value) {
+        String lower = value.toLowerCase(Locale.ROOT);
+        long wordCount = Pattern.compile("[A-Za-z]{2,}").matcher(value).results().count();
+        boolean hasMarketTicker = lower.contains("kospi") || lower.contains("kosdaq");
+        if (!hasMarketTicker || wordCount >= 4) {
+            return false;
+        }
+        boolean hasContextVerb = Pattern.compile(
+                "\\b(rise|rises|rose|fall|falls|fell|drop|drops|dropped|"
+                        + "plunge|plunges|plunged|"
+                        + "rebound|rebounds|recover|recovers|open|opens|close|closes)\\b")
+                .matcher(lower)
+                .find();
+        return !hasContextVerb || Pattern.compile("[↑↓]|\\d").matcher(value).find();
+    }
+
+    private static boolean looksLikeBrokenMarketHeadlineGrammar(String value) {
+        return Pattern.compile("^KOSPI\\s+(?:drop|plunge|fall)\\b", Pattern.CASE_INSENSITIVE)
+                .matcher(value)
+                .find();
+    }
+
+    private static boolean looksLikeBrokenMarketReasonGrammar(String value) {
+        return Pattern.compile("\\bMiddle East risk weigh\\b", Pattern.CASE_INSENSITIVE)
+                .matcher(value)
+                .find();
     }
 
     private static String sanitizeEnglishSummaryLine(String value) {
