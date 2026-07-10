@@ -15,5 +15,7 @@ public interface MarketIntradayPriceRepository {
 
     Optional<MarketIntradayPrice> findLatestByStockCodeAndDate(String stockCode, LocalDate date);
 
+    long sumTradingVolumeByStockCodeAndDate(String stockCode, LocalDate date);
+
     List<MarketIntradayPrice> findByStockCodeAndDate(String stockCode, LocalDate date, int limit);
 }

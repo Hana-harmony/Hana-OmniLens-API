@@ -50,6 +50,9 @@ class MarketDataServiceTest {
     private static final Clock FIXED_CLOCK = Clock.fixed(
             Instant.parse("2025-06-04T00:00:00Z"),
             ZoneId.of("Asia/Seoul"));
+    private static final Clock AFTER_CLOSE_CLOCK = Clock.fixed(
+            Instant.parse("2025-06-04T07:00:00Z"),
+            ZoneId.of("Asia/Seoul"));
 
     @Test
     void getIndicesFallsBackToStoredIndexSnapshotWhenRealtimeCacheIsEmpty() {
@@ -1009,12 +1012,14 @@ class MarketDataServiceTest {
                         "005930",
                         LocalDate.of(2025, 6, 3),
                         "80000")));
+        when(intradayPriceRepository.sumTradingVolumeByStockCodeAndDate(
+                "005930", LocalDate.of(2025, 6, 4))).thenReturn(18_300_000L);
 
         MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
 
         assertThat(quote.currentPriceKrw()).isEqualByComparingTo("81400");
         assertThat(quote.changeRate()).isEqualByComparingTo("1.7500");
-        assertThat(quote.volume()).isZero();
+        assertThat(quote.volume()).isEqualTo(18_300_000L);
         assertThat(quote.source()).isEqualTo("KIS_INTRADAY_PRICE_SNAPSHOT+KRX_FOREIGN_OWNERSHIP_CACHE");
     }
 
@@ -1176,6 +1181,40 @@ class MarketDataServiceTest {
     }
 
     @Test
+    void restrictedStockDoesNotExposeStaleForeignOwnershipSnapshot() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                repository,
+                cache,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                FIXED_CLOCK);
+        cache.put(new ForeignOwnershipSnapshot(
+                "015760",
+                1_000L,
+                new BigDecimal("54.19"),
+                2_000L,
+                new BigDecimal("54.19"),
+                LocalDate.of(2025, 6, 2)));
+        when(repository.findByCode("015760")).thenReturn(Optional.of(foreignLimitRestrictedStock()));
+        when(kisCurrentPriceClient.findCurrentPrice("015760")).thenReturn(Optional.empty());
+        when(client.findPrice("015760", LocalDate.of(2025, 6, 3))).thenReturn(Optional.empty());
+
+        StockDetail detail = service.getStockDetail("015760", "USD", null);
+
+        assertThat(detail.foreignOwnershipRate()).isNull();
+        assertThat(detail.foreignLimitExhaustionRate()).isNull();
+        assertThat(detail.foreignOwnershipBaseDate()).isNull();
+        assertThat(detail.foreignOwnershipPredictionConfidenceLevel()).isEqualTo("NO_SNAPSHOT");
+        assertThat(detail.source()).doesNotContain("KRX_FOREIGN_OWNERSHIP_CACHE");
+    }
+
+    @Test
     void getOrderabilityUsesRestOrderBookForPriceLimitStatusWhenRealtimeStatusIsUnavailable() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
@@ -1228,7 +1267,7 @@ class MarketDataServiceTest {
                 new InMemoryRealtimeMarketDataCache(),
                 null,
                 new ForeignOwnershipPredictionEngine(FIXED_CLOCK),
-                FIXED_CLOCK);
+                AFTER_CLOSE_CLOCK);
         cache.put(new ForeignOwnershipSnapshot(
                 "015760",
                 995L,
@@ -1353,7 +1392,7 @@ class MarketDataServiceTest {
                 new InMemoryRealtimeMarketDataCache(),
                 hannahClient,
                 new ForeignOwnershipPredictionEngine(FIXED_CLOCK),
-                FIXED_CLOCK);
+                AFTER_CLOSE_CLOCK);
         snapshotCache.put(new ForeignOwnershipSnapshot(
                 "015760",
                 995L,
@@ -1456,7 +1495,7 @@ class MarketDataServiceTest {
                 new InMemoryRealtimeMarketDataCache(),
                 hannahClient,
                 new ForeignOwnershipPredictionEngine(FIXED_CLOCK),
-                FIXED_CLOCK);
+                AFTER_CLOSE_CLOCK);
         cache.put(new ForeignOwnershipSnapshot(
                 "034120",
                 0L,
@@ -1505,7 +1544,7 @@ class MarketDataServiceTest {
                 new InMemoryRealtimeMarketDataCache(),
                 hannahClient,
                 new ForeignOwnershipPredictionEngine(FIXED_CLOCK),
-                FIXED_CLOCK);
+                AFTER_CLOSE_CLOCK);
         cache.put(new ForeignOwnershipSnapshot(
                 "015760",
                 995L,

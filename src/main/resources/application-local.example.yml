@@ -91,7 +91,7 @@ omnilens:
       ttl: 24h
     foreign-ownership-refresh:
       enabled: true
-      cron: "0 10 8 * * MON-FRI"
+      cron: "0 10 8,16 * * MON-FRI"
       request-delay-ms: 1200
       base-date-offset-days: 1
       backfill-lookback-days: 400

@@ -161,6 +161,21 @@ public class JdbcMarketIntradayPriceRepository implements MarketIntradayPriceRep
     }
 
     @Override
+    public long sumTradingVolumeByStockCodeAndDate(String stockCode, LocalDate date) {
+        Long volume = jdbcTemplate.queryForObject(
+                """
+                SELECT COALESCE(SUM(trading_volume), 0)
+                FROM market_intraday_minute_price
+                WHERE stock_code = ?
+                  AND trade_date = ?
+                """,
+                Long.class,
+                stockCode,
+                date);
+        return volume == null ? 0L : Math.max(volume, 0L);
+    }
+
+    @Override
     public List<MarketIntradayPrice> findByStockCodeAndDate(String stockCode, LocalDate date, int limit) {
         return jdbcTemplate.query(
                 """

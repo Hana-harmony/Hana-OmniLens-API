@@ -1043,9 +1043,13 @@ public class MarketDataService {
             return Optional.empty();
         }
         try {
-            return marketIntradayPriceRepository.findLatestByStockCodeAndDate(stockCode, LocalDate.now(clock))
+            LocalDate tradeDate = LocalDate.now(clock);
+            return marketIntradayPriceRepository.findLatestByStockCodeAndDate(stockCode, tradeDate)
                     .filter(price -> price.closePriceKrw() != null && price.closePriceKrw().signum() > 0)
-                    .map(price -> PriceLookup.intraday(price, latestPreviousDailyPrice(stockCode, price.bucketStart().toLocalDate())));
+                    .map(price -> PriceLookup.intraday(
+                            price,
+                            latestPreviousDailyPrice(stockCode, price.bucketStart().toLocalDate()),
+                            marketIntradayPriceRepository.sumTradingVolumeByStockCodeAndDate(stockCode, tradeDate)));
         } catch (RuntimeException exception) {
             // 저장된 실시간 가격 조회 장애가 현재가 API 전체 장애로 번지지 않게 한다.
             log.warn("Stored intraday price lookup failed for stockCode={}: {}", stockCode, exception.toString());
@@ -1285,11 +1289,44 @@ public class MarketDataService {
     }
 
     private ForeignOwnershipLookup latestForeignOwnershipSnapshot(StockSummary stock, PriceLookup priceLookup) {
+        if (ForeignOwnershipRestrictedStockUniverse.isRestrictedStockCode(stock.stockCode())) {
+            LocalDate expectedBaseDate = ForeignOwnershipTradingDatePolicy.expectedBaseDate(clock);
+            Optional<ForeignOwnershipSnapshot> currentSnapshot = foreignOwnershipSnapshotCache.find(stock.stockCode())
+                    .filter(snapshot -> stock.stockCode().equals(snapshot.stockCode()))
+                    .filter(snapshot -> expectedBaseDate.equals(snapshot.baseDate()))
+                    .or(() -> latestStoredForeignOwnershipSnapshot(stock.stockCode(), expectedBaseDate));
+            currentSnapshot.ifPresent(foreignOwnershipSnapshotCache::put);
+            return currentSnapshot
+                    .map(ForeignOwnershipLookup::cache)
+                    .orElseGet(ForeignOwnershipLookup::empty);
+        }
         return foreignOwnershipSnapshotCache.find(stock.stockCode())
                 .map(ForeignOwnershipLookup::cache)
                 .or(() -> priceLookup.foreignOwnershipSnapshot()
                         .map(ForeignOwnershipLookup::kisCurrentPrice))
                 .orElseGet(ForeignOwnershipLookup::empty);
+    }
+
+    private Optional<ForeignOwnershipSnapshot> latestStoredForeignOwnershipSnapshot(
+            String stockCode,
+            LocalDate expectedBaseDate) {
+        try {
+            return foreignOwnershipDailySnapshotRepository.findRecent(stockCode, expectedBaseDate, 1).stream()
+                    .filter(snapshot -> expectedBaseDate.equals(snapshot.baseDate()))
+                    .findFirst()
+                    .map(snapshot -> new ForeignOwnershipSnapshot(
+                            snapshot.stockCode(),
+                            snapshot.foreignOwnedQuantity(),
+                            snapshot.foreignOwnershipRate(),
+                            snapshot.foreignLimitQuantity(),
+                            snapshot.foreignLimitExhaustionRate(),
+                            snapshot.baseDate()));
+        } catch (RuntimeException exception) {
+            // 보유율 저장소 장애가 종목 현재가 API 전체 장애로 번지지 않게 한다.
+            log.warn("Stored foreign ownership lookup failed stockCode={} baseDate={}: {}",
+                    stockCode, expectedBaseDate, exception.toString());
+            return Optional.empty();
+        }
     }
 
     private List<ForeignOwnershipDailySnapshot> foreignOwnershipHistory(
@@ -1475,13 +1512,16 @@ public class MarketDataService {
                     PriceSource.PUBLIC_DATA);
         }
 
-        private static PriceLookup intraday(MarketIntradayPrice price, Optional<MarketDailyPrice> previousDailyPrice) {
+        private static PriceLookup intraday(
+                MarketIntradayPrice price,
+                Optional<MarketDailyPrice> previousDailyPrice,
+                long accumulatedVolume) {
             return new PriceLookup(
                     Optional.empty(),
                     Optional.ofNullable(price.market()).filter(market -> !market.isBlank()),
                     Optional.of(price.closePriceKrw()),
                     previousDailyPrice.map(previous -> changeRate(price.closePriceKrw(), previous.closePriceKrw())),
-                    Optional.empty(),
+                    accumulatedVolume > 0 ? Optional.of(accumulatedVolume) : Optional.empty(),
                     Optional.of(price.bucketStart().toLocalDate()),
                     Optional.empty(),
                     KisRealtimeTradeTick.REGULAR_SESSION,

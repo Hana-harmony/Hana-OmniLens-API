@@ -142,6 +142,25 @@ public class ForeignOwnershipPredictionPrecomputeService {
         }
     }
 
+    public void precomputeAfterRefreshIfEnabled(ForeignOwnershipCollectionResult collectionResult) {
+        if (!properties.enabled() || !properties.triggerAfterRefresh()) {
+            return;
+        }
+        if (collectionResult.refreshedCount() <= 0) {
+            return;
+        }
+        try {
+            precomputeRestrictedUniverse();
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Foreign ownership prediction precompute failed after current snapshot refresh "
+                            + "refreshedCount={} status={}",
+                    collectionResult.refreshedCount(),
+                    collectionResult.status(),
+                    exception);
+        }
+    }
+
     private ForeignOwnershipPrediction precomputeStock(ForeignOwnershipSnapshot snapshot) {
         List<ForeignOwnershipDailySnapshot> history = dailySnapshotRepository.findRecent(
                 snapshot.stockCode(),

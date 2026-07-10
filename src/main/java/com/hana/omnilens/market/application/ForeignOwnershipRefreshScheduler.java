@@ -1,7 +1,6 @@
 package com.hana.omnilens.market.application;
 
 import java.time.Clock;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 
@@ -60,14 +59,26 @@ public class ForeignOwnershipRefreshScheduler {
     }
 
     @Scheduled(
-            cron = "${omnilens.market.foreign-ownership-refresh.cron:0 10 8 * * MON-FRI}",
+            cron = "${omnilens.market.foreign-ownership-refresh.cron:0 10 8,16 * * MON-FRI}",
             zone = "Asia/Seoul")
     public void refreshConfiguredForeignOwnership() {
         if (!properties.enabled()) {
             return;
         }
 
-        LocalDate baseDate = previousWeekday(LocalDate.now(clock).minusDays(properties.baseDateOffsetDays() - 1L));
+        LocalDate baseDate = scheduledBaseDate();
+        ForeignOwnershipCollectionResult collectionResult = refreshService.collect(
+                baseDate,
+                properties.stockCodes(),
+                properties.stockLimit(),
+                properties.requestDelayMs());
+        log.info(
+                "Scheduled current foreign ownership refresh completed baseDate={} requested={} refreshed={} failed={} status={}",
+                collectionResult.baseDate(),
+                collectionResult.requestedCount(),
+                collectionResult.refreshedCount(),
+                collectionResult.failedCount(),
+                collectionResult.status());
         LocalDate fromDate = baseDate.minusDays(properties.backfillLookbackDays());
         ForeignOwnershipBackfillResult backfillResult = refreshService.backfillMissing(
                 fromDate,
@@ -88,20 +99,16 @@ public class ForeignOwnershipRefreshScheduler {
             modelTrainingService.retrainAfterRefreshIfEnabled(backfillResult);
         }
         if (predictionPrecomputeService != null) {
+            predictionPrecomputeService.precomputeAfterRefreshIfEnabled(collectionResult);
             predictionPrecomputeService.precomputeAfterRefreshIfEnabled(backfillResult);
         }
     }
 
-    private static LocalDate previousWeekday(LocalDate date) {
-        LocalDate candidate = date.minusDays(1);
-        while (!isWeekday(candidate)) {
-            candidate = candidate.minusDays(1);
+    private LocalDate scheduledBaseDate() {
+        LocalDate baseDate = ForeignOwnershipTradingDatePolicy.expectedBaseDate(clock);
+        for (int offset = 1; offset < properties.baseDateOffsetDays(); offset++) {
+            baseDate = ForeignOwnershipTradingDatePolicy.previousWeekday(baseDate);
         }
-        return candidate;
-    }
-
-    private static boolean isWeekday(LocalDate date) {
-        DayOfWeek dayOfWeek = date.getDayOfWeek();
-        return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
+        return baseDate;
     }
 }

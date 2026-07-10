@@ -22,7 +22,7 @@ public record ForeignOwnershipRefreshProperties(
     private static final long DEFAULT_INITIAL_DELAY_MS = 60_000L;
     private static final long DEFAULT_REQUEST_DELAY_MS = 1_200L;
     private static final int DEFAULT_BACKFILL_LOOKBACK_DAYS = 400;
-    private static final String DEFAULT_CRON = "0 10 8 * * MON-FRI";
+    private static final String DEFAULT_CRON = "0 10 8,16 * * MON-FRI";
 
     public ForeignOwnershipRefreshProperties {
         fixedDelayMs = fixedDelayMs <= 0 ? 86_400_000L : fixedDelayMs;
