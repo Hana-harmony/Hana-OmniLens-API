@@ -50,7 +50,7 @@ class TaxDocumentVerificationControllerTest {
                 Map.of("residency_country_code", "US"),
                 List.of(),
                 List.of(),
-                "hanah-tax-ocr-e2e-review-v1"));
+                "hanah-tax-ocr-e2e-review-v2"));
 
         mockMvc.perform(post("/api/v1/tax/documents/verify")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -61,7 +61,6 @@ class TaxDocumentVerificationControllerTest {
                                   "fileName": "residence.txt",
                                   "documentContentBase64": "VVM=",
                                   "contentType": "text/plain",
-                                  "expectedInvestorId": "US_USER_1234",
                                   "expectedResidencyCountry": "US"
                                 }
                                 """))

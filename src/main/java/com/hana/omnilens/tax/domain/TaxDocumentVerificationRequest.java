@@ -16,7 +16,6 @@ public record TaxDocumentVerificationRequest(
         @Size(max = 120) String contentType,
         @DecimalMin("0.0") @DecimalMax("1.0") Double ocrConfidence,
         @DecimalMin("0.0") @DecimalMax("1.0") Double fraudSignalScore,
-        @Size(max = 80) String expectedInvestorId,
         @Pattern(regexp = "^[A-Z]{2}$") String expectedResidencyCountry,
         Map<String, String> extractedFields
 ) {

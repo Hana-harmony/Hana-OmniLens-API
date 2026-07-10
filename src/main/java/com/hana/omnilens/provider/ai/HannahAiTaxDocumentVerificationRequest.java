@@ -14,7 +14,6 @@ public record HannahAiTaxDocumentVerificationRequest(
         @JsonProperty("content_type") String contentType,
         @JsonProperty("ocr_confidence") Double ocrConfidence,
         @JsonProperty("fraud_signal_score") Double fraudSignalScore,
-        @JsonProperty("expected_investor_id") String expectedInvestorId,
         @JsonProperty("expected_residency_country") String expectedResidencyCountry,
         @JsonProperty("extracted_fields") Map<String, String> extractedFields
 ) {
