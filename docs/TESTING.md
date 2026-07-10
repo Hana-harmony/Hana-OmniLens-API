@@ -73,8 +73,7 @@ docker compose -f compose.local.yml up -d
 - OpenDART 공시검색 응답 매핑
 - Hannah-Montana-AI Qwen3 번역 요청 계약과 응답 매핑
 - 알림 제목·요약·전문 번역 Hannah Qwen 우선, 번역 장애 시 원문 fallback 상태 전파
-- legacy `scripts/build_openai_translation_smoke_report.py`가 비교 리포트만 secret 없이 기록하는지 검증
-- `scripts/build_deepl_translation_smoke_report.py`는 legacy provider가 비활성 상태임만 기록하고 외부 API를 호출하지 않는지 검증
+- Hannah Qwen 4B 응답 계약과 장애 시 source-language fallback을 검증
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 외부 provider 공통 timeout 설정 기본값
 - 외부 provider 재시도, circuit open, 비네트워크 예외 no-retry 정책

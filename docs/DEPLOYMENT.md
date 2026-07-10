@@ -83,7 +83,6 @@ docker compose -f compose.local.yml up -d
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 endpoint 주소. 번역, 분석, 글로벌 피어, 금융용어 해설을 같은 내부망에서 호출한다.
 - `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`: Hannah-Montana-AI 내부 endpoint 전용 timeout이다. `PROVIDER_READ_TIMEOUT`은 KIS, Naver, KRX 같은 외부 provider에만 적용한다.
-- `OPENAI_TRANSLATION_BASE_URL`, `OPENAI_TRANSLATION_MODEL`, `OPENAI_API_KEY`: legacy 비교 smoke와 명시적으로 켠 OpenAI 금융용어 fallback에만 사용한다. live 뉴스·공시 번역 경로는 Hannah Qwen3다.
 - `OMNILENS_RATE_LIMIT_ENABLED`: API key fingerprint 단위 rate limit 활성화 여부. 기본값은 `true`이다.
 - `OMNILENS_RATE_LIMIT_CAPACITY`: bucket 최대 요청 수. 기본값은 `120`이다.
 - `OMNILENS_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
@@ -150,7 +149,6 @@ HEALTHCHECK_SCHEME=https
 - `KIS_APP_KEY`, `KIS_APP_SECRET`: KIS Open API credential
 - `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API credential
 - `OPEN_DART_API_KEY`: OpenDART API credential
-- `OPENAI_API_KEY`: legacy OpenAI 비교 smoke 또는 명시적 OpenAI 금융용어 fallback credential
 ## 원격 서버 준비
 원격 서버에는 아래 런타임이 미리 설치되어 있어야 한다.
 

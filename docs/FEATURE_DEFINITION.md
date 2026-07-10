@@ -73,5 +73,5 @@
 - 협력사 서버 간 요청은 `X-HANA-OMNILENS-API-KEY`로 인증한다.
 - API key 원문은 저장하지 않고 SHA-256 hash, rate limit, 감사 로그를 적용한다.
 - 운영 요청 서명과 mTLS는 설정으로 강제할 수 있다.
-- `Stock-exchange-FE`에는 Hana/KIS/KRX/Naver/OpenDART/OpenAI credential을 두지 않는다.
+- `Stock-exchange-FE`에는 Hana/KIS/KRX/Naver/OpenDART credential을 두지 않는다.
 - 외부 provider credential은 환경 변수 또는 Secret Manager로만 주입한다.

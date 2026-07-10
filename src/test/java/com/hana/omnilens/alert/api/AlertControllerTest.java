@@ -1468,7 +1468,7 @@ class AlertControllerTest {
         return new TranslationResult(
                 englishTextFor(text),
                 "local-open-source-qwen3-translation",
-                "local-llm:mlx-community/Qwen3-0.6B-4bit",
+                "local-llm:Qwen3-4B-GGUF-Q4",
                 "TRANSLATED");
     }
 
@@ -1476,7 +1476,7 @@ class AlertControllerTest {
         return new TranslationResult(
                 text,
                 "local-open-source-qwen3-translation",
-                "local-llm:mlx-community/Qwen3-0.6B-4bit",
+                "local-llm:Qwen3-4B-GGUF-Q4",
                 "TRANSLATED",
                 List.of("HANGUL_REMAINS"));
     }
@@ -1485,7 +1485,7 @@ class AlertControllerTest {
         return new TranslationResult(
                 "",
                 "source-language-fallback",
-                "local-llm:mlx-community/Qwen3-0.6B-4bit",
+                "local-llm:Qwen3-4B-GGUF-Q4",
                 "SOURCE_LANGUAGE_FALLBACK");
     }
 

@@ -42,7 +42,7 @@ class HannahAiKoreanTranslationClientTest {
                           "data": {
                             "translated_text": "Ants net bought Samjeon Nix.",
                             "provider": "local-open-source-qwen3-translation",
-                            "model_version": "local-llm:mlx-community/Qwen3-0.6B-4bit",
+                            "model_version": "local-llm:Qwen3-4B-GGUF-Q4",
                             "status": "TRANSLATED",
                             "prompt_version": "ko-en-qwen3-financial-translation-v1",
                             "quality_flags": []
@@ -66,7 +66,7 @@ class HannahAiKoreanTranslationClientTest {
 
         assertThat(response.translatedText()).isEqualTo("Ants net bought Samjeon Nix.");
         assertThat(response.provider()).isEqualTo("local-open-source-qwen3-translation");
-        assertThat(response.modelVersion()).isEqualTo("local-llm:mlx-community/Qwen3-0.6B-4bit");
+        assertThat(response.modelVersion()).isEqualTo("local-llm:Qwen3-4B-GGUF-Q4");
         assertThat(response.status()).isEqualTo("TRANSLATED");
         server.verify();
     }

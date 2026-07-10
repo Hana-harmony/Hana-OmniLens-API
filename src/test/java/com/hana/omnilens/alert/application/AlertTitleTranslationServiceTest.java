@@ -22,7 +22,7 @@ import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationResponse;
 class AlertTitleTranslationServiceTest {
 
     private static final String PROVIDER = "local-open-source-qwen3-translation";
-    private static final String MODEL = "local-llm:mlx-community/Qwen3-0.6B-4bit";
+    private static final String MODEL = "local-llm:Qwen3-4B-GGUF-Q4";
 
     private final HannahAiKoreanTranslationClient hannahTranslationClient =
             mock(HannahAiKoreanTranslationClient.class);

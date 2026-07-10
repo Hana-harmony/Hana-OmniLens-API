@@ -39,7 +39,7 @@ docker compose -f compose.local.yml down
 - Naver News Search는 제목, snippet, 링크 발견용으로 사용하고, 사용 허가된 원문 URL에서 기사 전문과 대표 이미지 URL을 추가 수집한다. 저장 허가가 없는 provider를 추가할 때는 원문 저장을 비활성화하고 hash/요약만 남기는 별도 정책을 적용한다.
 - OpenDART는 공시 목록 검색 뒤 `rcept_no` document 원문을 내려받아 본문을 정제한다. 수 MB가 될 수 있는 투자설명서·증권신고서는 동기 피드에 1,200자 분석 excerpt와 공식 DART 전문 URL을 저장해 API payload와 번역 지연을 제한한다.
 - 신규 여부는 URL TTL만으로 판단하지 않는다. `(partner_id, stock_code, source_type, original_url)` DB unique identity와 Redis 실행 중 lock을 함께 사용하고, canonical URL, normalized title, content hash, Hannah duplicate key, 시간창 기반 cluster key를 추가 중복 판정에 사용한다.
-- 번역은 `HANNAH_AI_BASE_URL`의 Hannah-Montana-AI `/api/v1/translation/ko-en`을 호출한다. Hannah는 Qwen3-0.6B LoRA 또는 운영 sidecar를 사용하며, OmniLens는 제목, What/Why/Impact 요약, 전문을 chunk/cache 단위로 처리한다. Hannah 내부 AI 호출은 `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`을 사용해 외부 provider 공통 5초 read timeout과 분리한다. provider 장애, 빈 응답, 한글 잔존 시 원문과 `SOURCE_LANGUAGE_FALLBACK` 또는 `PARTIAL_SOURCE_LANGUAGE_FALLBACK` 상태를 함께 반환하고 이벤트 발행은 중단하지 않는다.
+- 번역은 `HANNAH_AI_BASE_URL`의 Hannah `/api/v1/translation/ko-en`만 호출한다. Hannah는 로컬 Qwen 4B GGUF를 사용하며 OmniLens에는 provider 선택값이 없다. 내부 AI 호출은 `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`으로 제한한다. provider 장애, 빈 응답, 한글 잔존 시 원문과 `SOURCE_LANGUAGE_FALLBACK` 또는 `PARTIAL_SOURCE_LANGUAGE_FALLBACK` 상태를 반환하고 이벤트 발행은 중단하지 않는다.
 - watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
 - Hannah-Montana-AI 분석 결과의 `eventConfidence`, `sentimentConfidence`, `importanceConfidence`, `stockMatchConfidence`는 alert REST/WebSocket payload에 그대로 전파한다.
 - 주기는 `ALERT_SCHEDULER_FIXED_DELAY_MS`로 조정한다. 기본값은 `300000`이다.
@@ -218,8 +218,7 @@ STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 - 기본 refresh scheduler는 비활성화되어 있다.
 - 활성화하면 `EXCHANGE_RATE_REFRESH_CURRENCIES`에 지정한 통화만 주기적으로 갱신한다.
 - 한국수출입은행 환율 API는 레거시 provider로 제거됐다. 환율은 Frankfurter adapter와 cache를 기준으로 운영한다.
-- OpenAI translation smoke는 legacy 비교 리포트로만 유지한다. live 번역 경로는 Hannah-Montana-AI Qwen3 endpoint다.
-- DeepL/Papago는 active 번역 경로에서 호출하지 않는다. legacy smoke/report에는 `legacy_disabled` 상태만 기록한다.
+- DeepL, Papago, OpenAI 번역 경로와 비교 smoke는 제거됐다.
 
 ```text
 EXCHANGE_RATE_REFRESH_ENABLED=true
