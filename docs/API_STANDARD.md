@@ -63,9 +63,13 @@
 
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`
 - 종목 상세 화면에서 피어 종목 보기 버튼을 눌렀을 때 호출하는 API다.
-- 응답은 headline, summary, primary peer, peers, confidence, model version, source를 포함한다.
+- 응답은 headline, summary, primary peer, 기존 peers, comparisons, keyStrengths, confidence, model version, source를 포함한다.
 - 각 peer는 `sector`, `industry`, `businessModel`, `scaleBucket`, `marketCapUsd`, `revenueUsd`, `operatingIncomeUsd`, `netIncomeUsd`, `financialDataSource`, `financialSimilarityScore`, `matchedFactors`, `rationale`을 포함한다.
+- 정상 AI 응답의 `comparisons`는 1~3개이며 `dimension`, 비교 설명, 기존 peer와 같은 구조의 `peer`를 포함한다. `dimension`은 서버 allowlist 값만 허용한다.
+- 정상 AI 응답의 `keyStrengths`는 정확히 4개이며 해당 국내 종목 자체의 강점을 설명하는 `title`, `description`, `iconKey`를 포함한다. `iconKey`는 앱 자산과 합의한 allowlist 값만 허용한다.
+- Hannah의 `key_strengths[].icon_key` snake_case 계약은 OmniLens가 검증한 뒤 `keyStrengths[].iconKey` camelCase로 변환한다.
 - 정상 경로는 Hannah-Montana-AI 글로벌 피어 모델이며, AI 장애 시 검증된 anchor fallback만 제한적으로 사용한다.
+- `OMNILENS_GLOBAL_PEER_FALLBACK`은 근거 없는 비교·강점 카드를 생성하지 않고 `comparisons`, `keyStrengths`를 빈 배열로 반환한다.
 
 ## Korean Financial Local Term Explanation
 

@@ -10,6 +10,8 @@ import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.market.domain.GlobalPeerMatch;
 import com.hana.omnilens.market.domain.GlobalPeerMatchResponse;
+import com.hana.omnilens.market.domain.GlobalPeerComparison;
+import com.hana.omnilens.market.domain.GlobalPeerKeyStrength;
 import com.hana.omnilens.market.domain.StockSummary;
 import com.hana.omnilens.provider.ProviderCircuitOpenException;
 import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatch;
@@ -63,6 +65,8 @@ public class GlobalPeerMatchService {
                 response.summary(),
                 toPeer(response.primaryPeer()),
                 response.peers().stream().map(this::toPeer).toList(),
+                response.comparisons().stream().map(this::toComparison).toList(),
+                response.keyStrengths().stream().map(this::toKeyStrength).toList(),
                 response.confidenceScore(),
                 response.confidenceLevel(),
                 response.modelVersion(),
@@ -91,6 +95,22 @@ public class GlobalPeerMatchService {
                 peer.financialSimilarityScore(),
                 peer.matchedFactors(),
                 peer.rationale());
+    }
+
+    private GlobalPeerComparison toComparison(
+            com.hana.omnilens.provider.ai.HannahAiGlobalPeerComparison comparison) {
+        return new GlobalPeerComparison(
+                comparison.dimension(),
+                comparison.description(),
+                toPeer(comparison.peer()));
+    }
+
+    private GlobalPeerKeyStrength toKeyStrength(
+            com.hana.omnilens.provider.ai.HannahAiGlobalPeerKeyStrength strength) {
+        return new GlobalPeerKeyStrength(
+                strength.title(),
+                strength.description(),
+                strength.iconKey());
     }
 
     private GlobalPeerMatchResponse fallback(StockSummary stock) {
@@ -132,8 +152,10 @@ public class GlobalPeerMatchService {
                             + "to global Big Pharma, securing long-term milestone and royalty fees.",
                     peer,
                     List.of(peer),
-                    new BigDecimal("0.4911"),
-                    "MEDIUM",
+                    List.of(),
+                    List.of(),
+                    BigDecimal.ZERO,
+                    "LOW",
                     "global-peer-fallback-v1",
                     "OMNILENS_GLOBAL_PEER_FALLBACK");
         }
@@ -167,6 +189,8 @@ public class GlobalPeerMatchService {
                 "The global peer model is temporarily unavailable. Please retry after the AI service recovers.",
                 peer,
                 List.of(peer),
+                List.of(),
+                List.of(),
                 BigDecimal.ZERO,
                 "LOW",
                 "global-peer-fallback-v1",
