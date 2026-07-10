@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -113,6 +114,40 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
                 insertAll(List.of(stock));
             }
         }
+    }
+
+    int updateDartCorpCodes(Map<String, String> corpCodeByStockCode) {
+        if (corpCodeByStockCode == null || corpCodeByStockCode.isEmpty()) {
+            return 0;
+        }
+        int updated = 0;
+        for (Map.Entry<String, String> entry : corpCodeByStockCode.entrySet()) {
+            updated += jdbcTemplate.update(
+                    """
+                    UPDATE stock_master
+                    SET dart_corp_code = ?
+                    WHERE stock_code = ?
+                      AND (dart_corp_code IS NULL OR dart_corp_code = '')
+                    """,
+                    entry.getValue(),
+                    entry.getKey());
+        }
+        return updated;
+    }
+
+    int updatePreferredShareDartCorpCodesFromCommonShares() {
+        Integer updated = jdbcTemplate.update(
+                """
+                UPDATE stock_master preferred
+                SET dart_corp_code = common.dart_corp_code
+                FROM stock_master common
+                WHERE (preferred.dart_corp_code IS NULL OR preferred.dart_corp_code = '')
+                  AND preferred.stock_name ~ '우$'
+                  AND common.stock_name = regexp_replace(preferred.stock_name, '우$', '')
+                  AND common.dart_corp_code IS NOT NULL
+                  AND common.dart_corp_code <> ''
+                """);
+        return updated == null ? 0 : updated;
     }
 
     private void update(StockSummary stock, StockSummary existing) {

@@ -70,14 +70,17 @@ public class AlertStreamingService {
                 request.stockMatchConfidence(),
                 Instant.now());
 
-        alertEventRepository.save(event);
-        messagingTemplate.convertAndSend("/topic/partners/" + request.partnerId() + "/alerts", event);
+        AlertEvent storedEvent = alertEventRepository.save(event);
+        if (!storedEvent.alertId().equals(event.alertId())) {
+            return storedEvent;
+        }
+        messagingTemplate.convertAndSend("/topic/partners/" + request.partnerId() + "/alerts", storedEvent);
         messagingTemplate.convertAndSend(
                 "/topic/partners/" + request.partnerId() + "/stocks/" + request.stockCode() + "/alerts",
-                event);
-        messagingTemplate.convertAndSend("/topic/stocks/" + request.stockCode() + "/alerts", event);
-        rawStreamingService.publish(event);
-        return event;
+                storedEvent);
+        messagingTemplate.convertAndSend("/topic/stocks/" + request.stockCode() + "/alerts", storedEvent);
+        rawStreamingService.publish(storedEvent);
+        return storedEvent;
     }
 
     private List<String> displayTranslationQualityFlags(

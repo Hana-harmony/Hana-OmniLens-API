@@ -1,8 +1,10 @@
 package com.hana.omnilens.provider.market;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -13,6 +15,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
+import com.hana.omnilens.config.KisRealtimeProperties;
 import com.hana.omnilens.market.application.RealtimeMarketDataIngestionService;
 import com.hana.omnilens.market.application.StockMasterNotFoundException;
 import com.hana.omnilens.market.application.StockMasterRepository;
@@ -33,6 +36,7 @@ public class OnDemandKisRealtimeSubscriptionService {
     private final KisRealtimeWebSocketConnection realAfterHoursConnection;
     private final RealtimeMarketDataIngestionService ingestionService;
     private final StockMasterRepository stockMasterRepository;
+    private final Set<String> pinnedRegularStockCodes;
     private final AtomicReference<String> activeAfterHoursStockCode = new AtomicReference<>("");
     private final AtomicBoolean realAfterHoursConnected = new AtomicBoolean(false);
 
@@ -40,6 +44,7 @@ public class OnDemandKisRealtimeSubscriptionService {
             KisRealtimeWebSocketConnection regularConnection,
             KisRealtimeApprovalKeyProvider regularApprovalKeyProvider,
             KisRealtimeSubscriptionFrameFactory frameFactory,
+            KisRealtimeProperties kisRealtimeProperties,
             ExternalProviderProperties properties,
             ExternalProviderResiliencePolicy resiliencePolicy,
             RestClient.Builder restClientBuilder,
@@ -57,6 +62,9 @@ public class OnDemandKisRealtimeSubscriptionService {
         this.realAfterHoursConnection = new StandardKisRealtimeWebSocketConnection(objectMapper);
         this.ingestionService = ingestionService;
         this.stockMasterRepository = stockMasterRepository;
+        this.pinnedRegularStockCodes = kisRealtimeProperties.stockCodes().stream()
+                .filter(stockCode -> stockCode.matches("\\d{6}"))
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     public KisRealtimeSubscriptionRequestResult subscribeRegular(String stockCode) {
@@ -80,6 +88,13 @@ public class OnDemandKisRealtimeSubscriptionService {
 
     public KisRealtimeSubscriptionRequestResult unsubscribeRegular(String stockCode) {
         ensureStockExists(stockCode);
+        if (pinnedRegularStockCodes.contains(stockCode)) {
+            return new KisRealtimeSubscriptionRequestResult(
+                    stockCode,
+                    REGULAR,
+                    "UNCHANGED",
+                    "KIS regular realtime source is pinned by the default universe");
+        }
         try {
             String approvalKey = regularApprovalKeyProvider.approvalKey();
             regularConnection.unsubscribe(List.of(frame(

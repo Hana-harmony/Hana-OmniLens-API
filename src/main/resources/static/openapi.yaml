@@ -809,7 +809,7 @@ components:
           maxLength: 255
         extractedText:
           type: string
-          maxLength: 20000
+          maxLength: 60000
         documentContentBase64:
           type: string
           maxLength: 14000000
@@ -962,9 +962,6 @@ components:
           type: string
           maxLength: 160
           description: Partner session identifier. The server stores only a salted hash.
-        allowWebSearch:
-          type: boolean
-          default: true
     KoreanFinancialTermEvidence:
       type: object
       properties:

@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,8 +27,9 @@ import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationResponse;
 public class AlertTitleTranslationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AlertTitleTranslationService.class);
-    private static final int MAX_CHUNK_CHARS = 20_000;
+    private static final int MAX_CHUNK_CHARS = 1_500;
     private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
+    private static final Pattern TRAILING_ELLIPSIS_PATTERN = Pattern.compile("(?:\\.\\.\\.|…)[\\s\"')\\]]*$");
     public static final String STATUS_TRANSLATED = "TRANSLATED";
     public static final String STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK = "PARTIAL_SOURCE_LANGUAGE_FALLBACK";
     public static final String STATUS_SOURCE_LANGUAGE_FALLBACK = "SOURCE_LANGUAGE_FALLBACK";
@@ -52,7 +54,14 @@ public class AlertTitleTranslationService {
     }
 
     public TranslationResult translateTitleWithResult(String originalTitle, List<AlertGlossaryTerm> glossaryTerms) {
-        return translateOrFallback(originalTitle, glossaryTerms, true);
+        return translateTitleWithResult(originalTitle, glossaryTerms, "NEWS");
+    }
+
+    public TranslationResult translateTitleWithResult(
+            String originalTitle,
+            List<AlertGlossaryTerm> glossaryTerms,
+            String sourceType) {
+        return translateOrFallback(originalTitle, glossaryTerms, true, sourceType);
     }
 
     public String translateText(String originalText) {
@@ -67,11 +76,18 @@ public class AlertTitleTranslationService {
     }
 
     public TranslationResult translateTextWithResult(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
+        return translateTextWithResult(originalText, glossaryTerms, "NEWS");
+    }
+
+    public TranslationResult translateTextWithResult(
+            String originalText,
+            List<AlertGlossaryTerm> glossaryTerms,
+            String sourceType) {
         if (!StringUtils.hasText(originalText)) {
             return TranslationResult.sourceFallback("", MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
         }
         List<TranslationResult> results = chunks(originalText).stream()
-                .map(chunk -> translateOrFallback(chunk, glossaryTerms, false))
+                .map(chunk -> translateOrFallback(chunk, glossaryTerms, false, sourceType))
                 .toList();
         String translatedText = String.join("\n", results.stream()
                 .map(TranslationResult::translatedText)
@@ -80,15 +96,17 @@ public class AlertTitleTranslationService {
                 translatedText,
                 aggregateProvider(results),
                 aggregateModelVersion(results),
-                aggregateStatus(results));
+                aggregateStatus(results),
+                aggregateQualityFlags(results));
     }
 
     private TranslationResult translateOrFallback(
             String originalText,
             List<AlertGlossaryTerm> glossaryTerms,
-            boolean headlineMode) {
+            boolean headlineMode,
+            String sourceType) {
         if (!StringUtils.hasText(originalText)) {
-            return TranslationResult.sourceFallback("", MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
+            return TranslationResult.sourceFallback("", MODEL_HANNAH_TRANSLATION_UNAVAILABLE, List.of("EMPTY_SOURCE"));
         }
         String alreadyEnglishText = EnglishNewsQualityGate.englishTextOrEmpty(originalText);
         if (StringUtils.hasText(alreadyEnglishText)) {
@@ -98,50 +116,71 @@ public class AlertTitleTranslationService {
                     MODEL_HANNAH_TRANSLATION_UNAVAILABLE,
                     STATUS_TRANSLATED);
         }
-        String cacheKey = sha256Hex(originalText + "\n" + glossaryFingerprint(glossaryTerms));
+        String normalizedSourceType = normalizedSourceType(sourceType);
+        String cacheKey = sha256Hex(
+                normalizedSourceType + "\n" + originalText + "\n" + glossaryFingerprint(glossaryTerms));
         TranslationResult cached = translationCache.get(cacheKey);
         if (cached != null) {
             return cached;
         }
-        HannahAiKoreanTranslationResponse response = translateWithHannah(originalText, glossaryTerms);
+        HannahAiKoreanTranslationResponse response = translateWithHannah(
+                originalText,
+                glossaryTerms,
+                normalizedSourceType);
         String translatedText = response == null ? "" : nullToEmpty(response.translatedText());
         String modelVersion = response == null
                 ? MODEL_HANNAH_TRANSLATION_UNAVAILABLE
                 : firstText(response.modelVersion(), MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
         String status = normalizeStatus(response == null ? "" : response.status());
-        TranslationResult result = usableTranslation(originalText, translatedText, headlineMode)
-                        && !STATUS_SOURCE_LANGUAGE_FALLBACK.equals(status)
+        List<String> rejectionFlags = translationRejectionFlags(
+                originalText,
+                translatedText,
+                status,
+                headlineMode);
+        TranslationResult result = rejectionFlags.isEmpty()
                 ? new TranslationResult(
                         applyLocalismSurfaceTerms(translatedText, glossaryTerms),
-                        firstText(response.provider(), PROVIDER_SOURCE_LANGUAGE_FALLBACK),
+                        acceptedProvider(response.provider()),
                         modelVersion,
-                        status)
+                        acceptedStatus(status),
+                        response.qualityFlags())
                 : TranslationResult.sourceFallback(
-                        fallbackEnglishText(originalText, glossaryTerms),
-                        modelVersion);
-        translationCache.put(cacheKey, result);
+                        "",
+                        modelVersion,
+                        mergeQualityFlags(response == null ? List.of() : response.qualityFlags(), rejectionFlags));
+        if (!rejectionFlags.isEmpty()) {
+            LOGGER.warn(
+                    "Rejected Korean translation: sourceType={} headlineMode={} sourceLength={} translatedLength={} flags={} translatedSample={}",
+                    normalizedSourceType,
+                    headlineMode,
+                    originalText.length(),
+                    translatedText.length(),
+                    rejectionFlags,
+                    logSample(translatedText));
+        }
+        if (STATUS_TRANSLATED.equals(result.status()) && shouldCacheTranslation(originalText, headlineMode)) {
+            translationCache.put(cacheKey, result);
+        }
         return result;
     }
 
-    private String fallbackEnglishText(String originalText, List<AlertGlossaryTerm> glossaryTerms) {
-        String normalized = normalizeWhitespace(originalText);
-        if (!StringUtils.hasText(normalized)) {
-            return "";
+    private boolean shouldCacheTranslation(String originalText, boolean headlineMode) {
+        return headlineMode || originalText.length() < 700;
+    }
+
+    private String acceptedProvider(String provider) {
+        if (!StringUtils.hasText(provider) || PROVIDER_SOURCE_LANGUAGE_FALLBACK.equals(provider)) {
+            return PROVIDER_LOCAL_OPEN_SOURCE_QWEN;
         }
-        if (!HANGUL_PATTERN.matcher(normalized).find()) {
-            return normalized;
-        }
-        String subject = glossaryTerms == null || glossaryTerms.isEmpty()
-                ? "the Korean market source item"
-                : "the Korean market source item covering " + glossaryTerms.stream()
-                        .map(AlertGlossaryTerm::englishTerm)
-                        .filter(StringUtils::hasText)
-                        .distinct()
-                        .limit(3)
-                        .reduce((left, right) -> left + ", " + right)
-                        .orElse("listed securities");
-        return subject + ". The original Korean text is retained because machine translation was unavailable. "
-                + "Review the linked article or filing for price, liquidity, and portfolio impact.";
+        return provider;
+    }
+
+    private String acceptedStatus(String status) {
+        return status;
+    }
+
+    private boolean hasTranslatedStatus(String status) {
+        return STATUS_TRANSLATED.equals(status);
     }
 
     private String applyLocalismSurfaceTerms(String text, List<AlertGlossaryTerm> glossaryTerms) {
@@ -245,20 +284,27 @@ public class AlertTitleTranslationService {
 
     private HannahAiKoreanTranslationResponse translateWithHannah(
             String originalText,
-            List<AlertGlossaryTerm> glossaryTerms) {
+            List<AlertGlossaryTerm> glossaryTerms,
+            String sourceType) {
         try {
             return hannahTranslationClient.translate(new HannahAiKoreanTranslationRequest(
                     originalText,
                     "ko",
                     "en",
-                    "NEWS",
+                    normalizedSourceType(sourceType),
                     "",
                     toHannahGlossaryTerms(glossaryTerms)));
         } catch (RuntimeException exception) {
-            LOGGER.warn("Hannah AI alert translation failed. Marking translation as unavailable: {}",
-                    exception.getClass().getSimpleName());
+            LOGGER.warn(
+                    "Hannah AI alert translation failed. Marking translation as unavailable: type={}, message={}",
+                    exception.getClass().getSimpleName(),
+                    exception.getMessage());
             return null;
         }
+    }
+
+    private String normalizedSourceType(String sourceType) {
+        return "DISCLOSURE".equalsIgnoreCase(sourceType) ? "DISCLOSURE" : "NEWS";
     }
 
     private List<HannahAiGlossaryTerm> toHannahGlossaryTerms(List<AlertGlossaryTerm> glossaryTerms) {
@@ -275,13 +321,60 @@ public class AlertTitleTranslationService {
                 .toList();
     }
 
-    private boolean usableTranslation(String originalText, String translatedText, boolean headlineMode) {
-        if (!StringUtils.hasText(translatedText) || originalText.strip().equals(translatedText.strip())) {
-            return false;
+    private List<String> translationRejectionFlags(
+            String originalText,
+            String translatedText,
+            String status,
+            boolean headlineMode) {
+        List<String> flags = new ArrayList<>();
+        if (!hasTranslatedStatus(status)) {
+            flags.add("NON_TRANSLATED_STATUS:" + status);
+            return flags;
         }
-        return headlineMode
+        if (!StringUtils.hasText(translatedText)) {
+            flags.add("EMPTY_TRANSLATION");
+            return flags;
+        }
+        if (originalText.strip().equals(translatedText.strip())) {
+            flags.add("SOURCE_LANGUAGE_FALLBACK");
+        }
+        if (HANGUL_PATTERN.matcher(translatedText).find()) {
+            flags.add("HANGUL_REMAINS");
+        }
+        if (TRAILING_ELLIPSIS_PATTERN.matcher(translatedText).find()) {
+            flags.add("TRAILING_ELLIPSIS_TRANSLATION");
+        }
+        if (EnglishNewsQualityGate.containsGenericFallback(translatedText)) {
+            flags.add("GENERIC_FALLBACK_TRANSLATION");
+        }
+        List<String> lowQualityReasons = EnglishNewsQualityGate.lowQualityTranslationReasons(translatedText);
+        if (!lowQualityReasons.isEmpty()) {
+            flags.addAll(lowQualityReasons);
+        }
+        boolean usable = headlineMode
                 ? EnglishNewsQualityGate.hasUsableEnglishHeadlineText(translatedText)
                 : EnglishNewsQualityGate.hasUsableEnglishText(translatedText);
+        if (!usable && flags.isEmpty()) {
+            flags.add(headlineMode ? "UNUSABLE_HEADLINE_TRANSLATION" : "UNUSABLE_ENGLISH_TRANSLATION");
+        }
+        return List.copyOf(flags);
+    }
+
+    private List<String> mergeQualityFlags(List<String> upstreamFlags, List<String> localFlags) {
+        LinkedHashSet<String> flags = new LinkedHashSet<>();
+        if (upstreamFlags != null) {
+            flags.addAll(upstreamFlags);
+        }
+        flags.addAll(localFlags);
+        return List.copyOf(flags);
+    }
+
+    private String logSample(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.replaceAll("\\s+", " ").strip();
+        return normalized.length() <= 240 ? normalized : normalized.substring(0, 240);
     }
 
     private String aggregateProvider(List<TranslationResult> results) {
@@ -312,6 +405,14 @@ public class AlertTitleTranslationService {
             return STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK;
         }
         return hasTranslated ? STATUS_TRANSLATED : STATUS_SOURCE_LANGUAGE_FALLBACK;
+    }
+
+    private List<String> aggregateQualityFlags(List<TranslationResult> results) {
+        LinkedHashSet<String> flags = new LinkedHashSet<>();
+        for (TranslationResult result : results) {
+            flags.addAll(result.qualityFlags());
+        }
+        return List.copyOf(flags);
     }
 
     private String normalizeStatus(String status) {
@@ -388,15 +489,36 @@ public class AlertTitleTranslationService {
             String translatedText,
             String provider,
             String modelVersion,
-            String status
+            String status,
+            List<String> qualityFlags
     ) {
 
+        public TranslationResult(
+                String translatedText,
+                String provider,
+                String modelVersion,
+                String status) {
+            this(translatedText, provider, modelVersion, status, List.of());
+        }
+
+        public TranslationResult {
+            qualityFlags = qualityFlags == null ? List.of() : List.copyOf(qualityFlags);
+        }
+
         private static TranslationResult sourceFallback(String text, String modelVersion) {
+            return sourceFallback(text, modelVersion, List.of());
+        }
+
+        private static TranslationResult sourceFallback(
+                String text,
+                String modelVersion,
+                List<String> qualityFlags) {
             return new TranslationResult(
                     text,
                     PROVIDER_SOURCE_LANGUAGE_FALLBACK,
                     modelVersion,
-                    STATUS_SOURCE_LANGUAGE_FALLBACK);
+                    STATUS_SOURCE_LANGUAGE_FALLBACK,
+                    qualityFlags);
         }
     }
 }

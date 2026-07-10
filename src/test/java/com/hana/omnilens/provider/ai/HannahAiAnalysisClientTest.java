@@ -2,7 +2,7 @@ package com.hana.omnilens.provider.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.http.MediaType.APPLICATION_OCTET_STREAM;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -67,7 +67,7 @@ class HannahAiAnalysisClientTest {
                           },
                           "timestamp": "2026-06-20T00:00:00Z"
                         }
-                        """, APPLICATION_JSON));
+                        """, APPLICATION_OCTET_STREAM));
 
         HannahAiAnalysisResponse response = client.analyze(new HannahAiAnalysisRequest(
                 "NEWS",

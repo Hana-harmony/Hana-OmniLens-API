@@ -1,12 +1,16 @@
 package com.hana.omnilens.alert.application;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 public class InMemoryAlertDedupeStore implements AlertDedupeStore {
 
     private final int maxEntries;
     private final Map<String, Boolean> keys;
+    private final Map<String, String> leases = new LinkedHashMap<>();
 
     public InMemoryAlertDedupeStore(int maxEntries) {
         this.maxEntries = maxEntries;
@@ -31,5 +35,22 @@ public class InMemoryAlertDedupeStore implements AlertDedupeStore {
     @Override
     public synchronized void remove(String key) {
         keys.remove(key);
+    }
+
+    @Override
+    public synchronized Optional<String> acquireLease(String key, Duration leaseDuration) {
+        if (leases.containsKey(key)) {
+            return Optional.empty();
+        }
+        String token = UUID.randomUUID().toString();
+        leases.put(key, token);
+        return Optional.of(token);
+    }
+
+    @Override
+    public synchronized void releaseLease(String key, String leaseToken) {
+        if (leaseToken != null && leaseToken.equals(leases.get(key))) {
+            leases.remove(key);
+        }
     }
 }

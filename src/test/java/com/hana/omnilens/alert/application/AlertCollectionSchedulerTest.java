@@ -40,14 +40,14 @@ class AlertCollectionSchedulerTest {
 
         scheduler.collectConfiguredWatchlists();
 
-        verify(collectionService, never()).collectAnalyzeAndPublish(any());
+        verify(collectionService, never()).collectIncrementalAnalyzeAndPublish(any());
         verify(watchlistRepository, never()).findAll();
     }
 
     @Test
     void collectsConfiguredPartnerWatchlists() {
         when(watchlistRepository.findAll()).thenReturn(List.of());
-        when(collectionService.collectAnalyzeAndPublish(any()))
+        when(collectionService.collectIncrementalAnalyzeAndPublish(any()))
                 .thenReturn(new AlertCollectPublishResponse(
                         "partner-a",
                         List.of("005930", "000660"),
@@ -72,7 +72,7 @@ class AlertCollectionSchedulerTest {
 
         ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
                 ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
-        verify(collectionService).collectAnalyzeAndPublish(requestCaptor.capture());
+        verify(collectionService).collectIncrementalAnalyzeAndPublish(requestCaptor.capture());
         AlertCollectPublishRequest request = requestCaptor.getValue();
         assertThat(request.partnerId()).isEqualTo("partner-a");
         assertThat(request.stockCodes()).containsExactly("005930", "000660");
@@ -89,7 +89,7 @@ class AlertCollectionSchedulerTest {
                 new com.hana.omnilens.alert.application.PartnerWatchlist(
                         "partner-b",
                         List.of("005380"))));
-        when(collectionService.collectAnalyzeAndPublish(any()))
+        when(collectionService.collectIncrementalAnalyzeAndPublish(any()))
                 .thenReturn(new AlertCollectPublishResponse(
                         "partner-a",
                         List.of("005930", "000660", "035420"),
@@ -114,7 +114,7 @@ class AlertCollectionSchedulerTest {
 
         ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
                 ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
-        verify(collectionService, times(2)).collectAnalyzeAndPublish(requestCaptor.capture());
+        verify(collectionService, times(2)).collectIncrementalAnalyzeAndPublish(requestCaptor.capture());
         assertThat(requestCaptor.getAllValues())
                 .extracting(AlertCollectPublishRequest::partnerId)
                 .containsExactly("partner-a", "partner-b");
@@ -127,7 +127,7 @@ class AlertCollectionSchedulerTest {
     @Test
     void continuesAfterPartnerCollectionFailure() {
         when(watchlistRepository.findAll()).thenReturn(List.of());
-        when(collectionService.collectAnalyzeAndPublish(any()))
+        when(collectionService.collectIncrementalAnalyzeAndPublish(any()))
                 .thenThrow(new IllegalStateException("provider unavailable"))
                 .thenReturn(new AlertCollectPublishResponse(
                         "partner-b",
@@ -155,7 +155,7 @@ class AlertCollectionSchedulerTest {
 
         ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
                 ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
-        verify(collectionService, times(2)).collectAnalyzeAndPublish(requestCaptor.capture());
+        verify(collectionService, times(2)).collectIncrementalAnalyzeAndPublish(requestCaptor.capture());
         assertThat(requestCaptor.getAllValues())
                 .extracting(AlertCollectPublishRequest::partnerId)
                 .containsExactly("partner-a", "partner-b");
@@ -166,7 +166,7 @@ class AlertCollectionSchedulerTest {
         when(watchlistRepository.findAll()).thenReturn(List.of());
         when(targetUniverseProvider.defaultStockCodes(30, true))
                 .thenReturn(List.of("005930", "000660", "015760"));
-        when(collectionService.collectAnalyzeAndPublish(any()))
+        when(collectionService.collectIncrementalAnalyzeAndPublish(any()))
                 .thenReturn(new AlertCollectPublishResponse(
                         "omnilens-default-universe",
                         List.of("005930", "000660", "015760"),
@@ -181,48 +181,6 @@ class AlertCollectionSchedulerTest {
                 new AlertCollectionSchedulerProperties(
                         true,
                         60_000L,
-                        10,
-                        7,
-                        List.of(),
-                        true,
-                        "omnilens-default-universe",
-                        30,
-                        true,
-                        20),
-                watchlistRepository,
-                targetUniverseProvider);
-
-        scheduler.collectConfiguredWatchlists();
-
-        ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
-                ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
-        verify(collectionService).collectAnalyzeAndPublish(requestCaptor.capture());
-        AlertCollectPublishRequest request = requestCaptor.getValue();
-        assertThat(request.partnerId()).isEqualTo("omnilens-default-universe");
-        assertThat(request.stockCodes()).containsExactly("005930", "000660", "015760");
-    }
-
-    @Test
-    void splitsDefaultUniverseIntoApiSizedBatches() {
-        List<String> stockCodes = java.util.stream.IntStream.rangeClosed(1, 23)
-                .mapToObj(value -> String.format("%06d", value))
-                .toList();
-        when(watchlistRepository.findAll()).thenReturn(List.of());
-        when(targetUniverseProvider.defaultStockCodes(30, true)).thenReturn(stockCodes);
-        when(collectionService.collectAnalyzeAndPublish(any()))
-                .thenReturn(new AlertCollectPublishResponse(
-                        "omnilens-default-universe",
-                        stockCodes,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        List.of()));
-        AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
-                collectionService,
-                new AlertCollectionSchedulerProperties(
-                        true,
                         60_000L,
                         10,
                         7,
@@ -239,7 +197,51 @@ class AlertCollectionSchedulerTest {
 
         ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
                 ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
-        verify(collectionService, times(2)).collectAnalyzeAndPublish(requestCaptor.capture());
+        verify(collectionService).collectIncrementalAnalyzeAndPublish(requestCaptor.capture());
+        AlertCollectPublishRequest request = requestCaptor.getValue();
+        assertThat(request.partnerId()).isEqualTo("omnilens-default-universe");
+        assertThat(request.stockCodes()).containsExactly("005930", "000660", "015760");
+    }
+
+    @Test
+    void splitsDefaultUniverseIntoApiSizedBatches() {
+        List<String> stockCodes = java.util.stream.IntStream.rangeClosed(1, 23)
+                .mapToObj(value -> String.format("%06d", value))
+                .toList();
+        when(watchlistRepository.findAll()).thenReturn(List.of());
+        when(targetUniverseProvider.defaultStockCodes(30, true)).thenReturn(stockCodes);
+        when(collectionService.collectIncrementalAnalyzeAndPublish(any()))
+                .thenReturn(new AlertCollectPublishResponse(
+                        "omnilens-default-universe",
+                        stockCodes,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        List.of()));
+        AlertCollectionScheduler scheduler = new AlertCollectionScheduler(
+                collectionService,
+                new AlertCollectionSchedulerProperties(
+                        true,
+                        60_000L,
+                        60_000L,
+                        10,
+                        7,
+                        List.of(),
+                        true,
+                        "omnilens-default-universe",
+                        30,
+                        true,
+                        20),
+                watchlistRepository,
+                targetUniverseProvider);
+
+        scheduler.collectConfiguredWatchlists();
+
+        ArgumentCaptor<AlertCollectPublishRequest> requestCaptor =
+                ArgumentCaptor.forClass(AlertCollectPublishRequest.class);
+        verify(collectionService, times(2)).collectIncrementalAnalyzeAndPublish(requestCaptor.capture());
         assertThat(requestCaptor.getAllValues().get(0).stockCodes()).hasSize(20);
         assertThat(requestCaptor.getAllValues().get(1).stockCodes()).hasSize(3);
     }
@@ -251,7 +253,7 @@ class AlertCollectionSchedulerTest {
                 .toList();
         when(watchlistRepository.findAll()).thenReturn(List.of());
         when(targetUniverseProvider.defaultStockCodes(30, true)).thenReturn(stockCodes);
-        when(collectionService.collectAnalyzeAndPublish(any()))
+        when(collectionService.collectIncrementalAnalyzeAndPublish(any()))
                 .thenThrow(new IllegalStateException("provider unavailable"))
                 .thenReturn(new AlertCollectPublishResponse(
                         "omnilens-default-universe",
@@ -267,6 +269,7 @@ class AlertCollectionSchedulerTest {
                 new AlertCollectionSchedulerProperties(
                         true,
                         60_000L,
+                        60_000L,
                         10,
                         7,
                         List.of(),
@@ -280,7 +283,7 @@ class AlertCollectionSchedulerTest {
 
         scheduler.collectConfiguredWatchlists();
 
-        verify(collectionService, times(2)).collectAnalyzeAndPublish(any());
+        verify(collectionService, times(2)).collectIncrementalAnalyzeAndPublish(any());
     }
 
     private static AlertCollectionSchedulerProperties schedulerProperties(
@@ -292,6 +295,7 @@ class AlertCollectionSchedulerTest {
         return new AlertCollectionSchedulerProperties(
                 enabled,
                 fixedDelayMs,
+                60_000L,
                 newsDisplay,
                 disclosureLookbackDays,
                 watchlists,

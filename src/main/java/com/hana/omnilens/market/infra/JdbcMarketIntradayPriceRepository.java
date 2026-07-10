@@ -34,23 +34,41 @@ public class JdbcMarketIntradayPriceRepository implements MarketIntradayPriceRep
             return 0;
         }
         for (MarketIntradayPrice price : prices) {
-            int updated = jdbcTemplate.update(
+            jdbcTemplate.update(
                     """
-                    UPDATE market_intraday_minute_price
-                    SET trade_date = ?,
-                        market = ?,
-                        open_price_krw = ?,
-                        high_price_krw = ?,
-                        low_price_krw = ?,
-                        close_price_krw = ?,
-                        trading_volume = ?,
-                        trading_value_krw = ?,
-                        source = ?,
-                        collected_at = ?,
+                    MERGE INTO market_intraday_minute_price AS target
+                    USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) AS incoming (
+                        stock_code, bucket_start, trade_date, market,
+                        open_price_krw, high_price_krw, low_price_krw, close_price_krw,
+                        trading_volume, trading_value_krw, source, collected_at
+                    )
+                    ON target.stock_code = incoming.stock_code
+                       AND target.bucket_start = incoming.bucket_start
+                    WHEN MATCHED THEN UPDATE SET
+                        trade_date = incoming.trade_date,
+                        market = incoming.market,
+                        open_price_krw = incoming.open_price_krw,
+                        high_price_krw = incoming.high_price_krw,
+                        low_price_krw = incoming.low_price_krw,
+                        close_price_krw = incoming.close_price_krw,
+                        trading_volume = incoming.trading_volume,
+                        trading_value_krw = incoming.trading_value_krw,
+                        source = incoming.source,
+                        collected_at = incoming.collected_at,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE stock_code = ?
-                      AND bucket_start = ?
+                    WHEN NOT MATCHED THEN INSERT (
+                        stock_code, bucket_start, trade_date, market,
+                        open_price_krw, high_price_krw, low_price_krw, close_price_krw,
+                        trading_volume, trading_value_krw, source, collected_at, updated_at
+                    ) VALUES (
+                        incoming.stock_code, incoming.bucket_start, incoming.trade_date, incoming.market,
+                        incoming.open_price_krw, incoming.high_price_krw, incoming.low_price_krw,
+                        incoming.close_price_krw, incoming.trading_volume, incoming.trading_value_krw,
+                        incoming.source, incoming.collected_at, CURRENT_TIMESTAMP
+                    )
                     """,
+                    price.stockCode(),
+                    Timestamp.valueOf(price.bucketStart()),
                     price.bucketStart().toLocalDate(),
                     price.market(),
                     price.openPriceKrw(),
@@ -60,38 +78,9 @@ public class JdbcMarketIntradayPriceRepository implements MarketIntradayPriceRep
                     price.tradingVolume(),
                     price.tradingValueKrw(),
                     price.source(),
-                    Timestamp.from(price.collectedAt()),
-                    price.stockCode(),
-                    Timestamp.valueOf(price.bucketStart()));
-            if (updated == 0) {
-                insert(price);
-            }
+                    Timestamp.from(price.collectedAt()));
         }
         return prices.size();
-    }
-
-    private void insert(MarketIntradayPrice price) {
-        jdbcTemplate.update(
-                """
-                INSERT INTO market_intraday_minute_price (
-                    stock_code, bucket_start, trade_date, market,
-                    open_price_krw, high_price_krw, low_price_krw, close_price_krw,
-                    trading_volume, trading_value_krw, source, collected_at, updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """,
-                price.stockCode(),
-                Timestamp.valueOf(price.bucketStart()),
-                price.bucketStart().toLocalDate(),
-                price.market(),
-                price.openPriceKrw(),
-                price.highPriceKrw(),
-                price.lowPriceKrw(),
-                price.closePriceKrw(),
-                price.tradingVolume(),
-                price.tradingValueKrw(),
-                price.source(),
-                Timestamp.from(price.collectedAt()));
     }
 
     @Override

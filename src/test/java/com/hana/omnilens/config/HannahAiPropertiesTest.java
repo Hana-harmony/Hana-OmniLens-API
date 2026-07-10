@@ -14,6 +14,6 @@ class HannahAiPropertiesTest {
 
         assertThat(properties.baseUrl().toString()).isEqualTo("http://hannah-montana-ai:8000");
         assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(2));
-        assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(90));
+        assertThat(properties.readTimeout()).isEqualTo(Duration.ofMinutes(30));
     }
 }

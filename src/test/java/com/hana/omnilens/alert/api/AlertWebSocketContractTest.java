@@ -65,8 +65,9 @@ class AlertWebSocketContractTest {
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    void deletePartnerCredentials() {
+    void deletePersistedContractState() {
         jdbcTemplate.update("DELETE FROM partner_api_credential");
+        jdbcTemplate.update("DELETE FROM alert_event");
     }
 
     @Test

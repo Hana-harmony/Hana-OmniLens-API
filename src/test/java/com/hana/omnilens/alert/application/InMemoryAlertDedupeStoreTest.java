@@ -2,9 +2,23 @@ package com.hana.omnilens.alert.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
+
 import org.junit.jupiter.api.Test;
 
 class InMemoryAlertDedupeStoreTest {
+
+    @Test
+    void leaseCanOnlyBeReleasedByItsOwnerToken() {
+        InMemoryAlertDedupeStore store = new InMemoryAlertDedupeStore(10);
+        String token = store.acquireLease("stock", Duration.ofHours(1)).orElseThrow();
+
+        store.releaseLease("stock", "different-token");
+        assertThat(store.acquireLease("stock", Duration.ofHours(1))).isEmpty();
+
+        store.releaseLease("stock", token);
+        assertThat(store.acquireLease("stock", Duration.ofHours(1))).isPresent();
+    }
 
     @Test
     void markIfFirstRejectsDuplicateAndEvictsOldestKey() {

@@ -37,7 +37,9 @@ public class AlertCollectionScheduler {
         this.targetUniverseProvider = targetUniverseProvider;
     }
 
-    @Scheduled(fixedDelayString = "${omnilens.alert.scheduler.fixed-delay-ms:300000}")
+    @Scheduled(
+            fixedDelayString = "${omnilens.alert.scheduler.fixed-delay-ms:300000}",
+            initialDelayString = "${omnilens.alert.scheduler.initial-delay-ms:60000}")
     public void collectConfiguredWatchlists() {
         if (!properties.enabled()) {
             return;
@@ -92,7 +94,7 @@ public class AlertCollectionScheduler {
 
     private void collectBatch(String partnerId, List<String> stockCodes) {
         try {
-            alertProviderCollectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
+            alertProviderCollectionService.collectIncrementalAnalyzeAndPublish(new AlertCollectPublishRequest(
                     partnerId,
                     stockCodes,
                     properties.newsDisplay(),

@@ -1,4 +1,12 @@
 spring:
+  task:
+    scheduling:
+      pool:
+        size: 4
+      thread-name-prefix: omnilens-scheduler-
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
   application:
     name: hana-omnilens-api
   profiles:
@@ -45,12 +53,6 @@ omnilens:
       base-url: https://openapi.naver.com
       client-id: ""
       client-secret: ""
-    openai-translation:
-      base-url: ${OPENAI_TRANSLATION_BASE_URL:https://api.openai.com}
-      api-key: ${OPENAI_API_KEY:}
-      model: ${OPENAI_TRANSLATION_MODEL:gpt-4o-mini}
-      connect-timeout: ${OPENAI_TRANSLATION_CONNECT_TIMEOUT:5s}
-      read-timeout: ${OPENAI_TRANSLATION_READ_TIMEOUT:60s}
     open-dart:
       base-url: https://opendart.fss.or.kr
       api-key: ""
@@ -97,7 +99,7 @@ omnilens:
     hannah:
       base-url: http://hannah-montana-ai:8000
       connect-timeout: 2s
-      read-timeout: 90s
+      read-timeout: 30m
   term:
     analytics:
       hash-salt: ${OMNILENS_TERM_ANALYTICS_HASH_SALT:local-term-analytics-salt}
@@ -139,7 +141,17 @@ omnilens:
       stock-limit: 5000
     kis-realtime:
       enabled: true
-      stock-codes: []
+      stock-codes:
+        - "005930"
+        - "000660"
+        - "005380"
+        - "000270"
+        - "086790"
+        - "035420"
+        - "068270"
+        - "105560"
+        - "055550"
+        - "012330"
       index-codes: []
       stock-limit: 5000
       shard-size: 40
@@ -171,11 +183,14 @@ omnilens:
     scheduler:
       enabled: true
       fixed-delay-ms: 300000
-      display: 10
+      initial-delay-ms: 60000
+      display: 5
       queries:
         - "한국 증시"
-        - "코스피 코스닥"
+        - "코스피"
+        - "코스닥"
         - "국내 증시"
+        - "외국인 순매수"
   alert:
     dedupe:
       mode: redis
@@ -184,11 +199,12 @@ omnilens:
     scheduler:
       enabled: true
       fixed-delay-ms: 300000
-      news-display: 10
-      disclosure-lookback-days: 7
+      initial-delay-ms: 60000
+      news-display: 5
+      disclosure-lookback-days: 365
       default-universe-enabled: true
       default-universe-partner-id: omnilens-default-universe
-      priority-stock-limit: 30
+      priority-stock-limit: 10
       include-foreign-ownership-restricted-stocks: true
       collection-batch-size: 20
       watchlists: []
