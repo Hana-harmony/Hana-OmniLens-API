@@ -25,7 +25,7 @@
 - FX provider: 실시간/준실시간 환율
 - Naver News Search: 뉴스 제목, snippet, 원문 링크 발견. 사용 허가된 원문 URL은 API 서버가 fetch해 전문과 대표 이미지 URL을 정제한다.
 - OpenDART: 공시 제목, 유형, 제출시각, 원문 링크, 접수번호 기반 document 전문
-- Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석, 한국 금융 고유어·전문용어 해설, 외국인 보유 시계열 예측 boundary 산출, 글로벌 피어 매칭
+- Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석, 한국 금융 고유어·전문용어 해설, 외국인 보유 시계열 예측 boundary 산출, 글로벌 피어 매칭, 세무 문서 템플릿·영역 OCR 검증
 
 ## 현재 구현 상태
 - KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX Open API 과거 일별매매정보, Frankfurter FX 환율, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
@@ -48,6 +48,7 @@
 - 주문 가능 여부 boundary는 KRX snapshot상 외국인 취득한도 제한 종목일 때만 외국인 보유 시계열 예측을 사용한다. 장전 batch가 Hannah-Montana-AI 모델로 금일 예측을 선계산해 cache에 저장하고, API 요청은 cache hit를 우선 반환한다. cache miss 또는 AI 장애 시 OmniLens 내부 시계열 엔진으로 fallback한다. 제한이 없는 종목은 `FOREIGN_LIMIT_NOT_APPLICABLE`로 반환한다. 외국인 한도 예측은 주문 차단 조건이 아니라 프론트 사전 고지용 경고 신호로만 사용한다.
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`는 종목 master metadata를 Hannah-Montana-AI 글로벌 피어 매칭 모델에 전달해 외국인 투자자용 peer popup copy, 미국 상장 peer 목록, 속성별 `comparisons`, 국내 종목 자체의 4개 `keyStrengths`를 반환한다. AI 응답의 dimension/icon key allowlist와 카드 개수를 provider 경계에서 검증하며, Hannah 장애 fallback은 근거 없는 비교·강점 카드를 만들지 않고 빈 배열로 응답한다.
 - `POST /api/v1/korean-financial-terms/explain`는 뉴스/공시 본문에서 사용자가 누른 한국 금융 고유어·전문용어를 Hannah-Montana-AI 사전/RAG 엔진에 전달해 영어 해설을 반환한다. OmniLens는 설명 원문을 생성하지 않고, 검증 가능한 Hannah 응답만 TTL cache에 저장하며, 모든 클릭은 원문 사용자 키 대신 salted SHA-256 hash로 로그와 집계 테이블에 기록한다.
+- `POST /api/v1/tax/documents/verify`는 원본 문서 바이트와 국가 정보를 Hannah-Montana-AI로 전달하며 내부 사용자·계정 ID를 OCR 필수 필드로 사용하지 않는다.
 - KRX 수집은 KOSPI/KOSDAQ/KONEX 시장별 실패를 격리해 `SUCCESS`, `PARTIAL_FAILED`, `FAILED` 상태와 시장별 오류를 반환한다. `KRX_OPEN_API_WITH_KIS_BACKUP` 모드는 KRX 실패 시 KIS 일봉 chart API를 실 provider 백업으로 사용하고, `KIS_DAILY_CHART` 모드는 KIS 결과만으로 전체 상태를 계산한다.
 - 협력사 입력 환율은 `ExchangeRateCache`에 `KRW -> 현지통화` 표시용 환율로 저장하고, quote 요청에 `fxRate`가 없을 때 현지 통화 환산가 계산에 사용한다.
 - `ExchangeRateCache`는 Redis TTL 저장소를 기본으로 사용하고 Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.

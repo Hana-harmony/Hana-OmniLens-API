@@ -858,9 +858,6 @@ components:
           minimum: 0
           maximum: 1
           description: Optional upstream fraud signal. Omit when no fraud detector has run.
-        expectedInvestorId:
-          type: string
-          maxLength: 120
         expectedResidencyCountry:
           type: string
           minLength: 2

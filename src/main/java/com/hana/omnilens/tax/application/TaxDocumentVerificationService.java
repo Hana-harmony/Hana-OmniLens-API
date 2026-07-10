@@ -31,7 +31,6 @@ public class TaxDocumentVerificationService {
                 valueOrEmpty(request.contentType()),
                 request.ocrConfidence(),
                 request.fraudSignalScore(),
-                blankToNull(request.expectedInvestorId()),
                 blankToNull(request.expectedResidencyCountry()),
                 request.extractedFields() == null ? Map.of() : request.extractedFields()));
         return new TaxDocumentVerificationResponse(

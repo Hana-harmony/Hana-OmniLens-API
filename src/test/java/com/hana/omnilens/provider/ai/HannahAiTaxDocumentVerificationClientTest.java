@@ -50,7 +50,7 @@ class HannahAiTaxDocumentVerificationClientTest {
                             "extracted_fields": {"residency_country_code": "US"},
                             "missing_required_fields": [],
                             "rejection_reasons": [],
-                            "document_model_version": "hanah-tax-ocr-e2e-review-v1"
+                            "document_model_version": "hanah-tax-ocr-e2e-review-v2"
                           },
                           "timestamp": "2026-07-08T00:00:00Z"
                         }
@@ -65,7 +65,6 @@ class HannahAiTaxDocumentVerificationClientTest {
                         "text/plain",
                         null,
                         null,
-                        "US_USER_1234",
                         "US",
                         Map.of()));
 

@@ -71,6 +71,12 @@
 - 정상 경로는 Hannah-Montana-AI 글로벌 피어 모델이며, AI 장애 시 검증된 anchor fallback만 제한적으로 사용한다.
 - `OMNILENS_GLOBAL_PEER_FALLBACK`은 근거 없는 비교·강점 카드를 생성하지 않고 `comparisons`, `keyStrengths`를 빈 배열로 반환한다.
 
+## Tax Document OCR
+
+- `POST /api/v1/tax/documents/verify`
+- 원본 파일 바이트와 문서 유형을 Hannah-Montana-AI의 공용 템플릿·영역 OCR 파이프라인으로 전달한다.
+- 내부 사용자·계정 ID는 문서에 존재해야 하는 OCR 필드로 전달하지 않으며, 국가·문서 자체 필드와 진위 검사 결과만 검증 근거로 사용한다.
+
 ## Korean Financial Local Term Explanation
 
 - `POST /api/v1/korean-financial-terms/explain`
