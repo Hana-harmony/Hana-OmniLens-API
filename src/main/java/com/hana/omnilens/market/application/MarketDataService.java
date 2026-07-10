@@ -428,8 +428,12 @@ public class MarketDataService {
                 ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(0L),
                 ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
                 ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(null),
-                ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
-                ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
+                predictedForeignOwnershipRate(
+                        ownershipSnapshot,
+                        prediction.minForeignLimitExhaustionRate()),
+                predictedForeignOwnershipRate(
+                        ownershipSnapshot,
+                        prediction.maxForeignLimitExhaustionRate()),
                 prediction.minForeignLimitExhaustionRate(),
                 prediction.maxForeignLimitExhaustionRate(),
                 prediction.confidenceLevel(),
@@ -1198,6 +1202,27 @@ public class MarketDataService {
 
     private boolean isForeignLimitRestricted(ForeignOwnershipSnapshot snapshot) {
         return ForeignOwnershipRestrictedStockUniverse.isRestrictedStockCode(snapshot.stockCode());
+    }
+
+    private BigDecimal predictedForeignOwnershipRate(
+            Optional<ForeignOwnershipSnapshot> snapshot,
+            BigDecimal predictedLimitExhaustionRate) {
+        if (snapshot.isEmpty() || predictedLimitExhaustionRate == null) {
+            return null;
+        }
+        ForeignOwnershipSnapshot ownershipSnapshot = snapshot.orElseThrow();
+        BigDecimal ownershipRate = ownershipSnapshot.foreignOwnershipRate();
+        BigDecimal exhaustionRate = ownershipSnapshot.foreignLimitExhaustionRate();
+        if (ownershipRate == null || exhaustionRate == null || exhaustionRate.signum() <= 0) {
+            return ownershipRate;
+        }
+        BigDecimal ownershipLimitRate = ownershipRate
+                .multiply(BigDecimal.valueOf(100))
+                .divide(exhaustionRate, 6, RoundingMode.HALF_UP);
+        return predictedLimitExhaustionRate
+                .multiply(ownershipLimitRate)
+                .divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP)
+                .min(ownershipLimitRate);
     }
 
     private boolean isZeroForeignLimitRestricted(ForeignOwnershipSnapshot snapshot) {

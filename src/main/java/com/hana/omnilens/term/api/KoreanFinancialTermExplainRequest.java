@@ -15,8 +15,7 @@ public record KoreanFinancialTermExplainRequest(
         @Size(max = 120) String articleId,
         @Size(max = 1000) String articleUrl,
         @Size(max = 160) String userKey,
-        @Size(max = 160) String sessionKey,
-        Boolean allowWebSearch
+        @Size(max = 160) String sessionKey
 ) {
     public KoreanFinancialTermExplainRequest {
         locale = locale == null || locale.isBlank() ? "en" : locale;
@@ -28,6 +27,5 @@ public record KoreanFinancialTermExplainRequest(
         articleUrl = articleUrl == null ? "" : articleUrl;
         userKey = userKey == null ? "" : userKey;
         sessionKey = sessionKey == null ? "" : sessionKey;
-        allowWebSearch = allowWebSearch == null || allowWebSearch;
     }
 }

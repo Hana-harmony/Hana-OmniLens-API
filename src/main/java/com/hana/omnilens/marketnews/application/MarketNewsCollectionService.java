@@ -8,9 +8,11 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -44,6 +46,8 @@ public class MarketNewsCollectionService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketNewsCollectionService.class);
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+    private static final int NAVER_MARKET_NEWS_FETCH_MULTIPLIER = 5;
+    private static final int NAVER_MARKET_NEWS_MAX_DISPLAY = 100;
 
     private final NaverNewsClient naverNewsClient;
     private final OriginalArticleClient originalArticleClient;
@@ -54,6 +58,7 @@ public class MarketNewsCollectionService {
     private final StockMasterRepository stockMasterRepository;
     private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
     private final Clock clock;
+    private volatile List<String> listedIssuerNameCache;
 
     @Autowired
     public MarketNewsCollectionService(
@@ -103,8 +108,12 @@ public class MarketNewsCollectionService {
         int effectiveDisplay = display <= 0 ? properties.display() : Math.min(display, 100);
         Counters counters = new Counters();
         List<MarketNewsEvent> events = new ArrayList<>();
+        Set<String> seenDuplicateKeys = new HashSet<>();
         for (String query : effectiveQueries) {
-            collectQuery(query, effectiveDisplay, counters, events);
+            if (counters.satisfiedCount >= effectiveDisplay) {
+                break;
+            }
+            collectQuery(query, effectiveDisplay, counters, events, seenDuplicateKeys);
         }
         return new MarketNewsCollectionResult(
                 effectiveQueries,
@@ -143,6 +152,41 @@ public class MarketNewsCollectionService {
                         }
                     }
                 });
+    }
+
+    public Optional<MarketNewsEvent> ensureDisplayableFullArticleByNewsId(String newsId) {
+        return marketNewsEventRepository.findByNewsId(newsId)
+                .map(this::ensureDisplayableFullArticle);
+    }
+
+    public boolean isDisplayableFullArticle(MarketNewsEvent event) {
+        return event != null
+                && hasCompleteArticleBody(event.originalContent())
+                && EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())
+                && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                        event.translatedContent(),
+                        event.summaryLines(),
+                        event.translatedSummary(),
+                        event.originalContent());
+    }
+
+    private MarketNewsEvent ensureDisplayableFullArticle(MarketNewsEvent event) {
+        if (isDisplayableFullArticle(event)) {
+            return event;
+        }
+        try {
+            MarketNewsEvent reprocessed = reprocess(event);
+            if (isDisplayableFullArticle(reprocessed)) {
+                return reprocessed;
+            }
+            return reprocessed;
+        } catch (RuntimeException reprocessException) {
+            log.warn(
+                    "Failed to restore displayable full market news article: newsId={}",
+                    event.newsId(),
+                    reprocessException);
+            return event;
+        }
     }
 
     public List<MarketNewsEvent> reprocessSummaryQualityIssues(int limit) {
@@ -434,17 +478,42 @@ public class MarketNewsCollectionService {
             String query,
             int display,
             Counters counters,
-            List<MarketNewsEvent> events) {
-        List<NaverNewsArticle> articles = naverNewsClient.search(query, display);
+            List<MarketNewsEvent> events,
+            Set<String> seenDuplicateKeys) {
+        List<NaverNewsArticle> articles = naverNewsClient.search(query, marketNewsSearchDisplay(display));
         counters.collectedCount += articles.size();
         for (NaverNewsArticle article : articles) {
+            if (counters.satisfiedCount >= display) {
+                break;
+            }
+            if (!isMarketNewsRelevant(query, article)) {
+                log.info(
+                        "Skipping market news article because title/snippet lacks market evidence: query={}, title={}, url={}",
+                        query,
+                        article.title(),
+                        article.originalUrl());
+                continue;
+            }
             String duplicateKey = sha256(article.originalUrl());
             if (marketNewsEventRepository.findByDuplicateKey(duplicateKey).isPresent()) {
                 counters.duplicateCount++;
+                if (seenDuplicateKeys.add(duplicateKey)) {
+                    counters.satisfiedCount++;
+                }
                 continue;
             }
             try {
                 MarketNewsEvent event = toEvent(query, article, duplicateKey);
+                if (!isDisplayableFullArticle(event)) {
+                    log.info(
+                            "Skipping market news article without full translated body: query={}, url={}, availability={}, originalLength={}, translatedLength={}",
+                            query,
+                            article.originalUrl(),
+                            event.contentAvailability(),
+                            event.originalContent() == null ? 0 : event.originalContent().length(),
+                            event.translatedContent() == null ? 0 : event.translatedContent().length());
+                    continue;
+                }
                 MarketNewsEvent saved = marketNewsEventRepository.save(event);
                 if (saved.newsId().equals(event.newsId())) {
                     counters.storedCount++;
@@ -452,6 +521,15 @@ public class MarketNewsCollectionService {
                     counters.duplicateCount++;
                 }
                 events.add(saved);
+                if (seenDuplicateKeys.add(duplicateKey)) {
+                    counters.satisfiedCount++;
+                }
+            } catch (IrrelevantMarketNewsArticleException exception) {
+                log.info(
+                        "Skipping market news article after original-page relevance check: query={}, title={}, url={}",
+                        query,
+                        article.title(),
+                        article.originalUrl());
             } catch (RuntimeException exception) {
                 log.warn(
                         "Skipping market news article because analysis or translation failed: query={}, url={}",
@@ -462,10 +540,245 @@ public class MarketNewsCollectionService {
         }
     }
 
+    private int marketNewsSearchDisplay(int targetDisplay) {
+        int safeTarget = Math.max(1, targetDisplay);
+        return Math.min(NAVER_MARKET_NEWS_MAX_DISPLAY, safeTarget * NAVER_MARKET_NEWS_FETCH_MULTIPLIER);
+    }
+
+    private boolean isMarketNewsRelevant(String query, NaverNewsArticle article) {
+        return isMarketNewsRelevant(query, article.title(), article.snippet(), "");
+    }
+
+    private boolean isMarketNewsRelevant(String query, String title, String snippet, String originalContent) {
+        String normalized = normalizeForRelevance(query + " " + title + " " + snippet + " " + leadingText(originalContent));
+        String titleOnly = normalizeForRelevance(title);
+        String evidence = normalizeForRelevance(title + " " + snippet + " " + leadingText(originalContent));
+        if (!StringUtils.hasText(evidence)) {
+            return false;
+        }
+        if (containsAny(normalized,
+                "연예",
+                "배우",
+                "가수",
+                "예능",
+                "스포츠",
+                "야구",
+                "축구",
+                "농구",
+                "계란값",
+                "산란계")) {
+            return false;
+        }
+        boolean titleHasMarketAnchor = hasMarketWideAnchor(titleOnly);
+        boolean titleHasStrongKoreanMarketAnchor = hasStrongKoreanMarketAnchor(titleOnly);
+        String issuerEvidence = normalizeForRelevance(title + " " + leadingText(originalContent));
+        if (hasForeignMarketAnchor(titleOnly) && !titleHasStrongKoreanMarketAnchor) {
+            return false;
+        }
+        if (mentionsListedIssuer(titleOnly)
+                && !titleHasStrongKoreanMarketAnchor
+                && hasIssuerSpecificMarketOrCorporateTerms(issuerEvidence)) {
+            return false;
+        }
+        if (isSingleIssuerCorporateHeadline(titleOnly) && !titleHasMarketAnchor) {
+            return false;
+        }
+        return hasMarketWideAnchor(evidence)
+                && containsAny(evidence,
+                "코스피",
+                "kospi",
+                "코스닥",
+                "kosdaq",
+                "증시",
+                "거래소",
+                "지수",
+                "장중",
+                "장마감",
+                "상승",
+                "하락",
+                "급락",
+                "급등",
+                "순매수",
+                "순매도",
+                "외국인",
+                "기관",
+                "개인투자자",
+                "투자자",
+                "시가총액",
+                "거래대금",
+                "환율");
+    }
+
+    private boolean hasMarketWideAnchor(String text) {
+        if (!StringUtils.hasText(text)) {
+            return false;
+        }
+        if (hasStrongKoreanMarketAnchor(text)) {
+            return true;
+        }
+        if (hasForeignMarketAnchor(text)) {
+            return false;
+        }
+        return containsAny(text,
+                "증시",
+                "거래소",
+                "종합주가지수",
+                "주가지수",
+                "시장지수",
+                "상장법인",
+                "시가총액",
+                "거래대금",
+                "장중",
+                "장마감",
+                "개장",
+                "마감",
+                "사이드카",
+                "서킷브레이커",
+                "프로그램매매");
+    }
+
+    private boolean hasStrongKoreanMarketAnchor(String text) {
+        return containsAny(text,
+                "한국증시",
+                "국내증시",
+                "코스피",
+                "kospi",
+                "코스닥",
+                "kosdaq",
+                "유가증권시장",
+                "코넥스",
+                "한국거래소",
+                "넥스트레이드",
+                "종합주가지수",
+                "상장법인",
+                "시가총액",
+                "거래대금",
+                "사이드카",
+                "서킷브레이커");
+    }
+
+    private boolean hasForeignMarketAnchor(String text) {
+        return containsAny(text,
+                "美증시",
+                "미증시",
+                "미국증시",
+                "뉴욕증시",
+                "나스닥",
+                "nasdaq",
+                "다우지수",
+                "s&p",
+                "중국증시",
+                "일본증시",
+                "홍콩증시",
+                "유럽증시");
+    }
+
+    private boolean mentionsListedIssuer(String title) {
+        if (!StringUtils.hasText(title)) {
+            return false;
+        }
+        return listedIssuerNames().stream()
+                .anyMatch(title::contains);
+    }
+
+    private List<String> listedIssuerNames() {
+        List<String> cached = listedIssuerNameCache;
+        if (cached != null) {
+            return cached;
+        }
+        List<String> loaded = stockMasterRepository.findAll(5_000).stream()
+                .map(StockSummary::stockName)
+                .filter(name -> name != null && name.length() >= 3)
+                .map(this::normalizeForRelevance)
+                .distinct()
+                .toList();
+        listedIssuerNameCache = loaded;
+        return loaded;
+    }
+
+    private boolean hasIssuerSpecificMarketOrCorporateTerms(String text) {
+        return containsAny(text,
+                "adr",
+                "주식예탁증서",
+                "미국주식예탁",
+                "나스닥",
+                "nasdaq",
+                "ipo",
+                "공모가",
+                "공모가격",
+                "상장",
+                "목표가",
+                "목표주가",
+                "투자의견",
+                "실적",
+                "영업이익",
+                "매출",
+                "수주",
+                "계약",
+                "임상",
+                "출시",
+                "유상증자",
+                "전환사채",
+                "배당",
+                "자사주");
+    }
+
+    private boolean isSingleIssuerCorporateHeadline(String title) {
+        if (!StringUtils.hasText(title)) {
+            return false;
+        }
+        return containsAny(title,
+                "adr",
+                "ipo",
+                "공모가",
+                "목표가",
+                "목표주가",
+                "투자의견",
+                "실적",
+                "영업이익",
+                "매출",
+                "수주",
+                "계약",
+                "임상",
+                "출시",
+                "상장예비심사",
+                "유상증자",
+                "전환사채",
+                "배당",
+                "자사주");
+    }
+
+    private String leadingText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        return value.length() <= 800 ? value : value.substring(0, 800);
+    }
+
+    private boolean containsAny(String text, String... terms) {
+        for (String term : terms) {
+            if (text.contains(term)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeForRelevance(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+    }
+
     private MarketNewsEvent toEvent(String query, NaverNewsArticle article, String duplicateKey) {
         Optional<OriginalArticleContent> fullContent = originalArticleClient.fetch(article.originalUrl());
         Instant now = Instant.now(clock);
         String originalContent = fullContent.map(OriginalArticleContent::content).orElse("");
+        String originalPageTitle = fullContent
+                .map(OriginalArticleContent::title)
+                .filter(StringUtils::hasText)
+                .orElse(article.title());
+        if (!isMarketNewsRelevant(query, originalPageTitle, article.snippet(), originalContent)) {
+            throw new IrrelevantMarketNewsArticleException();
+        }
         String sourceContentAvailability = fullContent
                 .map(content -> contentAvailability(content.content()))
                 .orElse("DISCOVERY_ONLY");
@@ -478,7 +791,7 @@ public class MarketNewsCollectionService {
         return new MarketNewsEvent(
                 "mkt-news-" + duplicateKey.substring(0, 24),
                 query,
-                article.title(),
+                analysis.sourceTitle(),
                 analysis.translatedTitle(),
                 analysis.summary(),
                 analysis.summaryLines(),
@@ -645,7 +958,7 @@ public class MarketNewsCollectionService {
     }
 
     private String contentAvailability(String originalContent) {
-        return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "FULL_TEXT";
+        return hasCompleteArticleBody(originalContent) ? "FULL_TEXT" : "SUMMARY_ONLY";
     }
 
     private String contentAvailability(
@@ -655,10 +968,13 @@ public class MarketNewsCollectionService {
         if (!StringUtils.hasText(originalContent)) {
             return StringUtils.hasText(sourceAvailability) ? sourceAvailability : "DISCOVERY_ONLY";
         }
-        if (!StringUtils.hasText(translatedContent)) {
-            return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "ORIGINAL_TEXT_ONLY";
+        if (!hasCompleteArticleBody(originalContent)) {
+            return "SUMMARY_ONLY";
         }
-        return hasTruncationMarker(originalContent) ? "SUMMARY_ONLY" : "FULL_TEXT";
+        if (!StringUtils.hasText(translatedContent)) {
+            return "ORIGINAL_TEXT_ONLY";
+        }
+        return "FULL_TEXT";
     }
 
     private String refreshedCanonicalUrl(MarketNewsEvent event, Optional<OriginalArticleContent> fullContent) {
@@ -694,14 +1010,15 @@ public class MarketNewsCollectionService {
         List<AlertGlossaryTerm> glossaryTerms = withMatchedStockGlossary(
                 toAlertGlossaryTerms(ai.glossaryTerms()),
                 ai);
+        String sourceTitle = sourceArticleTitle(article, fullContent, ai);
         TranslationResult translatedTitle = translationService.translateTitleWithResult(
-                firstText(ai.originalTitle(), article.title()),
+                sourceTitle,
                 glossaryTerms);
         String translatedTitleText = requireEnglishText(translatedTitle, "market news title");
         AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
                 ai.summary(),
                 ai.summaryLines(),
-                article.title());
+                sourceTitle);
         String summary = joinSummaryLines(sourceSummaryLines);
         AlertSummaryLines alreadyEnglishSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
                 sourceSummaryLines);
@@ -738,6 +1055,7 @@ public class MarketNewsCollectionService {
                 translatedSummaryText,
                 translatedContentText);
         return new MarketNewsAnalysis(
+                sourceTitle,
                 summary,
                 translatedTitleText,
                 translatedSummaryLines,
@@ -749,6 +1067,31 @@ public class MarketNewsCollectionService {
                 translationProvider(translatedTitle, effectiveTranslatedSummary, translatedContent),
                 translationModelVersion(translatedTitle, effectiveTranslatedSummary, translatedContent),
                 translationStatus(translatedTitle, effectiveTranslatedSummary, translatedContent));
+    }
+
+    private String sourceArticleTitle(
+            NaverNewsArticle article,
+            Optional<OriginalArticleContent> fullContent,
+            HannahAiAnalysisResponse ai) {
+        String pageTitle = fullContent
+                .map(OriginalArticleContent::title)
+                .filter(StringUtils::hasText)
+                .orElse("");
+        if (StringUtils.hasText(pageTitle) && shouldPreferPageTitle(article.title(), pageTitle)) {
+            return pageTitle;
+        }
+        return firstText(article.title(), ai.originalTitle());
+    }
+
+    private boolean shouldPreferPageTitle(String searchTitle, String pageTitle) {
+        if (!StringUtils.hasText(pageTitle)) {
+            return false;
+        }
+        if (!StringUtils.hasText(searchTitle)) {
+            return true;
+        }
+        return hasTruncationMarker(searchTitle)
+                || pageTitle.length() >= searchTitle.length() + 12;
     }
 
     private TranslationResult translateContent(String originalContent, List<AlertGlossaryTerm> glossaryTerms) {
@@ -780,7 +1123,7 @@ public class MarketNewsCollectionService {
             return "result=null";
         }
         String translatedText = result.translatedText() == null ? "" : result.translatedText();
-        return "status=%s, provider=%s, model=%s, length=%d, hasHangul=%s, lowQuality=%s, genericFallback=%s"
+        return "status=%s, provider=%s, model=%s, length=%d, hasHangul=%s, lowQuality=%s, genericFallback=%s, qualityFlags=%s"
                 .formatted(
                         result.status(),
                         result.provider(),
@@ -788,7 +1131,8 @@ public class MarketNewsCollectionService {
                         translatedText.length(),
                         EnglishNewsQualityGate.containsHangul(translatedText),
                         EnglishNewsQualityGate.containsLowQualityTranslation(translatedText),
-                        EnglishNewsQualityGate.containsGenericFallback(translatedText));
+                        EnglishNewsQualityGate.containsGenericFallback(translatedText),
+                        result.qualityFlags());
     }
 
     private String requireOptionalEnglishContent(
@@ -798,17 +1142,11 @@ public class MarketNewsCollectionService {
         if (!StringUtils.hasText(originalContent)) {
             return "";
         }
-        if (!requiresCompleteContentTranslation(originalContent)) {
-            if (result == null || !hasEnglishTranslationStatus(result)) {
-                return "";
-            }
-            return EnglishNewsQualityGate.englishTextOrEmpty(result.translatedText());
-        }
         if (result == null) {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
         }
-        if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+        if (!isTranslatedOrPartial(result)
                 && EnglishNewsQualityGate.containsHangul(originalContent)) {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
@@ -840,7 +1178,16 @@ public class MarketNewsCollectionService {
 
     private boolean requiresCompleteContentTranslation(String originalContent) {
         String normalized = originalContent.replaceAll("\\s+", " ").trim();
-        return normalized.length() >= 160
+        return hasCompleteArticleBody(normalized);
+    }
+
+    private boolean hasCompleteArticleBody(String originalContent) {
+        if (!StringUtils.hasText(originalContent)) {
+            return false;
+        }
+        String normalized = originalContent.replaceAll("\\s+", " ").trim();
+        return normalized.length() >= 260
+                && sourceSentenceCount(normalized) >= 3
                 && !hasTruncationMarker(normalized);
     }
 
@@ -1104,9 +1451,14 @@ public class MarketNewsCollectionService {
 
     private boolean hasCompleteEnglishTranslationStatus(TranslationResult result) {
         return result != null
+                && AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+                && EnglishNewsQualityGate.hasUsableEnglishText(result.translatedText());
+    }
+
+    private boolean isTranslatedOrPartial(TranslationResult result) {
+        return result != null
                 && (AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
-                || (AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
-                && EnglishNewsQualityGate.hasUsableEnglishText(result.translatedText())));
+                || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status()));
     }
 
     private TranslationResult alreadyEnglishSummaryResult(
@@ -1334,9 +1686,14 @@ public class MarketNewsCollectionService {
         private int collectedCount;
         private int storedCount;
         private int duplicateCount;
+        private int satisfiedCount;
+    }
+
+    private static final class IrrelevantMarketNewsArticleException extends RuntimeException {
     }
 
     private record MarketNewsAnalysis(
+            String sourceTitle,
             String summary,
             String translatedTitle,
             AlertSummaryLines summaryLines,

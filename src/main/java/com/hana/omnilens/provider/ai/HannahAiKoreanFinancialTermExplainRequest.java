@@ -11,7 +11,6 @@ public record HannahAiKoreanFinancialTermExplainRequest(
         @JsonProperty("stock_code") String stockCode,
         @JsonProperty("stock_name") String stockName,
         @JsonProperty("article_id") String articleId,
-        @JsonProperty("article_url") String articleUrl,
-        @JsonProperty("allow_web_search") boolean allowWebSearch
+        @JsonProperty("article_url") String articleUrl
 ) {
 }

@@ -37,12 +37,6 @@ omnilens:
       base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
       client-id: ${NAVER_NEWS_CLIENT_ID}
       client-secret: ${NAVER_NEWS_CLIENT_SECRET}
-    openai-translation:
-      base-url: ${OPENAI_TRANSLATION_BASE_URL:https://api.openai.com}
-      api-key: ${OPENAI_API_KEY:}
-      model: ${OPENAI_TRANSLATION_MODEL:gpt-4o-mini}
-      connect-timeout: ${OPENAI_TRANSLATION_CONNECT_TIMEOUT:5s}
-      read-timeout: ${OPENAI_TRANSLATION_READ_TIMEOUT:60s}
     open-dart:
       base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
       api-key: ${OPEN_DART_API_KEY}
@@ -89,7 +83,7 @@ omnilens:
     hannah:
       base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}
       connect-timeout: ${HANNAH_AI_CONNECT_TIMEOUT:2s}
-      read-timeout: ${HANNAH_AI_READ_TIMEOUT:90s}
+      read-timeout: ${HANNAH_AI_READ_TIMEOUT:30m}
   term:
     analytics:
       hash-salt: ${OMNILENS_TERM_ANALYTICS_HASH_SALT}
@@ -131,7 +125,7 @@ omnilens:
       stock-limit: ${FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_STOCK_LIMIT:5000}
     kis-realtime:
       enabled: ${KIS_REALTIME_ENABLED:true}
-      stock-codes: ${KIS_REALTIME_STOCK_CODES:}
+      stock-codes: ${KIS_REALTIME_STOCK_CODES:005930,000660,005380,000270,086790,035420,068270,105560,055550,012330}
       stock-limit: ${KIS_REALTIME_STOCK_LIMIT:5000}
       shard-size: ${KIS_REALTIME_SHARD_SIZE:40}
       order-book-enabled: ${KIS_REALTIME_ORDER_BOOK_ENABLED:false}
@@ -150,8 +144,9 @@ omnilens:
     scheduler:
       enabled: ${MARKET_NEWS_SCHEDULER_ENABLED:true}
       fixed-delay-ms: ${MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS:300000}
-      display: ${MARKET_NEWS_SCHEDULER_DISPLAY:10}
-      queries: "${MARKET_NEWS_SCHEDULER_QUERIES:한국 증시,코스피 코스닥,국내 증시}"
+      initial-delay-ms: ${MARKET_NEWS_SCHEDULER_INITIAL_DELAY_MS:60000}
+      display: ${MARKET_NEWS_SCHEDULER_DISPLAY:5}
+      queries: "${MARKET_NEWS_SCHEDULER_QUERIES:한국 증시,코스피,코스닥,국내 증시,외국인 순매수}"
   alert:
     dedupe:
       mode: ${ALERT_DEDUPE_MODE:redis}
@@ -160,11 +155,12 @@ omnilens:
     scheduler:
       enabled: ${ALERT_SCHEDULER_ENABLED:true}
       fixed-delay-ms: ${ALERT_SCHEDULER_FIXED_DELAY_MS:300000}
-      news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:10}
-      disclosure-lookback-days: ${ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS:7}
+      initial-delay-ms: ${ALERT_SCHEDULER_INITIAL_DELAY_MS:60000}
+      news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:5}
+      disclosure-lookback-days: ${ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS:365}
       default-universe-enabled: ${ALERT_SCHEDULER_DEFAULT_UNIVERSE_ENABLED:true}
       default-universe-partner-id: ${ALERT_SCHEDULER_DEFAULT_UNIVERSE_PARTNER_ID:omnilens-default-universe}
-      priority-stock-limit: ${ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT:30}
+      priority-stock-limit: ${ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT:10}
       include-foreign-ownership-restricted-stocks: ${ALERT_SCHEDULER_INCLUDE_FOREIGN_OWNERSHIP_RESTRICTED_STOCKS:true}
       collection-batch-size: ${ALERT_SCHEDULER_COLLECTION_BATCH_SIZE:20}
       watchlists: []

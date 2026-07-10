@@ -11,7 +11,7 @@ import jakarta.validation.constraints.Size;
 public record TaxDocumentVerificationRequest(
         @NotBlank String documentType,
         @NotBlank @Size(max = 180) String fileName,
-        @Size(max = 8000) String extractedText,
+        @Size(max = 60_000) String extractedText,
         @Size(max = 14_000_000) String documentContentBase64,
         @Size(max = 120) String contentType,
         @DecimalMin("0.0") @DecimalMax("1.0") Double ocrConfidence,

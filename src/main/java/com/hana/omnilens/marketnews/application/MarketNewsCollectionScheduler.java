@@ -22,7 +22,9 @@ public class MarketNewsCollectionScheduler {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "${omnilens.market-news.scheduler.fixed-delay-ms:300000}")
+    @Scheduled(
+            fixedDelayString = "${omnilens.market-news.scheduler.fixed-delay-ms:300000}",
+            initialDelayString = "${omnilens.market-news.scheduler.initial-delay-ms:60000}")
     public void collectMarketNews() {
         if (!properties.enabled()) {
             return;

@@ -28,7 +28,6 @@ class HannahAiKoreanFinancialTermClientTest {
                 .andExpect(headerDoesNotExist("X-HANNAH-AI-SERVICE-TOKEN"))
                 .andExpect(content().string(containsString("\"term\":\"개미\"")))
                 .andExpect(content().string(containsString("\"source_type\":\"NEWS\"")))
-                .andExpect(content().string(containsString("\"allow_web_search\":true")))
                 .andRespond(withSuccess("""
                         {
                           "success": true,
@@ -75,8 +74,7 @@ class HannahAiKoreanFinancialTermClientTest {
                         "005930",
                         "삼성전자",
                         "news-1",
-                        "https://news.example.com/1",
-                        true));
+                        "https://news.example.com/1"));
 
         assertThat(response.normalizedTerm()).isEqualTo("개미");
         assertThat(response.displayMode()).isEqualTo("EXPLANATION");

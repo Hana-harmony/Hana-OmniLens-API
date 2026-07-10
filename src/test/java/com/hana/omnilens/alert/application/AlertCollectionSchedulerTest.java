@@ -181,6 +181,7 @@ class AlertCollectionSchedulerTest {
                 new AlertCollectionSchedulerProperties(
                         true,
                         60_000L,
+                        60_000L,
                         10,
                         7,
                         List.of(),
@@ -223,6 +224,7 @@ class AlertCollectionSchedulerTest {
                 collectionService,
                 new AlertCollectionSchedulerProperties(
                         true,
+                        60_000L,
                         60_000L,
                         10,
                         7,
@@ -267,6 +269,7 @@ class AlertCollectionSchedulerTest {
                 new AlertCollectionSchedulerProperties(
                         true,
                         60_000L,
+                        60_000L,
                         10,
                         7,
                         List.of(),
@@ -292,6 +295,7 @@ class AlertCollectionSchedulerTest {
         return new AlertCollectionSchedulerProperties(
                 enabled,
                 fixedDelayMs,
+                60_000L,
                 newsDisplay,
                 disclosureLookbackDays,
                 watchlists,

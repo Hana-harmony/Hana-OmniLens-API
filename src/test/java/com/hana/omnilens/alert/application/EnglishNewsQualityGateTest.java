@@ -11,6 +11,17 @@ class EnglishNewsQualityGateTest {
     @Test
     void rejectsKnownLocalLlmBrokenEnglishSurfaces() {
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
+                "KOSPI advanced after institutional buying. The headline also references 2.5%."))
+                .isFalse();
+        assertThat(EnglishNewsQualityGate.englishTextOrEmpty(
+                "KOSPI advanced after institutional buying. The headline also references 2.5%."))
+                .isEqualTo("KOSPI advanced after institutional buying.");
+        assertThat(EnglishNewsQualityGate.englishTextOrEmpty(
+                ". The headline also references 25 won. KNN approved the financial statements "
+                        + "and declared a cash dividend of KRW 25 per share."))
+                .isEqualTo("KNN approved the financial statements "
+                        + "and declared a cash dividend of KRW 25 per share.");
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
                 "Hanoteoreminder of the US- South Korea exchange, (Kim Yuseo's economic reform)."))
                 .isFalse();
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
@@ -109,6 +120,16 @@ class EnglishNewsQualityGateTest {
         assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
                 "The original Korean text is retained because machine translation was unavailable. Review the linked article or filing for price, liquidity, and portfolio impact."))
                 .isFalse();
+    }
+
+    @Test
+    void acceptsAdjacentQuotedSentencesInsideArticleBody() {
+        assertThat(EnglishNewsQualityGate.hasUsableEnglishText(
+                "Yum said, \"Foreign investors are mainly foreign funds.\" \"Last year, Samsung Electronics and SK hynix made up a large portion of the portfolio.\" Investors should monitor foreign flows."))
+                .isTrue();
+        assertThat(EnglishNewsQualityGate.lowQualityTranslationReasons(
+                "Korean market \" \""))
+                .contains("LOW_QUALITY_TRANSLATION:BROKEN_TITLE_PLACEHOLDER");
     }
 
     @Test

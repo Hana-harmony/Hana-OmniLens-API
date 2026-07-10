@@ -1,5 +1,7 @@
 package com.hana.omnilens.alert.application;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -47,6 +49,123 @@ public final class EnglishNewsQualityGate {
             "treasury-share",
             "value-up",
             "year-on-year");
+    private static final List<String> LOW_QUALITY_PHRASES = List.of(
+            "kang nam-go",
+            "pab-wo",
+            "dda-jeon",
+            "levership",
+            "hannak",
+            "defi-shares",
+            "nanyang dynamics",
+            "snicklever",
+            "stock-celltrion",
+            "hanacorp",
+            "sina-combankipt",
+            "lg-hydration",
+            "iong-wok",
+            "nalmalai",
+            "without a street",
+            "according to a search",
+            "three-sentence",
+            "effect of the number",
+            "dynamic of the",
+            "nmsk",
+            "auction raise",
+            "auction distributor",
+            "exchange order",
+            "cosby market",
+            "capacitor semiconductor",
+            "chinese p&t7",
+            "lithium supply",
+            "dividend price of equity dividends",
+            "envidia",
+            "enviada",
+            "enbody",
+            "ofewa",
+            "robotaxial",
+            "terminal center",
+            "it centriel",
+            "robotic sum",
+            "actuator's salary",
+            "incentive traveler",
+            "north and south",
+            "hanoteoreminder",
+            "hyang-yeol",
+            "yuseo",
+            "hidden world history",
+            "korean farmer's 600-year",
+            "fresh water break",
+            "i'm going to",
+            "power-driven",
+            "two-carpet",
+            "new bond's price flow",
+            "flowing semiconductor ship",
+            "on strike; the actuality",
+            "entering the 'sides'",
+            "triangle lower limited",
+            "us-exited ai-investor",
+            "samjeon nix's trading method does not exist",
+            "samjeon nok",
+            "future-sustainable capital",
+            "adding silicon",
+            "european shopping trip",
+            "samnick",
+            "middle and small businesses fund acts",
+            "investors net at the european show",
+            "no ai or human",
+            "reveal ourselves",
+            "countermeasures inspection",
+            "approval of the megaproject",
+            "core themes of ai and human death",
+            "latest market and company interventions",
+            "market and business events confirmed",
+            "trading by samjeon nix",
+            "by samjeon nix as key",
+            "latest public news confirmed in the original",
+            "impact of this president",
+            "holding and surveillance",
+            "samjeon nix trading",
+            "latest market and corporate events confirmed",
+            "krw-3777b",
+            "sheriff's rifle",
+            "iseutasi",
+            "investor's net buying flow",
+            "entrepreneurhan",
+            "hallinkyos",
+            "sk hallinkyos",
+            "skhinky",
+            "sinerlwyk",
+            "hyanix",
+            "skhynx",
+            "klamath stock exchange",
+            "north american and south american trade disputes",
+            "substitute offering",
+            "high-slang",
+            "teatr esg",
+            "tutat esg",
+            "hyundai motor, kia, and mercedes-benz",
+            "car insurance and vehicle services",
+            "freaked out about the deposits",
+            "triple-a hynix",
+            "truck-train",
+            "kospi faced the kospi market move",
+            "investor impact is higher on the flow of earnings",
+            "investor impact is higher on ev and hev markets",
+            "foreign exchanges as the market becomes more active",
+            "national association of churches",
+            "18 temples",
+            "90 trillion yuan",
+            "receivable volume",
+            "reception function",
+            "periodic allowance",
+            "the headline also references",
+            "move-digest",
+            "supply-digest",
+            "gyeongneng district",
+            "social-hq",
+            "life-close welfare",
+            "youth center of the 3rd army",
+            "republic of china");
 
     private EnglishNewsQualityGate() {
     }
@@ -77,7 +196,7 @@ public final class EnglishNewsQualityGate {
     }
 
     public static String englishTextOrEmpty(String value) {
-        String normalized = normalizeWhitespace(value);
+        String normalized = stripGeneratedHeadlineReferenceSuffix(value);
         if (hasUsableEnglishText(normalized)) {
             return normalized;
         }
@@ -161,7 +280,7 @@ public final class EnglishNewsQualityGate {
     }
 
     public static String englishSummaryTextOrEmpty(String value) {
-        String normalized = normalizeWhitespace(value);
+        String normalized = stripGeneratedHeadlineReferenceSuffix(value);
         if (StringUtils.hasText(normalized)
                 && !containsHangul(normalized)
                 && !containsEllipsis(normalized)
@@ -207,150 +326,53 @@ public final class EnglishNewsQualityGate {
     }
 
     public static boolean containsLowQualityTranslation(String value) {
+        return !lowQualityTranslationReasons(value).isEmpty();
+    }
+
+    public static List<String> lowQualityTranslationReasons(String value) {
         String normalized = normalizeWhitespace(value);
         String lower = normalized.toLowerCase(Locale.ROOT);
+        List<String> reasons = new ArrayList<>();
         if (!StringUtils.hasText(lower)) {
-            return false;
+            return List.of();
         }
-        if (CJK_PATTERN.matcher(normalized).find()
-                || containsBrokenTitlePlaceholder(normalized)
-                || looksLikeBrokenMarketHeadlineGrammar(normalized)
-                || looksLikeBrokenMarketReasonGrammar(normalized)
-                || looksLikeTickerOnlyHeadlineFragment(normalized)) {
-            return true;
+        if (CJK_PATTERN.matcher(normalized).find()) {
+            reasons.add("LOW_QUALITY_TRANSLATION:CJK_REMAINS");
         }
-        if (lower.contains("kang nam-go")
-                || lower.contains("pab-wo")
-                || lower.contains("dda-jeon")
-                || lower.contains("levership")
-                || lower.contains("hannak")
-                || lower.contains("defi-shares")
-                || lower.contains("nanyang dynamics")
-                || lower.contains("snicklever")
-                || lower.contains("stock-celltrion")
-                || lower.contains("hanacorp")
-                || lower.contains("sina-combankipt")
-                || lower.contains("lg-hydration")
-                || lower.contains("iong-wok")
-                || lower.contains("nalmalai")
-                || lower.contains("without a street")
-                || lower.contains("according to a search")
-                || lower.contains("three-sentence")
-                || lower.contains("effect of the number")
-                || lower.contains("dynamic of the")
-                || lower.contains("nmsk")
-                || lower.contains("auction raise")
-                || lower.contains("auction distributor")
-                || lower.contains("exchange order")
-                || lower.contains("cosby market")
-                || lower.contains("capacitor semiconductor")
-                || lower.contains("chinese p&t7")
-                || lower.contains("lithium supply")
-                || lower.contains("dividend price of equity dividends")
-                || lower.contains("envidia")
-                || lower.contains("enviada")
-                || lower.contains("enbody")
-                || lower.contains("ofewa")
-                || lower.contains("robotaxial")
-                || lower.contains("terminal center")
-                || lower.contains("it centriel")
-                || lower.contains("robotic sum")
-                || lower.contains("actuator's salary")
-                || lower.contains("incentive traveler")
-                || lower.contains("north and south")
-                || lower.contains("hanoteoreminder")
-                || lower.contains("hyang-yeol")
-                || lower.contains("yuseo")
-                || lower.contains("hidden world history")
-                || lower.contains("korean farmer's 600-year")
-                || lower.contains("fresh water break")
-                || lower.contains("i'm going to")
-                || lower.contains("power-driven")
-                || lower.contains("two-carpet")
-                || lower.contains("new bond's price flow")
-                || lower.contains("flowing semiconductor ship")
-                || lower.contains("on strike; the actuality")
-                || lower.contains("entering the 'sides'")
-                || lower.contains("triangle lower limited")
-                || lower.contains("us-exited ai-investor")
-                || lower.contains("samjeon nix's trading method does not exist")
-                || lower.contains("samjeon nok")
-                || lower.contains("future-sustainable capital")
-                || lower.contains("adding silicon")
-                || lower.contains("european shopping trip")
-                || lower.contains("samnick")
-                || lower.contains("middle and small businesses fund acts")
-                || lower.contains("investors net at the european show")
-                || lower.contains("no ai or human")
-                || lower.contains("reveal ourselves")
-                || lower.contains("countermeasures inspection")
-                || lower.contains("approval of the megaproject")
-                || lower.contains("core themes of ai and human death")
-                || lower.contains("latest market and company interventions")
-                || lower.contains("market and business events confirmed")
-                || lower.contains("trading by samjeon nix")
-                || lower.contains("by samjeon nix as key")
-                || lower.contains("latest public news confirmed in the original")
-                || lower.contains("impact of this president")
-                || lower.contains("holding and surveillance")
-                || lower.contains("samjeon nix trading")
-                || lower.contains("latest market and corporate events confirmed")
-                || lower.contains("krw-3777b")
-                || lower.contains("sheriff's rifle")
-                || lower.contains("iseutasi")
-                || lower.contains("investor's net buying flow")
-                || lower.contains("entrepreneurhan")
-                || lower.contains("hallinkyos")
-                || lower.contains("sk hallinkyos")
-                || lower.contains("skhinky")
-                || lower.contains("sinerlwyk")
-                || lower.contains("hyanix")
-                || lower.contains("skhynx")
-                || lower.contains("klamath stock exchange")
-                || lower.contains("north american and south american trade disputes")
-                || lower.contains("substitute offering")
-                || lower.contains("high-slang")
-                || lower.contains("teatr esg")
-                || lower.contains("tutat esg")
-                || lower.contains("hyundai motor, kia, and mercedes-benz")
-                || lower.contains("car insurance and vehicle services")
-                || lower.contains("freaked out about the deposits")
-                || lower.contains("triple-a hynix")
-                || lower.contains("truck-train")
-                || lower.contains("kospi faced the kospi market move")
-                || lower.contains("investor impact is higher on the flow of earnings")
-                || lower.contains("investor impact is higher on ev and hev markets")
-                || lower.contains("foreign exchanges as the market becomes more active")
-                || lower.contains("national association of churches")
-                || lower.contains("18 temples")
-                || lower.contains("90 trillion yuan")
-                || lower.contains("receivable volume")
-                || lower.contains("reception function")
-                || lower.contains("periodic allowance")
-                || lower.contains("move-digest")
-                || lower.contains("supply-digest")
-                || lower.contains("gyeongneng district")
-                || lower.contains("social-hq")
-                || lower.contains("life-close welfare")
-                || lower.contains("youth center of the 3rd army")
-                || lower.contains("republic of china")) {
-            return true;
+        if (containsBrokenTitlePlaceholder(normalized)) {
+            reasons.add("LOW_QUALITY_TRANSLATION:BROKEN_TITLE_PLACEHOLDER");
+        }
+        if (looksLikeBrokenMarketHeadlineGrammar(normalized)) {
+            reasons.add("LOW_QUALITY_TRANSLATION:BROKEN_MARKET_HEADLINE_GRAMMAR");
+        }
+        if (looksLikeBrokenMarketReasonGrammar(normalized)) {
+            reasons.add("LOW_QUALITY_TRANSLATION:BROKEN_MARKET_REASON_GRAMMAR");
+        }
+        if (looksLikeTickerOnlyHeadlineFragment(normalized)) {
+            reasons.add("LOW_QUALITY_TRANSLATION:TICKER_ONLY_HEADLINE_FRAGMENT");
+        }
+        for (String phrase : LOW_QUALITY_PHRASES) {
+            if (lower.contains(phrase)) {
+                reasons.add("LOW_QUALITY_TRANSLATION:PHRASE:" + phrase.replaceAll("[^a-z0-9]+", "_"));
+            }
         }
         if (lower.length() >= 1_000) {
-            return false;
+            return List.copyOf(reasons);
         }
-        return Pattern.compile("\\b[a-z][a-z]+(?:-[a-z][a-z]+){2,}(?:'s)?\\b")
+        Pattern.compile("\\b[a-z][a-z]+(?:-[a-z][a-z]+){2,}(?:'s)?\\b")
                 .matcher(lower)
                 .results()
                 .map(match -> match.group().replace("'s", ""))
-                .anyMatch(term -> !ALLOWED_HYPHENATED_TERMS.contains(term));
+                .filter(term -> !ALLOWED_HYPHENATED_TERMS.contains(term))
+                .findFirst()
+                .ifPresent(term -> reasons.add("LOW_QUALITY_TRANSLATION:HYPHENATED_TERM:" + term));
+        return List.copyOf(reasons);
     }
 
     private static boolean containsBrokenTitlePlaceholder(String value) {
         return value.contains("[ ]")
                 || value.contains("[]")
-                || value.contains("\"\"")
-                || value.contains("\" \"")
+                || Pattern.compile("(^|\\s)\"\\s*\"(?=\\s|$)").matcher(value).find()
                 || Pattern.compile("\\[[\\s\\d]*]").matcher(value).find()
                 || value.contains("↑")
                 || value.contains("↓")
@@ -395,7 +417,7 @@ public final class EnglishNewsQualityGate {
     }
 
     private static String sanitizeEnglishSummaryLine(String value) {
-        String normalized = normalizeWhitespace(value);
+        String normalized = stripGeneratedHeadlineReferenceSuffix(value);
         if (!StringUtils.hasText(normalized)
                 || containsHangul(normalized)
                 || containsEllipsis(normalized)
@@ -476,8 +498,18 @@ public final class EnglishNewsQualityGate {
         return value.replaceAll("\\s+", " ").trim();
     }
 
+    private static String stripGeneratedHeadlineReferenceSuffix(String value) {
+        String normalized = normalizeWhitespace(value)
+                .replaceFirst(
+                        "(?is)^(?:[.!?]\\s*)?the headline also references.*?[.!?]\\s+(?=[A-Z\\[])",
+                        "");
+        return normalized
+                .replaceFirst("(?is)\\s+the headline also references.*$", "")
+                .trim();
+    }
+
     private static boolean containsEllipsis(String value) {
-        return value.contains("...") || value.contains("…");
+        return Pattern.compile("^(?:\\.\\.\\.|…)|(?:\\.\\.\\.|…)[\\s\"')\\]]*$").matcher(value).find();
     }
 
     private static boolean containsSummaryMeta(String value) {

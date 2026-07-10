@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -74,14 +75,19 @@ class MarketNewsControllerTest {
 
     @Test
     void collectThenListAndDetailMarketNews() throws Exception {
-        when(naverNewsClient.search(eq("한국 증시"), eq(1))).thenReturn(List.of(new NaverNewsArticle(
+        String originalBody = "한국 증시는 외국인 순매수와 반도체 대형주 강세에 힘입어 상승 마감했다. "
+                + "한국거래소에 따르면 코스피는 장중 변동성을 줄이며 주요 이동평균선을 회복했고 코스닥도 바이오와 2차전지주 반등으로 낙폭을 만회했다. "
+                + "증권가는 환율 안정과 미국 기술주 실적 기대가 투자심리 개선에 영향을 줬다고 설명했다. "
+                + "장 후반 기관 매수세도 유입되며 프로그램 매매가 지수 회복을 보탰고, 거래대금은 전 거래일보다 늘었다. "
+                + "투자자는 외국인 수급 지속 여부와 삼성전자, SK하이닉스의 실적 전망을 함께 확인해야 한다.";
+        when(naverNewsClient.search(eq("한국 증시"), eq(5))).thenReturn(List.of(new NaverNewsArticle(
                 "코스피 상승 마감",
                 "외국인 순매수로 한국 증시가 상승했다",
                 "https://news.example.com/market/1",
                 Instant.parse("2026-06-18T06:00:00Z"))));
         when(originalArticleClient.fetch("https://news.example.com/market/1"))
                 .thenReturn(Optional.of(new OriginalArticleContent(
-                        "한국 증시 전문",
+                        originalBody,
                         List.of("https://news.example.com/image.jpg"),
                         "https://news.example.com/market/1",
                         "content-hash",
@@ -92,7 +98,7 @@ class MarketNewsControllerTest {
                     "005930",
                     "삼성전자",
                     request.sourceType(),
-                    request.title(),
+                    "the Korean market source item. The original Korean text is retained because machine translation was unavailable.",
                     "한국 증시 전문에 근거한 요약입니다.",
                     List.of("MACRO"),
                     "POSITIVE",
@@ -122,7 +128,7 @@ class MarketNewsControllerTest {
                 "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
         String expectedEnglishImpact = englishTextFor(
                 "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
-        String expectedTranslatedContent = englishTextFor("한국 증시 전문");
+        String expectedTranslatedContent = englishTextFor(originalBody);
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
@@ -155,7 +161,10 @@ class MarketNewsControllerTest {
                 ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
         verify(hannahAiAnalysisClient).analyze(requestCaptor.capture());
         org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().content())
-                .isEqualTo("한국 증시 전문");
+                .isEqualTo(originalBody);
+        ArgumentCaptor<String> titleCaptor = ArgumentCaptor.forClass(String.class);
+        verify(alertTitleTranslationService).translateTitleWithResult(titleCaptor.capture(), any());
+        assertThat(titleCaptor.getValue()).isEqualTo("코스피 상승 마감");
 
         String newsId = jdbcTemplate.queryForObject(
                 "SELECT news_id FROM market_news_event LIMIT 1",
@@ -171,12 +180,12 @@ class MarketNewsControllerTest {
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsId", equalTo(newsId)))
-                .andExpect(jsonPath("$.data.originalContent", equalTo("한국 증시 전문")));
+                .andExpect(jsonPath("$.data.originalContent", equalTo(originalBody)));
     }
 
     @Test
     void collectRejectsEllipsisAndMetaSummaryFragments() throws Exception {
-        when(naverNewsClient.search(eq("반도체 ETF"), eq(1))).thenReturn(List.of(new NaverNewsArticle(
+        when(naverNewsClient.search(eq("반도체 ETF"), eq(5))).thenReturn(List.of(new NaverNewsArticle(
                 "NH-Amundi운용, 반도체 ETF 리밸런싱...SK스퀘어 신규 편입",
                 "SK하이닉스와 삼성전자 등 반도체 종목을 담는 ETF가 정기 리밸런싱을 마쳤다...",
                 "https://news.example.com/market/fragment",
@@ -233,13 +242,262 @@ class MarketNewsControllerTest {
                                   "display": 1
                                 }
                 """))
-        .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.events[0].summary", equalTo(fallbackThreeLineSummary)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(englishFallbackWhat)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(englishFallbackWhy)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(englishFallbackImpact)))
-                .andExpect(jsonPath("$.data.events[0].sentiment", equalTo("NEUTRAL")))
-                .andExpect(jsonPath("$.data.events[0].importance", equalTo("MEDIUM")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.storedCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.events").isEmpty());
+    }
+
+    @Test
+    void collectSkipsMarketQueryResultWithoutMarketEvidenceBeforeTranslation() throws Exception {
+        when(naverNewsClient.search(eq("코스피"), eq(5))).thenReturn(List.of(new NaverNewsArticle(
+                "[세상 읽기]계란값을 잡을 것인가, 산란계협회를 잡을 것인가",
+                "계란값과 산란계협회 관련 칼럼입니다.",
+                "https://www.khan.co.kr/article/202607092021005",
+                Instant.parse("2026-07-09T11:00:00Z"))));
+
+        mockMvc.perform(post("/api/v1/market/news/collect")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "queries": ["코스피"],
+                                  "display": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.collectedCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.storedCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.events").isEmpty());
+
+        verify(originalArticleClient, never()).fetch(anyString());
+        verify(hannahAiAnalysisClient, never()).analyze(any());
+        verify(alertTitleTranslationService, never()).translateTitleWithResult(anyString(), any());
+    }
+
+    @Test
+    void collectSearchesExtraCandidatesAndStoresOnlyMarketWideTargetCount() throws Exception {
+        String marketBody = "한국 증시는 외국인 순매수와 반도체 대형주 강세에 힘입어 상승 마감했다. "
+                + "한국거래소에 따르면 코스피는 장중 변동성을 줄이며 주요 이동평균선을 회복했고 코스닥도 바이오와 2차전지주 반등으로 낙폭을 만회했다. "
+                + "증권가는 환율 안정과 미국 기술주 실적 기대가 투자심리 개선에 영향을 줬다고 설명했다. "
+                + "장 후반 기관 매수세도 유입되며 프로그램 매매가 지수 회복을 보탰고, 거래대금은 전 거래일보다 늘었다. "
+                + "투자자는 외국인 수급 지속 여부와 삼성전자, SK하이닉스의 실적 전망을 함께 확인해야 한다.";
+        when(naverNewsClient.search(eq("한국 증시"), eq(5))).thenReturn(List.of(
+                new NaverNewsArticle(
+                        "[세상 읽기]계란값을 잡을 것인가, 산란계협회를 잡을 것인가",
+                        "계란값과 산란계협회 관련 칼럼입니다.",
+                        "https://www.khan.co.kr/article/202607092021005",
+                        Instant.parse("2026-07-09T11:00:00Z")),
+                new NaverNewsArticle(
+                        "코스피 상승 마감",
+                        "외국인 순매수로 한국 증시가 상승했다",
+                        "https://news.example.com/market/extra-candidate",
+                        Instant.parse("2026-06-18T06:00:00Z"))));
+        when(originalArticleClient.fetch("https://news.example.com/market/extra-candidate"))
+                .thenReturn(Optional.of(new OriginalArticleContent(
+                        marketBody,
+                        List.of("https://news.example.com/image.jpg"),
+                        "https://news.example.com/market/extra-candidate",
+                        "extra-candidate-hash",
+                        "licensed_naver_original_full_text_v1",
+                        "코스피 상승 마감")));
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
+            HannahAiAnalysisRequest request = invocation.getArgument(0);
+            return new HannahAiAnalysisResponse(
+                    "",
+                    "",
+                    request.sourceType(),
+                    request.title(),
+                    "한국 증시 전문에 근거한 요약입니다.",
+                    List.of("MACRO"),
+                    "POSITIVE",
+                    "MEDIUM",
+                    List.of(),
+                    false,
+                    true,
+                    List.of(),
+                    List.of(),
+                    "extra-candidate-duplicate",
+                    "financial-ml-tfidf-logreg-test",
+                    0.88,
+                    0.77,
+                    0.76,
+                    0.74);
+        });
+        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        mockMvc.perform(post("/api/v1/market/news/collect")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "queries": ["한국 증시"],
+                                  "display": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.collectedCount", equalTo(2)))
+                .andExpect(jsonPath("$.data.storedCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.events[0].title", equalTo("코스피 상승 마감")));
+
+        verify(originalArticleClient, never()).fetch("https://www.khan.co.kr/article/202607092021005");
+    }
+
+    @Test
+    void collectSkipsSingleIssuerArticleWhenOriginalPageTitleContradictsMarketSearchResult() throws Exception {
+        String stockOnlyBody = "SK하이닉스가 미국 나스닥 ADR 공모가를 최종 확정했다. "
+                + "회사는 해외 투자자 대상 수요예측 결과를 반영해 가격을 정했다고 설명했다. "
+                + "이번 공모는 개별 기업의 자금조달 일정과 주주 구성 변화에 관한 내용이다. "
+                + "투자자는 상장 이후 유통 물량과 기존 주주 지분 변화를 확인해야 한다.";
+        when(naverNewsClient.search(eq("한국 증시"), eq(5))).thenReturn(List.of(new NaverNewsArticle(
+                "코스피 하락 속 반도체주 움직임",
+                "한국 증시와 반도체 투자심리를 함께 다룬 기사입니다.",
+                "https://news.example.com/market/sk-adr",
+                Instant.parse("2026-06-18T06:00:00Z"))));
+        when(originalArticleClient.fetch("https://news.example.com/market/sk-adr"))
+                .thenReturn(Optional.of(new OriginalArticleContent(
+                        stockOnlyBody,
+                        List.of(),
+                        "https://news.example.com/market/sk-adr",
+                        "sk-adr-hash",
+                        "licensed_naver_original_full_text_v1",
+                        "SK하이닉스, 美나스닥 ADR 공모가 149달러 최종 확정…IPO 규모 中알리바바 제쳤다")));
+
+        mockMvc.perform(post("/api/v1/market/news/collect")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "queries": ["한국 증시"],
+                                  "display": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.collectedCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.storedCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.events").isEmpty());
+
+        verify(hannahAiAnalysisClient, never()).analyze(any());
+        verify(alertTitleTranslationService, never()).translateTitleWithResult(anyString(), any());
+    }
+
+    @Test
+    void collectSkipsShortOriginalBodyWithoutFullArticleText() throws Exception {
+        when(naverNewsClient.search(eq("코스피 단문"), eq(5))).thenReturn(List.of(new NaverNewsArticle(
+                "코스피 5% 하락",
+                "코스피와 코스닥이 급락했다",
+                "https://news.example.com/market/short-body",
+                Instant.parse("2026-06-18T07:30:00Z"))));
+        when(originalArticleClient.fetch("https://news.example.com/market/short-body"))
+                .thenReturn(Optional.of(new OriginalArticleContent(
+                        "코스피는 전 거래일보다 5% 하락했고 코스닥도 800선을 밑돌았다.",
+                        List.of(),
+                        "https://news.example.com/market/short-body",
+                        "short-hash",
+                        "licensed_naver_original_full_text_v1")));
+        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
+                "",
+                "",
+                "NEWS",
+                "코스피 5% 하락",
+                "코스피와 코스닥이 급락했습니다.",
+                new AlertSummaryLines(
+                        "코스피와 코스닥이 급락했습니다.",
+                        "반도체 약세가 주요 배경입니다.",
+                        "투자자는 변동성을 확인해야 합니다."),
+                "SUMMARY_ONLY",
+                "",
+                List.of(),
+                List.of("GENERAL_MARKET"),
+                "NEGATIVE",
+                "MEDIUM",
+                List.of(),
+                false,
+                false,
+                List.of(),
+                List.of(),
+                "short-body-duplicate",
+                "short-body-cluster",
+                "financial-ml-tfidf-logreg-test",
+                0.75,
+                0.75,
+                0.75,
+                0.75));
+        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
+                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+
+        mockMvc.perform(post("/api/v1/market/news/collect")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "queries": ["코스피 단문"],
+                                  "display": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.storedCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.events").isEmpty());
+    }
+
+    @Test
+    void listAndDetailHideStoredShortFullTextAvailability() throws Exception {
+        jdbcTemplate.update(
+                """
+                INSERT INTO market_news_event (
+                    news_id, query, original_url, duplicate_key, published_at, created_at, event_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                "mkt-stale-short-full-text",
+                "코스피 단문",
+                "https://news.example.com/market/stale-short",
+                "mkt-stale-short-duplicate",
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:40:00Z")),
+                java.sql.Timestamp.from(Instant.parse("2026-06-18T07:41:00Z")),
+                """
+                {
+                  "newsId": "mkt-stale-short-full-text",
+                  "query": "코스피 단문",
+                  "title": "코스피 단문",
+                  "translatedTitle": "KOSPI brief",
+                  "summary": "코스피 단문 요약",
+                  "summaryLines": {
+                    "what": "KOSPI moved.",
+                    "why": "Semiconductors were weak.",
+                    "impact": "Investors should monitor volatility."
+                  },
+                  "translatedSummary": "KOSPI moved.",
+                  "originalContent": "코스피는 전 거래일보다 5% 하락했고 코스닥도 800선을 밑돌았다.",
+                  "translatedContent": "KOSPI fell 5%.",
+                  "imageUrls": [],
+                  "contentAvailability": "FULL_TEXT",
+                  "originalUrl": "https://news.example.com/market/stale-short",
+                  "canonicalUrl": "https://news.example.com/market/stale-short",
+                  "sourceLicensePolicy": "licensed_naver_original_full_text_v1",
+                  "glossaryTerms": [],
+                  "translationProvider": "old-provider",
+                  "translationModelVersion": "old-model",
+                  "translationStatus": "TRANSLATED",
+                  "duplicateKey": "mkt-stale-short-duplicate",
+                  "publishedAt": "2026-06-18T07:40:00Z",
+                  "createdAt": "2026-06-18T07:41:00Z"
+                }
+                """);
+
+        mockMvc.perform(get("/api/v1/market/news")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.newsCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.news").isEmpty());
+
+        mockMvc.perform(get("/api/v1/market/news/mkt-stale-short-full-text")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -516,9 +774,10 @@ class MarketNewsControllerTest {
                 "SELECT event_json FROM market_news_event WHERE news_id = ?",
                 String.class,
                 "mkt-source-fallback-content");
-        assertThat(persistedJson).contains(
-                "\"translatedContent\": \"What: Samsung Electronics expects earnings to improve as HBM demand expands.");
-        assertThat(persistedJson).doesNotContain("\"contentAvailability\": \"ORIGINAL_TEXT_ONLY\"");
+        assertThat(persistedJson)
+                .contains("\"translationStatus\": \"TRANSLATED\"")
+                .doesNotContain("The original Korean text is retained because machine translation was unavailable")
+                .doesNotContain("\"contentAvailability\":\"ORIGINAL_TEXT_ONLY\"");
     }
 
     @Test
@@ -646,7 +905,7 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.originalContent").value(org.hamcrest.Matchers.containsString("삼전닉스는")))
                 .andExpect(jsonPath("$.data.imageUrls[0]",
                         equalTo("https://img.example.com/news/samjeon-nix.png")))
-                .andExpect(jsonPath("$.data.contentAvailability", equalTo("FULL_TEXT")))
+                .andExpect(jsonPath("$.data.contentAvailability", equalTo("SUMMARY_ONLY")))
                 .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("Samjeon Nix")))
                 .andExpect(jsonPath("$.data.glossaryTerms[0].description").value(
                         org.hamcrest.Matchers.containsString("Samsung Electronics and SK Hynix")));
@@ -673,6 +932,11 @@ class MarketNewsControllerTest {
             return text;
         }
         if (text.contains("반도체 ETF가 정기 리밸런싱")) {
+            if (text.contains("SK하이닉스와 삼성전자 비중 조정")) {
+                return "The semiconductor ETF completed its regular rebalance and added SK Square. "
+                        + "Adjustments to SK Hynix and Samsung Electronics weights were the main background. "
+                        + "Investors should monitor supply-demand and volatility for the added constituents.";
+            }
             return "The semiconductor ETF completed its regular rebalance and added SK Square.";
         }
         if (text.contains("SK하이닉스와 삼성전자 비중 조정")) {
@@ -680,6 +944,14 @@ class MarketNewsControllerTest {
         }
         if (text.contains("편입 종목의 수급과 변동성")) {
             return "Investors should monitor supply-demand and volatility for the added constituents.";
+        }
+        if (text.contains("한국 증시는 외국인 순매수와 반도체 대형주 강세")) {
+            return "Korean stocks closed higher on foreign net buying and strength in large semiconductor shares. "
+                    + "According to the Korea Exchange, KOSPI reduced intraday volatility and recovered key moving averages, while KOSDAQ also pared losses as biotechnology and secondary-battery shares rebounded. "
+                    + "Brokerages said foreign-exchange stability and expectations for U.S. technology earnings helped improve investor sentiment. "
+                    + "Late institutional buying also supported the index recovery through program trading, and trading value increased from the previous session. "
+                    + "The article added that investors were watching whether risk appetite would continue into the next session as semiconductor bellwethers remained the main driver of market direction. "
+                    + "Investors should monitor whether foreign buying continues and review the earnings outlooks for Samsung Electronics and SK Hynix.";
         }
         int marker = Math.abs(text.hashCode());
         if (text.contains("핵심 배경") || text.contains("주요 배경")) {

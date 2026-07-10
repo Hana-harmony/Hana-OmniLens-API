@@ -1389,6 +1389,11 @@ class MarketDataServiceTest {
         assertThat(orderability.foreignOwnershipPrediction().source())
                 .isEqualTo("HANNAH_MONTANA_AI_FOREIGN_OWNED_QUANTITY_ML+CACHE");
         verifyNoInteractions(hannahClient);
+
+        StockDetail detail = service.getStockDetail("015760", "USD", null);
+
+        assertThat(detail.predictedForeignOwnershipRateMin()).isEqualByComparingTo("49.700000");
+        assertThat(detail.predictedForeignOwnershipRateMax()).isEqualByComparingTo("50.000000");
     }
 
     @Test

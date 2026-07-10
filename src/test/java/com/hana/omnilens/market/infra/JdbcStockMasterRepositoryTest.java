@@ -3,6 +3,7 @@ package com.hana.omnilens.market.infra;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,7 +79,7 @@ class JdbcStockMasterRepositoryTest {
     void findAllUsesSeedPriorityForMarketCapTopUniverse() {
         assertThat(repository.findAll(5))
                 .extracting("stockCode")
-                .containsExactly("005930", "000660", "373220", "207940", "005380");
+                .containsExactly("005930", "000660", "005380", "000270", "086790");
     }
 
     @Test
@@ -105,5 +106,51 @@ class JdbcStockMasterRepositoryTest {
                 .get()
                 .extracting("stockNameEn")
                 .isEqualTo("Samsung Electronics");
+    }
+
+    @Test
+    void updateDartCorpCodesFillsOnlyMissingValues() {
+        jdbcTemplate.update("UPDATE stock_master SET dart_corp_code = '' WHERE stock_code = '030200'");
+        jdbcTemplate.update("UPDATE stock_master SET dart_corp_code = '00126380' WHERE stock_code = '005930'");
+
+        int updated = jdbcRepository.updateDartCorpCodes(Map.of(
+                "030200", "00190321",
+                "005930", "99999999"));
+
+        assertThat(updated).isGreaterThanOrEqualTo(1);
+        assertThat(repository.findByCode("030200")).isPresent()
+                .get()
+                .extracting("dartCorpCode")
+                .isEqualTo("00190321");
+        assertThat(repository.findByCode("005930")).isPresent()
+                .get()
+                .extracting("dartCorpCode")
+                .isEqualTo("00126380");
+    }
+
+    @Test
+    void updatePreferredShareDartCorpCodesFromCommonShares() {
+        jdbcRepository.upsertAll(List.of(
+                new com.hana.omnilens.market.domain.StockSummary(
+                        "003490",
+                        "대한항공",
+                        "Korean Air",
+                        "KOSPI",
+                        "KR7003490000",
+                        "00113526"),
+                new com.hana.omnilens.market.domain.StockSummary(
+                        "003495",
+                        "대한항공우",
+                        "Korean Air Preferred",
+                        "KOSPI",
+                        "KR7003491008",
+                        "")));
+
+        jdbcRepository.updatePreferredShareDartCorpCodesFromCommonShares();
+
+        assertThat(repository.findByCode("003495")).isPresent()
+                .get()
+                .extracting("dartCorpCode")
+                .isEqualTo("00113526");
     }
 }

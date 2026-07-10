@@ -14,6 +14,6 @@ public record HannahAiProperties(
     public HannahAiProperties {
         baseUrl = baseUrl == null ? URI.create("http://hannah-montana-ai:8000") : baseUrl;
         connectTimeout = connectTimeout == null ? Duration.ofSeconds(2) : connectTimeout;
-        readTimeout = readTimeout == null ? Duration.ofSeconds(90) : readTimeout;
+        readTimeout = readTimeout == null ? Duration.ofMinutes(30) : readTimeout;
     }
 }

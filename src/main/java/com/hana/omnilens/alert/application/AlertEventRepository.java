@@ -11,7 +11,26 @@ public interface AlertEventRepository {
 
     Optional<AlertEvent> findByAlertId(String alertId);
 
+    Optional<AlertEvent> findBySourceIdentity(
+            String partnerId,
+            String stockCode,
+            String sourceType,
+            String originalUrl);
+
+    Optional<AlertEvent> findByDuplicateIdentity(
+            String partnerId,
+            String stockCode,
+            String sourceType,
+            String duplicateKey);
+
+    int countByPartnerStockAndSourceType(
+            String partnerId,
+            String stockCode,
+            String sourceType);
+
     List<AlertEvent> findByStockCode(String stockCode, int limit);
+
+    List<AlertEvent> findByStockCodeAndSourceType(String stockCode, String sourceType, int limit);
 
     List<AlertEvent> findSummaryQualityIssues(int limit);
 }

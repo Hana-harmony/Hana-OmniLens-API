@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +27,7 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
             OR lower(event_json) ~ '"translatedcontent"\\s*:\\s*"what:[^"]*why:[^"]*impact:'
             OR lower(event_json) ~ 'the original korean text is retained because machine translation was unavailable'
             OR lower(event_json) ~ '"(translatedtitle|translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(korean company update|korean market update)'
-            OR lower(event_json) ~ '"(translatedtitle|translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(kang nam-go|pab-wo|dda-jeon|levership|hannak|defi-shares|nanyang dynamics|snicklever|stock-celltrion|hanacorp|sina-combankipt|lg-hydration|iong-wok|nalmalai|without a street|according to a search|three-sentence|effect of the number|dynamic of the|nmsk|auction raise|auction distributor|exchange order|cosby market|capacitor semiconductor|chinese p&t7|lithium supply|dividend price of equity dividends|hanoteoreminder|hyang-yeol|yuseo|hidden world history|korean farmer''s 600-year|fresh water break|i''m going to|power-driven|two-carpet|new bond''s price flow|flowing semiconductor ship|on strike; the actuality|entering the ''sides''|triangle lower limited|us-exited ai-investor|samjeon nix''s trading method does not exist|samjeon nok|future-sustainable capital|adding silicon|european shopping trip|samnick|middle and small businesses fund acts|investors net at the european show|no ai or human|reveal ourselves|countermeasures inspection|approval of the megaproject|core themes of ai and human death|latest market and company interventions|market and business events confirmed|trading by samjeon nix|by samjeon nix as key|latest public news confirmed in the original|impact of this president|holding and surveillance|samjeon nix trading|latest market and corporate events confirmed|krw-3777b|sheriff''s rifle|iseutasi|investor''s net buying flow|entrepreneurhan|hallinkyos|sk hallinkyos|skhinky|sinerlwyk|hyanix|skhynx|klamath stock exchange|north american and south american trade disputes|substitute offering|high-slang|teatr esg|tutat esg|hyundai motor, kia, and mercedes-benz|car insurance and vehicle services|freaked out about the deposits|triple-a hynix|truck-train|kospi faced the kospi market move|investor impact is higher on the flow of earnings|investor impact is higher on ev and hev markets|foreign exchanges as the market becomes more active|national association of churches|18 temples|90 trillion yuan|receivable volume|reception function|periodic allowance)'
+            OR lower(event_json) ~ '"(translatedtitle|translatedsummary|translatedcontent|what|why|impact)"\\s*:\\s*"[^"]*(kang nam-go|pab-wo|dda-jeon|levership|hannak|defi-shares|nanyang dynamics|snicklever|stock-celltrion|hanacorp|sina-combankipt|lg-hydration|iong-wok|nalmalai|without a street|according to a search|three-sentence|effect of the number|dynamic of the|nmsk|auction raise|auction distributor|exchange order|cosby market|capacitor semiconductor|chinese p&t7|lithium supply|dividend price of equity dividends|hanoteoreminder|hyang-yeol|yuseo|hidden world history|korean farmer''s 600-year|fresh water break|i''m going to|power-driven|two-carpet|new bond''s price flow|flowing semiconductor ship|on strike; the actuality|entering the ''sides''|triangle lower limited|us-exited ai-investor|samjeon nix''s trading method does not exist|samjeon nok|future-sustainable capital|adding silicon|european shopping trip|samnick|middle and small businesses fund acts|investors net at the european show|no ai or human|reveal ourselves|countermeasures inspection|approval of the megaproject|core themes of ai and human death|latest market and company interventions|market and business events confirmed|trading by samjeon nix|by samjeon nix as key|latest public news confirmed in the original|impact of this president|holding and surveillance|samjeon nix trading|latest market and corporate events confirmed|krw-3777b|sheriff''s rifle|iseutasi|investor''s net buying flow|entrepreneurhan|hallinkyos|sk hallinkyos|skhinky|sinerlwyk|hyanix|skhynx|klamath stock exchange|north american and south american trade disputes|substitute offering|high-slang|teatr esg|tutat esg|hyundai motor, kia, and mercedes-benz|car insurance and vehicle services|freaked out about the deposits|triple-a hynix|truck-train|kospi faced the kospi market move|investor impact is higher on the flow of earnings|investor impact is higher on ev and hev markets|foreign exchanges as the market becomes more active|national association of churches|18 temples|90 trillion yuan|receivable volume|reception function|periodic allowance|the headline also references)'
             OR lower(event_json) ~ '"(what|why|impact)"\\s*:\\s*"[^"]*[a-z0-9]"'
             OR event_json ~ '"summaryLines"\\s*:\\s*null'
             OR event_json ~ '"what"\\s*:\\s*""'
@@ -51,6 +52,14 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
     @Override
     @Transactional
     public AlertEvent save(AlertEvent event) {
+        Optional<AlertEvent> existing = findBySourceIdentity(
+                event.partnerId(),
+                event.stockCode(),
+                event.sourceType(),
+                event.originalUrl());
+        if (existing.isPresent() && !existing.orElseThrow().alertId().equals(event.alertId())) {
+            return existing.orElseThrow();
+        }
         int updated = jdbcTemplate.update(
                 """
                 UPDATE alert_event
@@ -78,25 +87,35 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
                 toJson(event),
                 event.alertId());
         if (updated == 0) {
-            jdbcTemplate.update(
-                    """
-                    INSERT INTO alert_event (
-                        alert_id, partner_id, stock_code, source_type, original_url,
-                        duplicate_key, cluster_key, content_availability, published_at, created_at, event_json
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    event.alertId(),
-                    event.partnerId(),
-                    event.stockCode(),
-                    event.sourceType(),
-                    event.originalUrl(),
-                    event.duplicateKey(),
-                    event.clusterKey(),
-                    event.contentAvailability(),
-                    Timestamp.from(event.publishedAt()),
-                    Timestamp.from(event.createdAt()),
-                    toJson(event));
+            try {
+                jdbcTemplate.update(
+                        """
+                        INSERT INTO alert_event (
+                            alert_id, partner_id, stock_code, source_type, original_url,
+                            duplicate_key, cluster_key, content_availability, published_at, created_at, event_json
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        event.alertId(),
+                        event.partnerId(),
+                        event.stockCode(),
+                        event.sourceType(),
+                        event.originalUrl(),
+                        event.duplicateKey(),
+                        event.clusterKey(),
+                        event.contentAvailability(),
+                        Timestamp.from(event.publishedAt()),
+                        Timestamp.from(event.createdAt()),
+                        toJson(event));
+            } catch (DuplicateKeyException exception) {
+                // 다중 인스턴스가 동시에 수집해도 먼저 저장된 이벤트를 재사용한다.
+                return findBySourceIdentity(
+                                event.partnerId(),
+                                event.stockCode(),
+                                event.sourceType(),
+                                event.originalUrl())
+                        .orElseThrow(() -> exception);
+            }
         }
         return event;
     }
@@ -116,6 +135,78 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
     }
 
     @Override
+    public Optional<AlertEvent> findBySourceIdentity(
+            String partnerId,
+            String stockCode,
+            String sourceType,
+            String originalUrl) {
+        return jdbcTemplate.query(
+                        """
+                        SELECT event_json
+                        FROM alert_event
+                        WHERE partner_id = ?
+                          AND stock_code = ?
+                          AND source_type = ?
+                          AND original_url = ?
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """,
+                        rowMapper,
+                        partnerId,
+                        stockCode,
+                        sourceType,
+                        originalUrl)
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    public Optional<AlertEvent> findByDuplicateIdentity(
+            String partnerId,
+            String stockCode,
+            String sourceType,
+            String duplicateKey) {
+        return jdbcTemplate.query(
+                        """
+                        SELECT event_json
+                        FROM alert_event
+                        WHERE partner_id = ?
+                          AND stock_code = ?
+                          AND source_type = ?
+                          AND duplicate_key = ?
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """,
+                        rowMapper,
+                        partnerId,
+                        stockCode,
+                        sourceType,
+                        duplicateKey)
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    public int countByPartnerStockAndSourceType(
+            String partnerId,
+            String stockCode,
+            String sourceType) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM alert_event
+                WHERE partner_id = ?
+                  AND stock_code = ?
+                  AND source_type = ?
+                """,
+                Integer.class,
+                partnerId,
+                stockCode,
+                sourceType);
+        return count == null ? 0 : count;
+    }
+
+    @Override
     public List<AlertEvent> findByStockCode(String stockCode, int limit) {
         return jdbcTemplate.query(
                 """
@@ -127,6 +218,23 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
                 """,
                 rowMapper,
                 stockCode,
+                limit);
+    }
+
+    @Override
+    public List<AlertEvent> findByStockCodeAndSourceType(String stockCode, String sourceType, int limit) {
+        return jdbcTemplate.query(
+                """
+                SELECT event_json
+                FROM alert_event
+                WHERE stock_code = ?
+                  AND source_type = ?
+                ORDER BY published_at DESC, created_at DESC
+                LIMIT ?
+                """,
+                rowMapper,
+                stockCode,
+                sourceType,
                 limit);
     }
 

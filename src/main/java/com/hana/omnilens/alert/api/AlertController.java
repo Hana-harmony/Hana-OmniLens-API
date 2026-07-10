@@ -4,6 +4,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.validation.annotation.Validated;
@@ -34,6 +37,8 @@ import com.hana.omnilens.security.PartnerAuthorizationService;
 @RequestMapping("/api/v1/alerts")
 @Tag(name = "Alerts", description = "News and disclosure intelligence event APIs")
 public class AlertController {
+
+    private static final int MAX_CLIENT_LIMIT = 100;
 
     private final AlertStreamingService alertStreamingService;
     private final AlertAnalysisPublishingService alertAnalysisPublishingService;
@@ -100,10 +105,10 @@ public class AlertController {
     public ApiResponse<AlertEventListResponse> listStockEvents(
             @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
             @RequestParam(defaultValue = "20") int limit) {
-        int effectiveLimit = Math.max(1, Math.min(limit, 100));
+        int effectiveLimit = Math.max(1, Math.min(limit, MAX_CLIENT_LIMIT));
         return ApiResponse.success(new AlertEventListResponse(
                 stockCode,
-                alertEventRepository.findByStockCode(stockCode, effectiveLimit)));
+                balancedSourceEvents(stockCode, effectiveLimit)));
     }
 
     @PostMapping("/stocks/{stockCode}/events/reprocess")
@@ -143,5 +148,26 @@ public class AlertController {
             @Valid @RequestBody AlertCollectPublishRequest request) {
         partnerAuthorizationService.assertPartnerAccess(request.partnerId());
         return ApiResponse.success(alertProviderCollectionService.collectAnalyzeAndPublish(request));
+    }
+
+    private List<AlertEvent> balancedSourceEvents(String stockCode, int limit) {
+        int newsLimit = (limit + 1) / 2;
+        int disclosureLimit = limit / 2;
+        List<AlertEvent> selectedEvents = new ArrayList<>();
+        selectedEvents.addAll(alertEventRepository.findByStockCodeAndSourceType(
+                stockCode,
+                "NEWS",
+                newsLimit));
+        if (disclosureLimit > 0) {
+            selectedEvents.addAll(alertEventRepository.findByStockCodeAndSourceType(
+                    stockCode,
+                    "DISCLOSURE",
+                    disclosureLimit));
+        }
+        selectedEvents.sort(
+                Comparator.comparing(AlertEvent::publishedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(AlertEvent::createdAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .reversed());
+        return List.copyOf(selectedEvents);
     }
 }

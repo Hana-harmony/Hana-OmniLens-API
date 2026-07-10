@@ -7,6 +7,15 @@ public record OriginalArticleContent(
         List<String> imageUrls,
         String canonicalUrl,
         String contentHash,
-        String sourceLicensePolicy
+        String sourceLicensePolicy,
+        String title
 ) {
+    public OriginalArticleContent(
+            String content,
+            List<String> imageUrls,
+            String canonicalUrl,
+            String contentHash,
+            String sourceLicensePolicy) {
+        this(content, imageUrls, canonicalUrl, contentHash, sourceLicensePolicy, "");
+    }
 }

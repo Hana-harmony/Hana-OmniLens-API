@@ -9,7 +9,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
@@ -17,6 +19,7 @@ import java.util.zip.ZipInputStream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.jsoup.Jsoup;
+import org.jsoup.parser.Parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,8 +38,9 @@ public class OpenDartDisclosureClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenDartDisclosureClient.class);
     private static final DateTimeFormatter DART_DATE = DateTimeFormatter.BASIC_ISO_DATE;
-    private static final int MAX_DOCUMENT_BYTES = 1_500_000;
-    private static final int MAX_CONTENT_CHARS = 20_000;
+    private static final int MAX_DOCUMENT_BYTES = 12_000_000;
+    private static final int MAX_CORP_CODE_BYTES = 60_000_000;
+    private static final int MAX_CONTENT_CHARS = 1_000_000;
 
     private final RestClient restClient;
     private final ExternalProviderProperties.OpenDart properties;
@@ -96,7 +100,7 @@ public class OpenDartDisclosureClient {
             if (!StringUtils.hasText(documentText)) {
                 return Optional.empty();
             }
-            String content = limit(documentText, MAX_CONTENT_CHARS);
+            String content = limitDocumentContent(documentText, receiptNumber);
             return Optional.of(new OpenDartDisclosureDocument(
                     content,
                     sha256Hex(receiptNumber + "\n" + content),
@@ -105,6 +109,23 @@ public class OpenDartDisclosureClient {
             LOGGER.warn("OpenDART document fetch failed. receiptNumber={}, reason={}",
                     receiptNumber, exception.getClass().getSimpleName());
             return Optional.empty();
+        }
+    }
+
+    public Map<String, String> listedCorpCodesByStockCode() {
+        String apiKey = properties.requiredApiKey();
+        try {
+            byte[] payload = resiliencePolicy.execute("open-dart-corp-code", () -> restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/corpCode.xml")
+                            .queryParam("crtfc_key", apiKey)
+                            .build())
+                    .retrieve()
+                    .body(byte[].class));
+            return parseListedCorpCodes(payload);
+        } catch (RestClientException | IOException | IllegalArgumentException exception) {
+            LOGGER.warn("OpenDART corp code fetch failed. reason={}", exception.getClass().getSimpleName());
+            return Map.of();
         }
     }
 
@@ -128,22 +149,69 @@ public class OpenDartDisclosureClient {
         return Jsoup.parse(new String(payload, StandardCharsets.UTF_8)).text();
     }
 
+    private Map<String, String> parseListedCorpCodes(byte[] payload) throws IOException {
+        String xml = isZip(payload) ? extractFirstXml(payload) : new String(payload, StandardCharsets.UTF_8);
+        if (!StringUtils.hasText(xml)) {
+            return Map.of();
+        }
+        org.jsoup.nodes.Document document = Jsoup.parse(xml, "", Parser.xmlParser());
+        Map<String, String> corpCodeByStockCode = new LinkedHashMap<>();
+        for (org.jsoup.nodes.Element item : document.select("list")) {
+            String corpCode = item.selectFirst("corp_code") == null ? "" : item.selectFirst("corp_code").text().trim();
+            String stockCode = item.selectFirst("stock_code") == null ? "" : item.selectFirst("stock_code").text().trim();
+            if (stockCode.matches("\\d{6}") && corpCode.matches("\\d{8}")) {
+                corpCodeByStockCode.put(stockCode, corpCode);
+            }
+        }
+        return Map.copyOf(corpCodeByStockCode);
+    }
+
+    private String extractFirstXml(byte[] payload) throws IOException {
+        if (payload == null || payload.length == 0) {
+            return "";
+        }
+        try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(payload))) {
+            ZipEntry entry;
+            while ((entry = zipInputStream.getNextEntry()) != null) {
+                if (entry.isDirectory() || !entry.getName().toLowerCase().endsWith(".xml")) {
+                    continue;
+                }
+                LimitedBytes entryBytes = readLimited(zipInputStream, MAX_CORP_CODE_BYTES);
+                if (entryBytes.truncated()) {
+                    LOGGER.warn("OpenDART corp code entry was truncated before parsing. entryName={}, maxBytes={}",
+                            entry.getName(), MAX_CORP_CODE_BYTES);
+                }
+                return new String(entryBytes.bytes(), StandardCharsets.UTF_8);
+            }
+        }
+        return "";
+    }
+
     private boolean isZip(byte[] payload) {
         return payload.length >= 2 && payload[0] == 'P' && payload[1] == 'K';
     }
 
     private String extractZipText(byte[] payload) throws IOException {
+        String bestText = "";
         try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(payload))) {
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
                 if (entry.isDirectory() || !isDocumentEntry(entry.getName())) {
                     continue;
                 }
-                byte[] entryBytes = readLimited(zipInputStream, MAX_DOCUMENT_BYTES);
-                return Jsoup.parse(new String(entryBytes, StandardCharsets.UTF_8)).text();
+                LimitedBytes entryBytes = readLimited(zipInputStream, MAX_DOCUMENT_BYTES);
+                String text = Jsoup.parse(new String(entryBytes.bytes(), StandardCharsets.UTF_8)).text();
+                if (entryBytes.truncated()) {
+                    LOGGER.warn("OpenDART document entry was truncated before parsing. entryName={}, maxBytes={}",
+                            entry.getName(), MAX_DOCUMENT_BYTES);
+                    return text;
+                }
+                if (text.length() > bestText.length()) {
+                    bestText = text;
+                }
             }
         }
-        return "";
+        return bestText;
     }
 
     private boolean isDocumentEntry(String name) {
@@ -152,27 +220,38 @@ public class OpenDartDisclosureClient {
                 || normalized.endsWith(".txt");
     }
 
-    private byte[] readLimited(ZipInputStream zipInputStream, int maxBytes) throws IOException {
+    private LimitedBytes readLimited(ZipInputStream zipInputStream, int maxBytes) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
         int total = 0;
         int read;
+        boolean truncated = false;
         while ((read = zipInputStream.read(buffer)) != -1) {
             total += read;
             if (total > maxBytes) {
-                throw new IllegalArgumentException("OpenDART document is too large");
+                int remaining = Math.max(0, maxBytes - (total - read));
+                if (remaining > 0) {
+                    outputStream.write(buffer, 0, remaining);
+                }
+                truncated = true;
+                break;
             }
             outputStream.write(buffer, 0, read);
         }
-        return outputStream.toByteArray();
+        return new LimitedBytes(outputStream.toByteArray(), truncated);
     }
 
     private String normalize(String value) {
         return value == null ? "" : value.replace('\u00a0', ' ').replaceAll("\\s+", " ").strip();
     }
 
-    private String limit(String value, int maxLength) {
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    private String limitDocumentContent(String value, String receiptNumber) {
+        if (value.length() <= MAX_CONTENT_CHARS) {
+            return value;
+        }
+        LOGGER.warn("OpenDART document content exceeded local safety limit. receiptNumber={}, sourceChars={}, maxChars={}",
+                receiptNumber, value.length(), MAX_CONTENT_CHARS);
+        return value.substring(0, MAX_CONTENT_CHARS);
     }
 
     private String sha256Hex(String value) {
@@ -182,5 +261,8 @@ public class OpenDartDisclosureClient {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available", exception);
         }
+    }
+
+    private record LimitedBytes(byte[] bytes, boolean truncated) {
     }
 }

@@ -2,6 +2,7 @@ package com.hana.omnilens.alert.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.provider.ai.HannahAiKoreanTranslationClient;
@@ -38,23 +40,23 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
-    void translateTitleReturnsLocalEnglishFallbackWhenProviderFails() {
+    void translateTitleExposesEmptySourceFallbackWhenProviderFails() {
         when(hannahTranslationClient.translate(any()))
                 .thenThrow(new IllegalStateException("hannah ai unavailable"));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
-        assertThat(translatedTitle).contains("Korean market source item");
+        assertThat(translatedTitle).isEmpty();
     }
 
     @Test
-    void translateTitleReturnsLocalEnglishFallbackWhenProviderReturnsBlank() {
+    void translateTitleExposesEmptySourceFallbackWhenProviderReturnsBlank() {
         when(hannahTranslationClient.translate(any()))
                 .thenReturn(translated(""));
 
         String translatedTitle = translationService.translateTitle("삼성전자 실적 개선");
 
-        assertThat(translatedTitle).contains("Korean market source item");
+        assertThat(translatedTitle).isEmpty();
     }
 
     @Test
@@ -67,7 +69,7 @@ class AlertTitleTranslationServiceTest {
                         "장동혁, 韓증시 널뛰기 장세에 \"'블랙 에브리데이' 될까 걱정\"",
                         List.of());
 
-        assertThat(result.translatedText()).contains("Korean market source item");
+        assertThat(result.translatedText()).isEmpty();
         assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
     }
@@ -80,9 +82,25 @@ class AlertTitleTranslationServiceTest {
         AlertTitleTranslationService.TranslationResult result =
                 translationService.translateTitleWithResult("미국 반도체주 훈풍에 코스피 장초반 3%↑", List.of());
 
-        assertThat(result.translatedText()).contains("Korean market source item");
+        assertThat(result.translatedText()).isEmpty();
         assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
+    }
+
+    @Test
+    void translateTitleAcceptsInternalNewsEllipsis() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated(
+                        "Surge in short selling against Samjeon Nix... Foreign investors bet on decline"));
+
+        AlertTitleTranslationService.TranslationResult result =
+                translationService.translateTitleWithResult(
+                        "‘삼전닉스’에 공매도 급증…외국인들 하락 베팅 나서나 [투자360]",
+                        List.of());
+
+        assertThat(result.translatedText())
+                .isEqualTo("Surge in short selling against Samjeon Nix... Foreign investors bet on decline");
+        assertThat(result.status()).isEqualTo("TRANSLATED");
     }
 
     @Test
@@ -93,9 +111,44 @@ class AlertTitleTranslationServiceTest {
         AlertTitleTranslationService.TranslationResult result =
                 translationService.translateTitleWithResult("삼성전자 실적 개선", List.of());
 
-        assertThat(result.translatedText()).contains("Korean market source item");
+        assertThat(result.translatedText()).isEmpty();
         assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.modelVersion()).isEqualTo(MODEL);
+        assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
+    }
+
+    @Test
+    void translateTitleDoesNotCacheSourceFallbackFailure() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(sourceFallback())
+                .thenReturn(translated("Samsung Electronics earnings improve"));
+
+        AlertTitleTranslationService.TranslationResult firstResult =
+                translationService.translateTitleWithResult("삼성전자 실적 개선", List.of());
+        AlertTitleTranslationService.TranslationResult secondResult =
+                translationService.translateTitleWithResult("삼성전자 실적 개선", List.of());
+
+        assertThat(firstResult.translatedText()).isEmpty();
+        assertThat(secondResult.translatedText()).isEqualTo("Samsung Electronics earnings improve");
+        verify(hannahTranslationClient, times(2)).translate(any());
+    }
+
+    @Test
+    void translateTitleRejectsUsableTextWhenProviderMarksSourceFallback() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(new HannahAiKoreanTranslationResponse(
+                        "KOSPI closes lower as foreign selling weighs",
+                        "source-language-fallback",
+                        MODEL,
+                        "SOURCE_LANGUAGE_FALLBACK",
+                        "ko-en-qwen3-financial-translation-v1",
+                        List.of()));
+
+        AlertTitleTranslationService.TranslationResult result =
+                translationService.translateTitleWithResult("외국인 매도에 코스피 하락 마감", List.of());
+
+        assertThat(result.translatedText()).isEmpty();
+        assertThat(result.provider()).isEqualTo("source-language-fallback");
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
     }
 
@@ -114,7 +167,7 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
-    void translateTextSendsFullArticleWithinHannahRequestLimitWithoutChunking() {
+    void translateTextSplitsFullArticleIntoQwenSizedChunks() {
         String longText = "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다. ".repeat(300);
         when(hannahTranslationClient.translate(any()))
                 .thenAnswer(invocation -> {
@@ -125,7 +178,42 @@ class AlertTitleTranslationServiceTest {
         String translatedText = translationService.translateText(longText);
 
         assertThat(translatedText).contains("EN:");
-        verify(hannahTranslationClient, times(1)).translate(any());
+        ArgumentCaptor<HannahAiKoreanTranslationRequest> captor =
+                ArgumentCaptor.forClass(HannahAiKoreanTranslationRequest.class);
+        verify(hannahTranslationClient, atLeast(2)).translate(captor.capture());
+        assertThat(captor.getAllValues())
+                .allSatisfy(request -> assertThat(request.text()).hasSizeLessThanOrEqualTo(1_500));
+    }
+
+    @Test
+    void translateTextDoesNotCacheLongArticleBodyTranslations() {
+        String longText = "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다. ".repeat(40);
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("First full article translation."))
+                .thenReturn(translated("Second full article translation."));
+
+        String first = translationService.translateText(longText);
+        String second = translationService.translateText(longText);
+
+        assertThat(first).isEqualTo("First full article translation.");
+        assertThat(second).isEqualTo("Second full article translation.");
+        verify(hannahTranslationClient, times(2)).translate(any());
+    }
+
+    @Test
+    void translateTextForDisclosureSendsDisclosureSourceTypeToHannah() {
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated("Samsung Electronics disclosed preliminary results."));
+
+        translationService.translateTextWithResult(
+                "삼성전자/연결재무제표기준영업(잠정)실적(공정공시)",
+                List.of(),
+                "DISCLOSURE");
+
+        ArgumentCaptor<HannahAiKoreanTranslationRequest> captor =
+                ArgumentCaptor.forClass(HannahAiKoreanTranslationRequest.class);
+        verify(hannahTranslationClient).translate(captor.capture());
+        assertThat(captor.getValue().sourceType()).isEqualTo("DISCLOSURE");
     }
 
     @Test
@@ -137,8 +225,25 @@ class AlertTitleTranslationServiceTest {
                 "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다.",
                 List.of());
 
-        assertThat(result.translatedText()).contains("Korean market source item");
+        assertThat(result.translatedText()).isEmpty();
         assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
+        assertThat(result.qualityFlags()).contains("HANGUL_REMAINS");
+    }
+
+    @Test
+    void translateTextKeepsLocalQualityFlagWhenProviderReturnsSourceText() {
+        String sourceText = "삼성전자는 AI 서버 투자 확대로 반도체 실적 개선 기대가 커졌다. "
+                + "투자자는 영업이익 회복 속도를 확인해야 한다.";
+        when(hannahTranslationClient.translate(any()))
+                .thenReturn(translated(sourceText));
+
+        AlertTitleTranslationService.TranslationResult result = translationService.translateTextWithResult(
+                sourceText,
+                List.of());
+
+        assertThat(result.translatedText()).isEmpty();
+        assertThat(result.status()).isEqualTo("SOURCE_LANGUAGE_FALLBACK");
+        assertThat(result.qualityFlags()).contains("SOURCE_LANGUAGE_FALLBACK");
     }
 
     @Test
