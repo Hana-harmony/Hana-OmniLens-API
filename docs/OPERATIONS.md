@@ -199,9 +199,10 @@ STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 ## 글로벌 피어 매칭
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`는 종목 상세 화면의 피어 종목 보기 요청에 사용한다.
 - OmniLens는 `stock_master`의 종목코드, 한글명, 영문명, 시장구분을 Hannah `POST /api/v1/market/global-peers/match`로 전달한다.
-- Hannah 응답은 headline, summary, primary peer, 후보 peer 목록, confidence, model version을 그대로 전달한다.
+- Hannah 응답은 headline, summary, primary peer, 기존 후보 peer 목록, 속성별 comparisons, 국내 종목 자체의 key strengths, confidence, model version을 전달한다.
 - 각 peer의 섹터, 산업, 사업모델, 규모 버킷, 시가총액, 매출, 영업이익, 순이익, 재무 데이터 출처, 재무 유사도, 매칭 근거 배열은 프론트 피어 설명 팝업에서 바로 사용할 수 있도록 응답에 보존한다.
-- Hannah 장애 또는 circuit open 시 OmniLens는 anchor fallback을 사용한다. 알테오젠 `196170`은 `HALO` Halozyme Therapeutics fallback을 제공한다.
+- 정상 응답은 comparisons 1~3개와 key strengths 4개를 요구한다. dimension과 icon key allowlist 위반, 빈 필수 문구, 카드 개수 위반은 정상 결과로 전달하지 않는다.
+- Hannah 장애 또는 circuit open 시 OmniLens는 anchor fallback을 사용한다. 알테오젠 `196170`은 `HALO` Halozyme Therapeutics fallback을 제공하되, fallback의 comparisons와 keyStrengths는 빈 배열이고 confidence는 LOW다.
 
 ## 한국 금융 고유어·전문용어 해설
 - 모바일 거래소 또는 협력사 백엔드는 뉴스/공시 본문에서 사용자가 누른 한국 금융 고유어·전문용어를 `POST /api/v1/korean-financial-terms/explain`로 보낸다.

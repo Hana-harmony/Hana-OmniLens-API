@@ -12,6 +12,8 @@ public record GlobalPeerMatchResponse(
         String summary,
         GlobalPeerMatch primaryPeer,
         List<GlobalPeerMatch> peers,
+        List<GlobalPeerComparison> comparisons,
+        List<GlobalPeerKeyStrength> keyStrengths,
         BigDecimal confidenceScore,
         String confidenceLevel,
         String modelVersion,
@@ -25,6 +27,8 @@ public record GlobalPeerMatchResponse(
             String summary,
             GlobalPeerMatch primaryPeer,
             List<GlobalPeerMatch> peers,
+            List<GlobalPeerComparison> comparisons,
+            List<GlobalPeerKeyStrength> keyStrengths,
             BigDecimal confidenceScore,
             String confidenceLevel,
             String modelVersion,
@@ -39,6 +43,8 @@ public record GlobalPeerMatchResponse(
                 summary,
                 primaryPeer,
                 peers,
+                comparisons,
+                keyStrengths,
                 confidenceScore,
                 confidenceLevel,
                 modelVersion,
@@ -48,5 +54,8 @@ public record GlobalPeerMatchResponse(
     public GlobalPeerMatchResponse {
         logoUrl = logoUrl == null ? "" : logoUrl;
         peers = peers == null ? List.of() : List.copyOf(peers);
+        comparisons = GlobalPeerContractPolicy.copyRequiredList("comparisons", comparisons);
+        keyStrengths = GlobalPeerContractPolicy.copyRequiredList("keyStrengths", keyStrengths);
+        GlobalPeerContractPolicy.validateCardinality(source, comparisons, keyStrengths);
     }
 }

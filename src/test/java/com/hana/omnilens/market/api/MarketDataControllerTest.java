@@ -34,6 +34,8 @@ import com.hana.omnilens.market.application.RealtimeMarketDataCache;
 import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.market.domain.MarketDailyPrice;
 import com.hana.omnilens.provider.market.ForeignOwnershipSnapshot;
+import com.hana.omnilens.provider.ai.HannahAiGlobalPeerComparison;
+import com.hana.omnilens.provider.ai.HannahAiGlobalPeerKeyStrength;
 import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatch;
 import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatchClient;
 import com.hana.omnilens.provider.ai.HannahAiGlobalPeerMatchResponse;
@@ -170,6 +172,27 @@ class MarketDataControllerTest {
 
     @Test
     void globalPeerApiReturnsHannahAiPeerMatch() throws Exception {
+        HannahAiGlobalPeerMatch peer = new HannahAiGlobalPeerMatch(
+                1,
+                "HALO",
+                "Halozyme Therapeutics",
+                "NASDAQ_GLOBAL_SELECT",
+                "US",
+                new BigDecimal("0.4911"),
+                List.of("biotech platform", "drug delivery"),
+                "Health Care",
+                "Biotechnology",
+                "Biotech platform licensing",
+                "MID_CAP",
+                2025,
+                null,
+                new BigDecimal("1396611000"),
+                new BigDecimal("469006000"),
+                new BigDecimal("316889000"),
+                "SEC_COMPANYFACTS",
+                new BigDecimal("0.9996"),
+                List.of("Sector: both are Health Care companies."),
+                "Both companies are biotech platform providers.");
         when(hannahAiGlobalPeerMatchClient.match(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(new HannahAiGlobalPeerMatchResponse(
                         "196170",
@@ -178,48 +201,29 @@ class MarketDataControllerTest {
                         "Alteogen Is The 'Halozyme Therapeutics' of South Korea — "
                                 + "A Global Biotech Platform Leader",
                         "Alteogen is a high-margin Biotech Platform provider.",
-                        new HannahAiGlobalPeerMatch(
-                                1,
-                                "HALO",
-                                "Halozyme Therapeutics",
-                                "NASDAQ_GLOBAL_SELECT",
-                                "US",
-                                new BigDecimal("0.4911"),
-                                List.of("biotech platform", "drug delivery"),
-                                "Health Care",
-                                "Biotechnology",
-                                "Biotech platform licensing",
-                                "MID_CAP",
-                                2025,
-                                null,
-                                new BigDecimal("1396611000"),
-                                new BigDecimal("469006000"),
-                                new BigDecimal("316889000"),
-                                "SEC_COMPANYFACTS",
-                                new BigDecimal("0.9996"),
-                                List.of("Sector: both are Health Care companies."),
-                                "Both companies are biotech platform providers."),
-                        List.of(new HannahAiGlobalPeerMatch(
-                                1,
-                                "HALO",
-                                "Halozyme Therapeutics",
-                                "NASDAQ_GLOBAL_SELECT",
-                                "US",
-                                new BigDecimal("0.4911"),
-                                List.of("biotech platform", "drug delivery"),
-                                "Health Care",
-                                "Biotechnology",
-                                "Biotech platform licensing",
-                                "MID_CAP",
-                                2025,
-                                null,
-                                new BigDecimal("1396611000"),
-                                new BigDecimal("469006000"),
-                                new BigDecimal("316889000"),
-                                "SEC_COMPANYFACTS",
-                                new BigDecimal("0.9996"),
-                                List.of("Sector: both are Health Care companies."),
-                                "Both companies are biotech platform providers.")),
+                        peer,
+                        List.of(peer),
+                        List.of(new HannahAiGlobalPeerComparison(
+                                "biotechnology",
+                                "A platform biotechnology peer with a comparable licensing model.",
+                                peer)),
+                        List.of(
+                                new HannahAiGlobalPeerKeyStrength(
+                                        "Drug-delivery platform",
+                                        "Proprietary formulation technology supports global licensing.",
+                                        "drug_delivery"),
+                                new HannahAiGlobalPeerKeyStrength(
+                                        "Royalty model",
+                                        "Milestones and royalties provide recurring upside.",
+                                        "biotechnology"),
+                                new HannahAiGlobalPeerKeyStrength(
+                                        "Global partnerships",
+                                        "Partnerships extend commercial reach without a direct sales footprint.",
+                                        "global_business"),
+                                new HannahAiGlobalPeerKeyStrength(
+                                        "Operating leverage",
+                                        "A licensing-led structure supports scalable margins.",
+                                        "operational_scale")),
                         new BigDecimal("0.4911"),
                         "MEDIUM",
                         "global-peer-tfidf-test",
@@ -238,6 +242,12 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.primaryPeer.financialDataSource", equalTo("SEC_COMPANYFACTS")))
                 .andExpect(jsonPath("$.data.primaryPeer.matchedFactors[0]")
                         .value("Sector: both are Health Care companies."))
+                .andExpect(jsonPath("$.data.peers[0].ticker", equalTo("HALO")))
+                .andExpect(jsonPath("$.data.comparisons[0].dimension", equalTo("biotechnology")))
+                .andExpect(jsonPath("$.data.comparisons[0].peer.ticker", equalTo("HALO")))
+                .andExpect(jsonPath("$.data.keyStrengths[0].title", equalTo("Drug-delivery platform")))
+                .andExpect(jsonPath("$.data.keyStrengths[0].iconKey", equalTo("drug_delivery")))
+                .andExpect(jsonPath("$.data.keyStrengths.length()", equalTo(4)))
                 .andExpect(jsonPath("$.data.headline")
                         .value("Alteogen Is The 'Halozyme Therapeutics' of South Korea — "
                                 + "A Global Biotech Platform Leader"))

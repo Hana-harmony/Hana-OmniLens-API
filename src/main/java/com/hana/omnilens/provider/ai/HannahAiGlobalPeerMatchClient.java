@@ -2,6 +2,7 @@ package com.hana.omnilens.provider.ai;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -14,11 +15,18 @@ public class HannahAiGlobalPeerMatchClient {
     private final RestClient restClient;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
 
+    @Autowired
     public HannahAiGlobalPeerMatchClient(
             RestClient.Builder restClientBuilder,
             HannahAiProperties properties,
             ExternalProviderResiliencePolicy resiliencePolicy) {
-        this.restClient = HannahAiRestClientFactory.create(restClientBuilder, properties);
+        this(HannahAiRestClientFactory.create(restClientBuilder, properties), resiliencePolicy);
+    }
+
+    HannahAiGlobalPeerMatchClient(
+            RestClient restClient,
+            ExternalProviderResiliencePolicy resiliencePolicy) {
+        this.restClient = restClient;
         this.resiliencePolicy = resiliencePolicy;
     }
 
