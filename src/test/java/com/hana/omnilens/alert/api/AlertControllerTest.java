@@ -176,7 +176,7 @@ class AlertControllerTest {
     }
 
     @Test
-    void listStockEventsAppliesTheLimitEvenlyPerSource() throws Exception {
+    void listStockEventsReturnsAKeysetPage() throws Exception {
         jdbcTemplate.update("DELETE FROM alert_event");
         Instant baseTime = Instant.parse("2026-07-09T09:00:00Z");
         for (int index = 0; index < 120; index++) {
@@ -198,9 +198,9 @@ class AlertControllerTest {
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
                         .param("limit", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.events.length()", equalTo(11)))
-                .andExpect(jsonPath("$.data.events[*].sourceType", hasItem("DISCLOSURE")))
-                .andExpect(jsonPath("$.data.events[10].alertId", equalTo("disclosure-backfill-1")));
+                .andExpect(jsonPath("$.data.events.length()", equalTo(20)))
+                .andExpect(jsonPath("$.data.events[0].alertId", equalTo("news-backfill-0")))
+                .andExpect(jsonPath("$.data.nextCursor").isNotEmpty());
     }
 
     @Test

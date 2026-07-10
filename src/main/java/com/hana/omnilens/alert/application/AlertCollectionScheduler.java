@@ -94,7 +94,7 @@ public class AlertCollectionScheduler {
 
     private void collectBatch(String partnerId, List<String> stockCodes) {
         try {
-            alertProviderCollectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
+            alertProviderCollectionService.collectIncrementalAnalyzeAndPublish(new AlertCollectPublishRequest(
                     partnerId,
                     stockCodes,
                     properties.newsDisplay(),

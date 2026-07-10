@@ -163,6 +163,47 @@ class AlertProviderCollectionServiceTest {
     }
 
     @Test
+    void incrementalCollectionPublishesEveryNewCandidateInsideTheWatermarkWindow() {
+        StockSummary stock = new StockSummary(
+                "005930", "삼성전자", "Samsung Electronics", "KOSPI", "KR7005930003", null);
+        NaverNewsArticle first = new NaverNewsArticle(
+                "삼성전자, 신규 HBM 공급 계약",
+                "삼성전자 주가와 신규 공급 계약 기사입니다.",
+                "https://news.example.com/incremental-1",
+                Instant.parse("2026-07-05T02:00:00Z"));
+        NaverNewsArticle second = new NaverNewsArticle(
+                "삼성전자, 반도체 투자 확대",
+                "삼성전자 주가와 투자 확대 기사입니다.",
+                "https://news.example.com/incremental-2",
+                Instant.parse("2026-07-05T03:00:00Z"));
+        AlertEvent latest = mock(AlertEvent.class);
+        when(latest.publishedAt()).thenReturn(Instant.parse("2026-07-05T01:00:00Z"));
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(alertEventRepository.countByPartnerStockAndSourceType("local-dev", "005930", "NEWS"))
+                .thenReturn(5);
+        when(alertEventRepository.findLatestByPartnerStockAndSourceType(
+                "local-dev", "005930", "NEWS"))
+                .thenReturn(Optional.of(latest));
+        when(naverNewsClient.search(eq("삼성전자"), anyInt())).thenReturn(List.of(first, second));
+        when(originalArticleClient.fetch(first.originalUrl()))
+                .thenReturn(Optional.of(stockArticleContent(first)));
+        when(originalArticleClient.fetch(second.originalUrl()))
+                .thenReturn(Optional.of(stockArticleContent(second)));
+        when(dedupeStore.markIfFirst(any())).thenReturn(true);
+        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+                .thenReturn(
+                        publishRequestForStock("005930", "삼성전자", first),
+                        publishRequestForStock("005930", "삼성전자", second));
+
+        var response = collectionService.collectIncrementalAnalyzeAndPublish(new AlertCollectPublishRequest(
+                "local-dev", List.of("005930"), 5, 1));
+
+        assertThat(response.publishedCount()).isEqualTo(2);
+        verify(originalArticleClient).fetch(first.originalUrl());
+        verify(originalArticleClient).fetch(second.originalUrl());
+    }
+
+    @Test
     void doesNotCountTransientSourceDedupeAsPersisted() {
         StockSummary stock = new StockSummary(
                 "005930", "삼성전자", "Samsung Electronics", "KOSPI", "KR7005930003", null);

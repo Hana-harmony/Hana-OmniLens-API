@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hana.omnilens.common.api.ApiResponse;
+import com.hana.omnilens.common.api.KeysetCursor;
 import com.hana.omnilens.common.exception.BusinessException;
 import com.hana.omnilens.common.exception.ErrorCode;
 import com.hana.omnilens.marketnews.application.MarketNewsCollectionResult;
@@ -49,9 +50,15 @@ public class MarketNewsController {
     @GetMapping
     @Operation(summary = "List Korean market-wide news")
     public ApiResponse<MarketNewsListResponse> listMarketNews(
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit) {
-        var news = displayableNews(marketNewsEventRepository.findLatest(candidateLimit(limit)), limit);
-        return ApiResponse.success(new MarketNewsListResponse(news.size(), news));
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit,
+            @RequestParam(required = false) @Size(max = 512) String cursor) {
+        KeysetCursor decodedCursor = decodeCursor(cursor);
+        var candidates = marketNewsEventRepository.findLatestBefore(decodedCursor, candidateLimit(limit + 1));
+        var displayable = displayableNews(candidates, limit + 1);
+        boolean hasNext = displayable.size() > limit;
+        var news = List.copyOf(displayable.subList(0, Math.min(limit, displayable.size())));
+        String nextCursor = hasNext && !news.isEmpty() ? cursorOf(news.get(news.size() - 1)) : null;
+        return ApiResponse.success(new MarketNewsListResponse(news.size(), news, nextCursor));
     }
 
     @GetMapping("/trending")
@@ -123,6 +130,24 @@ public class MarketNewsController {
 
     private int candidateLimit(int limit) {
         return Math.max(limit, Math.min(100, limit * 5));
+    }
+
+    private KeysetCursor decodeCursor(String cursor) {
+        if (!org.springframework.util.StringUtils.hasText(cursor)) {
+            return null;
+        }
+        try {
+            return KeysetCursor.decode(cursor);
+        } catch (IllegalArgumentException exception) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "invalid cursor",
+                    exception);
+        }
+    }
+
+    private String cursorOf(MarketNewsEvent event) {
+        return KeysetCursor.encode(event.publishedAt(), event.createdAt(), event.newsId());
     }
 
     private MarketNewsEvent sanitizeAvailability(MarketNewsEvent event) {

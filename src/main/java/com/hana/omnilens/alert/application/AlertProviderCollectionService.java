@@ -54,6 +54,8 @@ public class AlertProviderCollectionService {
     private static final int MIN_COMPLETE_ARTICLE_SENTENCES = 2;
     private static final int DISCLOSURE_FEED_EXCERPT_MAX_CHARS = 1_200;
     private static final Duration COLLECTION_LEASE_DURATION = Duration.ofHours(6);
+    private static final Duration INCREMENTAL_COLLECTION_OVERLAP = Duration.ofHours(24);
+    private static final int MAX_NEW_EVENTS_PER_SOURCE_RUN = 100;
     private static final List<String> STOCK_MARKET_CONTEXT_KEYWORDS = List.of(
             "주가", "주식", "증시", "코스피", "코스닥", "상장", "공시", "거래", "매수", "매도",
             "순매수", "순매도", "기관", "외국인", "투자", "증권", "목표주가", "투자의견", "리포트",
@@ -132,6 +134,16 @@ public class AlertProviderCollectionService {
     }
 
     public AlertCollectPublishResponse collectAnalyzeAndPublish(AlertCollectPublishRequest request) {
+        return collectAnalyzeAndPublish(request, false);
+    }
+
+    public AlertCollectPublishResponse collectIncrementalAnalyzeAndPublish(AlertCollectPublishRequest request) {
+        return collectAnalyzeAndPublish(request, true);
+    }
+
+    private AlertCollectPublishResponse collectAnalyzeAndPublish(
+            AlertCollectPublishRequest request,
+            boolean incrementalEnabled) {
         List<StockSummary> stocks = uniqueStocks(request.stockCodes());
         if (stocks.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "no supported stock codes");
@@ -155,8 +167,8 @@ public class AlertProviderCollectionService {
                 continue;
             }
             try {
-                publishNews(request, stock, counters, events);
-                publishDisclosures(request, stock, beginDate, endDate, counters, events);
+                publishNews(request, stock, incrementalEnabled, counters, events);
+                publishDisclosures(request, stock, beginDate, endDate, incrementalEnabled, counters, events);
             } finally {
                 // 임대 토큰 소유자만 잠금을 해제해 만료 후 재획득 경쟁을 방지한다.
                 alertDedupeStore.releaseLease(leaseKey, leaseToken.orElseThrow());
@@ -185,19 +197,27 @@ public class AlertProviderCollectionService {
     private void publishNews(
             AlertCollectPublishRequest request,
             StockSummary stock,
+            boolean incrementalEnabled,
             CollectionCounters counters,
             List<AlertEvent> events) {
         int targetDisplay = request.effectiveNewsDisplay();
-        int searchDisplay = stockNewsSearchDisplay(targetDisplay);
         Set<String> seenArticleKeys = new LinkedHashSet<>();
         CollectionProgress progress = initialCollectionProgress(
                 request.partnerId(),
                 stock.stockCode(),
                 "NEWS",
-                targetDisplay);
+                targetDisplay,
+                incrementalEnabled);
         int satisfiedForStock = progress.satisfiedCount();
-        for (String query : stockNewsQueries(stock)) {
-            if (satisfiedForStock >= targetDisplay) {
+        int publishedForStock = 0;
+        List<String> queries = progress.incremental()
+                ? List.of(stock.stockName(), stock.stockName() + " 주가")
+                : stockNewsQueries(stock);
+        int searchDisplay = progress.incremental()
+                ? NAVER_STOCK_NEWS_MAX_DISPLAY
+                : stockNewsSearchDisplay(targetDisplay);
+        for (String query : queries) {
+            if (!progress.incremental() && satisfiedForStock >= targetDisplay) {
                 break;
             }
             List<NaverNewsArticle> articles;
@@ -216,15 +236,24 @@ public class AlertProviderCollectionService {
             }
             counters.collectedNewsCount += articles.size();
             for (NaverNewsArticle article : articles) {
-                if (satisfiedForStock >= targetDisplay) {
+                if ((!progress.incremental() && satisfiedForStock >= targetDisplay)
+                        || publishedForStock >= MAX_NEW_EVENTS_PER_SOURCE_RUN) {
                     break;
+                }
+                if (progress.incremental() && isBeforeBoundary(article.publishedAt(), progress.boundary())) {
+                    continue;
                 }
                 if (!seenArticleKeys.add(newsArticleKey(article))) {
                     counters.skippedDuplicateCount++;
                     continue;
                 }
                 PublicationResult result = publishNewsArticle(request, stock, counters, events, article);
-                if (result.satisfiesLatestSlot(progress.latestCheckOnly())) {
+                if (result == PublicationResult.PUBLISHED) {
+                    publishedForStock++;
+                }
+                if (!progress.incremental()
+                        && (result == PublicationResult.PUBLISHED
+                                || progress.latestCheckOnly() && result == PublicationResult.ALREADY_STORED)) {
                     satisfiedForStock++;
                 }
             }
@@ -653,6 +682,7 @@ public class AlertProviderCollectionService {
             StockSummary stock,
             LocalDate beginDate,
             LocalDate endDate,
+            boolean incrementalEnabled,
             CollectionCounters counters,
             List<AlertEvent> events) {
         if (stock.dartCorpCode() == null || stock.dartCorpCode().isBlank()) {
@@ -681,11 +711,18 @@ public class AlertProviderCollectionService {
                 request.partnerId(),
                 stock.stockCode(),
                 "DISCLOSURE",
-                targetDisplay);
+                targetDisplay,
+                incrementalEnabled);
         int satisfiedForStock = progress.satisfiedCount();
+        int publishedForStock = 0;
         for (OpenDartDisclosure disclosure : latestDisclosures(disclosures)) {
-            if (satisfiedForStock >= targetDisplay) {
+            if ((!progress.incremental() && satisfiedForStock >= targetDisplay)
+                    || publishedForStock >= MAX_NEW_EVENTS_PER_SOURCE_RUN) {
                 break;
+            }
+            Instant publishedAt = disclosure.receivedAt().atStartOfDay(KOREA_ZONE).toInstant();
+            if (progress.incremental() && isBeforeBoundary(publishedAt, progress.boundary())) {
+                continue;
             }
             if (isAlreadyStored(
                     request.partnerId(),
@@ -717,10 +754,15 @@ public class AlertProviderCollectionService {
                     disclosure.reportName(),
                     fullContent,
                     disclosure.originalUrl(),
-                    disclosure.receivedAt().atStartOfDay(KOREA_ZONE).toInstant(),
+                    publishedAt,
                     counters,
                     events);
-            if (result.satisfiesLatestSlot(progress.latestCheckOnly())) {
+            if (result == PublicationResult.PUBLISHED) {
+                publishedForStock++;
+            }
+            if (!progress.incremental()
+                    && (result == PublicationResult.PUBLISHED
+                            || progress.latestCheckOnly() && result == PublicationResult.ALREADY_STORED)) {
                 satisfiedForStock++;
             }
         }
@@ -832,16 +874,30 @@ public class AlertProviderCollectionService {
             String partnerId,
             String stockCode,
             String sourceType,
-            int targetDisplay) {
+            int targetDisplay,
+            boolean incrementalEnabled) {
         int existingCount = alertEventRepository.countByPartnerStockAndSourceType(
                 partnerId,
                 stockCode,
                 sourceType);
-        if (existingCount >= targetDisplay) {
-            // 충족 종목도 주기당 최신 후보 한 건은 확인해 신규 이벤트를 놓치지 않는다.
-            return new CollectionProgress(Math.max(0, targetDisplay - 1), true);
+        if (existingCount >= targetDisplay && incrementalEnabled) {
+            Instant boundary = alertEventRepository.findLatestByPartnerStockAndSourceType(
+                            partnerId,
+                            stockCode,
+                            sourceType)
+                    .map(AlertEvent::publishedAt)
+                    .map(value -> value.minus(INCREMENTAL_COLLECTION_OVERLAP))
+                    .orElse(Instant.EPOCH);
+            return new CollectionProgress(existingCount, true, false, boundary);
         }
-        return new CollectionProgress(Math.max(0, existingCount), false);
+        if (existingCount >= targetDisplay) {
+            return new CollectionProgress(Math.max(0, targetDisplay - 1), false, true, Instant.EPOCH);
+        }
+        return new CollectionProgress(Math.max(0, existingCount), false, false, Instant.EPOCH);
+    }
+
+    private boolean isBeforeBoundary(Instant publishedAt, Instant boundary) {
+        return publishedAt != null && boundary != null && publishedAt.isBefore(boundary);
     }
 
     private boolean isAlreadyStored(
@@ -947,13 +1003,13 @@ public class AlertProviderCollectionService {
     private enum PublicationResult {
         PUBLISHED,
         ALREADY_STORED,
-        SKIPPED;
-
-        private boolean satisfiesLatestSlot(boolean latestCheckOnly) {
-            return this == PUBLISHED || (latestCheckOnly && this == ALREADY_STORED);
-        }
+        SKIPPED
     }
 
-    private record CollectionProgress(int satisfiedCount, boolean latestCheckOnly) {
+    private record CollectionProgress(
+            int satisfiedCount,
+            boolean incremental,
+            boolean latestCheckOnly,
+            Instant boundary) {
     }
 }

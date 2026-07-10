@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hana.omnilens.alert.application.EnglishNewsQualityGate;
 import com.hana.omnilens.marketnews.application.MarketNewsEventRepository;
 import com.hana.omnilens.marketnews.domain.MarketNewsEvent;
+import com.hana.omnilens.common.api.KeysetCursor;
 
 @Repository
 public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository {
@@ -132,10 +133,35 @@ public class JdbcMarketNewsEventRepository implements MarketNewsEventRepository 
                 """
                 SELECT event_json
                 FROM market_news_event
-                ORDER BY published_at DESC, created_at DESC
+                ORDER BY published_at DESC, created_at DESC, news_id DESC
                 LIMIT ?
                 """,
                 rowMapper,
+                limit);
+    }
+
+    @Override
+    public List<MarketNewsEvent> findLatestBefore(KeysetCursor cursor, int limit) {
+        if (cursor == null) {
+            return findLatest(limit);
+        }
+        return jdbcTemplate.query(
+                """
+                SELECT event_json
+                FROM market_news_event
+                WHERE published_at < ?
+                   OR (published_at = ? AND created_at < ?)
+                   OR (published_at = ? AND created_at = ? AND news_id < ?)
+                ORDER BY published_at DESC, created_at DESC, news_id DESC
+                LIMIT ?
+                """,
+                rowMapper,
+                Timestamp.from(cursor.publishedAt()),
+                Timestamp.from(cursor.publishedAt()),
+                Timestamp.from(cursor.createdAt()),
+                Timestamp.from(cursor.publishedAt()),
+                Timestamp.from(cursor.createdAt()),
+                cursor.id(),
                 limit);
     }
 

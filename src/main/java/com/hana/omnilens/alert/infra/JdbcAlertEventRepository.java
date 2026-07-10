@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.hana.omnilens.alert.application.EnglishNewsQualityGate;
 import com.hana.omnilens.alert.application.AlertEventRepository;
 import com.hana.omnilens.alert.domain.AlertEvent;
+import com.hana.omnilens.common.api.KeysetCursor;
 
 @Repository
 public class JdbcAlertEventRepository implements AlertEventRepository {
@@ -207,17 +208,69 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
     }
 
     @Override
+    public Optional<AlertEvent> findLatestByPartnerStockAndSourceType(
+            String partnerId,
+            String stockCode,
+            String sourceType) {
+        return jdbcTemplate.query(
+                        """
+                        SELECT event_json
+                        FROM alert_event
+                        WHERE partner_id = ?
+                          AND stock_code = ?
+                          AND source_type = ?
+                        ORDER BY published_at DESC, created_at DESC, alert_id DESC
+                        LIMIT 1
+                        """,
+                        rowMapper,
+                        partnerId,
+                        stockCode,
+                        sourceType)
+                .stream()
+                .findFirst();
+    }
+
+    @Override
     public List<AlertEvent> findByStockCode(String stockCode, int limit) {
         return jdbcTemplate.query(
                 """
                 SELECT event_json
                 FROM alert_event
                 WHERE stock_code = ?
-                ORDER BY published_at DESC, created_at DESC
+                ORDER BY published_at DESC, created_at DESC, alert_id DESC
                 LIMIT ?
                 """,
                 rowMapper,
                 stockCode,
+                limit);
+    }
+
+    @Override
+    public List<AlertEvent> findByStockCodeBefore(String stockCode, KeysetCursor cursor, int limit) {
+        if (cursor == null) {
+            return findByStockCode(stockCode, limit);
+        }
+        return jdbcTemplate.query(
+                """
+                SELECT event_json
+                FROM alert_event
+                WHERE stock_code = ?
+                  AND (
+                    published_at < ?
+                    OR (published_at = ? AND created_at < ?)
+                    OR (published_at = ? AND created_at = ? AND alert_id < ?)
+                  )
+                ORDER BY published_at DESC, created_at DESC, alert_id DESC
+                LIMIT ?
+                """,
+                rowMapper,
+                stockCode,
+                Timestamp.from(cursor.publishedAt()),
+                Timestamp.from(cursor.publishedAt()),
+                Timestamp.from(cursor.createdAt()),
+                Timestamp.from(cursor.publishedAt()),
+                Timestamp.from(cursor.createdAt()),
+                cursor.id(),
                 limit);
     }
 

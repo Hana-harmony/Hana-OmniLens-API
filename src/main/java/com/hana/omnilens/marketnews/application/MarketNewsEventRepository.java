@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.time.Instant;
 
 import com.hana.omnilens.marketnews.domain.MarketNewsEvent;
+import com.hana.omnilens.common.api.KeysetCursor;
 
 public interface MarketNewsEventRepository {
 
@@ -17,6 +18,8 @@ public interface MarketNewsEventRepository {
     Optional<MarketNewsEvent> findByDuplicateKey(String duplicateKey);
 
     List<MarketNewsEvent> findLatest(int limit);
+
+    List<MarketNewsEvent> findLatestBefore(KeysetCursor cursor, int limit);
 
     List<MarketNewsEvent> findSummaryQualityIssues(int limit);
 

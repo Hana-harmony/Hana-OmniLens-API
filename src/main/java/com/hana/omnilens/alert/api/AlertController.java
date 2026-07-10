@@ -4,8 +4,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,6 +26,7 @@ import com.hana.omnilens.alert.application.AlertStreamingService;
 import com.hana.omnilens.alert.application.PartnerWatchlistService;
 import com.hana.omnilens.alert.domain.AlertEvent;
 import com.hana.omnilens.common.api.ApiResponse;
+import com.hana.omnilens.common.api.KeysetCursor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.hana.omnilens.security.PartnerAuthorizationService;
@@ -104,11 +103,18 @@ public class AlertController {
     @Operation(summary = "List stored news and disclosure events for a stock")
     public ApiResponse<AlertEventListResponse> listStockEvents(
             @PathVariable @Pattern(regexp = "\\d{6}") String stockCode,
-            @RequestParam(defaultValue = "20") int limit) {
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) @Size(max = 512) String cursor) {
         int effectiveLimit = Math.max(1, Math.min(limit, MAX_CLIENT_LIMIT));
-        return ApiResponse.success(new AlertEventListResponse(
+        KeysetCursor decodedCursor = decodeCursor(cursor);
+        List<AlertEvent> candidates = alertEventRepository.findByStockCodeBefore(
                 stockCode,
-                balancedSourceEvents(stockCode, effectiveLimit)));
+                decodedCursor,
+                effectiveLimit + 1);
+        boolean hasNext = candidates.size() > effectiveLimit;
+        List<AlertEvent> events = List.copyOf(candidates.subList(0, Math.min(effectiveLimit, candidates.size())));
+        String nextCursor = hasNext && !events.isEmpty() ? cursorOf(events.get(events.size() - 1)) : null;
+        return ApiResponse.success(new AlertEventListResponse(stockCode, events, nextCursor));
     }
 
     @PostMapping("/stocks/{stockCode}/events/reprocess")
@@ -150,24 +156,18 @@ public class AlertController {
         return ApiResponse.success(alertProviderCollectionService.collectAnalyzeAndPublish(request));
     }
 
-    private List<AlertEvent> balancedSourceEvents(String stockCode, int limit) {
-        int newsLimit = (limit + 1) / 2;
-        int disclosureLimit = limit / 2;
-        List<AlertEvent> selectedEvents = new ArrayList<>();
-        selectedEvents.addAll(alertEventRepository.findByStockCodeAndSourceType(
-                stockCode,
-                "NEWS",
-                newsLimit));
-        if (disclosureLimit > 0) {
-            selectedEvents.addAll(alertEventRepository.findByStockCodeAndSourceType(
-                    stockCode,
-                    "DISCLOSURE",
-                    disclosureLimit));
+    private KeysetCursor decodeCursor(String cursor) {
+        if (!org.springframework.util.StringUtils.hasText(cursor)) {
+            return null;
         }
-        selectedEvents.sort(
-                Comparator.comparing(AlertEvent::publishedAt, Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(AlertEvent::createdAt, Comparator.nullsLast(Comparator.naturalOrder()))
-                        .reversed());
-        return List.copyOf(selectedEvents);
+        try {
+            return KeysetCursor.decode(cursor);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid cursor", exception);
+        }
+    }
+
+    private String cursorOf(AlertEvent event) {
+        return KeysetCursor.encode(event.publishedAt(), event.createdAt(), event.alertId());
     }
 }

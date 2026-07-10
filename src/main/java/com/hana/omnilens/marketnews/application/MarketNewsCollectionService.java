@@ -4,9 +4,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.HashSet;
 import java.util.List;
@@ -48,6 +50,8 @@ public class MarketNewsCollectionService {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final int NAVER_MARKET_NEWS_FETCH_MULTIPLIER = 5;
     private static final int NAVER_MARKET_NEWS_MAX_DISPLAY = 100;
+    private static final int MAX_NEW_MARKET_NEWS_PER_RUN = 100;
+    private static final Duration INCREMENTAL_COLLECTION_OVERLAP = Duration.ofHours(24);
 
     private final NaverNewsClient naverNewsClient;
     private final OriginalArticleClient originalArticleClient;
@@ -109,11 +113,27 @@ public class MarketNewsCollectionService {
         Counters counters = new Counters();
         List<MarketNewsEvent> events = new ArrayList<>();
         Set<String> seenDuplicateKeys = new HashSet<>();
+        List<MarketNewsEvent> existing = marketNewsEventRepository.findLatest(effectiveDisplay);
+        boolean incremental = existing.size() >= effectiveDisplay;
+        Instant boundary = existing.stream()
+                .map(MarketNewsEvent::publishedAt)
+                .filter(java.util.Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .map(value -> value.minus(INCREMENTAL_COLLECTION_OVERLAP))
+                .orElse(Instant.EPOCH);
         for (String query : effectiveQueries) {
-            if (counters.satisfiedCount >= effectiveDisplay) {
+            if ((!incremental && counters.satisfiedCount >= effectiveDisplay)
+                    || counters.storedCount >= MAX_NEW_MARKET_NEWS_PER_RUN) {
                 break;
             }
-            collectQuery(query, effectiveDisplay, counters, events, seenDuplicateKeys);
+            collectQuery(
+                    query,
+                    effectiveDisplay,
+                    incremental,
+                    boundary,
+                    counters,
+                    events,
+                    seenDuplicateKeys);
         }
         return new MarketNewsCollectionResult(
                 effectiveQueries,
@@ -477,14 +497,23 @@ public class MarketNewsCollectionService {
     private void collectQuery(
             String query,
             int display,
+            boolean incremental,
+            Instant boundary,
             Counters counters,
             List<MarketNewsEvent> events,
             Set<String> seenDuplicateKeys) {
-        List<NaverNewsArticle> articles = naverNewsClient.search(query, marketNewsSearchDisplay(display));
+        int searchDisplay = incremental ? NAVER_MARKET_NEWS_MAX_DISPLAY : marketNewsSearchDisplay(display);
+        List<NaverNewsArticle> articles = naverNewsClient.search(query, searchDisplay);
         counters.collectedCount += articles.size();
         for (NaverNewsArticle article : articles) {
-            if (counters.satisfiedCount >= display) {
+            if ((!incremental && counters.satisfiedCount >= display)
+                    || counters.storedCount >= MAX_NEW_MARKET_NEWS_PER_RUN) {
                 break;
+            }
+            if (incremental
+                    && article.publishedAt() != null
+                    && article.publishedAt().isBefore(boundary)) {
+                continue;
             }
             if (!isMarketNewsRelevant(query, article)) {
                 log.info(
@@ -497,7 +526,7 @@ public class MarketNewsCollectionService {
             String duplicateKey = sha256(article.originalUrl());
             if (marketNewsEventRepository.findByDuplicateKey(duplicateKey).isPresent()) {
                 counters.duplicateCount++;
-                if (seenDuplicateKeys.add(duplicateKey)) {
+                if (!incremental && seenDuplicateKeys.add(duplicateKey)) {
                     counters.satisfiedCount++;
                 }
                 continue;
@@ -521,7 +550,7 @@ public class MarketNewsCollectionService {
                     counters.duplicateCount++;
                 }
                 events.add(saved);
-                if (seenDuplicateKeys.add(duplicateKey)) {
+                if (!incremental && seenDuplicateKeys.add(duplicateKey)) {
                     counters.satisfiedCount++;
                 }
             } catch (IrrelevantMarketNewsArticleException exception) {
