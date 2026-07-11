@@ -1,6 +1,5 @@
 package com.hana.omnilens.market.application;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -49,10 +48,11 @@ public class GlobalPeerMatchService {
                     5)));
         } catch (ProviderCircuitOpenException | RestClientException | IllegalStateException exception) {
             log.warn(
-                    "Hannah AI global peer match failed stockCode={}, falling back: {}",
+                    "Hannah AI global peer match failed stockCode={}: {}",
                     stockCode,
                     exception.toString());
-            return fallback(stock);
+            throw new MarketDataUnavailableException(
+                    "Hannah AI global peer result is unavailable: " + stockCode);
         }
     }
 
@@ -113,87 +113,4 @@ public class GlobalPeerMatchService {
                 strength.iconKey());
     }
 
-    private GlobalPeerMatchResponse fallback(StockSummary stock) {
-        if ("196170".equals(stock.stockCode())) {
-            GlobalPeerMatch peer = new GlobalPeerMatch(
-                    1,
-                    "HALO",
-                    "Halozyme Therapeutics",
-                    "NASDAQ_GLOBAL_SELECT",
-                    "US",
-                    new BigDecimal("0.4911"),
-                    List.of("biotech platform", "drug delivery", "royalty licensing"),
-                    "Health Care",
-                    "Biotechnology",
-                    "Biotech platform licensing",
-                    "MID_CAP",
-                    2025,
-                    null,
-                    new BigDecimal("1396611000"),
-                    new BigDecimal("469006000"),
-                    new BigDecimal("316889000"),
-                    "SEC_COMPANYFACTS",
-                    new BigDecimal("0.9996"),
-                    List.of(
-                            "Sector: both are Health Care companies.",
-                            "Industry: both operate in Biotechnology.",
-                            "Business model: both monetize platform drug-delivery technology through licensing.",
-                            "Scale: both are treated as mid-cap biotech platform peers."),
-                    "Both companies are biotech platform providers centered on drug-delivery technology, "
-                            + "subcutaneous formulation conversion, and royalty-style licensing.");
-            return new GlobalPeerMatchResponse(
-                    stock.stockCode(),
-                    stock.stockName(),
-                    stock.stockNameEn().isBlank() ? "Alteogen" : stock.stockNameEn(),
-                    "Alteogen Is The 'Halozyme Therapeutics' of South Korea — "
-                            + "A Global Biotech Platform Leader",
-                    "Alteogen is a high-margin Biotech Platform provider. Instead of developing "
-                            + "its own new drugs, it licenses out its proprietary drug-delivery technology "
-                            + "to global Big Pharma, securing long-term milestone and royalty fees.",
-                    peer,
-                    List.of(peer),
-                    List.of(),
-                    List.of(),
-                    BigDecimal.ZERO,
-                    "LOW",
-                    "global-peer-fallback-v1",
-                    "OMNILENS_GLOBAL_PEER_FALLBACK");
-        }
-        GlobalPeerMatch peer = new GlobalPeerMatch(
-                1,
-                "MSFT",
-                "Microsoft",
-                "NASDAQ_GLOBAL_SELECT",
-                "US",
-                BigDecimal.ZERO,
-                List.of("general listed company"),
-                "Unclassified",
-                "Unclassified",
-                "Operating company",
-                "UNKNOWN",
-                null,
-                null,
-                null,
-                null,
-                null,
-                "",
-                null,
-                List.of("Hannah AI peer model is unavailable, so no explainable peer factors were produced."),
-                "Hannah AI peer model is unavailable, so OmniLens returned a low-confidence fallback.");
-        return new GlobalPeerMatchResponse(
-                stock.stockCode(),
-                stock.stockName(),
-                stock.stockNameEn(),
-                (stock.stockNameEn().isBlank() ? stock.stockName() : stock.stockNameEn())
-                        + " Global Peer Match Is Temporarily Unavailable",
-                "The global peer model is temporarily unavailable. Please retry after the AI service recovers.",
-                peer,
-                List.of(peer),
-                List.of(),
-                List.of(),
-                BigDecimal.ZERO,
-                "LOW",
-                "global-peer-fallback-v1",
-                "OMNILENS_GLOBAL_PEER_FALLBACK");
-    }
 }

@@ -196,9 +196,8 @@ paths:
         Returns the existing primaryPeer and peers contract together with one to
         three dimension-based comparisons and exactly four stock-specific key
         strengths. AI snake_case fields are validated against server allowlists
-        before this endpoint emits the camelCase partner contract. An explicit
-        OMNILENS_GLOBAL_PEER_FALLBACK response keeps comparisons and keyStrengths
-        empty instead of fabricating unsupported cards.
+        before this endpoint emits the camelCase partner contract. Provider
+        failures return MARKET_DATA_UNAVAILABLE instead of fabricated peer cards.
       parameters:
         - $ref: "#/components/parameters/StockCode"
       responses:
