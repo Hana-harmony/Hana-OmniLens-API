@@ -62,7 +62,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        if (!properties.apiKeyEnabled() || isPublicEndpoint(request)) {
+        if (isPublicEndpoint(request)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -129,7 +129,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         return path.startsWith("/actuator/health")
                 || path.equals("/actuator/info")
                 || path.startsWith("/swagger-ui")
-                || path.startsWith("/v3/api-docs");
+                || path.startsWith("/v3/api-docs")
+                || path.startsWith("/api/v1/portal/");
     }
 
     private void writeError(HttpServletResponse response, ErrorCode errorCode) throws IOException {
@@ -143,20 +144,10 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         objectMapper.writeValue(response.getWriter(), ApiResponse.error(status.value(), code, message));
     }
 
-    private boolean matchesConfiguredHash(String providedKeyHash) {
-        if (!StringUtils.hasText(properties.apiKeySha256())) {
-            return false;
-        }
-        byte[] expected = properties.apiKeySha256().trim().getBytes(StandardCharsets.UTF_8);
-        byte[] actual = providedKeyHash.getBytes(StandardCharsets.UTF_8);
-        return MessageDigest.isEqual(actual, expected);
-    }
-
     private ApiKeyAuthentication authenticate(String providedKeyHash) {
         if (matchesConfiguredHash(providedKeyHash)) {
             return ApiKeyAuthentication.globalFallback();
         }
-
         Optional<PartnerCredential> partnerCredential;
         boolean hasActiveCredential;
         try {
@@ -173,6 +164,15 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return ApiKeyAuthentication.notConfigured();
         }
         return ApiKeyAuthentication.invalid();
+    }
+
+    private boolean matchesConfiguredHash(String providedKeyHash) {
+        if (!StringUtils.hasText(properties.apiKeySha256())) {
+            return false;
+        }
+        byte[] expected = properties.apiKeySha256().trim().getBytes(StandardCharsets.UTF_8);
+        byte[] actual = providedKeyHash.getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(actual, expected);
     }
 
     private String sha256Hex(String rawValue) {
@@ -206,6 +206,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         private static ApiKeyAuthentication notConfigured() {
             return new ApiKeyAuthentication(false, false, Optional.empty());
         }
+
     }
 
     private static class CredentialStoreUnavailableException extends RuntimeException {

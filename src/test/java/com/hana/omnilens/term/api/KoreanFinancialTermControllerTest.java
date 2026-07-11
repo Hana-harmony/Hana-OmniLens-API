@@ -29,7 +29,6 @@ import com.hana.omnilens.provider.ai.HannahAiKoreanFinancialTermClient;
 import com.hana.omnilens.provider.ai.HannahAiKoreanFinancialTermExplainResponse;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-enabled=true",
         "omnilens.security.api-key-sha256=4c806362b613f7496abf284146efd31da90e4b16169fe001841ca17290f427c4",
         "omnilens.security.rate-limit.enabled=false",
         "omnilens.security.signature.enabled=false",

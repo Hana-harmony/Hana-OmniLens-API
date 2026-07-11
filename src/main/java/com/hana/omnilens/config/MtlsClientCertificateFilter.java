@@ -64,6 +64,8 @@ public class MtlsClientCertificateFilter extends OncePerRequestFilter {
 
     private boolean isPublicEndpoint(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator/health") || path.equals("/actuator/info");
+        return path.startsWith("/actuator/health")
+                || path.equals("/actuator/info")
+                || path.startsWith("/api/v1/portal/");
     }
 }

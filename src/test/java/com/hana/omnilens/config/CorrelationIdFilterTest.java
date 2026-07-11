@@ -14,7 +14,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-enabled=false",
         "omnilens.alert.dedupe.mode=in-memory",
         "management.health.redis.enabled=false"
 })

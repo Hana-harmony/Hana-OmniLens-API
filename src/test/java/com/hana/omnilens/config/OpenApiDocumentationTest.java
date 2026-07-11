@@ -13,7 +13,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-enabled=true",
         "omnilens.security.api-key-sha256="
 })
 @AutoConfigureMockMvc
