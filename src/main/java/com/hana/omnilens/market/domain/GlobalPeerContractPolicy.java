@@ -5,6 +5,9 @@ import java.util.Set;
 
 public final class GlobalPeerContractPolicy {
 
+    private static final Set<String> ALLOWED_SOURCES = Set.of(
+            "HANNAH_GLOBAL_PEER_HYBRID_RANKER");
+
     private static final Set<String> ALLOWED_DIMENSIONS = Set.of(
             "overall_business",
             "semiconductor",
@@ -79,12 +82,7 @@ public final class GlobalPeerContractPolicy {
             String source,
             List<?> comparisons,
             List<?> keyStrengths) {
-        if (isFallbackSource(source)) {
-            if (!comparisons.isEmpty() || !keyStrengths.isEmpty()) {
-                throw new IllegalArgumentException("fallback global peer cards must be empty");
-            }
-            return;
-        }
+        requireAllowed("source", source, ALLOWED_SOURCES);
         validateStrictCardinality(comparisons, keyStrengths);
     }
 
@@ -97,10 +95,6 @@ public final class GlobalPeerContractPolicy {
         if (keyStrengths.size() != 4) {
             throw new IllegalArgumentException("keyStrengths size must be 4");
         }
-    }
-
-    public static boolean isFallbackSource(String source) {
-        return "OMNILENS_GLOBAL_PEER_FALLBACK".equals(source);
     }
 
     private static String requireAllowed(String field, String value, Set<String> allowedValues) {
