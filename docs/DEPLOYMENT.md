@@ -142,8 +142,8 @@ HEALTHCHECK_SCHEME=https
 
 `SERVER_SSL_CLIENT_AUTH=want`는 healthcheck가 client certificate 없이 통과할 수 있게 두고, 보호 API는 앱 필터가 client certificate 존재와 유효 기간을 다시 검증한다.
 
-## 향후 외부 연동 Secrets
-최신 기능정의 구현 시 아래 값은 GitHub Secrets 또는 배포 환경 Secret Manager에만 둔다.
+## 외부 연동 Secrets
+아래 값은 GitHub Secrets 또는 배포 환경 Secret Manager에만 둔다.
 
 - `KIS_ACCOUNT_NUMBER`: KIS 계좌번호
 - `KIS_APP_KEY`, `KIS_APP_SECRET`: KIS Open API credential

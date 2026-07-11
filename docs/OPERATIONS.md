@@ -203,14 +203,14 @@ STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 - Hannah 응답은 headline, summary, primary peer, 기존 후보 peer 목록, 속성별 comparisons, 국내 종목 자체의 key strengths, confidence, model version을 전달한다.
 - 각 peer의 섹터, 산업, 사업모델, 규모 버킷, 시가총액, 매출, 영업이익, 순이익, 재무 데이터 출처, 재무 유사도, 매칭 근거 배열은 프론트 피어 설명 팝업에서 바로 사용할 수 있도록 응답에 보존한다.
 - 정상 응답은 comparisons 1~3개와 key strengths 4개를 요구한다. dimension과 icon key allowlist 위반, 빈 필수 문구, 카드 개수 위반은 정상 결과로 전달하지 않는다.
-- Hannah 장애 또는 circuit open 시 OmniLens는 anchor fallback을 사용한다. 알테오젠 `196170`은 `HALO` Halozyme Therapeutics fallback을 제공하되, fallback의 comparisons와 keyStrengths는 빈 배열이고 confidence는 LOW다.
+- Hannah 장애, circuit open 또는 응답 계약 위반은 `MARKET_DATA_UNAVAILABLE`로 종료한다. 임의 peer와 빈 비교 카드를 반환하지 않는다.
 
 ## 한국 금융 고유어·전문용어 해설
 - 모바일 거래소 또는 협력사 백엔드는 뉴스/공시 본문에서 사용자가 누른 한국 금융 고유어·전문용어를 `POST /api/v1/korean-financial-terms/explain`로 보낸다.
 - OmniLens는 Hannah `POST /api/v1/korean-financial-terms/explain`를 호출하고, `displayMode=EXPLANATION`이면서 `cacheable=true`인 응답만 `korean_financial_term_explanation_cache`에 저장한다.
-- 사전 hit 또는 충분한 근거가 있는 RAG 응답은 TTL 동안 재사용한다. 신뢰도 낮은 신조어는 `REVIEW_REQUIRED`로 반환하고 cache하지 않아 사람이 검수한 뒤 사전에 편입할 수 있게 한다.
+- 검증 사전 hit는 TTL 동안 재사용한다. 미등록 한글 용어는 `REVIEW_REQUIRED`로 반환하고 cache하지 않는다.
 - 모든 클릭은 `korean_financial_term_click_log`에 저장하고, `korean_financial_term_click_stats`에 누적 집계한다. 사용자와 세션 식별자는 원문 저장 없이 `OMNILENS_TERM_ANALYTICS_HASH_SALT`로 salted SHA-256 처리한다.
-- 운영 비용 최적화는 집계 기반으로 수행한다. 클릭이 많은 용어는 사전/캐시로 고정하고, 낮은 빈도와 낮은 신뢰도 용어는 검수 queue로 남겨 불필요한 LLM 호출을 줄인다.
+- 클릭 집계는 사전 우선순위와 수동 검수 queue 선정에 사용한다.
 - 통계 확인은 `GET /api/v1/korean-financial-terms/stats`를 사용한다.
 
 ## 환율 provider
@@ -218,8 +218,8 @@ STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 - 내부 캐시에는 `KRW -> 현지통화` 비율로 저장한다.
 - 기본 refresh scheduler는 비활성화되어 있다.
 - 활성화하면 `EXCHANGE_RATE_REFRESH_CURRENCIES`에 지정한 통화만 주기적으로 갱신한다.
-- 한국수출입은행 환율 API는 레거시 provider로 제거됐다. 환율은 Frankfurter adapter와 cache를 기준으로 운영한다.
-- DeepL, Papago, OpenAI 번역 경로와 비교 smoke는 제거됐다.
+- 환율은 Frankfurter adapter와 cache를 기준으로 운영한다.
+- 한국어→영어 번역은 Hannah의 로컬 Qwen3 endpoint만 사용한다.
 
 ```text
 EXCHANGE_RATE_REFRESH_ENABLED=true

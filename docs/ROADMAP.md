@@ -1,47 +1,19 @@
-# 구현 로드맵
+# 운영 로드맵
 
-전체 구현 순서와 단계별 완료 기준은 `docs/IMPLEMENTATION_SEQUENCE.md`를 따른다.
+## 현재 운영 기준
 
-## M1 API 계약 안정화
-- OpenAPI 문서 추가 완료
-- 협력사 인증 정책 확정
-- WebSocket subscription 계약 테스트 완료
+- KIS 활성 종목 마스터, 현재가·호가·지수·분봉, KRX 일봉과 외국인 보유 snapshot을 DB·cache·REST/WebSocket으로 제공한다.
+- Naver News·OpenDART 수집, 전문 정제, Hannah 분석·번역, 재처리와 협력사 alert stream을 제공한다.
+- 글로벌 피어, 금융 용어, 외국인 예측과 세무 OCR을 Hannah AI 계약으로 orchestration한다.
+- API key hash, partner scope, rate limit, request signature nonce, mTLS, correlation ID와 감사 로그를 구현했다.
+- PostgreSQL·Redis, GHCR 이미지와 Docker Compose 운영 배포 경로를 구성했다.
 
-## M2 시장 데이터 어댑터
-- KIS 현재가 REST 연동 완료
-- KIS 실시간 체결가·호가 WebSocket 계약·파서·캐시 하네스 완료
-- KIS 실시간 체결가·호가 WebSocket session runner 완료
-- 단건 quote snapshot API 구현 완료
-- 전체/다건 quote snapshot API 구현 완료
-- 협력사용 market quote WebSocket stream 구현 완료
-- 종목 마스터 DB 적재 완료
-- 종목 마스터 단건 조회 REST 계약 완료
-- 외국인 보유율 프로세스 캐시와 장애 fallback 완료
-- 외국인 보유율 Redis TTL cache와 in-memory fallback 완료
-- 협력사 입력 환율 프로세스 캐시 완료
-- Frankfurter 환율 provider adapter와 cache refresh service 완료
-- Frankfurter 환율 주기 refresh scheduler 완료
-- 환율 Redis TTL cache와 in-memory fallback 완료
-- KRX 모든 국내 주식 과거 시세 수집·정규화·DB 저장·history API 완료
+## 다음 운영 기준
 
-## M3 뉴스·공시 알림
-- Naver News Search 수집 endpoint 연결 완료
-- OpenDART 공시 수집 endpoint 연결 완료
-- Hannah Qwen3 번역 공급자 어댑터 완료
-- Hannah-Montana-AI 분석 API 연동 완료
-- Redis TTL 기반 중복 제거 완료
-- 협력사별 watchlist 기반 주기 수집 스케줄러 완료
-- 협력사별 watchlist DB 관리 API 완료
-- full-content news v2: DB 이벤트 저장소, REST 목록·상세, v2 필드 포함 저장 이벤트 WebSocket, Hannah 전문 기반 분석·What/Why/Impact 요약 모델 연동, 사용 허가 원문 전문·이미지 수집, OpenDART document 전문 수집, Hannah Qwen3 전문 chunk 번역 완료. 전체 종목 shard 운영 최적화와 provider별 권리 확인은 지속
+- 실제 provider 계정으로 KIS·KRX·Naver·OpenDART 장중·장외 통합 smoke와 quota 알림을 자동화한다.
+- Redis·DB 장애, provider circuit open, WebSocket 재연결·replay의 복구 목표를 부하·장애 주입 테스트로 검증한다.
+- 세무 문서 검증 호출의 계정 간 격리, 원본 비저장, 감사 이벤트와 보존 정책을 운영 환경에서 검증한다.
+- API key rotation, mTLS 인증서 만료, 서명 nonce store 복구 runbook을 정기 훈련한다.
+- SLO, latency·error budget, provider별 비용·quota dashboard와 경보를 확정한다.
 
-## M4 운영 하드닝
-- 협력사별 rate limit 완료
-- 협력사별 API key registry와 partnerId 접근 제한 완료
-- bootstrap 운영 키 기반 협력사별 API key rotation 완료
-- WebSocket topic authorization 세분화 완료
-- 서명 기반 인증과 Redis nonce replay 방어 완료
-- mTLS client certificate gate 완료
-- 감사 로그와 장애 추적 correlation id 완료
-- 외부 provider timeout, retry, circuit breaker 완료
-- Redis Testcontainers 통합 연결 하네스 완료
-- 배포 환경 분리 완료
+운영 항목은 자동 테스트, 관측 지표, rollback 절차와 담당자가 문서화된 경우에만 완료 처리한다.

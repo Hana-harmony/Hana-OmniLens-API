@@ -72,7 +72,7 @@
 - `PROVIDER_*TIMEOUT`, `PROVIDER_RETRY_*`, `PROVIDER_CIRCUIT_BREAKER_*`는 장애 대응 튜닝값이며 secret으로 분류하지 않는다.
 - 별도 서비스 토큰 헤더는 사용하지 않는다.
 
-## 향후 강화
+## 운영 전 확인
 - abuse detection
 - 감사 로그 무결성 보장
 - 외부 AI 공급자 전송 데이터 최소화와 개인정보 제거

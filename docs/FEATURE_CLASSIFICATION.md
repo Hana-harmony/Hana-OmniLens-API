@@ -37,8 +37,22 @@
 | FE용 quote/chart/orderability API와 WebSocket 재배포 | Stock-exchange-BE | Done |
 | 시장 탭, 종목 상세, 차트, 주문 제한 UI | Stock-exchange-FE | Done |
 
+## 3. 글로벌 세무 처리 자동화(OCR)
+
+| 기능 | 책임 | 상태 |
+| --- | --- | --- |
+| 거주자 증명서·아포스티유·제한세율 적용신청서 파일 선택 | Stock-exchange-FE | Done |
+| 계정별 파일 격리 저장, 문서 메타데이터·검증 진행 상태 | Stock-exchange-BE | Done |
+| 세무 문서 검증 orchestration API | Hana-OmniLens-API | Done |
+| 이미지/PDF 형식·magic byte·크기 검증 | Stock-exchange-BE, Hannah-Montana-AI | Done |
+| OCR, 문서별 필드 추출, 필수 필드·일관성·위변조 위험 검증 | Hannah-Montana-AI | Done |
+| 모의 매도 실현손익 기반 환급 케이스와 Hana 상태 동기화 | Stock-exchange-BE | Done |
+| 업로드·OCR 진행·검증·환급 상태와 위험 고지 UI | Stock-exchange-FE | Done |
+| 실제 신고·정부 승인·환급 지급·환수 | 외부 세무·지급 시스템 | 범위 밖 |
+
 ## 경계
 
 - Hana-OmniLens-API는 실제 주문 명령, 체결, 정산, 환전을 수행하지 않는다.
 - AI 모델 학습과 추론 로직은 Hannah-Montana-AI 책임이다.
 - 사용자별 알림 매칭, 푸시 발송, 알림함 저장은 Stock-exchange-BE 책임이다.
+- Hana-OmniLens-API와 Hannah-Montana-AI는 세무 문서를 검증하지만 실제 신고·지급·환수 결정을 수행하지 않는다.

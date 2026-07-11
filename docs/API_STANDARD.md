@@ -68,8 +68,7 @@
 - 정상 AI 응답의 `comparisons`는 1~3개이며 `dimension`, 비교 설명, 기존 peer와 같은 구조의 `peer`를 포함한다. `dimension`은 서버 allowlist 값만 허용한다.
 - 정상 AI 응답의 `keyStrengths`는 정확히 4개이며 해당 국내 종목 자체의 강점을 설명하는 `title`, `description`, `iconKey`를 포함한다. `iconKey`는 앱 자산과 합의한 allowlist 값만 허용한다.
 - Hannah의 `key_strengths[].icon_key` snake_case 계약은 OmniLens가 검증한 뒤 `keyStrengths[].iconKey` camelCase로 변환한다.
-- 정상 경로는 Hannah-Montana-AI 글로벌 피어 모델이며, AI 장애 시 검증된 anchor fallback만 제한적으로 사용한다.
-- `OMNILENS_GLOBAL_PEER_FALLBACK`은 근거 없는 비교·강점 카드를 생성하지 않고 `comparisons`, `keyStrengths`를 빈 배열로 반환한다.
+- 정상 경로는 Hannah-Montana-AI 글로벌 피어 모델이다. AI 장애나 계약 위반은 `MARKET_DATA_UNAVAILABLE`로 반환하며 임의 peer fallback을 만들지 않는다.
 
 ## Tax Document OCR
 
@@ -81,7 +80,7 @@
 
 - `POST /api/v1/korean-financial-terms/explain`
 - 뉴스·공시 본문에서 사용자가 클릭한 한국 금융 고유어·전문용어를 외국인 투자자가 이해할 수 있는 영어 해설로 반환한다.
-- 정상 경로는 Hannah-Montana-AI 사전/RAG 엔진이며, 응답은 explanation, evidence, confidence, display mode, cacheable flag를 포함한다.
+- 정상 경로는 Hannah-Montana-AI 단일 검증 사전이며, 응답은 explanation, evidence, confidence, display mode, cacheable flag를 포함한다.
 - OmniLens는 검증된 Hannah 응답만 TTL cache에 저장하고, confidence가 낮은 신조어는 review 대상 상태로 반환한다.
 - `GET /api/v1/korean-financial-terms/stats`
 - 클릭 통계는 salted SHA-256 사용자/세션 해시만 저장해 인기 용어와 검수 후보를 집계한다.
