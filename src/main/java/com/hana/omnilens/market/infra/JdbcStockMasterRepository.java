@@ -10,6 +10,7 @@ import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.market.domain.StockSummary;
@@ -33,6 +34,7 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
                         SELECT stock_code, stock_name, stock_name_en, market, isin_code, dart_corp_code
                         FROM stock_master
                         WHERE stock_code = ?
+                          AND active = TRUE
                         """,
                         STOCK_ROW_MAPPER,
                         stockCode)
@@ -53,6 +55,7 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
                 FROM stock_master
                 LEFT JOIN stock_master_priority
                     ON stock_master.stock_code = stock_master_priority.stock_code
+                WHERE stock_master.active = TRUE
                 ORDER BY stock_master_priority.priority_rank NULLS LAST, stock_master.stock_code
                 LIMIT ?
                 """,
@@ -67,9 +70,10 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
                 """
                 SELECT stock_code, stock_name, stock_name_en, market, isin_code, dart_corp_code
                 FROM stock_master
-                WHERE stock_code LIKE ?
+                WHERE active = TRUE
+                  AND (stock_code LIKE ?
                    OR LOWER(stock_name) LIKE ?
-                   OR LOWER(stock_name_en) LIKE ?
+                   OR LOWER(stock_name_en) LIKE ?)
                 ORDER BY stock_code
                 LIMIT ?
                 """,
@@ -81,7 +85,9 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
     }
 
     int count() {
-        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM stock_master", Integer.class);
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM stock_master WHERE active = TRUE",
+                Integer.class);
         return count == null ? 0 : count;
     }
 
@@ -107,13 +113,24 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
 
     void upsertAll(List<StockSummary> stocks) {
         for (StockSummary stock : stocks) {
-            Optional<StockSummary> existing = findByCode(stock.stockCode());
+            Optional<StockSummary> existing = findAnyByCode(stock.stockCode());
             if (existing.isPresent()) {
                 update(stock, existing.get());
             } else {
                 insertAll(List.of(stock));
             }
         }
+    }
+
+    @Transactional
+    void reconcileMarketSnapshot(String market, List<StockSummary> stocks) {
+        if (stocks.isEmpty() || stocks.stream().anyMatch(stock -> !market.equals(stock.market()))) {
+            throw new IllegalArgumentException("stock master snapshot must be non-empty and single-market");
+        }
+        jdbcTemplate.update(
+                "UPDATE stock_master SET active = FALSE WHERE market = ?",
+                market);
+        upsertAll(stocks);
     }
 
     int updateDartCorpCodes(Map<String, String> corpCodeByStockCode) {
@@ -150,6 +167,19 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
         return updated == null ? 0 : updated;
     }
 
+    private Optional<StockSummary> findAnyByCode(String stockCode) {
+        return jdbcTemplate.query(
+                        """
+                        SELECT stock_code, stock_name, stock_name_en, market, isin_code, dart_corp_code
+                        FROM stock_master
+                        WHERE stock_code = ?
+                        """,
+                        STOCK_ROW_MAPPER,
+                        stockCode)
+                .stream()
+                .findFirst();
+    }
+
     private void update(StockSummary stock, StockSummary existing) {
         String stockNameEn = stock.stockNameEn().equals(stock.stockName())
                 && !existing.stockNameEn().equals(existing.stockName())
@@ -166,7 +196,9 @@ public class JdbcStockMasterRepository implements StockMasterRepository {
                     stock_name_en = ?,
                     market = ?,
                     isin_code = ?,
-                    dart_corp_code = ?
+                    dart_corp_code = ?,
+                    active = TRUE,
+                    master_synced_at = CURRENT_TIMESTAMP
                 WHERE stock_code = ?
                 """,
                 stock.stockName(),
