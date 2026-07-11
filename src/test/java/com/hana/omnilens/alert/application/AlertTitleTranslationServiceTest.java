@@ -257,7 +257,7 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
-    void translateTextPreservesLocalismSurfaceTermWhenProviderUsesGenericEnglish() {
+    void translateTextUsesAntSurfaceWhenProviderUsesGenericEnglish() {
         when(hannahTranslationClient.translate(any()))
                 .thenReturn(translated("Retail investors net bought Samsung Electronics."));
 
@@ -267,12 +267,12 @@ class AlertTitleTranslationServiceTest {
                 List.of(new AlertGlossaryTerm("개미", "개미", "retail investors", "market_slang")));
 
         assertThat(plainTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
-        assertThat(glossaryTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
+        assertThat(glossaryTranslation).isEqualTo("Ants net bought Samsung Electronics.");
         verify(hannahTranslationClient, times(2)).translate(any());
     }
 
     @Test
-    void translateTextRepairsAntSurfaceToNaturalRetailInvestorsWhenGlossaryIsPresent() {
+    void translateTextPreservesAntSurfaceWhenGlossaryIsPresent() {
         when(hannahTranslationClient.translate(any()))
                 .thenReturn(translated("Ants net bought Samsung Electronics."));
 
@@ -280,7 +280,7 @@ class AlertTitleTranslationServiceTest {
                 "개미가 삼성전자를 순매수했다.",
                 List.of(new AlertGlossaryTerm("개미", "개미", "retail investors", "market_slang")));
 
-        assertThat(glossaryTranslation).isEqualTo("Retail investors net bought Samsung Electronics.");
+        assertThat(glossaryTranslation).isEqualTo("Ants net bought Samsung Electronics.");
     }
 
     private HannahAiKoreanTranslationResponse translated(String text) {

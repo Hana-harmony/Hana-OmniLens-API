@@ -38,6 +38,7 @@ class KoreanMarketGlossaryTermExtractorTest {
                 .singleElement()
                 .satisfies(term -> {
                     assertThat(term.normalizedTerm()).isEqualTo("개미");
+                    assertThat(term.englishTerm()).isEqualTo("Ant");
                     assertThat(term.description()).contains("individual retail investors");
                 });
     }
