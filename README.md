@@ -18,6 +18,7 @@
 - Hannah AI가 종목 매핑, 이벤트·감성·중요도 분류, What/Why/Impact 요약, 중복 키와 confidence를 생성한다.
 - 로컬 Qwen3 번역 결과와 provider·model version·품질 플래그를 REST/WebSocket payload에 전달한다.
 - 시장 뉴스 목록·상세·트렌딩, 종목별 이벤트, 협력사 watchlist, 수동 재처리·수집·발행 API를 제공한다.
+- 한국 금융 고유어는 검증 사전 표면형을 유지한다. `개미`는 번역 문장에서 `Ants`, glossary 라벨에서 `Ant`로 제공한다.
 - 한국 금융 고유어·전문용어를 단일 검증 사전으로 해설하고 evidence, confidence, cache 정책과 해시 기반 클릭 통계를 제공한다.
 
 데이터 흐름은 `Naver/OpenDART → Hana 수집·저장 → Hannah 분석·번역 → Hana REST/WebSocket → Stock-exchange-BE → Flutter`다.

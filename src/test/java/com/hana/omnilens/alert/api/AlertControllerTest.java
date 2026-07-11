@@ -952,9 +952,9 @@ class AlertControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("Ants")))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("Ant")))
                 .andExpect(jsonPath("$.data.glossaryTerms[0].normalizedTerm", equalTo("개미")))
-                .andExpect(jsonPath("$.data.glossaryTerms[0].englishTerm", equalTo("retail investors")))
+                .andExpect(jsonPath("$.data.glossaryTerms[0].englishTerm", equalTo("Ant")))
                 .andExpect(jsonPath("$.data.glossaryTerms[*].sourceTerm", hasItem("Daejangju")))
                 .andExpect(jsonPath("$.data.glossaryTerms[*].englishTerm", hasItem("Market Leader")))
                 .andExpect(jsonPath("$.data.glossaryTerms[*].description", hasItem(

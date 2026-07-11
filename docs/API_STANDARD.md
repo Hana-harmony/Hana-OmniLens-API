@@ -80,6 +80,7 @@
 
 - `POST /api/v1/korean-financial-terms/explain`
 - 뉴스·공시 본문에서 사용자가 클릭한 한국 금융 고유어·전문용어를 외국인 투자자가 이해할 수 있는 영어 해설로 반환한다.
+- `개미`는 문장 번역에서 자연스러운 `Ants`, glossary 라벨에서는 정규형 `Ant`로 제공하며 `Retail investors`로 일반화하지 않는다.
 - 정상 경로는 Hannah-Montana-AI 단일 검증 사전이며, 응답은 explanation, evidence, confidence, display mode, cacheable flag를 포함한다.
 - OmniLens는 검증된 Hannah 응답만 TTL cache에 저장하고, confidence가 낮은 신조어는 review 대상 상태로 반환한다.
 - `GET /api/v1/korean-financial-terms/stats`

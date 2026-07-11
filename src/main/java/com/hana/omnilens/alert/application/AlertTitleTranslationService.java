@@ -190,7 +190,9 @@ public class AlertTitleTranslationService {
         String result = text;
         for (AlertGlossaryTerm term : glossaryTerms) {
             result = switch (term.normalizedTerm()) {
-                case "개미" -> replaceIfMissing(result, "retail investors", List.of(
+                case "개미" -> replaceIfMissing(result, "Ants", List.of(
+                        "retail investors",
+                        "retail investor",
                         "Ants",
                         "Ant",
                         "Gaemi",

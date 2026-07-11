@@ -42,7 +42,7 @@ public class KoreanMarketGlossaryTermExtractor {
             new DictionaryTerm("저PBR", "Low PBR", "valuation_term",
                     List.of("low PBR", "Low PBR"),
                     "Low price-to-book ratio stock, often mentioned in Korea's value-up policy context."),
-            new DictionaryTerm("개미", "Retail investors", "investor_slang",
+            new DictionaryTerm("개미", "Ant", "investor_slang",
                     List.of("retail investors", "ants", "ant", "gaemee", "gaemi"),
                     "Korean stock-market slang for individual retail investors."),
             new DictionaryTerm("대장주", "Market Leader", "market_slang",
@@ -77,10 +77,18 @@ public class KoreanMarketGlossaryTermExtractor {
         Map<String, AlertGlossaryTerm> termsBySurface = new LinkedHashMap<>();
         if (existingTerms != null) {
             for (AlertGlossaryTerm term : existingTerms) {
-                if (isDictionaryTerm(term)) {
+                DictionaryTerm dictionaryTerm = dictionaryTerm(term);
+                if (dictionaryTerm != null) {
                     String key = termKey(term);
                     if (StringUtils.hasText(key)) {
-                        termsBySurface.put(key, term);
+                        termsBySurface.put(key, new AlertGlossaryTerm(
+                                term.sourceTerm(),
+                                dictionaryTerm.normalizedTerm(),
+                                dictionaryTerm.englishTerm(),
+                                dictionaryTerm.category(),
+                                StringUtils.hasText(term.description())
+                                        ? term.description()
+                                        : dictionaryTerm.description()));
                     }
                 }
             }
@@ -125,8 +133,16 @@ public class KoreanMarketGlossaryTermExtractor {
         }
         List<AlertGlossaryTerm> displayableTerms = new ArrayList<>();
         for (AlertGlossaryTerm term : terms) {
-            if (isDictionaryTerm(term)) {
-                displayableTerms.add(term);
+            DictionaryTerm dictionaryTerm = dictionaryTerm(term);
+            if (dictionaryTerm != null) {
+                displayableTerms.add(new AlertGlossaryTerm(
+                        term.sourceTerm(),
+                        dictionaryTerm.normalizedTerm(),
+                        dictionaryTerm.englishTerm(),
+                        dictionaryTerm.category(),
+                        StringUtils.hasText(term.description())
+                                ? term.description()
+                                : dictionaryTerm.description()));
             }
         }
         return displayableTerms;
@@ -159,17 +175,21 @@ public class KoreanMarketGlossaryTermExtractor {
     }
 
     private boolean isDictionaryTerm(AlertGlossaryTerm term) {
+        return dictionaryTerm(term) != null;
+    }
+
+    private DictionaryTerm dictionaryTerm(AlertGlossaryTerm term) {
         if (term == null) {
-            return false;
+            return null;
         }
         for (DictionaryTerm dictionaryTerm : TERMS) {
             if (matches(dictionaryTerm, term.normalizedTerm())
                     || matches(dictionaryTerm, term.sourceTerm())
                     || matches(dictionaryTerm, term.englishTerm())) {
-                return true;
+                return dictionaryTerm;
             }
         }
-        return false;
+        return null;
     }
 
     private boolean matches(DictionaryTerm dictionaryTerm, String value) {
