@@ -114,6 +114,7 @@ class OriginalArticleClientTest {
 
         assertThat(content).isPresent();
         assertThat(content.orElseThrow().content()).contains("삼성전자와 SK하이닉스");
+        assertThat(content.orElseThrow().content()).contains("\n\n");
         assertThat(content.orElseThrow().content()).doesNotContain("글자크기로 변경");
         assertThat(content.orElseThrow().content()).doesNotContain("좋아요 0");
         assertThat(content.orElseThrow().content()).doesNotContain("이 기사를 공유합니다");

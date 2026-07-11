@@ -59,6 +59,6 @@
 - 알림 스케줄러는 설정 파일 watchlist와 DB watchlist를 협력사별로 병합해 같은 수집·분석·발행 경로를 재사용한다.
 - 뉴스·공시 중복 재발행 방지는 Redis TTL 기반 dedupe를 기본으로 사용하고, Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.
 - v2에서는 watchlist 수집 경로와 별도로 전체 종목 shard 스케줄러를 둔다. 처리된 뉴스·공시는 DB 이벤트 저장소에 먼저 저장하고, canonical URL/content hash/AI duplicate key/cluster key로 중복을 줄인 뒤 REST 목록·상세와 WebSocket 이벤트를 같은 저장 레코드에서 만든다.
-- 전문과 이미지 URL은 Naver Search row에서 직접 얻는 값이 아니다. 사용 허가된 원문 URL 또는 공시 원문에서 수집하고, 전문을 저장한 뒤 동일 레코드에서 REST 목록·상세와 WebSocket payload를 만든다.
+- 전문과 이미지 URL은 Naver Search row에서 직접 얻는 값이 아니다. 사용 허가된 원문 URL 또는 공시 원문에서 수집하고, block element 단위 문단과 줄바꿈을 보존해 전문을 저장한 뒤 동일 레코드에서 REST 목록·상세와 WebSocket payload를 만든다.
 - 한국 증시 시장뉴스는 종목별 alert와 별도 테이블 `market_news_event`에 저장하고 `/api/v1/market/news`, `/api/v1/market/news/{newsId}`, `/api/v1/market/news/collect`로 제공한다. 기본 검색어는 `한국 증시`, `코스피 코스닥`, `국내 증시`이며 원문 보강 가능 시 전문·이미지 URL을 함께 보관한다.
 - WebSocket subscription 계약 테스트가 실제 STOMP client로 topic 수신과 협력사 topic 권한을 검증한다.

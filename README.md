@@ -13,7 +13,7 @@
 
 ## 핵심 기능 01. 한국 주식 뉴스·공시 인텔리전스
 
-- Naver News와 OpenDART에서 시장·종목 뉴스, 공시 목록과 허용된 전문·이미지를 수집한다.
+- Naver News와 OpenDART에서 시장·종목 뉴스, 공시 목록과 허용된 전문·이미지를 수집하며 원문의 문단·줄바꿈을 번역 전문까지 보존한다.
 - 인기 종목, 외국인 보유 제한 종목, 협력사 watchlist를 주기 수집 대상으로 관리한다.
 - Hannah AI가 종목 매핑, 이벤트·감성·중요도 분류, What/Why/Impact 요약, 중복 키와 confidence를 생성한다.
 - 로컬 Qwen3 번역 결과와 provider·model version·품질 플래그를 REST/WebSocket payload에 전달한다.

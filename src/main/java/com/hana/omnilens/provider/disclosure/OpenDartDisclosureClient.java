@@ -146,7 +146,7 @@ public class OpenDartDisclosureClient {
         if (isZip(payload)) {
             return extractZipText(payload);
         }
-        return Jsoup.parse(new String(payload, StandardCharsets.UTF_8)).text();
+        return documentText(new String(payload, StandardCharsets.UTF_8));
     }
 
     private Map<String, String> parseListedCorpCodes(byte[] payload) throws IOException {
@@ -200,7 +200,7 @@ public class OpenDartDisclosureClient {
                     continue;
                 }
                 LimitedBytes entryBytes = readLimited(zipInputStream, MAX_DOCUMENT_BYTES);
-                String text = Jsoup.parse(new String(entryBytes.bytes(), StandardCharsets.UTF_8)).text();
+                String text = documentText(new String(entryBytes.bytes(), StandardCharsets.UTF_8));
                 if (entryBytes.truncated()) {
                     LOGGER.warn("OpenDART document entry was truncated before parsing. entryName={}, maxBytes={}",
                             entry.getName(), MAX_DOCUMENT_BYTES);
@@ -242,7 +242,27 @@ public class OpenDartDisclosureClient {
     }
 
     private String normalize(String value) {
-        return value == null ? "" : value.replace('\u00a0', ' ').replaceAll("\\s+", " ").strip();
+        if (value == null) {
+            return "";
+        }
+        return value.replace('\u00a0', ' ')
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replaceAll("[\\t\\x0B\\f ]+", " ")
+                .replaceAll(" *\\n *", "\n")
+                .replaceAll("\\n{3,}", "\n\n")
+                .strip();
+    }
+
+    private String documentText(String source) {
+        org.jsoup.nodes.Document document = Jsoup.parse(source);
+        List<String> sections = document.select("section,p,li,blockquote,h1,h2,h3,h4").stream()
+                .map(org.jsoup.nodes.Element::text)
+                .filter(StringUtils::hasText)
+                .toList();
+        return sections.size() >= 2
+                ? String.join("\n\n", sections)
+                : document.wholeText();
     }
 
     private String limitDocumentContent(String value, String receiptNumber) {

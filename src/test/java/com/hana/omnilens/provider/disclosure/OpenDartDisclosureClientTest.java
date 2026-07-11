@@ -75,6 +75,7 @@ class OpenDartDisclosureClientTest {
 
         assertThat(document).isPresent();
         assertThat(document.orElseThrow().content()).contains("DR 발행금액과 SEC F-1 정정 사유");
+        assertThat(document.orElseThrow().content()).contains("\n\n");
         assertThat(document.orElseThrow().content()).doesNotContain("정정신고서 정정신고서");
         server.verify();
     }

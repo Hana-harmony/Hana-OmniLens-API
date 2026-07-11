@@ -323,7 +323,7 @@ public class OriginalArticleClient {
         String scriptedContent = normalize(selectScriptedContent(document));
         document.select("script,style,noscript,iframe,nav,header,footer,aside,form").remove();
         String canonicalUrl = canonicalUrl(document, sourceUri);
-        String domContent = normalize(selectContent(document));
+        String domContent = selectContent(document);
         String content = isBetterArticleCandidate(scriptedContent, domContent) ? scriptedContent : domContent;
         if (!StringUtils.hasText(content)) {
             return Optional.empty();
@@ -513,7 +513,15 @@ public class OriginalArticleClient {
                 element.remove();
             }
         });
-        return removeBoilerplateText(normalize(copy.text()));
+        List<String> paragraphs = copy.select("p,li,blockquote,h1,h2,h3,h4").stream()
+                .map(Element::text)
+                .map(this::removeBoilerplateText)
+                .filter(StringUtils::hasText)
+                .toList();
+        if (paragraphs.size() >= 2) {
+            return String.join("\n\n", paragraphs);
+        }
+        return removeBoilerplateText(normalizeArticleText(copy.wholeText()));
     }
 
     private boolean isBoilerplate(String value) {
@@ -592,7 +600,7 @@ public class OriginalArticleClient {
                         + "(?:※\\s*)?저작권자\\s*ⓒ[^\\n]*$", " ")
                 .replaceAll("\\s*(?:#[^#\\s]+\\s*)+※\\s*저작권자\\s*ⓒ[^\\n]*$", " ")
                 .replaceAll("※\\s*저작권자\\s*ⓒ[^\\n]*$", " ");
-        return normalize(cleaned);
+        return normalizeArticleText(cleaned);
     }
 
     private String metaDescription(Document document) {
@@ -767,6 +775,19 @@ public class OriginalArticleClient {
 
     private String normalize(String value) {
         return value == null ? "" : value.replace('\u00a0', ' ').replaceAll("\\s+", " ").strip();
+    }
+
+    private String normalizeArticleText(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace('\u00a0', ' ')
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+                .replaceAll("[\\t\\x0B\\f ]+", " ")
+                .replaceAll(" *\\n *", "\n")
+                .replaceAll("\\n{3,}", "\n\n")
+                .strip();
     }
 
     private String limit(String value, int maxLength) {
