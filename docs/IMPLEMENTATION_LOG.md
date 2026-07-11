@@ -1,5 +1,10 @@
 # 구현 기록
 
+## 2026-07-11 글로벌 피어 더미 fallback 제거
+
+- Hannah AI 피어 호출 실패 시 `MSFT`, `HALO` 등을 임의 반환하던 fallback을 삭제했다.
+- 정상 `HANNAH_GLOBAL_PEER_HYBRID_RANKER` 응답만 1~3개 comparison과 4개 Key Strength를 전달하며, AI 장애는 `MARKET_DATA_UNAVAILABLE`로 종료한다.
+
 ## 2026-07-11 로컬 Qwen 4B 번역 계약 고정
 
 - 뉴스·공시 한국어 번역 provider를 Hannah의 `/api/v1/translation/ko-en` 단일 경로로 고정했다.

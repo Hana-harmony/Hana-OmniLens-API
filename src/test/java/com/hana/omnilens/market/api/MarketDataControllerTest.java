@@ -227,7 +227,7 @@ class MarketDataControllerTest {
                         new BigDecimal("0.4911"),
                         "MEDIUM",
                         "global-peer-tfidf-test",
-                        "HANNAH_GLOBAL_PEER_TFIDF+FUNDAMENTALS"));
+                        "HANNAH_GLOBAL_PEER_HYBRID_RANKER"));
 
         mockMvc.perform(get("/api/v1/market/stocks/196170/global-peers")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
@@ -251,7 +251,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.headline")
                         .value("Alteogen Is The 'Halozyme Therapeutics' of South Korea — "
                                 + "A Global Biotech Platform Leader"))
-                .andExpect(jsonPath("$.data.source", equalTo("HANNAH_GLOBAL_PEER_TFIDF+FUNDAMENTALS")));
+                .andExpect(jsonPath("$.data.source", equalTo("HANNAH_GLOBAL_PEER_HYBRID_RANKER")));
     }
 
     @Test
