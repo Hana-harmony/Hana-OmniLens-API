@@ -15,12 +15,16 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.hana.omnilens.portal.PortalAuthenticationFilter;
+import com.hana.omnilens.portal.PortalProperties;
+
 @Configuration
 @EnableConfigurationProperties({
         OmniLensSecurityProperties.class,
         ApiRateLimitProperties.class,
         ApiSignatureProperties.class,
-        MtlsProperties.class
+        MtlsProperties.class,
+        PortalProperties.class
 })
 public class SecurityConfig {
 
@@ -28,7 +32,8 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             MtlsClientCertificateFilter mtlsClientCertificateFilter,
-            ApiKeyAuthenticationFilter apiKeyFilter) throws Exception {
+            ApiKeyAuthenticationFilter apiKeyFilter,
+            PortalAuthenticationFilter portalAuthenticationFilter) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -38,6 +43,7 @@ public class SecurityConfig {
                         .anyRequest().permitAll())
                 .addFilterBefore(mtlsClientCertificateFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(apiKeyFilter, MtlsClientCertificateFilter.class)
+                .addFilterAfter(portalAuthenticationFilter, ApiKeyAuthenticationFilter.class)
                 .build();
     }
 

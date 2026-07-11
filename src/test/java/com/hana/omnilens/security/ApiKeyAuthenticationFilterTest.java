@@ -18,7 +18,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-enabled=true",
         "omnilens.security.api-key-sha256=",
         "omnilens.alert.dedupe.mode=in-memory",
         "management.health.redis.enabled=false"

@@ -6,11 +6,12 @@ services:
     container_name: hana-omnilens-api
     cpus: "1.40"
     mem_limit: 4g
+    env_file:
+      - .env.local
     environment:
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
       SPRING_PROFILES_ACTIVE: local
       SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/application-local.yml
-      OMNILENS_SECURITY_API_KEY_ENABLED: "false"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/omnilens
       SPRING_DATASOURCE_USERNAME: omnilens
       SPRING_DATASOURCE_PASSWORD: omnilens-local-password

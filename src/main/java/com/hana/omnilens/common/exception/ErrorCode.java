@@ -10,6 +10,13 @@ public enum ErrorCode {
     MARKET_DATA_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "MARKET_002", "Market data provider is unavailable"),
     INVALID_API_KEY(HttpStatus.UNAUTHORIZED, "AUTH_001", "Invalid API key"),
     API_KEY_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_002", "API key hash is not configured"),
+    PORTAL_AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "AUTH_006", "Portal authentication is required"),
+    PORTAL_ACCESS_DENIED(HttpStatus.FORBIDDEN, "AUTH_007", "Portal access denied"),
+    PORTAL_USER_ALREADY_EXISTS(HttpStatus.CONFLICT, "PORTAL_001", "Portal username already exists"),
+    PORTAL_INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "PORTAL_002", "Invalid username or password"),
+    API_KEY_APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "PORTAL_003", "API key application not found"),
+    API_KEY_APPLICATION_INVALID_STATE(HttpStatus.CONFLICT, "PORTAL_004", "API key application cannot be processed"),
+    PORTAL_SECURITY_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "PORTAL_005", "Portal security configuration is unavailable"),
     STOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "MARKET_001", "Stock not found"),
     PARTNER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "AUTH_005", "Partner access denied");
 

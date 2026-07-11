@@ -6,7 +6,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "omnilens.security")
 public record OmniLensSecurityProperties(
-        boolean apiKeyEnabled,
         String apiKeySha256,
         List<String> corsAllowedOrigins
 ) {
