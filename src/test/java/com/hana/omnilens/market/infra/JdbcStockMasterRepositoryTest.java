@@ -109,6 +109,27 @@ class JdbcStockMasterRepositoryTest {
     }
 
     @Test
+    void reconcileMarketSnapshotDeactivatesOnlyMissingRowsAndReactivatesCurrentRows() {
+        var stale = new com.hana.omnilens.market.domain.StockSummary(
+                "999991", "구종목", "Legacy Stock", "TEST", "KR7999991001", "");
+        var current = new com.hana.omnilens.market.domain.StockSummary(
+                "999992", "현재종목", "Current Stock", "TEST", "KR7999992009", "");
+        try {
+            jdbcRepository.upsertAll(List.of(stale, current));
+
+            jdbcRepository.reconcileMarketSnapshot("TEST", List.of(current));
+
+            assertThat(repository.findByCode("999991")).isEmpty();
+            assertThat(repository.findByCode("999992")).isPresent();
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT active FROM stock_master WHERE stock_code = '999991'",
+                    Boolean.class)).isFalse();
+        } finally {
+            jdbcTemplate.update("DELETE FROM stock_master WHERE market = 'TEST'");
+        }
+    }
+
+    @Test
     void updateDartCorpCodesFillsOnlyMissingValues() {
         jdbcTemplate.update("UPDATE stock_master SET dart_corp_code = '' WHERE stock_code = '030200'");
         jdbcTemplate.update("UPDATE stock_master SET dart_corp_code = '00126380' WHERE stock_code = '005930'");
