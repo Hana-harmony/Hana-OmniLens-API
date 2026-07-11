@@ -7,6 +7,7 @@ build/
 /application-prod.env
 /deploy-prod.env
 /.env
+/.env.local
 /secrets.local.env
 /*.local.env
 src/main/resources/application-local.yml
