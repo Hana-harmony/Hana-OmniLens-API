@@ -184,7 +184,8 @@ EXCHANGE_RATE_CACHE_TTL=24h
 - 단건 조회 `GET /api/v1/market/stocks/{stockCode}`는 `StockSummary`를 `data`에 담은 공동 응답 envelope으로 반환한다.
 - 기본 seed 파일은 `classpath:data/stock-master-seed.csv`이다.
 - seed loader는 테이블이 비어 있을 때만 실행되며, 이미 적재된 데이터가 있으면 건너뛴다.
-- KIS master sync는 KIS master zip의 상품그룹 `ST` row만 주식으로 upsert한다. tail 내부의 임의 Y/N flag를 ETP 판정에 쓰지 않는다.
+- KIS master sync는 KIS master zip의 상품그룹 `ST` row만 주식으로 인식하고 KOSPI·KOSDAQ·KONEX를 시장별로 reconcile한다. 다운로드에 성공한 시장만 현재 row를 `active=true`로 갱신하고, 스냅샷에서 사라진 row는 `active=false`로 전환한다. 다운로드가 실패한 시장의 기존 상태는 유지한다.
+- 검색·전체 건수·단건 지원 여부는 `active=true`인 종목만 반환한다. 재상장되거나 종목명이 변경된 코드는 다음 성공 스냅샷에서 재활성화하며 기존 영문명·OpenDART metadata를 보존한다.
 - KIS master sync 이후 외국인 보유량 수집을 실행해야 한다. 새로 보강된 종목은 `foreign_ownership_daily_snapshot`에 history가 없으므로 KRX Data Marketplace 백필이 끝나기 전까지 제한 종목 산출에서 누락될 수 있다.
 - 운영에서 seed 위치를 바꿀 때는 `STOCK_MASTER_SEED_LOCATION`을 사용한다.
 - seed 적재를 끄려면 `STOCK_MASTER_SEED_ENABLED=false`로 설정한다.
