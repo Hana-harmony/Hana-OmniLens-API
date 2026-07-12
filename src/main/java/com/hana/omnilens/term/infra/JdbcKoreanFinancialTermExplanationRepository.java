@@ -19,6 +19,7 @@ import com.hana.omnilens.term.application.KoreanFinancialTermClickLog;
 import com.hana.omnilens.term.application.KoreanFinancialTermExplanationCacheEntry;
 import com.hana.omnilens.term.application.KoreanFinancialTermExplanationRepository;
 import com.hana.omnilens.term.domain.KoreanFinancialTermClickStat;
+import com.hana.omnilens.term.domain.KoreanFinancialTermClickPoint;
 import com.hana.omnilens.term.domain.KoreanFinancialTermExplanation;
 
 @Repository
@@ -145,6 +146,30 @@ public class JdbcKoreanFinancialTermExplanationRepository implements KoreanFinan
                 """,
                 statRowMapper,
                 limit);
+    }
+
+    @Override
+    public List<KoreanFinancialTermClickPoint> findClickSeries(String period) {
+        String normalized = period == null ? "DAY" : period.toUpperCase(java.util.Locale.ROOT);
+        String bucket = switch (normalized) {
+            case "MONTH" -> "month";
+            case "YEAR" -> "year";
+            case "ALL" -> null;
+            default -> "day";
+        };
+        if (bucket == null) {
+            return jdbcTemplate.query(
+                    "SELECT MIN(occurred_at) period_start, COUNT(*) click_count FROM korean_financial_term_click_log HAVING COUNT(*) > 0",
+                    (resultSet, rowNumber) -> new KoreanFinancialTermClickPoint(
+                            resultSet.getTimestamp("period_start").toInstant(),
+                            resultSet.getLong("click_count")));
+        }
+        return jdbcTemplate.query(
+                "SELECT date_trunc('" + bucket + "', occurred_at) period_start, COUNT(*) click_count "
+                        + "FROM korean_financial_term_click_log GROUP BY period_start ORDER BY period_start",
+                (resultSet, rowNumber) -> new KoreanFinancialTermClickPoint(
+                        resultSet.getTimestamp("period_start").toInstant(),
+                        resultSet.getLong("click_count")));
     }
 
     private void upsertStats(KoreanFinancialTermClickLog clickLog) {

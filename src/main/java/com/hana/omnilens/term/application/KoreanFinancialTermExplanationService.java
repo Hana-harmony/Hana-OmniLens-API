@@ -27,6 +27,7 @@ import com.hana.omnilens.provider.ai.HannahAiKoreanFinancialTermExplainResponse;
 import com.hana.omnilens.term.api.KoreanFinancialTermExplainRequest;
 import com.hana.omnilens.term.domain.FinancialTermEvidence;
 import com.hana.omnilens.term.domain.KoreanFinancialTermClickStat;
+import com.hana.omnilens.term.domain.KoreanFinancialTermClickPoint;
 import com.hana.omnilens.term.domain.KoreanFinancialTermExplanation;
 
 @Service
@@ -86,6 +87,10 @@ public class KoreanFinancialTermExplanationService {
 
     public List<KoreanFinancialTermClickStat> stats(int limit) {
         return repository.findTopStats(limit);
+    }
+
+    public List<KoreanFinancialTermClickPoint> clickSeries(String period) {
+        return repository.findClickSeries(period);
     }
 
     private KoreanFinancialTermExplanation generateAndCache(

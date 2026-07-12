@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.hana.omnilens.term.domain.KoreanFinancialTermClickStat;
+import com.hana.omnilens.term.domain.KoreanFinancialTermClickPoint;
 
 public interface KoreanFinancialTermExplanationRepository {
 
@@ -15,4 +16,6 @@ public interface KoreanFinancialTermExplanationRepository {
     long recordClick(KoreanFinancialTermClickLog clickLog);
 
     List<KoreanFinancialTermClickStat> findTopStats(int limit);
+
+    List<KoreanFinancialTermClickPoint> findClickSeries(String period);
 }

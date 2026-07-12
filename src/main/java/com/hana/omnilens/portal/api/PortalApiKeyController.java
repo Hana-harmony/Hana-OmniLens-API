@@ -1,7 +1,6 @@
 package com.hana.omnilens.portal.api;
 
 import java.util.List;
-import java.util.Base64;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,11 +25,14 @@ import com.hana.omnilens.portal.PortalAccountService;
 import com.hana.omnilens.portal.PortalApiKeyApplication;
 import com.hana.omnilens.portal.PortalApiKeyApplicationService;
 import com.hana.omnilens.portal.PortalUser;
+import com.hana.omnilens.portal.ApiKeyApplicationStatus;
 import com.hana.omnilens.term.application.KoreanFinancialTermExplanationService;
 import com.hana.omnilens.term.domain.KoreanFinancialTermClickStat;
+import com.hana.omnilens.term.domain.KoreanFinancialTermClickPoint;
 import com.hana.omnilens.tax.refund.TaxRefundBackofficeCase;
 import com.hana.omnilens.tax.refund.TaxRefundBackofficeService;
 import com.hana.omnilens.tax.refund.TaxCorrectionRequestPdfService;
+import com.hana.omnilens.tax.refund.TaxRefundDocumentContent;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -89,8 +91,35 @@ public class PortalApiKeyController {
         PortalUser user = accessService.requireUser(request);
         return ApiResponse.success(applicationService.listForUser(user).stream()
                 .map(application -> ApiKeyApplicationResponse.from(application,
-                        application.status().name().equals("APPROVED") ? applicationService.revealKey(application, user) : null))
+                        hasActiveKey(application.status()) ? applicationService.revealKey(application, user) : null))
                 .toList());
+    }
+
+    @PostMapping("/api-key-applications/{applicationId}/cancel")
+    @Operation(summary = "Cancel a pending API key request")
+    public ApiResponse<ApiKeyApplicationResponse> cancel(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
+        PortalApiKeyApplication application = applicationService.cancel(applicationId, accessService.requireUser(request));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+    }
+
+    @PostMapping("/api-key-applications/{applicationId}/reissue")
+    @Operation(summary = "Request reissue of an approved API key")
+    public ApiResponse<ApiKeyApplicationResponse> requestReissue(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
+        PortalApiKeyApplication application = applicationService.requestReissue(applicationId, accessService.requireUser(request));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+    }
+
+    @PostMapping("/api-key-applications/{applicationId}/revoke")
+    @Operation(summary = "Request revocation of an approved API key")
+    public ApiResponse<ApiKeyApplicationResponse> requestRevocation(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
+        PortalApiKeyApplication application = applicationService.requestRevocation(applicationId, accessService.requireUser(request));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
     }
 
     @GetMapping("/admin/api-key-applications")
@@ -122,11 +151,35 @@ public class PortalApiKeyController {
         return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
     }
 
+    @PostMapping("/admin/api-key-applications/{applicationId}/reissue")
+    @Operation(summary = "Immediately reissue an approved API key")
+    public ApiResponse<ApiKeyApplicationResponse> reissueNow(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
+        PortalApiKeyApplication application = applicationService.reissueNow(applicationId, accessService.requireAdmin(request));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+    }
+
+    @PostMapping("/admin/api-key-applications/{applicationId}/revoke")
+    @Operation(summary = "Immediately revoke an approved API key")
+    public ApiResponse<ApiKeyApplicationResponse> revokeNow(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
+        PortalApiKeyApplication application = applicationService.revokeNow(applicationId, accessService.requireAdmin(request));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+    }
+
     @GetMapping("/admin/term-analytics")
     @Operation(summary = "List glossary explanation click analytics for an administrator")
-    public ApiResponse<List<KoreanFinancialTermClickStat>> termAnalytics(HttpServletRequest request) {
+    public ApiResponse<TermAnalyticsResponse> termAnalytics(
+            HttpServletRequest request,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "DAY")
+            @Pattern(regexp = "DAY|MONTH|YEAR|ALL") String period) {
         accessService.requireAdmin(request);
-        return ApiResponse.success(termExplanationService.stats(100));
+        return ApiResponse.success(new TermAnalyticsResponse(
+                period,
+                termExplanationService.clickSeries(period),
+                termExplanationService.stats(100)));
     }
 
     @GetMapping("/admin/tax/refund-cases")
@@ -145,6 +198,43 @@ public class PortalApiKeyController {
         return ApiResponse.success(taxRefundBackofficeService.initialCorrectionFields(caseId));
     }
 
+    @GetMapping("/admin/tax/refund-cases/{caseId}/correction-request")
+    @Operation(summary = "Load the saved correction-request editor values")
+    public ApiResponse<Map<String, String>> savedCorrectionFields(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "TAX-[A-Z0-9]{20}") String caseId) {
+        accessService.requireAdmin(request);
+        return ApiResponse.success(taxRefundBackofficeService.savedCorrectionFields(caseId));
+    }
+
+    @GetMapping("/admin/tax/refund-cases/{caseId}/documents/{documentId}")
+    @Operation(summary = "View a verified tax document")
+    public ResponseEntity<byte[]> taxDocument(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "TAX-[A-Z0-9]{20}") String caseId,
+            @PathVariable @Pattern(regexp = "TDOC-[A-Z0-9]{12}") String documentId) {
+        accessService.requireAdmin(request);
+        TaxRefundDocumentContent document = taxRefundBackofficeService.documentContent(caseId, documentId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + document.documentId() + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType(document.contentType()))
+                .body(document.content());
+    }
+
+    @PostMapping("/admin/tax/refund-cases/{caseId}/correction-request")
+    @Operation(summary = "Save correction-request editor values")
+    public ApiResponse<Map<String, String>> saveCorrectionRequest(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "TAX-[A-Z0-9]{20}") String caseId,
+            @Valid @RequestBody CorrectionRequestPdfRequest body) {
+        PortalUser administrator = accessService.requireAdmin(request);
+        byte[] pdf = correctionRequestPdfService.render(body.fields());
+        taxRefundBackofficeService.savePreparedCorrection(caseId, body.fields(), pdf, administrator.userId());
+        return ApiResponse.success(body.fields());
+    }
+
     @PostMapping(value = "/admin/tax/refund-cases/{caseId}/correction-request.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     @Operation(summary = "Render a correction request PDF from verified values and administrator edits")
     public ResponseEntity<byte[]> correctionRequestPdf(
@@ -153,7 +243,7 @@ public class PortalApiKeyController {
             @Valid @RequestBody CorrectionRequestPdfRequest body) {
         PortalUser administrator = accessService.requireAdmin(request);
         taxRefundBackofficeService.caseById(caseId);
-        byte[] pdf = correctionRequestPdfService.render(body.fields(), decodeTemplate(body.templateBase64()));
+        byte[] pdf = correctionRequestPdfService.render(body.fields());
         taxRefundBackofficeService.savePreparedCorrection(caseId, body.fields(), pdf, administrator.userId());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=correction-request-" + caseId + ".pdf")
@@ -168,30 +258,30 @@ public class PortalApiKeyController {
             @PathVariable @Pattern(regexp = "TAX-[A-Z0-9]{20}") String caseId,
             @Valid @RequestBody CorrectionRequestPdfRequest body) {
         PortalUser administrator = accessService.requireAdmin(request);
-        byte[] pdf = correctionRequestPdfService.render(body.fields(), decodeTemplate(body.templateBase64()));
+        byte[] pdf = correctionRequestPdfService.render(body.fields());
         taxRefundBackofficeService.savePreparedCorrection(caseId, body.fields(), pdf, administrator.userId());
         return ApiResponse.success(taxRefundBackofficeService.approve(caseId, administrator.userId()));
-    }
-
-    private byte[] decodeTemplate(String templateBase64) {
-        if (templateBase64 == null || templateBase64.isBlank()) return null;
-        try { return Base64.getDecoder().decode(templateBase64); }
-        catch (IllegalArgumentException exception) { throw new IllegalArgumentException("The correction-request template is not valid Base64.", exception); }
     }
 
     public record RejectionRequest(@NotBlank @Size(max = 500) String reason) {
     }
 
+    public record TermAnalyticsResponse(
+            String period,
+            List<KoreanFinancialTermClickPoint> points,
+            List<KoreanFinancialTermClickStat> terms
+    ) {
+    }
+
     public record PasswordChangeRequest(
             @NotBlank String currentPassword,
-            @NotBlank @Size(min = 12, max = 128) String newPassword,
-            @NotBlank @Size(min = 12, max = 128) String newPasswordConfirmation
+            @NotBlank @Size(min = 8, max = 128) String newPassword,
+            @NotBlank @Size(min = 8, max = 128) String newPasswordConfirmation
     ) {
     }
 
     public record CorrectionRequestPdfRequest(
-            Map<String, String> fields,
-            @Size(max = 14_000_000) String templateBase64
+            Map<String, String> fields
     ) {
         public CorrectionRequestPdfRequest {
             fields = fields == null ? Map.of() : Map.copyOf(fields);
@@ -213,5 +303,11 @@ public class PortalApiKeyController {
                     application.requestedAt(), application.reviewedAt(), application.apiKeySha256Prefix(), apiKey,
                     application.rejectionReason());
         }
+    }
+
+    private boolean hasActiveKey(ApiKeyApplicationStatus status) {
+        return status == ApiKeyApplicationStatus.APPROVED
+                || status == ApiKeyApplicationStatus.REISSUE_REQUESTED
+                || status == ApiKeyApplicationStatus.REVOCATION_REQUESTED;
     }
 }

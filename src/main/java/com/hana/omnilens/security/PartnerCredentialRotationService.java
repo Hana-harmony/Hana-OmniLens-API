@@ -50,6 +50,11 @@ public class PartnerCredentialRotationService {
                 deactivatedCount);
     }
 
+    @Transactional
+    public void deactivate(String partnerId) {
+        partnerCredentialRepository.deactivate(partnerId);
+    }
+
     private String generateApiKey() {
         byte[] bytes = new byte[RAW_KEY_BYTES];
         secureRandom.nextBytes(bytes);
