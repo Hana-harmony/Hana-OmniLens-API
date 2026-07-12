@@ -1,5 +1,11 @@
 # 구현 기록
 
+## 2026-07-13 · K-FNSPID 중요도 모델 버전 전파
+
+- Hannah가 품질 gate를 통과한 파일 기반 K-FNSPID 시장영향 모델을 의미 기반 중요도와 결합한다.
+- OmniLens는 복합 `modelVersion`을 변경하지 않고 뉴스 REST/WebSocket 계약에 전파한다.
+- K-FNSPID 시세는 독립 파일 스냅샷으로 생성하며 OmniLens 운영 DB export endpoint를 만들지 않는다.
+
 ## 2026-07-13 · 연결형 포털·세무·뉴스 운영 완성
 
 - 회원·관리자 API 키 취소, 승인·반려, 재발급, 폐기 상태 전이를 실제 credential rotation·비활성화와 연결했다.
