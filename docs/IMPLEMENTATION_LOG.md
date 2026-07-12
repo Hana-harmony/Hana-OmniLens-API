@@ -5,6 +5,7 @@
 - 포털 CORS에 `Authorization`을 허용해 브라우저 회원·관리자 API preflight 차단을 해소했다.
 - 포털 권한을 Spring Security `ROLE_ADMIN` RBAC로 강제하고, Flyway 초기 `admin` 계정·강제 비밀번호 변경·세션 버전 폐기를 추가했다.
 - Hannah AI 검증 서류의 추출 값을 경정청구서 필드로 매핑하고, 수동 편집된 PDF와 SHA-256를 저장한 뒤에만 `REFUND_APPROVED`로 전이하게 했다.
+- 실기동 검증에서 발견한 Spring Boot 기본 메모리 사용자 자동설정을 제거해 인증 경로를 DB 포털 계정과 파트너 API key로 한정했다.
 
 ## 2026-07-11 14:07 KST · KIS 활성 종목 스냅샷
 
