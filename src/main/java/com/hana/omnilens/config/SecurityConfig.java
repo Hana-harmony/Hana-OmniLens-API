@@ -11,6 +11,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.MediaType;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hana.omnilens.common.api.ApiResponse;
+import com.hana.omnilens.common.exception.ErrorCode;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -33,18 +38,37 @@ public class SecurityConfig {
             HttpSecurity http,
             MtlsClientCertificateFilter mtlsClientCertificateFilter,
             ApiKeyAuthenticationFilter apiKeyFilter,
-            PortalAuthenticationFilter portalAuthenticationFilter) throws Exception {
+            PortalAuthenticationFilter portalAuthenticationFilter,
+            ObjectMapper objectMapper) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, exception) -> writePortalError(
+                                response, objectMapper, ErrorCode.PORTAL_AUTHENTICATION_REQUIRED))
+                        .accessDeniedHandler((request, response, exception) -> writePortalError(
+                                response, objectMapper, ErrorCode.PORTAL_ACCESS_DENIED)))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/api/v1/portal/auth/**").permitAll()
+                        .requestMatchers("/api/v1/portal/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/portal/**").authenticated()
                         .anyRequest().permitAll())
                 .addFilterBefore(mtlsClientCertificateFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(apiKeyFilter, MtlsClientCertificateFilter.class)
                 .addFilterAfter(portalAuthenticationFilter, ApiKeyAuthenticationFilter.class)
                 .build();
+    }
+
+    private void writePortalError(
+            jakarta.servlet.http.HttpServletResponse response,
+            ObjectMapper objectMapper,
+            ErrorCode errorCode) throws java.io.IOException {
+        response.setStatus(errorCode.status().value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        objectMapper.writeValue(response.getWriter(), ApiResponse.error(
+                errorCode.status().value(), errorCode.code(), errorCode.message()));
     }
 
     @Bean
@@ -58,6 +82,7 @@ public class SecurityConfig {
                 "X-HANA-OMNILENS-NONCE",
                 "X-HANA-OMNILENS-SIGNATURE",
                 "X-HANA-OMNILENS-CORRELATION-ID",
+                "Authorization",
                 "Content-Type"));
         configuration.setExposedHeaders(List.of("X-HANA-OMNILENS-CORRELATION-ID"));
         configuration.setAllowCredentials(false);

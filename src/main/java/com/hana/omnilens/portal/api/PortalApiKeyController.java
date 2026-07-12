@@ -22,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.hana.omnilens.common.api.ApiResponse;
 import com.hana.omnilens.portal.PortalAccessService;
+import com.hana.omnilens.portal.PortalAccountService;
 import com.hana.omnilens.portal.PortalApiKeyApplication;
 import com.hana.omnilens.portal.PortalApiKeyApplicationService;
 import com.hana.omnilens.portal.PortalUser;
@@ -40,6 +41,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class PortalApiKeyController {
 
     private final PortalAccessService accessService;
+    private final PortalAccountService accountService;
     private final PortalApiKeyApplicationService applicationService;
     private final KoreanFinancialTermExplanationService termExplanationService;
     private final TaxRefundBackofficeService taxRefundBackofficeService;
@@ -47,11 +49,13 @@ public class PortalApiKeyController {
 
     public PortalApiKeyController(
             PortalAccessService accessService,
+            PortalAccountService accountService,
             PortalApiKeyApplicationService applicationService,
             KoreanFinancialTermExplanationService termExplanationService,
             TaxRefundBackofficeService taxRefundBackofficeService,
             TaxCorrectionRequestPdfService correctionRequestPdfService) {
         this.accessService = accessService;
+        this.accountService = accountService;
         this.applicationService = applicationService;
         this.termExplanationService = termExplanationService;
         this.taxRefundBackofficeService = taxRefundBackofficeService;
@@ -62,6 +66,15 @@ public class PortalApiKeyController {
     @Operation(summary = "Get the signed-in portal member")
     public ApiResponse<PortalAuthController.PortalUserResponse> me(HttpServletRequest request) {
         return ApiResponse.success(PortalAuthController.PortalUserResponse.from(accessService.requireUser(request)));
+    }
+
+    @PostMapping("/me/password")
+    @Operation(summary = "Change the signed-in portal member password")
+    public ApiResponse<PortalAuthController.PortalSessionResponse> changePassword(
+            HttpServletRequest request,
+            @Valid @RequestBody PasswordChangeRequest body) {
+        return ApiResponse.success(PortalAuthController.PortalSessionResponse.from(accountService.changePassword(
+                accessService.requireUser(request), body.currentPassword(), body.newPassword(), body.newPasswordConfirmation())));
     }
 
     @PostMapping("/api-key-applications")
@@ -138,22 +151,26 @@ public class PortalApiKeyController {
             HttpServletRequest request,
             @PathVariable @Pattern(regexp = "TAX-[A-Z0-9]{20}") String caseId,
             @Valid @RequestBody CorrectionRequestPdfRequest body) {
-        accessService.requireAdmin(request);
+        PortalUser administrator = accessService.requireAdmin(request);
         taxRefundBackofficeService.caseById(caseId);
         byte[] pdf = correctionRequestPdfService.render(body.fields(), decodeTemplate(body.templateBase64()));
+        taxRefundBackofficeService.savePreparedCorrection(caseId, body.fields(), pdf, administrator.userId());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=correction-request-" + caseId + ".pdf")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
     }
 
-    @PostMapping("/admin/tax/refund-cases/{caseId}/submit-to-nts")
-    @Operation(summary = "Mark a correction request as submitted to the simulated tax-office endpoint")
-    public ApiResponse<TaxRefundBackofficeCase> submitToNts(
+    @PostMapping("/admin/tax/refund-cases/{caseId}/approve")
+    @Operation(summary = "Prepare the final correction request and approve the member refund case")
+    public ApiResponse<TaxRefundBackofficeCase> approveTaxRefund(
             HttpServletRequest request,
-            @PathVariable @Pattern(regexp = "TAX-[A-Z0-9]{20}") String caseId) {
-        accessService.requireAdmin(request);
-        return ApiResponse.success(taxRefundBackofficeService.submitToTaxOffice(caseId));
+            @PathVariable @Pattern(regexp = "TAX-[A-Z0-9]{20}") String caseId,
+            @Valid @RequestBody CorrectionRequestPdfRequest body) {
+        PortalUser administrator = accessService.requireAdmin(request);
+        byte[] pdf = correctionRequestPdfService.render(body.fields(), decodeTemplate(body.templateBase64()));
+        taxRefundBackofficeService.savePreparedCorrection(caseId, body.fields(), pdf, administrator.userId());
+        return ApiResponse.success(taxRefundBackofficeService.approve(caseId, administrator.userId()));
     }
 
     private byte[] decodeTemplate(String templateBase64) {
@@ -163,6 +180,13 @@ public class PortalApiKeyController {
     }
 
     public record RejectionRequest(@NotBlank @Size(max = 500) String reason) {
+    }
+
+    public record PasswordChangeRequest(
+            @NotBlank String currentPassword,
+            @NotBlank @Size(min = 12, max = 128) String newPassword,
+            @NotBlank @Size(min = 12, max = 128) String newPasswordConfirmation
+    ) {
     }
 
     public record CorrectionRequestPdfRequest(

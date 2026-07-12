@@ -32,7 +32,7 @@ public class PortalAuthController {
     @Operation(summary = "Create a Hana OmniLens portal member account")
     public ApiResponse<PortalSessionResponse> signUp(@Valid @RequestBody PortalSignUpRequest request) {
         return ApiResponse.success(PortalSessionResponse.from(accountService.signUp(
-                request.username(), request.password(), request.name(), request.phoneNumber())));
+                request.username(), request.password(), request.passwordConfirmation(), request.name(), request.phoneNumber())));
     }
 
     @PostMapping("/login")
@@ -43,18 +43,19 @@ public class PortalAuthController {
 
     public record PortalSignUpRequest(
             @NotBlank @Pattern(regexp = "[A-Za-z0-9._-]{4,64}") String username,
-            @NotBlank @Size(min = 10, max = 100) String password,
+            @NotBlank @Size(min = 12, max = 128) String password,
+            @NotBlank @Size(min = 12, max = 128) String passwordConfirmation,
             @NotBlank @Size(max = 100) String name,
             @NotBlank @Pattern(regexp = "[0-9+() -]{7,30}") String phoneNumber
     ) {
     }
 
-    public record PortalLoginRequest(@NotBlank String username, @NotBlank String password) {
+    public record PortalLoginRequest(@NotBlank @Size(max = 64) String username, @NotBlank @Size(max = 128) String password) {
     }
 
-    public record PortalSessionResponse(String accessToken, String tokenType, java.time.Instant expiresAt, PortalUserResponse user) {
+    public record PortalSessionResponse(String accessToken, String tokenType, java.time.Instant expiresAt, boolean passwordChangeRequired, PortalUserResponse user) {
         static PortalSessionResponse from(PortalSession session) {
-            return new PortalSessionResponse(session.accessToken(), "Bearer", session.expiresAt(), PortalUserResponse.from(session.user()));
+            return new PortalSessionResponse(session.accessToken(), "Bearer", session.expiresAt(), session.user().passwordChangeRequired(), PortalUserResponse.from(session.user()));
         }
     }
 

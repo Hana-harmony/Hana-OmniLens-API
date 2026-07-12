@@ -11,6 +11,9 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -22,10 +25,12 @@ import com.hana.omnilens.common.exception.ErrorCode;
 public class PortalAuthenticationFilter extends OncePerRequestFilter {
 
     private final PortalTokenService tokenService;
+    private final PortalUserRepository userRepository;
     private final ObjectMapper objectMapper;
 
-    public PortalAuthenticationFilter(PortalTokenService tokenService, ObjectMapper objectMapper) {
+    public PortalAuthenticationFilter(PortalTokenService tokenService, PortalUserRepository userRepository, ObjectMapper objectMapper) {
         this.tokenService = tokenService;
+        this.userRepository = userRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -42,17 +47,27 @@ public class PortalAuthenticationFilter extends OncePerRequestFilter {
                 ? authorization.substring("Bearer ".length()).trim()
                 : "";
         PortalTokenService.PortalPrincipal principal = tokenService.verify(token);
-        if (principal == null) {
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            objectMapper.writeValue(response.getWriter(), ApiResponse.error(
-                    ErrorCode.PORTAL_AUTHENTICATION_REQUIRED.status().value(),
-                    ErrorCode.PORTAL_AUTHENTICATION_REQUIRED.code(),
-                    ErrorCode.PORTAL_AUTHENTICATION_REQUIRED.message()));
+        PortalUser user = principal == null ? null : userRepository.findByUserId(principal.userId()).orElse(null);
+        if (user == null || user.role() != principal.role() || user.sessionVersion() != principal.sessionVersion()) {
+            writeError(response, ErrorCode.PORTAL_AUTHENTICATION_REQUIRED);
+            return;
+        }
+        if (user.passwordChangeRequired() && !path.equals("/api/v1/portal/me") && !path.equals("/api/v1/portal/me/password")) {
+            writeError(response, ErrorCode.PORTAL_PASSWORD_CHANGE_REQUIRED);
             return;
         }
         request.setAttribute(PortalAuthentication.USER_ID_ATTRIBUTE, principal.userId());
         request.setAttribute(PortalAuthentication.ROLE_ATTRIBUTE, principal.role());
+        UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken.authenticated(
+                principal.userId(), null, java.util.List.of(new SimpleGrantedAuthority("ROLE_" + principal.role().name())));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
         filterChain.doFilter(request, response);
+    }
+
+    private void writeError(HttpServletResponse response, ErrorCode errorCode) throws IOException {
+        response.setStatus(errorCode.status().value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        objectMapper.writeValue(response.getWriter(), ApiResponse.error(
+                errorCode.status().value(), errorCode.code(), errorCode.message()));
     }
 }

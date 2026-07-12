@@ -27,6 +27,8 @@ tags:
     description: Korean market slang and financial term explanation APIs.
   - name: Tax OCR
     description: Tax document OCR verification APIs backed by Hannah-Montana-AI.
+  - name: Portal
+    description: Browser portal authentication, member, and administrator APIs.
 x-websocket:
   alertStream:
     endpoint: /ws/alerts
@@ -52,6 +54,84 @@ x-websocket:
       realtime trade tick. Sending QUOTE_STREAM_REPLAY replays the current
       quote snapshot in the requested local currency.
 paths:
+  /api/v1/portal/auth/sign-up:
+    post:
+      tags: [Portal]
+      security: []
+      summary: Create a portal member account with server-side password confirmation.
+      responses:
+        "200": { description: Signed-in portal session. }
+        "400": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/portal/auth/login:
+    post:
+      tags: [Portal]
+      security: []
+      summary: Sign in to the portal.
+      responses:
+        "200": { description: Portal session and password-change requirement. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/portal/me/password:
+    post:
+      tags: [Portal]
+      security: [{ portalBearer: [] }]
+      summary: Change the current password and revoke existing portal tokens.
+      responses:
+        "200": { description: Replacement portal session. }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/portal/api-key-applications:
+    get:
+      tags: [Portal]
+      security: [{ portalBearer: [] }]
+      summary: List the signed-in member's API key applications.
+      responses:
+        "200": { description: Member API key applications. }
+    post:
+      tags: [Portal]
+      security: [{ portalBearer: [] }]
+      summary: Request a partner API key.
+      responses:
+        "200": { description: Pending API key application. }
+  /api/v1/portal/admin/tax/refund-cases/{caseId}/correction-fields:
+    get:
+      tags: [Portal]
+      security: [{ portalBearer: [] }]
+      summary: Load Hannah AI verified document fields into the correction editor.
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^TAX-[A-Z0-9]{20}$" }
+      responses:
+        "200": { description: Editable correction-request fields. }
+        "403": { description: ADMIN role required. }
+  /api/v1/portal/admin/tax/refund-cases/{caseId}/correction-request.pdf:
+    post:
+      tags: [Portal]
+      security: [{ portalBearer: [] }]
+      summary: Render and persist a correction-request PDF and its SHA-256 digest.
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^TAX-[A-Z0-9]{20}$" }
+      responses:
+        "200": { description: Persisted correction-request PDF. }
+        "403": { description: ADMIN role required. }
+  /api/v1/portal/admin/tax/refund-cases/{caseId}/approve:
+    post:
+      tags: [Portal]
+      security: [{ portalBearer: [] }]
+      summary: Persist the final PDF and set the member-visible status to REFUND_APPROVED.
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^TAX-[A-Z0-9]{20}$" }
+      responses:
+        "200": { description: Approved refund case. }
+        "403": { description: ADMIN role required. }
+        "409": { description: Invalid correction-request state. }
   /api/v1/tax/documents/verify:
     post:
       tags:
@@ -763,6 +843,11 @@ components:
       in: header
       name: X-HANA-OMNILENS-API-KEY
       description: Partner API key. The server stores only SHA-256 hashes and can bind keys to partner IDs.
+    portalBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: HMAC-SHA256
+      description: Short-lived portal session token. Password changes revoke earlier token versions.
   parameters:
     StockCode:
       name: stockCode

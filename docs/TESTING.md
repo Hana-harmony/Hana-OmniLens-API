@@ -33,6 +33,9 @@ docker compose -f compose.local.yml up -d
 - 보안 감사 로그의 API key fingerprint masking
 - health endpoint 공개
 - OpenAPI 문서 API key 보호와 핵심 REST/WebSocket 계약 포함 여부
+- 포털 CORS `Authorization` preflight, 회원가입 비밀번호 확인, `MEMBER`/`ADMIN` RBAC
+- Flyway 초기 관리자 강제 비밀번호 변경과 변경 전 토큰 폐기
+- Hannah AI OCR 필드 자동 매핑, 경정청구서 PDF 저장·SHA-256, `REFUND_APPROVED` 상태 전이
 - 시장 데이터 응답 계약
 - Flyway `stock_master` schema 생성
 - 종목 마스터 seed loader의 초기 적재와 중복 실행 방지

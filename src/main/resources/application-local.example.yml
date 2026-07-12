@@ -24,10 +24,6 @@ omnilens:
   portal:
     session-signing-key: ${OMNILENS_PORTAL_SESSION_SIGNING_KEY}
     api-key-encryption-key: ${OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY}
-    bootstrap-admin-username: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_USERNAME}
-    bootstrap-admin-password: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD}
-    bootstrap-admin-name: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_NAME:Hana OmniLens Admin}
-    bootstrap-admin-phone: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PHONE:}
   providers:
     public-data:
       stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService
