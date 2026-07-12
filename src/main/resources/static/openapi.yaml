@@ -15,11 +15,7 @@ servers:
   - url: http://localhost:8080
     description: Local development
 security:
-  - partnerMtls: []
-    partnerApiKey: []
-    partnerTimestamp: []
-    partnerNonce: []
-    partnerSignature: []
+  - partnerApiKey: []
 tags:
   - name: Market Data
     description: Korea stock quote, orderbook, and stock search APIs.
@@ -762,29 +758,11 @@ paths:
           $ref: "#/components/responses/ServiceUnavailable"
 components:
   securitySchemes:
-    partnerMtls:
-      type: mutualTLS
-      description: Partner client certificate used when mTLS is enabled in production.
     partnerApiKey:
       type: apiKey
       in: header
       name: X-HANA-OMNILENS-API-KEY
       description: Partner API key. The server stores only SHA-256 hashes and can bind keys to partner IDs.
-    partnerTimestamp:
-      type: apiKey
-      in: header
-      name: X-HANA-OMNILENS-TIMESTAMP
-      description: ISO-8601 UTC timestamp used in HMAC request signing when signature verification is enabled.
-    partnerNonce:
-      type: apiKey
-      in: header
-      name: X-HANA-OMNILENS-NONCE
-      description: Per-request nonce used to prevent replay when signature verification is enabled.
-    partnerSignature:
-      type: apiKey
-      in: header
-      name: X-HANA-OMNILENS-SIGNATURE
-      description: Lowercase hex HMAC-SHA256 over method, URI with query, timestamp, nonce, and SHA-256 body hash.
   parameters:
     StockCode:
       name: stockCode

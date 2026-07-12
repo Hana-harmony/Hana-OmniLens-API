@@ -91,7 +91,10 @@ public class OriginalArticleClient {
             "data-lazy-src",
             "data-original-src",
             "data-url",
-            "data-image");
+            "data-image",
+            "data-lazyload",
+            "data-flickity-lazyload",
+            "data-echo");
     private static final List<String> IMAGE_SRCSET_ATTRIBUTES = List.of(
             "srcset",
             "data-srcset",
@@ -321,6 +324,8 @@ public class OriginalArticleClient {
 
         Document document = Jsoup.parse(html, sourceUri.toString());
         String scriptedContent = normalize(selectScriptedContent(document));
+        // 본문 정제에서 제거되는 header, script 안의 이미지 메타데이터를 먼저 수집한다.
+        List<String> imageUrls = imageUrls(document, sourceUri);
         document.select("script,style,noscript,iframe,nav,header,footer,aside,form").remove();
         String canonicalUrl = canonicalUrl(document, sourceUri);
         String domContent = selectContent(document);
@@ -331,7 +336,7 @@ public class OriginalArticleClient {
         String limitedContent = limitArticleContent(content, canonicalUrl);
         return Optional.of(new OriginalArticleContent(
                 limitedContent,
-                imageUrls(document, sourceUri),
+                imageUrls,
                 canonicalUrl,
                 sha256Hex(canonicalUrl + "\n" + limitedContent),
                 LICENSED_NAVER_ORIGINAL_FULL_TEXT,
@@ -624,6 +629,7 @@ public class OriginalArticleClient {
         addImageUrl(urls, document.selectFirst("meta[name=thumbnail]"), "content", sourceUri);
         addImageUrl(urls, document.selectFirst("meta[name=image]"), "content", sourceUri);
         addImageUrl(urls, document.selectFirst("link[rel=image_src]"), "href", sourceUri);
+        addStructuredImageUrls(urls, document, sourceUri);
         Element article = firstArticleImageRoot(document);
         if (article != null) {
             addImageUrlsFrom(urls, article, sourceUri);
@@ -649,7 +655,7 @@ public class OriginalArticleClient {
     }
 
     private void addImageUrlsFrom(Set<String> urls, Element root, URI sourceUri) {
-        for (Element image : root.select("img")) {
+        for (Element image : root.select("img, source")) {
             if (urls.size() >= MAX_IMAGES) {
                 return;
             }
@@ -661,6 +667,59 @@ public class OriginalArticleClient {
             }
             if (urls.size() >= MAX_IMAGES) {
                 break;
+            }
+        }
+    }
+
+    private void addStructuredImageUrls(Set<String> urls, Document document, URI sourceUri) {
+        for (Element script : document.select("script[type=application/ld+json]")) {
+            if (urls.size() >= MAX_IMAGES || !StringUtils.hasText(script.data())) {
+                return;
+            }
+            try {
+                addStructuredImageNode(urls, OBJECT_MAPPER.readTree(script.data()), sourceUri);
+            } catch (Exception exception) {
+                LOGGER.debug("Structured article image parse skipped. reason={}",
+                        exception.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private void addStructuredImageNode(Set<String> urls, JsonNode node, URI sourceUri) {
+        if (node == null || urls.size() >= MAX_IMAGES) {
+            return;
+        }
+        if (node.isArray()) {
+            node.forEach(child -> addStructuredImageNode(urls, child, sourceUri));
+            return;
+        }
+        if (!node.isObject()) {
+            return;
+        }
+        for (String field : List.of("image", "thumbnailUrl")) {
+            JsonNode value = node.get(field);
+            if (value != null) {
+                addStructuredImageValue(urls, value, sourceUri);
+            }
+        }
+        node.elements().forEachRemaining(child -> addStructuredImageNode(urls, child, sourceUri));
+    }
+
+    private void addStructuredImageValue(Set<String> urls, JsonNode value, URI sourceUri) {
+        if (value.isTextual()) {
+            addImageUrl(urls, value.asText(), sourceUri);
+            return;
+        }
+        if (value.isArray()) {
+            value.forEach(child -> addStructuredImageValue(urls, child, sourceUri));
+            return;
+        }
+        if (value.isObject()) {
+            for (String field : List.of("contentUrl", "url", "thumbnailUrl")) {
+                JsonNode candidate = value.get(field);
+                if (candidate != null && candidate.isTextual()) {
+                    addImageUrl(urls, candidate.asText(), sourceUri);
+                }
             }
         }
     }

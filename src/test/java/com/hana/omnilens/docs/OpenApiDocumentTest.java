@@ -1,6 +1,7 @@
 package com.hana.omnilens.docs;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -56,8 +57,9 @@ class OpenApiDocumentTest {
                 .andExpect(content().string(containsString("/topic/partners/{partnerId}/stocks/{stockCode}/alerts")))
                 .andExpect(content().string(containsString("/ws/market/quotes")))
                 .andExpect(content().string(containsString("QUOTE_STREAM_REPLAY")))
-                .andExpect(content().string(containsString("type: mutualTLS")))
-                .andExpect(content().string(containsString("X-HANA-OMNILENS-API-KEY")));
+                .andExpect(content().string(containsString("X-HANA-OMNILENS-API-KEY")))
+                .andExpect(content().string(not(containsString("X-HANA-OMNILENS-SIGNATURE"))))
+                .andExpect(content().string(not(containsString("type: mutualTLS"))));
     }
 
     @Test

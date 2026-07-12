@@ -170,6 +170,38 @@ class OriginalArticleClientTest {
     }
 
     @Test
+    void fetchKeepsHeaderAndStructuredImagesBeforeContentCleanup() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        OriginalArticleClient client = new OriginalArticleClient(builder, ProviderTestResilience.disabled());
+
+        server.expect(requestTo("https://news.example.com/structured-image"))
+                .andRespond(withSuccess("""
+                        <html>
+                          <head><script type="application/ld+json">
+                            {"@type":"NewsArticle","image":{"contentUrl":"/images/structured.jpg"}}
+                          </script></head>
+                          <body><article>
+                            <header><picture><source data-flickity-lazyload="/images/header.webp"></picture></header>
+                            <p>반도체 기업이 신규 설비 투자 계획을 발표했다.</p>
+                            <p>회사는 생산 능력 확대와 고객 수요 대응이 목적이라고 설명했다.</p>
+                            <p>투자자는 투자 집행 속도와 수익성 영향을 함께 확인해야 한다.</p>
+                            <p>신규 설비는 다음 분기부터 순차적으로 가동하며 품질 검증 절차를 거쳐 공급에 투입될 예정이다.</p>
+                          </article></body>
+                        </html>
+                        """, MediaType.parseMediaType("text/html;charset=UTF-8")));
+
+        Optional<OriginalArticleContent> content = client.fetch(
+                "https://news.example.com/structured-image");
+
+        assertThat(content).isPresent();
+        assertThat(content.orElseThrow().imageUrls()).containsExactly(
+                "https://news.example.com/images/structured.jpg",
+                "https://news.example.com/images/header.webp");
+        server.verify();
+    }
+
+    @Test
     void fetchPrefersFocusedNewsisTextBodyOverMixedArticleContainer() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
