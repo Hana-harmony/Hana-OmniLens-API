@@ -13,7 +13,9 @@ public record TaxRefundCaseSyncRequest(
         @NotBlank String userId,
         int taxYear,
         @Pattern(regexp = "[A-Z]{2}") String treatyCountry,
-        @NotBlank String estimatedRefundUsd,
+        @NotBlank
+        @Pattern(regexp = "(?:0|[1-9][0-9]{0,15})(?:\\.[0-9]{1,2})?")
+        String estimatedRefundUsd,
         boolean advancePaymentRequested,
         boolean advancePaymentEligible,
         List<String> matchedTradeIds,
