@@ -39,28 +39,39 @@ public class TaxCorrectionRequestPdfService {
         PDPage page = document.getPage(0);
         try (PDPageContentStream stream = new PDPageContentStream(
                 document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
-            text(stream, font, fields, "receiptNumber", 95, 777, 8, 220);
-            text(stream, font, fields, "receiptDate", 468, 777, 8, 90);
-            text(stream, font, fields, "claimantName", 92, 729, 9, 205);
-            text(stream, font, fields, "birthDate", 293, 699, 8, 90);
-            text(stream, font, fields, "taxpayerIdentificationNumber", 92, 670, 8, 95);
-            text(stream, font, fields, "claimantPhone", 279, 670, 8, 100);
-            text(stream, font, fields, "claimantResidence", 433, 670, 8, 86);
-            text(stream, font, fields, "residencyCountryCode", 548, 670, 8, 32);
-            text(stream, font, fields, "claimantAddress", 92, 641, 8, 480);
-            text(stream, font, fields, "agentName", 92, 593, 8, 130);
-            text(stream, font, fields, "agentPhone", 285, 593, 8, 100);
-            text(stream, font, fields, "agentAddress", 92, 565, 8, 480);
-            text(stream, font, fields, "withholdingAgentName", 92, 517, 8, 140);
-            text(stream, font, fields, "withholdingAgentTaxId", 286, 517, 8, 95);
-            text(stream, font, fields, "taxOffice", 433, 517, 8, 78);
-            text(stream, font, fields, "withholdingAgentPhone", 516, 517, 8, 66);
-            text(stream, font, fields, "withholdingAgentAddress", 92, 489, 8, 480);
-            multiline(stream, font, value(fields, "claimContent"), 56, 415, 8, 70, 485);
-            text(stream, font, fields, "applicationDate", 430, 185, 8, 135);
-            text(stream, font, fields, "claimantSignatureName", 255, 143, 9, 170);
-            text(stream, font, fields, "agentSignatureName", 255, 117, 9, 170);
+            text(stream, font, fields, "receiptNumber", 130, 733, 8, 85);
+            text(stream, font, fields, "receiptDate", 300, 733, 8, 85);
+            text(stream, font, fields, "claimantName", 173, 701, 9, 170);
+            text(stream, font, fields, "birthDate", 432, 701, 8, 90);
+            text(stream, font, fields, "taxpayerIdentificationNumber", 194, 674, 8, 95);
+            text(stream, font, fields, "claimantPhone", 441, 674, 8, 90);
+            text(stream, font, fields, "claimantResidence", 194, 645, 8, 150);
+            text(stream, font, fields, "residencyCountryCode", 522, 645, 8, 32);
+            text(stream, font, fields, "claimantAddress", 173, 617, 8, 360);
+            text(stream, font, fields, "agentName", 202, 583, 8, 135);
+            text(stream, font, fields, "agentPhone", 441, 583, 8, 90);
+            text(stream, font, fields, "agentAddress", 173, 558, 8, 360);
+            text(stream, font, fields, "withholdingAgentName", 202, 525, 8, 135);
+            text(stream, font, fields, "withholdingAgentTaxId", 441, 525, 8, 85);
+            text(stream, font, fields, "taxOffice", 202, 500, 8, 135);
+            text(stream, font, fields, "withholdingAgentPhone", 480, 500, 8, 75);
+            text(stream, font, fields, "withholdingAgentAddress", 173, 475, 8, 360);
+            multiline(stream, font, value(fields, "claimContent"), 125, 437, 8, 70, 405);
+            date(stream, font, value(fields, "applicationDate"), 333);
+            text(stream, font, fields, "claimantSignatureName", 400, 306, 9, 130);
+            text(stream, font, fields, "agentSignatureName", 400, 288, 9, 130);
         }
+    }
+
+    private void date(PDPageContentStream stream, PDFont font, String value, float y) throws IOException {
+        String[] parts = value.split("-");
+        if (parts.length == 3) {
+            write(stream, font, parts[0], 410, y, 8);
+            write(stream, font, parts[1], 470, y, 8);
+            write(stream, font, parts[2], 510, y, 8);
+            return;
+        }
+        write(stream, font, fit(font, value, 8, 95), 410, y, 8);
     }
 
     private void text(
@@ -73,6 +84,12 @@ public class TaxCorrectionRequestPdfService {
             float size,
             float maxWidth) throws IOException {
         String value = fit(font, value(fields, key), size, maxWidth);
+        if (value.isBlank()) return;
+        write(stream, font, value, x, y, size);
+    }
+
+    private void write(PDPageContentStream stream, PDFont font, String value, float x, float y, float size)
+            throws IOException {
         if (value.isBlank()) return;
         stream.beginText();
         stream.setFont(font, size);
