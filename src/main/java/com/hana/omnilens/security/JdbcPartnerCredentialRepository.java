@@ -65,4 +65,17 @@ public class JdbcPartnerCredentialRepository implements PartnerCredentialReposit
                 partnerId);
         return deactivatedCount;
     }
+
+    @Override
+    public int deactivate(String partnerId) {
+        return jdbcTemplate.update(
+                """
+                UPDATE partner_api_credential
+                SET active = FALSE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE partner_id = ?
+                  AND active = TRUE
+                """,
+                partnerId);
+    }
 }

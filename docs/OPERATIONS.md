@@ -212,6 +212,14 @@ STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 - 모든 클릭은 `korean_financial_term_click_log`에 저장하고, `korean_financial_term_click_stats`에 누적 집계한다. 사용자와 세션 식별자는 원문 저장 없이 `OMNILENS_TERM_ANALYTICS_HASH_SALT`로 salted SHA-256 처리한다.
 - 클릭 집계는 사전 우선순위와 수동 검수 queue 선정에 사용한다.
 - 통계 확인은 `GET /api/v1/korean-financial-terms/stats`를 사용한다.
+- 포털 관리자는 `GET /api/v1/portal/admin/term-analytics?period=DAY|MONTH|YEAR|ALL`로 실제 클릭 수를 날짜 버킷과 용어별 합계로 조회한다. 캐시 hit는 클릭과 별도 지표로 노출하지 않는다.
+
+## 포털 API 키와 제한세율 신청 운영
+- 회원은 API 키 신청을 취소할 수 있고 승인된 키의 재발급·폐기를 요청할 수 있다. 관리자는 대기 요청을 승인·반려하고 승인 키를 즉시 재발급·폐기할 수 있다.
+- 취소·반려·폐기 뒤 재신청은 동일 파트너 신청 레코드를 새 `PENDING` 상태로 초기화해 DB의 파트너 고유성과 credential rotation 경계를 유지한다.
+- 거래소 동기화는 검증 완료 원본 3개의 MIME, SHA-256, Base64를 함께 보내며 서버는 크기·hash·magic byte를 다시 검증한다. 문서 열람 API는 `ADMIN`만 허용하고 `no-store`, `nosniff`를 적용한다.
+- 경정청구 PDF는 `classpath:/forms/tax-correction-request.pdf`와 서버 번들 글꼴만 사용한다. 클라이언트 양식 업로드는 받지 않으며 편집 필드 저장, PDF 다운로드, 승인 및 국세청 제출 순서로 처리한다.
+- 포털 동기화·응답에는 거래 수익이나 환급 추정 금액을 포함하지 않는다.
 
 ## 환율 provider
 - 기본 provider는 Frankfurter REST 환율 endpoint인 `FRANKFURTER_BASE_URL`이다.

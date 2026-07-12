@@ -35,7 +35,9 @@ docker compose -f compose.local.yml up -d
 - OpenAPI 문서 API key 보호와 핵심 REST/WebSocket 계약 포함 여부
 - 포털 CORS `Authorization` preflight, 회원가입 비밀번호 확인, `MEMBER`/`ADMIN` RBAC
 - Flyway 초기 관리자 강제 비밀번호 변경과 변경 전 토큰 폐기
-- Hannah AI OCR 필드 자동 매핑, 경정청구서 PDF 저장·SHA-256, `REFUND_APPROVED` 상태 전이
+- Hannah AI OCR 필드 자동 매핑, 인증된 원본 3개 열람, 서버 고정 경정청구서 PDF 저장·SHA-256, `REFUND_APPROVED` 상태 전이
+- API 키 신청 취소·재신청·승인·재발급 요청 반려·폐기 승인 상태 전이와 실제 credential 비활성화
+- 본문 보유 뉴스의 누락 대표 이미지 원문 metadata 재수집
 - 시장 데이터 응답 계약
 - Flyway `stock_master` schema 생성
 - 종목 마스터 seed loader의 초기 적재와 중복 실행 방지

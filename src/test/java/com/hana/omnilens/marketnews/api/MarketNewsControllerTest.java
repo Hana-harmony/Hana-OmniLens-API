@@ -168,6 +168,11 @@ class MarketNewsControllerTest {
         String newsId = jdbcTemplate.queryForObject(
                 "SELECT news_id FROM market_news_event LIMIT 1",
                 String.class);
+        jdbcTemplate.update(
+                "UPDATE market_news_event SET event_json = REPLACE(event_json, ?, ?) WHERE news_id = ?",
+                "\"imageUrls\":[\"https://news.example.com/image.jpg\"]",
+                "\"imageUrls\":[]",
+                newsId);
 
         mockMvc.perform(get("/api/v1/market/news")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
@@ -179,7 +184,8 @@ class MarketNewsControllerTest {
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsId", equalTo(newsId)))
-                .andExpect(jsonPath("$.data.originalContent", equalTo(originalBody)));
+                .andExpect(jsonPath("$.data.originalContent", equalTo(originalBody)))
+                .andExpect(jsonPath("$.data.imageUrls[0]", equalTo("https://news.example.com/image.jpg")));
     }
 
     @Test

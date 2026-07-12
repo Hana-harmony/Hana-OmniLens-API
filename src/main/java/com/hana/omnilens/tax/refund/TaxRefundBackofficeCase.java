@@ -2,6 +2,7 @@ package com.hana.omnilens.tax.refund;
 
 import java.time.Instant;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public record TaxRefundBackofficeCase(
         String caseId,
@@ -9,10 +10,10 @@ public record TaxRefundBackofficeCase(
         String userId,
         int taxYear,
         String treatyCountry,
-        String estimatedRefundUsd,
-        boolean advancePaymentRequested,
-        boolean advancePaymentEligible,
-        List<String> matchedTradeIds,
+        @JsonIgnore String estimatedRefundUsd,
+        @JsonIgnore boolean advancePaymentRequested,
+        @JsonIgnore boolean advancePaymentEligible,
+        @JsonIgnore List<String> matchedTradeIds,
         List<TaxRefundDocumentSnapshot> verifiedDocuments,
         String status,
         Instant requestedAt,

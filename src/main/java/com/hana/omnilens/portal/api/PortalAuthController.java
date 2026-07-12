@@ -43,8 +43,8 @@ public class PortalAuthController {
 
     public record PortalSignUpRequest(
             @NotBlank @Pattern(regexp = "[A-Za-z0-9._-]{4,64}") String username,
-            @NotBlank @Size(min = 12, max = 128) String password,
-            @NotBlank @Size(min = 12, max = 128) String passwordConfirmation,
+            @NotBlank @Size(min = 8, max = 128) String password,
+            @NotBlank @Size(min = 8, max = 128) String passwordConfirmation,
             @NotBlank @Size(max = 100) String name,
             @NotBlank @Pattern(regexp = "[0-9+() -]{7,30}") String phoneNumber
     ) {

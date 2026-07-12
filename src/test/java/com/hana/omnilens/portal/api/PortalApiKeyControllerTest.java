@@ -97,6 +97,58 @@ class PortalApiKeyControllerTest {
     }
 
     @Test
+    void memberAndAdministratorManageApiKeyLifecycle() throws Exception {
+        String memberToken = token(postJson("/api/v1/portal/auth/sign-up", """
+                {"username":"key-lifecycle","password":"Eight8!x","passwordConfirmation":"Eight8!x","name":"Key Lifecycle","phoneNumber":"+82 10-1234-5678"}
+                """));
+        String cancelledId = applicationId(mockMvc.perform(post("/api/v1/portal/api-key-applications")
+                        .header("Authorization", "Bearer " + memberToken))
+                .andReturn().getResponse().getContentAsString());
+        mockMvc.perform(post("/api/v1/portal/api-key-applications/{id}/cancel", cancelledId)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        String applicationId = applicationId(mockMvc.perform(post("/api/v1/portal/api-key-applications")
+                        .header("Authorization", "Bearer " + memberToken))
+                .andReturn().getResponse().getContentAsString());
+        String initialAdminToken = token(postJson("/api/v1/portal/auth/login", """
+                {"username":"admin","password":"admin"}
+                """));
+        String adminToken = token(mockMvc.perform(post("/api/v1/portal/me/password")
+                .header("Authorization", "Bearer " + initialAdminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"currentPassword":"admin","newPassword":"LifecycleAdmin1!","newPasswordConfirmation":"LifecycleAdmin1!"}
+                        """)));
+        mockMvc.perform(post("/api/v1/portal/admin/api-key-applications/{id}/approve", applicationId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+
+        mockMvc.perform(post("/api/v1/portal/api-key-applications/{id}/reissue", applicationId)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REISSUE_REQUESTED"));
+        mockMvc.perform(post("/api/v1/portal/admin/api-key-applications/{id}/reject", applicationId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"재발급 사유 확인 필요\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.rejectionReason").value("재발급 사유 확인 필요"));
+
+        mockMvc.perform(post("/api/v1/portal/api-key-applications/{id}/revoke", applicationId)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REVOCATION_REQUESTED"));
+        mockMvc.perform(post("/api/v1/portal/admin/api-key-applications/{id}/approve", applicationId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REVOKED"));
+    }
+
+    @Test
     void portalCorsAndRolePolicyProtectBrowserRequests() throws Exception {
         mockMvc.perform(options("/api/v1/portal/api-key-applications")
                         .header("Origin", "http://localhost:5173")
@@ -180,8 +232,10 @@ class PortalApiKeyControllerTest {
 
         assertThat(taxRefundBackofficeService.sync(new TaxRefundCaseSyncRequest(
                 "TAX-ABCDEFGHIJKLMNOPQRST", "ACC-ABCDEFGHIJKL", "USR-ABCDEFGHIJKL", 2025, "US", "120.00",
-                true, true, List.of(), List.of(new TaxRefundDocumentSnapshot(
-                        "DOC-1", "RESIDENCE_CERTIFICATE", "residence.pdf", Map.of("taxpayer_name", "Jane Doe"))),
+                true, true, List.of(), List.of(
+                        new TaxRefundDocumentSnapshot("DOC-1", "RESIDENCE_CERTIFICATE", "residence.pdf", Map.of("taxpayer_name", "Jane Doe")),
+                        new TaxRefundDocumentSnapshot("DOC-2", "APOSTILLE", "apostille.pdf", Map.of()),
+                        new TaxRefundDocumentSnapshot("DOC-3", "REDUCED_TAX_APPLICATION", "application.pdf", Map.of())),
                 Instant.now())).status()).isEqualTo("REFUND_APPROVED");
     }
 

@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Base64;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,32 @@ public class TaxRefundBackofficeRepository {
                 Timestamp.from(taxCase.requestedAt()), Timestamp.from(taxCase.syncedAt()), taxCase.taxOfficeSubmissionStatus());
     }
 
+    public void replaceDocumentContents(String caseId, List<TaxRefundDocumentSnapshot> documents) {
+        for (TaxRefundDocumentSnapshot document : documents) {
+            if (document.contentBase64() == null || document.contentBase64().isBlank()) continue;
+            byte[] content = Base64.getDecoder().decode(document.contentBase64());
+            int updated = jdbcTemplate.update(
+                    "UPDATE tax_refund_backoffice_documents SET document_type = ?, file_name = ?, content_type = ?, content_sha256 = ?, content_bytes = ?, created_at = CURRENT_TIMESTAMP WHERE case_id = ? AND document_id = ?",
+                    document.documentType(), document.fileName(), document.contentType(), document.sha256(), content,
+                    caseId, document.documentId());
+            if (updated == 0) {
+                jdbcTemplate.update(
+                        "INSERT INTO tax_refund_backoffice_documents (case_id, document_id, document_type, file_name, content_type, content_sha256, content_bytes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        caseId, document.documentId(), document.documentType(), document.fileName(),
+                        document.contentType(), document.sha256(), content);
+            }
+        }
+    }
+
+    public Optional<TaxRefundDocumentContent> findDocumentContent(String caseId, String documentId) {
+        return jdbcTemplate.query(
+                "SELECT document_id, file_name, content_type, content_bytes FROM tax_refund_backoffice_documents WHERE case_id = ? AND document_id = ?",
+                (resultSet, rowNumber) -> new TaxRefundDocumentContent(
+                        resultSet.getString("document_id"), resultSet.getString("file_name"),
+                        resultSet.getString("content_type"), resultSet.getBytes("content_bytes")),
+                caseId, documentId).stream().findFirst();
+    }
+
     public List<TaxRefundBackofficeCase> findAll() {
         return jdbcTemplate.query(select() + " ORDER BY synced_at DESC", (resultSet, rowNumber) -> taxCase(resultSet));
     }
@@ -58,6 +85,15 @@ public class TaxRefundBackofficeRepository {
         return jdbcTemplate.query(
                 "SELECT correction_pdf FROM tax_refund_backoffice_cases WHERE case_id = ? AND correction_pdf IS NOT NULL",
                 (resultSet, rowNumber) -> resultSet.getBytes("correction_pdf"), caseId).stream().findFirst();
+    }
+
+    public Optional<Map<String, String>> findCorrectionFields(String caseId) {
+        return jdbcTemplate.query(
+                "SELECT correction_fields_json FROM tax_refund_backoffice_cases WHERE case_id = ?",
+                (resultSet, rowNumber) -> map(resultSet.getString("correction_fields_json")), caseId)
+                .stream()
+                .filter(values -> !values.isEmpty())
+                .findFirst();
     }
 
     public void approve(String caseId, String administratorId, Instant approvedAt) {
@@ -88,6 +124,9 @@ public class TaxRefundBackofficeRepository {
     }
     private List<TaxRefundDocumentSnapshot> documents(String value) {
         try { return objectMapper.readValue(value, new TypeReference<>() {}); } catch (Exception exception) { throw new IllegalStateException("Tax document parsing failed", exception); }
+    }
+    private Map<String, String> map(String value) {
+        try { return objectMapper.readValue(value, new TypeReference<>() {}); } catch (Exception exception) { throw new IllegalStateException("Tax correction field parsing failed", exception); }
     }
     private Instant instant(Timestamp value) { return value.toInstant(); }
     private Instant nullableInstant(Timestamp value) { return value == null ? null : value.toInstant(); }

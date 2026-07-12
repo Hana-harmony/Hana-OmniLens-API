@@ -9,4 +9,6 @@ public interface PartnerCredentialRepository {
     boolean existsAnyActive();
 
     int rotate(String partnerId, String apiKeySha256);
+
+    int deactivate(String partnerId);
 }

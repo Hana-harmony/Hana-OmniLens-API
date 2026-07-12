@@ -191,6 +191,7 @@ public class MarketNewsCollectionService {
     }
 
     private MarketNewsEvent ensureDisplayableFullArticle(MarketNewsEvent event) {
+        event = refreshMissingImages(event);
         if (isDisplayableFullArticle(event)) {
             return event;
         }
@@ -205,6 +206,29 @@ public class MarketNewsCollectionService {
                     "Failed to restore displayable full market news article: newsId={}",
                     event.newsId(),
                     reprocessException);
+            return event;
+        }
+    }
+
+    private MarketNewsEvent refreshMissingImages(MarketNewsEvent event) {
+        if (event.imageUrls() != null && !event.imageUrls().isEmpty()
+                || !StringUtils.hasText(event.originalUrl())) {
+            return event;
+        }
+        try {
+            Optional<OriginalArticleContent> refreshed = originalArticleClient.fetch(event.originalUrl());
+            List<String> images = refreshed.map(OriginalArticleContent::imageUrls).orElse(List.of());
+            if (images.isEmpty()) return event;
+            return marketNewsEventRepository.update(new MarketNewsEvent(
+                    event.newsId(), event.query(), event.title(), event.translatedTitle(), event.summary(),
+                    event.summaryLines(), event.translatedSummary(), event.originalContent(), event.translatedContent(),
+                    images, event.contentAvailability(), event.originalUrl(),
+                    refreshed.map(OriginalArticleContent::canonicalUrl).filter(StringUtils::hasText).orElse(event.canonicalUrl()),
+                    event.sourceLicensePolicy(), event.glossaryTerms(), event.sentiment(), event.importance(),
+                    event.translationProvider(), event.translationModelVersion(), event.translationStatus(),
+                    event.duplicateKey(), event.publishedAt(), event.createdAt()));
+        } catch (RuntimeException exception) {
+            log.warn("Failed to refresh market news image metadata: newsId={}", event.newsId(), exception);
             return event;
         }
     }

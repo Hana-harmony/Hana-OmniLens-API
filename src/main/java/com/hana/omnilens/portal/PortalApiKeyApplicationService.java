@@ -31,14 +31,25 @@ public class PortalApiKeyApplicationService {
 
     @Transactional
     public PortalApiKeyApplication request(PortalUser user) {
-        boolean hasPendingOrApproved = applicationRepository.findByUserId(user.userId()).stream()
+        List<PortalApiKeyApplication> applications = applicationRepository.findByUserId(user.userId());
+        boolean hasPendingOrApproved = applications.stream()
                 .anyMatch(application -> application.status() == ApiKeyApplicationStatus.PENDING
-                        || application.status() == ApiKeyApplicationStatus.APPROVED);
+                        || application.status() == ApiKeyApplicationStatus.APPROVED
+                        || application.status() == ApiKeyApplicationStatus.REISSUE_REQUESTED
+                        || application.status() == ApiKeyApplicationStatus.REVOCATION_REQUESTED);
         if (hasPendingOrApproved) {
             throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE,
                     "An active API key application already exists.");
         }
         Instant now = Instant.now();
+        PortalApiKeyApplication terminal = applications.stream().findFirst().orElse(null);
+        if (terminal != null) {
+            PortalApiKeyApplication resubmitted = new PortalApiKeyApplication(
+                    terminal.applicationId(), terminal.userId(), terminal.partnerId(), ApiKeyApplicationStatus.PENDING,
+                    now, null, null, null, null, null, now);
+            applicationRepository.resubmit(resubmitted);
+            return resubmitted;
+        }
         PortalApiKeyApplication application = new PortalApiKeyApplication(
                 "PAPP-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase(Locale.ROOT),
                 user.userId(),
@@ -58,11 +69,20 @@ public class PortalApiKeyApplicationService {
     @Transactional
     public PortalApiKeyApplication approve(String applicationId, PortalUser administrator) {
         PortalApiKeyApplication application = find(applicationId);
-        if (application.status() != ApiKeyApplicationStatus.PENDING) {
+        if (application.status() != ApiKeyApplicationStatus.PENDING
+                && application.status() != ApiKeyApplicationStatus.REISSUE_REQUESTED
+                && application.status() != ApiKeyApplicationStatus.REVOCATION_REQUESTED) {
             throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
         }
-        PartnerCredentialRotationResult issued = credentialRotationService.rotate(application.partnerId());
         Instant now = Instant.now();
+        if (application.status() == ApiKeyApplicationStatus.REVOCATION_REQUESTED) {
+            credentialRotationService.deactivate(application.partnerId());
+            PortalApiKeyApplication revoked = reviewed(application, ApiKeyApplicationStatus.REVOKED,
+                    administrator.userId(), null, null, null, now);
+            applicationRepository.update(revoked);
+            return revoked;
+        }
+        PartnerCredentialRotationResult issued = credentialRotationService.rotate(application.partnerId());
         PortalApiKeyApplication approved = new PortalApiKeyApplication(
                 application.applicationId(), application.userId(), application.partnerId(), ApiKeyApplicationStatus.APPROVED,
                 application.requestedAt(), now, administrator.userId(), secretCipher.encrypt(issued.apiKey()),
@@ -74,15 +94,70 @@ public class PortalApiKeyApplicationService {
     @Transactional
     public PortalApiKeyApplication reject(String applicationId, PortalUser administrator, String reason) {
         PortalApiKeyApplication application = find(applicationId);
-        if (application.status() != ApiKeyApplicationStatus.PENDING) {
+        if (application.status() != ApiKeyApplicationStatus.PENDING
+                && application.status() != ApiKeyApplicationStatus.REISSUE_REQUESTED
+                && application.status() != ApiKeyApplicationStatus.REVOCATION_REQUESTED) {
             throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
         }
         Instant now = Instant.now();
-        PortalApiKeyApplication rejected = new PortalApiKeyApplication(
-                application.applicationId(), application.userId(), application.partnerId(), ApiKeyApplicationStatus.REJECTED,
-                application.requestedAt(), now, administrator.userId(), null, null, reason.trim(), now);
+        ApiKeyApplicationStatus rejectedStatus = application.status() == ApiKeyApplicationStatus.PENDING
+                ? ApiKeyApplicationStatus.REJECTED
+                : ApiKeyApplicationStatus.APPROVED;
+        PortalApiKeyApplication rejected = reviewed(application, rejectedStatus, administrator.userId(),
+                application.encryptedApiKey(), application.apiKeySha256Prefix(), reason.trim(), now);
         applicationRepository.update(rejected);
         return rejected;
+    }
+
+    @Transactional
+    public PortalApiKeyApplication cancel(String applicationId, PortalUser user) {
+        PortalApiKeyApplication application = owned(applicationId, user);
+        ApiKeyApplicationStatus next = switch (application.status()) {
+            case PENDING -> ApiKeyApplicationStatus.CANCELLED;
+            case REISSUE_REQUESTED, REVOCATION_REQUESTED -> ApiKeyApplicationStatus.APPROVED;
+            default -> throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
+        };
+        PortalApiKeyApplication cancelled = reviewed(application, next, null,
+                application.encryptedApiKey(), application.apiKeySha256Prefix(), null, Instant.now());
+        applicationRepository.update(cancelled);
+        return cancelled;
+    }
+
+    @Transactional
+    public PortalApiKeyApplication requestReissue(String applicationId, PortalUser user) {
+        return requestAction(applicationId, user, ApiKeyApplicationStatus.REISSUE_REQUESTED);
+    }
+
+    @Transactional
+    public PortalApiKeyApplication requestRevocation(String applicationId, PortalUser user) {
+        return requestAction(applicationId, user, ApiKeyApplicationStatus.REVOCATION_REQUESTED);
+    }
+
+    @Transactional
+    public PortalApiKeyApplication reissueNow(String applicationId, PortalUser administrator) {
+        PortalApiKeyApplication application = find(applicationId);
+        if (application.status() != ApiKeyApplicationStatus.APPROVED) {
+            throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
+        }
+        PartnerCredentialRotationResult issued = credentialRotationService.rotate(application.partnerId());
+        PortalApiKeyApplication reissued = reviewed(application, ApiKeyApplicationStatus.APPROVED,
+                administrator.userId(), secretCipher.encrypt(issued.apiKey()), issued.apiKeySha256Prefix(), null,
+                Instant.now());
+        applicationRepository.update(reissued);
+        return reissued;
+    }
+
+    @Transactional
+    public PortalApiKeyApplication revokeNow(String applicationId, PortalUser administrator) {
+        PortalApiKeyApplication application = find(applicationId);
+        if (application.status() != ApiKeyApplicationStatus.APPROVED) {
+            throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
+        }
+        credentialRotationService.deactivate(application.partnerId());
+        PortalApiKeyApplication revoked = reviewed(application, ApiKeyApplicationStatus.REVOKED,
+                administrator.userId(), null, null, null, Instant.now());
+        applicationRepository.update(revoked);
+        return revoked;
     }
 
     public List<PortalApiKeyApplication> listForUser(PortalUser user) {
@@ -97,7 +172,10 @@ public class PortalApiKeyApplicationService {
         if (!application.userId().equals(user.userId()) && user.role() != PortalRole.ADMIN) {
             throw new BusinessException(ErrorCode.PORTAL_ACCESS_DENIED);
         }
-        if (application.status() != ApiKeyApplicationStatus.APPROVED || application.encryptedApiKey() == null) {
+        if (application.encryptedApiKey() == null
+                || application.status() != ApiKeyApplicationStatus.APPROVED
+                && application.status() != ApiKeyApplicationStatus.REISSUE_REQUESTED
+                && application.status() != ApiKeyApplicationStatus.REVOCATION_REQUESTED) {
             throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
         }
         return secretCipher.decrypt(application.encryptedApiKey());
@@ -106,5 +184,39 @@ public class PortalApiKeyApplicationService {
     public PortalApiKeyApplication find(String applicationId) {
         return applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.API_KEY_APPLICATION_NOT_FOUND));
+    }
+
+    private PortalApiKeyApplication requestAction(
+            String applicationId,
+            PortalUser user,
+            ApiKeyApplicationStatus requestedStatus) {
+        PortalApiKeyApplication application = owned(applicationId, user);
+        if (application.status() != ApiKeyApplicationStatus.APPROVED) {
+            throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
+        }
+        PortalApiKeyApplication requested = reviewed(application, requestedStatus, null,
+                application.encryptedApiKey(), application.apiKeySha256Prefix(), null, Instant.now());
+        applicationRepository.update(requested);
+        return requested;
+    }
+
+    private PortalApiKeyApplication owned(String applicationId, PortalUser user) {
+        PortalApiKeyApplication application = find(applicationId);
+        if (!application.userId().equals(user.userId())) {
+            throw new BusinessException(ErrorCode.PORTAL_ACCESS_DENIED);
+        }
+        return application;
+    }
+
+    private PortalApiKeyApplication reviewed(
+            PortalApiKeyApplication application,
+            ApiKeyApplicationStatus status,
+            String reviewer,
+            String encryptedApiKey,
+            String prefix,
+            String reason,
+            Instant now) {
+        return new PortalApiKeyApplication(application.applicationId(), application.userId(), application.partnerId(), status,
+                application.requestedAt(), now, reviewer, encryptedApiKey, prefix, reason, now);
     }
 }

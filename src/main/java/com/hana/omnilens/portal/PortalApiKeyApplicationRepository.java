@@ -49,6 +49,13 @@ public class PortalApiKeyApplicationRepository {
                 Timestamp.from(application.updatedAt()), application.applicationId());
     }
 
+    public void resubmit(PortalApiKeyApplication application) {
+        jdbcTemplate.update(
+                "UPDATE partner_api_key_applications SET status = ?, requested_at = ?, reviewed_at = NULL, reviewed_by_user_id = NULL, encrypted_api_key = NULL, api_key_sha256_prefix = NULL, rejection_reason = NULL, updated_at = ? WHERE application_id = ?",
+                application.status().name(), Timestamp.from(application.requestedAt()),
+                Timestamp.from(application.updatedAt()), application.applicationId());
+    }
+
     private String select() {
         return "SELECT application_id, user_id, partner_id, status, requested_at, reviewed_at, reviewed_by_user_id, encrypted_api_key, api_key_sha256_prefix, rejection_reason, updated_at FROM partner_api_key_applications";
     }
