@@ -1,5 +1,6 @@
 package com.hana.omnilens.tax.refund;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -26,13 +27,13 @@ public class TaxRefundBackofficeRepository {
     public void upsert(TaxRefundBackofficeCase taxCase) {
         int updated = jdbcTemplate.update(
                 "UPDATE tax_refund_backoffice_cases SET account_id = ?, user_id = ?, tax_year = ?, treaty_country = ?, estimated_refund_usd = ?, advance_payment_requested = ?, advance_payment_eligible = ?, matched_trade_ids_json = ?, verified_documents_json = ?, status = ?, requested_at = ?, synced_at = ? WHERE case_id = ?",
-                taxCase.accountId(), taxCase.userId(), taxCase.taxYear(), taxCase.treatyCountry(), taxCase.estimatedRefundUsd(),
+                taxCase.accountId(), taxCase.userId(), taxCase.taxYear(), taxCase.treatyCountry(), money(taxCase.estimatedRefundUsd()),
                 taxCase.advancePaymentRequested(), taxCase.advancePaymentEligible(), json(taxCase.matchedTradeIds()), json(taxCase.verifiedDocuments()), taxCase.status(),
                 Timestamp.from(taxCase.requestedAt()), Timestamp.from(taxCase.syncedAt()), taxCase.caseId());
         if (updated > 0) return;
         jdbcTemplate.update(
                 "INSERT INTO tax_refund_backoffice_cases (case_id, account_id, user_id, tax_year, treaty_country, estimated_refund_usd, advance_payment_requested, advance_payment_eligible, matched_trade_ids_json, verified_documents_json, status, requested_at, synced_at, tax_office_submission_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                taxCase.caseId(), taxCase.accountId(), taxCase.userId(), taxCase.taxYear(), taxCase.treatyCountry(), taxCase.estimatedRefundUsd(),
+                taxCase.caseId(), taxCase.accountId(), taxCase.userId(), taxCase.taxYear(), taxCase.treatyCountry(), money(taxCase.estimatedRefundUsd()),
                 taxCase.advancePaymentRequested(), taxCase.advancePaymentEligible(), json(taxCase.matchedTradeIds()), json(taxCase.verifiedDocuments()), taxCase.status(),
                 Timestamp.from(taxCase.requestedAt()), Timestamp.from(taxCase.syncedAt()), taxCase.taxOfficeSubmissionStatus());
     }
@@ -78,6 +79,7 @@ public class TaxRefundBackofficeRepository {
     private String json(List<?> values) {
         try { return objectMapper.writeValueAsString(values == null ? List.of() : values); } catch (Exception exception) { throw new IllegalStateException("Tax trade serialization failed", exception); }
     }
+    static BigDecimal money(String value) { return new BigDecimal(value); }
     private String jsonMap(Map<String, String> values) {
         try { return objectMapper.writeValueAsString(values == null ? Map.of() : values); } catch (Exception exception) { throw new IllegalStateException("Tax correction field serialization failed", exception); }
     }
