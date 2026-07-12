@@ -26,6 +26,7 @@
 - 포털 세션 토큰은 32 byte 이상 HMAC-SHA256 키로 서명하고 8시간 후 만료한다. 요청마다 DB의 사용자 역할·세션 버전을 다시 검증한다.
 - 비밀번호는 bcrypt cost 12로 해시하고 12~128자를 허용한다. 변경 시 `session_version`을 올려 모든 기존 토큰을 폐기한다.
 - Flyway가 초기 `admin` 계정을 생성하고 `password_change_required=true`를 설정한다. 초기 토큰은 비밀번호 변경 API 외의 포털 API에 사용할 수 없다.
+- Spring Boot 기본 메모리 사용자 자동설정을 비활성화하고 DB 포털 계정과 파트너 API key 인증만 사용한다.
 - WebSocket `/ws/alerts`, `/ws/market/quotes` handshake도 API key 검증 대상이다.
 - DB credential로 인증된 WebSocket 세션은 `/topic/partners/{partnerId}/alerts`와 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`에서 자기 `partnerId`만 구독할 수 있다.
 - DB credential 세션은 전역 `/topic/stocks/{stockCode}/alerts` 구독을 사용할 수 없다.
