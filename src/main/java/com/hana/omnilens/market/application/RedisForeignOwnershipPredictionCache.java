@@ -15,7 +15,7 @@ import com.hana.omnilens.market.domain.ForeignOwnershipPrediction;
 
 public class RedisForeignOwnershipPredictionCache implements ForeignOwnershipPredictionCache {
 
-    private static final String KEY_PREFIX = "omnilens:market:foreign-ownership-prediction:";
+    private static final String KEY_PREFIX = "omnilens:market:foreign-ownership-prediction:v2:";
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;

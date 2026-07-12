@@ -105,7 +105,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - 제한이 없는 종목은 Hannah를 호출하지 않고 confidence `FOREIGN_LIMIT_NOT_APPLICABLE`, model version `foreign-ownership-unrestricted-v1`로 현재 snapshot 값을 반환한다.
 - 외국인 한도 예측은 주문 차단 조건이 아니다. `foreignLimitExceeded=true`는 BUY 주문이 체결되지 않을 수 있음을 프론트에서 미리 고지하기 위한 경고 신호이며, `orderable=false`는 거래정지 같은 시장 상태 차단에만 사용한다.
 - KIS 실시간 체결가·호가 WebSocket에는 외국인 보유수량, 보유율, 한도소진율 필드가 없다. 외국인 한도 정보는 KRX Data Marketplace snapshot refresh와 Redis/in-memory cache로 공급한다.
-- 제한 종목 예측은 장전 batch가 Redis/in-memory `ForeignOwnershipPredictionCache`에 선계산한다. 모바일 거래소의 `orderability/detail` 요청은 cache를 먼저 읽고, cache miss일 때만 Hannah-Montana-AI `POST /api/v1/market/foreign-ownership/predict`를 호출한다.
+- 제한 종목 예측은 장전 batch가 Redis/in-memory `ForeignOwnershipPredictionCache`에 선계산한다. Hannah `hannah-foreign-owned-quantity-ml-v2`는 종목별 walk-forward 검증 절대오차 90분위수를 안전 상한으로 두고 최신 60개 관측의 일별 절대변화 90분위수로 현재 변동성 국면을 반영하며, 전체 종목에 동일 비율을 적용하지 않는다. Redis key namespace는 `v2`로 분리해 이전 모델의 넓은 구간이 남지 않게 한다. 모바일 거래소의 `orderability/detail` 요청은 cache를 먼저 읽고, cache miss일 때만 Hannah-Montana-AI `POST /api/v1/market/foreign-ownership/predict`를 호출한다.
 - Hannah 호출 실패, circuit open, 비정상 envelope 응답 시에는 OmniLens 내부 deterministic 시계열 엔진으로 fallback해 응답 계약과 주문 전 확인 흐름을 유지한다.
 - 외국인 보유 일별 history는 `POST /api/v1/market/foreign-ownership/collect`, `POST /api/v1/market/foreign-ownership/backfill`, `ForeignOwnershipRefreshScheduler`가 `foreign_ownership_daily_snapshot`에 upsert한다. 기본 수집 대상은 현재 상장 외국인 취득한도 제한 32종목 allowlist이며, `stockCodes`를 명시한 수동 요청만 별도 종목을 조회한다.
 - KIS 현재가는 전일 증분 snapshot 수집에 사용하지 않는다. 초기 1년+ 과거 백필과 이후 누락일 보강은 `KRX_SCRAPING_ENABLED=true`, `KRX_ID`, `KRX_PW`가 설정된 경우 KRX Data Marketplace 로그인 기반 `MDCSTAT03702` provider로 수행한다. provider가 비어 있으면 현재 snapshot을 과거 날짜로 복제하지 않는다.

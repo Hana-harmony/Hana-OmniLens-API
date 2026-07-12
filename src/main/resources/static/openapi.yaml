@@ -1890,13 +1890,13 @@ components:
       properties:
         minForeignLimitExhaustionRate:
           type: number
-          description: Lower bound of the predicted foreign ownership limit exhaustion rate.
+          description: Lower bound of the predicted foreign ownership limit exhaustion rate. Hannah v2 uses the stock-level walk-forward absolute-error 90th percentile as a cap and adapts it with the latest 60-observation absolute-delta 90th percentile.
         baseForeignLimitExhaustionRate:
           type: number
           description: Base forecast from the foreign ownership snapshot and daily time-series trend. Requested order quantity is not applied. For unrestricted stocks this is the current KRX snapshot rate.
         maxForeignLimitExhaustionRate:
           type: number
-          description: Upper risk boundary for warning and display. It is evaluated for KRX foreign ownership restricted stocks, including zero-limit restricted stocks, and is not an automatic order-blocking condition.
+          description: Upper bound of the empirical 90% prediction interval for warning and display. It is evaluated for KRX foreign ownership restricted stocks, including zero-limit restricted stocks, and is not an automatic order-blocking condition.
         orderImpactRate:
           type: number
           description: Compatibility field. Foreign ownership limit prediction does not apply the requested mock order quantity and returns 0.
@@ -1927,6 +1927,11 @@ components:
         confidenceLevel:
           type: string
           enum:
+            - AI_FOREIGN_OWNED_QUANTITY_ML
+            - AI_FOREIGN_OWNED_QUANTITY_STOCK_GUARDED_BASELINE
+            - AI_FOREIGN_OWNED_QUANTITY_STOCK_GUARDED_HEURISTIC
+            - FOREIGN_LIMIT_ZERO_NOT_ACQUIRABLE
+            - FOREIGN_LIMIT_NOT_APPLICABLE
             - TIME_SERIES_REALTIME_ADJUSTED
             - TIME_SERIES_ADJUSTED
             - LIMITED_TIME_SERIES
