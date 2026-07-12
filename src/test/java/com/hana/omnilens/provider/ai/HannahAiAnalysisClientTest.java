@@ -59,7 +59,7 @@ class HannahAiAnalysisClientTest {
                             ],
                             "translation_quality_flags": ["FINANCIAL_GLOSSARY_APPLIED"],
                             "duplicate_key": "duplicate-key",
-                            "model_version": "financial-keyword-baseline-2026-06-04",
+                            "model_version": "financial-ml-v1|impact:k-fnspid-impact-v1",
                             "event_confidence": 0.91,
                             "sentiment_confidence": 0.89,
                             "importance_confidence": 0.93,
@@ -87,7 +87,7 @@ class HannahAiAnalysisClientTest {
         assertThat(response.glossaryTerms()).hasSize(1);
         assertThat(response.glossaryTerms().get(0).englishTerm()).isEqualTo("earnings");
         assertThat(response.translationQualityFlags()).containsExactly("FINANCIAL_GLOSSARY_APPLIED");
-        assertThat(response.modelVersion()).isEqualTo("financial-keyword-baseline-2026-06-04");
+        assertThat(response.modelVersion()).isEqualTo("financial-ml-v1|impact:k-fnspid-impact-v1");
         assertThat(response.eventConfidence()).isEqualTo(0.91);
         assertThat(response.stockMatchConfidence()).isEqualTo(1.0);
         server.verify();
