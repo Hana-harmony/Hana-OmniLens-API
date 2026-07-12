@@ -8,9 +8,12 @@
 - `market`: 한국 주식 현재가, 호가, 종목 검색 API, 전체/다건 quote snapshot API, 협력사용 market quote WebSocket stream, KRX 과거 시세 수집·정규화·DB 저장·history API
 - `alert`: 뉴스·공시 분석 결과를 협력사와 종목 topic으로 송신하는 API
 - `config`: API key 검증, CORS, WebSocket 설정
+- `portal`: 웹 회원 인증, 세션 버전, API 키 신청, `MEMBER`/`ADMIN` RBAC
+- `tax.refund`: 거래소 신청 동기화, Hannah AI OCR 값 매핑, 경정청구서 PDF 확정·승인
 
 ## API 경계
 - REST: `/api/v1/market/**`, `/api/v1/alerts/**`
+- 웹 포털: `/api/v1/portal/**` (`Authorization: Bearer`, 관리자는 `ROLE_ADMIN`)
 - WebSocket: `/ws/alerts`, `/ws/market/quotes`
 - 협력사 topic: `/topic/partners/{partnerId}/alerts`
 - 협력사 종목 topic: `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`

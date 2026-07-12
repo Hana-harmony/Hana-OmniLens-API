@@ -54,6 +54,7 @@
 | 뉴스·공시 | `/api/v1/market/news/**`, `/api/v1/alerts/**`, `/ws/alerts` |
 | 금융 용어 | `/api/v1/korean-financial-terms/**` |
 | 세무 OCR | `POST /api/v1/tax/documents/verify` |
+| 웹 회원·관리자 | `/api/v1/portal/**` |
 | 협력사 자격증명 | `/api/v1/security/partners/**` |
 | 계약 문서 | `/openapi.yaml`, `/v3/api-docs`, `/swagger-ui/index.html` |
 
@@ -66,6 +67,8 @@
 - 프론트엔드에는 Hana, KIS, KRX, Naver, OpenDART 자격증명을 전달하지 않는다.
 - 외부 자격증명과 DB·Redis 비밀번호는 GitHub Secrets가 생성하는 서버 환경 파일로만 주입한다.
 - 세무 파일은 허용 형식·크기·magic byte를 검증하고 계정별 경로 격리, 무작위 저장명, 접근 로그를 적용한다.
+- 웹 포털은 Bearer 토큰과 Spring Security RBAC를 사용하며, 비밀번호 변경 시 세션 버전을 올려 기존 토큰을 즉시 폐기한다.
+- 초기 관리자는 Flyway DB migration이 `admin`/`admin`으로 생성하며 초기 로그인 직후 비밀번호 변경을 강제한다. YAML은 관리자 계정을 생성하지 않는다.
 
 ## 로컬 실행과 검증
 

@@ -10,6 +10,9 @@ public record PortalUser(
         String phoneNumber,
         PortalRole role,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        boolean passwordChangeRequired,
+        long sessionVersion,
+        Instant passwordChangedAt
 ) {
 }

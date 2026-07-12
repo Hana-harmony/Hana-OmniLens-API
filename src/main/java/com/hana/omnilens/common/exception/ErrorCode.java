@@ -17,6 +17,11 @@ public enum ErrorCode {
     API_KEY_APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "PORTAL_003", "API key application not found"),
     API_KEY_APPLICATION_INVALID_STATE(HttpStatus.CONFLICT, "PORTAL_004", "API key application cannot be processed"),
     PORTAL_SECURITY_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "PORTAL_005", "Portal security configuration is unavailable"),
+    PORTAL_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "PORTAL_006", "Password confirmation does not match"),
+    PORTAL_PASSWORD_CHANGE_REQUIRED(HttpStatus.FORBIDDEN, "PORTAL_007", "Password change is required"),
+    PORTAL_PASSWORD_REUSE(HttpStatus.BAD_REQUEST, "PORTAL_008", "New password must differ from the current password"),
+    TAX_CORRECTION_NOT_PREPARED(HttpStatus.CONFLICT, "TAX_001", "Correction request must be prepared before approval"),
+    TAX_CORRECTION_ALREADY_APPROVED(HttpStatus.CONFLICT, "TAX_002", "Tax refund case is already approved"),
     STOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "MARKET_001", "Stock not found"),
     PARTNER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "AUTH_005", "Partner access denied");
 

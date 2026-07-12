@@ -18,6 +18,10 @@ public record TaxRefundBackofficeCase(
         Instant requestedAt,
         Instant syncedAt,
         String taxOfficeSubmissionStatus,
-        Instant taxOfficeSubmittedAt
+        Instant taxOfficeSubmittedAt,
+        String correctionRequestStatus,
+        String correctionPdfSha256,
+        Instant correctionPreparedAt,
+        Instant approvedAt
 ) {
 }
