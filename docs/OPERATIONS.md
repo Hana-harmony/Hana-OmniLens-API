@@ -66,8 +66,8 @@ curl http://localhost:8080/api/v1/alerts/watchlists/partner-a \
 ```
 
 ## KIS 실시간 시세 수신
-- 기본값은 `KIS_REALTIME_ENABLED=false`이다.
-- 활성화하면 `KIS_REALTIME_STOCK_CODES`의 종목마다 KIS 실시간 체결과 호가를 구독한다.
+- 기본값은 `KIS_REALTIME_ENABLED=true`이다.
+- 활성화하면 `KIS_REALTIME_STOCK_CODES`의 종목마다 KIS 실시간 체결과 선택된 호가를, `KIS_REALTIME_INDEX_CODES`의 지수를 구독한다.
 - 수신 메시지는 실시간 cache에 저장되고 quote/orderbook 응답에서 우선 사용된다.
 - 장외, 휴장, 초기 구동 등으로 실시간 호가 cache가 비어 있으면 orderbook API는 KIS REST 호가 snapshot을 사용한다.
 - KIS 체결 tick 수신 시 `/ws/market/quotes` raw WebSocket 연결에도 `MarketQuote` JSON을 송신한다.
@@ -75,7 +75,8 @@ curl http://localhost:8080/api/v1/alerts/watchlists/partner-a \
 
 ```text
 KIS_REALTIME_ENABLED=true
-KIS_REALTIME_STOCK_CODES=005930,000660
+KIS_REALTIME_STOCK_CODES=005930,000660,005380,000270,086790,035420,068270,105560,055550,012330
+KIS_REALTIME_INDEX_CODES=0001,1001,2001
 ```
 
 ## KRX 과거 시세 수집
@@ -128,7 +129,8 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - `/topic/stocks/{stockCode}/alerts`는 bootstrap 전역 키 호환용 topic으로 유지한다.
 
 ## 실시간 시세 수요 구독
-- 인기 종목은 `KIS_REALTIME_STOCK_CODES` 또는 종목 마스터 상위 `KIS_REALTIME_STOCK_LIMIT` 기준으로 API 기동 시 KIS WebSocket에 선구독한다.
+- 인기 10종목은 `OMNILENS_MARKET_KIS_REALTIME_STOCK_CODES`로, KOSPI·KOSDAQ·KOSPI200 지수는 `OMNILENS_MARKET_KIS_REALTIME_INDEX_CODES=0001,1001,2001`로 API 기동 시 KIS WebSocket에 고정 선구독한다.
+- KIS 체결 `H0STCNT0`와 호가 `H0STASP0`의 합산 등록 한도는 40 TR이다. 지수 TR은 이 주식 체결·호가 합산값과 분리해 고정하며, 호가를 켜면 종목당 체결·호가 2 TR을 소비한다.
 - 상세 화면처럼 인기 종목 외 종목이 필요하면 협력사는 `/ws/market/quotes`에 아래 메시지를 전송한다.
 
 ```json
@@ -139,7 +141,9 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 }
 ```
 
-- OmniLens는 지원 종목, 중복 구독, KIS 구독 한도를 확인한 뒤 같은 KIS WebSocket 세션에 추가 구독한다. 요청 직후 현재 REST snapshot도 같은 WebSocket 세션으로 재송신한다.
+- OmniLens는 인기 종목과 지수 고정 슬롯을 해제하지 않는다. 남은 슬롯은 상세 종목 전용 LRU로 관리하며, 한도에 도달하면 가장 오래 사용하지 않은 상세 종목의 해제 프레임을 먼저 보낸 뒤 새 종목을 등록한다.
+- `POST/DELETE /api/v1/market/stocks/{stockCode}/realtime-subscription`은 상세 화면 진입·이탈 수명주기를 같은 관리자로 전달한다. 요청 직후 현재 REST snapshot도 파트너 WebSocket 세션으로 재송신한다.
+- KIS 연결이 정상 close code로 종료된 경우도 지수 백오프와 jitter로 재연결하고 고정·동적 구독을 복원한다.
 
 ## 한국 증시 시장뉴스
 - 종목별 뉴스·공시는 `/api/v1/alerts/stocks/{stockCode}/events`를 사용하고, 한국 증시 전체 뉴스는 별도 `/api/v1/market/news`를 사용한다.

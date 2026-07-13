@@ -49,6 +49,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
     private final Map<String, KisRealtimeSubscriptionFrame> dynamicSubscriptions = new ConcurrentHashMap<>();
     private final Set<String> sentSubscriptionKeys = ConcurrentHashMap.newKeySet();
     private final AtomicReference<WebSocketSession> currentSession = new AtomicReference<>();
+    private final AtomicBoolean shuttingDown = new AtomicBoolean(false);
 
     @Autowired
     public StandardKisRealtimeWebSocketConnection(ObjectMapper objectMapper) {
@@ -103,6 +104,9 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer,
             int reconnectAttempt) {
+        if (shuttingDown.get()) {
+            return;
+        }
         log.info(
                 "Connecting KIS realtime websocket url={} subscriptionFrameCount={} reconnectAttempt={}",
                 websocketUrl,
@@ -121,6 +125,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
 
     @PreDestroy
     public void shutdown() {
+        shuttingDown.set(true);
         reconnectExecutor.shutdownNow();
     }
 
@@ -130,7 +135,6 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
         private final List<KisRealtimeSubscriptionFrame> subscriptionFrames;
         private final Consumer<String> messageConsumer;
         private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
-        private final AtomicBoolean reconnectDisabled = new AtomicBoolean(false);
 
         private Handler(
                 URI websocketUrl,
@@ -155,10 +159,6 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
         protected void handleTextMessage(WebSocketSession session, TextMessage message) {
             String payload = message.getPayload();
             logKisMessage(session, payload);
-            if (disableReconnectForFatalControlFailure(payload)) {
-                reconnectDisabled.set(true);
-                return;
-            }
             if (respondToPingPong(session, payload)) {
                 return;
             }
@@ -170,9 +170,6 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             log.warn("KIS realtime websocket transport error sessionId={} error={}",
                     session == null ? "" : session.getId(),
                     exception.toString());
-            if (reconnectDisabled.get()) {
-                return;
-            }
             scheduleReconnectOnce();
         }
 
@@ -181,12 +178,7 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             currentSession.compareAndSet(session, null);
             sentSubscriptionKeys.clear();
             log.warn("KIS realtime websocket closed sessionId={} status={}", session.getId(), status);
-            if (reconnectDisabled.get()) {
-                return;
-            }
-            if (!CloseStatus.NORMAL.equals(status)) {
-                scheduleReconnectOnce();
-            }
+            scheduleReconnectOnce();
         }
 
         private void scheduleReconnectOnce() {
@@ -215,19 +207,6 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             }
         }
 
-        private boolean disableReconnectForFatalControlFailure(String payload) {
-            if (payload == null || !payload.startsWith("{")) {
-                return false;
-            }
-            try {
-                JsonNode root = objectMapper.readTree(payload);
-                String resultCode = root.path("body").path("rt_cd").asText("");
-                String messageCode = root.path("body").path("msg_cd").asText("");
-                return "1".equals(resultCode) && "OPSP0011".equals(messageCode);
-            } catch (Exception exception) {
-                return false;
-            }
-        }
     }
 
     private List<KisRealtimeSubscriptionFrame> activeSubscriptionFrames(List<KisRealtimeSubscriptionFrame> baseFrames) {
@@ -265,6 +244,9 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             List<KisRealtimeSubscriptionFrame> subscriptionFrames,
             Consumer<String> messageConsumer,
             int reconnectAttempt) {
+        if (shuttingDown.get()) {
+            return;
+        }
         long delaySeconds = reconnectDelaySeconds(reconnectAttempt);
         log.info(
                 "Scheduling KIS realtime websocket reconnect delay={}s reconnectAttempt={} subscriptionFrameCount={}",

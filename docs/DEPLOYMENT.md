@@ -80,6 +80,10 @@ docker compose -f compose.local.yml up -d
 - `HANNAH_AI_MAINTENANCE_TOKEN`: Hannah 재학습 endpoint 보호용 내부 토큰. GitHub Secrets 또는 서버 env로만 주입한다.
 - `KIS_BASE_URL`: KIS 모의투자 REST endpoint 주소. 기본값은 `https://openapivts.koreainvestment.com:29443`이다.
 - `KIS_WEBSOCKET_URL`: KIS 모의투자 WebSocket endpoint 주소. 기본값은 `ws://ops.koreainvestment.com:31000`이다.
+- `KIS_REALTIME_STOCK_CODES`: 기동 시 해제하지 않는 인기 10종목 코드. 기본값은 로컬·운영 설정의 10종목이다.
+- `KIS_REALTIME_INDEX_CODES`: 기동 시 고정 구독하는 KOSPI·KOSDAQ·KOSPI200 코드. 기본값은 `0001,1001,2001`이다.
+- `KIS_REALTIME_SHARD_SIZE`: KIS 연결 하나에서 허용할 주식 체결·호가 등록 TR 상한. provider 한도 보호를 위해 최대 40으로 제한된다.
+- `KIS_REALTIME_ORDER_BOOK_ENABLED`: `true`이면 종목마다 체결과 호가가 각각 1 TR을 사용한다. 고정 universe 이후 남은 슬롯은 상세 종목 LRU로 사용한다.
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 endpoint 주소. 번역, 분석, 글로벌 피어, 금융용어 해설을 같은 내부망에서 호출한다.
 - `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`: Hannah-Montana-AI 내부 endpoint 전용 timeout이다. `PROVIDER_READ_TIMEOUT`은 KIS, Naver, KRX 같은 외부 provider에만 적용한다.

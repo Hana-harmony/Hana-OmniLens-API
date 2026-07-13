@@ -25,7 +25,7 @@
 | KIS/KRX 종목 마스터와 현재가 스냅샷 | Hana-OmniLens-API | Done |
 | 종목 검색, 종목 상세, 글로벌 피어 매칭 | Hana-OmniLens-API, Hannah-Montana-AI | Done |
 | KIS 실시간 체결가·호가 수집과 `/ws/market/quotes` 송신 | Hana-OmniLens-API | Done |
-| 상세 진입 종목 실시간 원천 구독 추가·해제 | Hana-OmniLens-API | Done |
+| 인기 10종목·지수 3개 고정 구독과 상세 종목 40 TR LRU 추가·해제 | Hana-OmniLens-API | Done |
 | 지수 스냅샷, 지수 1D 분봉, 호가, 환율 적용 가격 제공 | Hana-OmniLens-API | Done |
 | 종목 1D 분봉, 일봉 히스토리, 과거 시세 수집, 차트 캐시 예열 | Hana-OmniLens-API | Done |
 | KRX 외국인 보유수량, 보유율, 한도소진율 스냅샷 캐시 | Hana-OmniLens-API | Done |

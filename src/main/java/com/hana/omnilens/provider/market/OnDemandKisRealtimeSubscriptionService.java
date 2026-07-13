@@ -1,10 +1,8 @@
 package com.hana.omnilens.provider.market;
 
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -15,8 +13,10 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
-import com.hana.omnilens.config.KisRealtimeProperties;
 import com.hana.omnilens.market.application.RealtimeMarketDataIngestionService;
+import com.hana.omnilens.market.application.KisRealtimeDynamicSubscriptionResult;
+import com.hana.omnilens.market.application.KisRealtimeSessionRunner;
+import com.hana.omnilens.market.application.KisRealtimeSessionRunner.KisRealtimeUnsubscribeResult;
 import com.hana.omnilens.market.application.StockMasterNotFoundException;
 import com.hana.omnilens.market.application.StockMasterRepository;
 import com.hana.omnilens.provider.ExternalProviderResiliencePolicy;
@@ -28,31 +28,26 @@ public class OnDemandKisRealtimeSubscriptionService {
     private static final String REGULAR = "REGULAR";
     private static final String AFTER_HOURS_REAL = "AFTER_HOURS_REAL";
 
-    private final KisRealtimeWebSocketConnection regularConnection;
-    private final KisRealtimeApprovalKeyProvider regularApprovalKeyProvider;
+    private final KisRealtimeSessionRunner regularSessionRunner;
     private final KisRealtimeApprovalKeyProvider realApprovalKeyProvider;
     private final KisRealtimeSubscriptionFrameFactory frameFactory;
     private final ExternalProviderProperties.Kis realKisProperties;
     private final KisRealtimeWebSocketConnection realAfterHoursConnection;
     private final RealtimeMarketDataIngestionService ingestionService;
     private final StockMasterRepository stockMasterRepository;
-    private final Set<String> pinnedRegularStockCodes;
     private final AtomicReference<String> activeAfterHoursStockCode = new AtomicReference<>("");
     private final AtomicBoolean realAfterHoursConnected = new AtomicBoolean(false);
 
     public OnDemandKisRealtimeSubscriptionService(
-            KisRealtimeWebSocketConnection regularConnection,
-            KisRealtimeApprovalKeyProvider regularApprovalKeyProvider,
+            KisRealtimeSessionRunner regularSessionRunner,
             KisRealtimeSubscriptionFrameFactory frameFactory,
-            KisRealtimeProperties kisRealtimeProperties,
             ExternalProviderProperties properties,
             ExternalProviderResiliencePolicy resiliencePolicy,
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
             RealtimeMarketDataIngestionService ingestionService,
             StockMasterRepository stockMasterRepository) {
-        this.regularConnection = regularConnection;
-        this.regularApprovalKeyProvider = regularApprovalKeyProvider;
+        this.regularSessionRunner = regularSessionRunner;
         this.frameFactory = frameFactory;
         this.realKisProperties = properties.realKis();
         this.realApprovalKeyProvider = new KisRealtimeApprovalKeyProvider(
@@ -62,25 +57,34 @@ public class OnDemandKisRealtimeSubscriptionService {
         this.realAfterHoursConnection = new StandardKisRealtimeWebSocketConnection(objectMapper);
         this.ingestionService = ingestionService;
         this.stockMasterRepository = stockMasterRepository;
-        this.pinnedRegularStockCodes = kisRealtimeProperties.stockCodes().stream()
-                .filter(stockCode -> stockCode.matches("\\d{6}"))
-                .collect(Collectors.toUnmodifiableSet());
     }
 
     public KisRealtimeSubscriptionRequestResult subscribeRegular(String stockCode) {
         ensureStockExists(stockCode);
         try {
-            String approvalKey = regularApprovalKeyProvider.approvalKey();
-            regularConnection.subscribe(List.of(frame(
-                    approvalKey,
-                    KisRealtimeTransaction.TRADE,
-                    KisRealtimeSubscriptionType.SUBSCRIBE,
-                    stockCode)));
+            KisRealtimeDynamicSubscriptionResult result = regularSessionRunner.subscribeStockCodes(List.of(stockCode));
+            if (!result.enabled()) {
+                return new KisRealtimeSubscriptionRequestResult(
+                        stockCode,
+                        REGULAR,
+                        "DISABLED",
+                        "KIS regular realtime source is disabled");
+            }
+            if (result.rejectedStockCodes().contains(stockCode)) {
+                return new KisRealtimeSubscriptionRequestResult(
+                        stockCode,
+                        REGULAR,
+                        "REJECTED",
+                        "KIS realtime subscription capacity is unavailable");
+            }
+            String message = result.rotatedOutStockCodes().isEmpty()
+                    ? "KIS regular realtime source subscription is active"
+                    : "KIS regular realtime source subscription rotated within the provider limit";
             return new KisRealtimeSubscriptionRequestResult(
                     stockCode,
                     REGULAR,
-                    "SUBSCRIBED",
-                    "KIS regular realtime source subscription requested");
+                    result.subscribedStockCodes().contains(stockCode) ? "SUBSCRIBED" : "UNCHANGED",
+                    message);
         } catch (RuntimeException exception) {
             return providerUnavailableResult(stockCode, REGULAR, "subscribe", exception);
         }
@@ -88,25 +92,29 @@ public class OnDemandKisRealtimeSubscriptionService {
 
     public KisRealtimeSubscriptionRequestResult unsubscribeRegular(String stockCode) {
         ensureStockExists(stockCode);
-        if (pinnedRegularStockCodes.contains(stockCode)) {
-            return new KisRealtimeSubscriptionRequestResult(
-                    stockCode,
-                    REGULAR,
-                    "UNCHANGED",
-                    "KIS regular realtime source is pinned by the default universe");
-        }
         try {
-            String approvalKey = regularApprovalKeyProvider.approvalKey();
-            regularConnection.unsubscribe(List.of(frame(
-                    approvalKey,
-                    KisRealtimeTransaction.TRADE,
-                    KisRealtimeSubscriptionType.UNSUBSCRIBE,
-                    stockCode)));
+            KisRealtimeUnsubscribeResult result = regularSessionRunner.unsubscribeStockCode(stockCode);
+            if (result == KisRealtimeUnsubscribeResult.DISABLED) {
+                return new KisRealtimeSubscriptionRequestResult(
+                        stockCode,
+                        REGULAR,
+                        "DISABLED",
+                        "KIS regular realtime source is disabled");
+            }
+            if (result == KisRealtimeUnsubscribeResult.PINNED) {
+                return new KisRealtimeSubscriptionRequestResult(
+                        stockCode,
+                        REGULAR,
+                        "UNCHANGED",
+                        "KIS regular realtime source is pinned by the default universe");
+            }
             return new KisRealtimeSubscriptionRequestResult(
                     stockCode,
                     REGULAR,
-                    "UNSUBSCRIBED",
-                    "KIS regular realtime source unsubscribe requested");
+                    result == KisRealtimeUnsubscribeResult.UNSUBSCRIBED ? "UNSUBSCRIBED" : "UNCHANGED",
+                    result == KisRealtimeUnsubscribeResult.UNSUBSCRIBED
+                            ? "KIS regular realtime source subscription released"
+                            : "KIS regular realtime source subscription was not active");
         } catch (RuntimeException exception) {
             return providerUnavailableResult(stockCode, REGULAR, "unsubscribe", exception);
         }

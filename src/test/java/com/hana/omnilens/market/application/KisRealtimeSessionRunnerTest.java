@@ -181,6 +181,31 @@ class KisRealtimeSessionRunnerTest {
     }
 
     @Test
+    void stockSubscriptionLimitDoesNotDisplacePinnedIndices() {
+        FakeConnection connection = new FakeConnection();
+        KisRealtimeSessionRunner runner = newRunner(
+                new KisRealtimeProperties(
+                        true,
+                        List.of("005930"),
+                        List.of("0001", "1001", "2001"),
+                        2500,
+                        2,
+                        false,
+                        false),
+                connection,
+                new InMemoryRealtimeMarketDataCache());
+
+        List<KisRealtimeSubscriptionFrame> frames = runner.subscriptionFrames(
+                "approval-key",
+                List.of("005930"),
+                List.of("0001", "1001", "2001"));
+
+        assertThat(frames).hasSize(4);
+        assertThat(frames).extracting(frame -> frame.body().input().trKey())
+                .contains("0001", "1001", "2001", "005930");
+    }
+
+    @Test
     void startDoesNotFailApplicationWhenApprovalKeyProviderFails() {
         FakeConnection connection = new FakeConnection();
         KisRealtimeApprovalKeyProvider approvalKeyProvider = mock(KisRealtimeApprovalKeyProvider.class);
@@ -231,6 +256,42 @@ class KisRealtimeSessionRunnerTest {
                 .containsExactly("H0STCNT0", "H0STASP0");
         assertThat(connection.sentFrames).extracting(frame -> frame.body().input().trKey())
                 .containsOnly("000660");
+    }
+
+    @Test
+    void subscribeStockCodesRotatesLeastRecentlyUsedDynamicStockAtLimit() {
+        FakeConnection connection = new FakeConnection();
+        KisRealtimeSessionRunner runner = newRunner(
+                new KisRealtimeProperties(true, List.of("005930"), 2500, 2, false),
+                connection,
+                new InMemoryRealtimeMarketDataCache());
+
+        runner.start();
+        runner.subscribeStockCodes(List.of("000660"));
+        KisRealtimeDynamicSubscriptionResult result = runner.subscribeStockCodes(List.of("035420"));
+
+        assertThat(result.subscribedStockCodes()).containsExactly("035420");
+        assertThat(result.rotatedOutStockCodes()).containsExactly("000660");
+        assertThat(connection.unsubscribedFrames).hasSize(1);
+        assertThat(connection.unsubscribedFrames.get(0).header().trType()).isEqualTo("2");
+        assertThat(connection.unsubscribedFrames.get(0).body().input().trKey()).isEqualTo("000660");
+        assertThat(connection.sentFrames.get(connection.sentFrames.size() - 1).body().input().trKey())
+                .isEqualTo("035420");
+    }
+
+    @Test
+    void unsubscribeStockCodeDoesNotReleasePinnedStock() {
+        FakeConnection connection = new FakeConnection();
+        KisRealtimeSessionRunner runner = newRunner(
+                new KisRealtimeProperties(true, List.of("005930"), 2500, 2, false),
+                connection,
+                new InMemoryRealtimeMarketDataCache());
+
+        runner.start();
+
+        assertThat(runner.unsubscribeStockCode("005930"))
+                .isEqualTo(KisRealtimeSessionRunner.KisRealtimeUnsubscribeResult.PINNED);
+        assertThat(connection.unsubscribedFrames).isEmpty();
     }
 
     @Test
@@ -375,6 +436,7 @@ class KisRealtimeSessionRunnerTest {
         private List<KisRealtimeSubscriptionFrame> allFrames = new ArrayList<>();
         private List<List<KisRealtimeSubscriptionFrame>> frameBatches = new ArrayList<>();
         private List<KisRealtimeSubscriptionFrame> sentFrames = new ArrayList<>();
+        private List<KisRealtimeSubscriptionFrame> unsubscribedFrames = new ArrayList<>();
         private Consumer<String> messageConsumer = message -> {
         };
 
@@ -396,6 +458,11 @@ class KisRealtimeSessionRunnerTest {
         public void subscribe(List<KisRealtimeSubscriptionFrame> subscriptionFrames) {
             this.sentFrames.addAll(subscriptionFrames);
             this.allFrames.addAll(subscriptionFrames);
+        }
+
+        @Override
+        public void unsubscribe(List<KisRealtimeSubscriptionFrame> subscriptionFrames) {
+            this.unsubscribedFrames.addAll(subscriptionFrames);
         }
 
         private void emit(String rawMessage) {

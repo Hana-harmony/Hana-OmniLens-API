@@ -157,7 +157,10 @@ omnilens:
         - "105560"
         - "055550"
         - "012330"
-      index-codes: []
+      index-codes:
+        - "0001"
+        - "1001"
+        - "2001"
       stock-limit: 5000
       shard-size: 40
       order-book-enabled: false
