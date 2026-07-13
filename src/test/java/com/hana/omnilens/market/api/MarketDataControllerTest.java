@@ -162,6 +162,7 @@ class MarketDataControllerTest {
                 .andExpect(jsonPath("$.data.foreignOwnershipPredictionConfidenceLevel").exists())
                 .andExpect(jsonPath("$.data.foreignOwnershipPredictionConfidenceScore").exists())
                 .andExpect(jsonPath("$.data.foreignOwnershipPredictionModelVersion").exists())
+                .andExpect(jsonPath("$.data.foreignLimitBuyWarning", equalTo(false)))
                 .andExpect(jsonPath("$.data.viActive", equalTo(false)))
                 .andExpect(jsonPath("$.data.singlePriceTrading", equalTo(false)))
                 .andExpect(jsonPath("$.data.priceLimitState", equalTo("UNKNOWN")))

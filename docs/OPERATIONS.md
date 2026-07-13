@@ -105,7 +105,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - SBS, KNN, 티비씨처럼 KRX가 외국인 보유/한도/소진율을 모두 0으로 반환하는 0% 취득불허 종목은 Hannah를 호출하지 않고 confidence `FOREIGN_LIMIT_ZERO_NOT_ACQUIRABLE`, model version `foreign-ownership-zero-limit-v1`로 경고한다.
 - 제한 종목은 최근 외국인 보유 일별 시계열로 금일 외국인 취득 수량이 한도에 도달할 가능성을 min/base/max 한도소진율로 계산한다. 요청 수량과 KIS 실시간 누적 거래량은 외국인 한도 예측식에 반영하지 않는다.
 - 제한이 없는 종목은 Hannah를 호출하지 않고 confidence `FOREIGN_LIMIT_NOT_APPLICABLE`, model version `foreign-ownership-unrestricted-v1`로 현재 snapshot 값을 반환한다.
-- 외국인 한도 예측은 주문 차단 조건이 아니다. `foreignLimitExceeded=true`는 BUY 주문이 체결되지 않을 수 있음을 프론트에서 미리 고지하기 위한 경고 신호이며, `orderable=false`는 거래정지 같은 시장 상태 차단에만 사용한다.
+- 외국인 한도 예측은 주문 차단 조건이 아니다. 제한 종목의 AI 예측 상단이 화면 표시 기준 `100.00%`로 반올림되는 `99.995%` 이상이면 orderability의 `foreignLimitExceeded=true`와 상세의 `foreignLimitBuyWarning=true`를 반환한다. 이는 BUY 주문이 체결되지 않을 수 있음을 프론트에서 미리 고지하기 위한 경고 신호이며, `orderable=false`는 거래정지 같은 시장 상태 차단에만 사용한다.
 - KIS 실시간 체결가·호가 WebSocket에는 외국인 보유수량, 보유율, 한도소진율 필드가 없다. 외국인 한도 정보는 KRX Data Marketplace snapshot refresh와 Redis/in-memory cache로 공급한다.
 - 제한 종목 예측은 장전 batch가 Redis/in-memory `ForeignOwnershipPredictionCache`에 선계산한다. Hannah `hannah-foreign-owned-quantity-ml-v2`는 종목별 walk-forward 검증 절대오차 90분위수를 안전 상한으로 두고 최신 60개 관측의 일별 절대변화 90분위수로 현재 변동성 국면을 반영하며, 전체 종목에 동일 비율을 적용하지 않는다. Redis key namespace는 `v2`로 분리해 이전 모델의 넓은 구간이 남지 않게 한다. 모바일 거래소의 `orderability/detail` 요청은 cache를 먼저 읽고, cache miss일 때만 Hannah-Montana-AI `POST /api/v1/market/foreign-ownership/predict`를 호출한다.
 - Hannah 호출 실패, circuit open, 비정상 envelope 응답 시에는 OmniLens 내부 deterministic 시계열 엔진으로 fallback해 응답 계약과 주문 전 확인 흐름을 유지한다.
