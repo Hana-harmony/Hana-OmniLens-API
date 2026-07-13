@@ -20,6 +20,7 @@ import com.hana.omnilens.provider.market.KisRealtimeMessageParser;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeIndexTick;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
+import com.hana.omnilens.provider.market.KisRealtimeMarketStatus;
 import com.hana.omnilens.market.domain.MarketIndexQuote;
 import com.hana.omnilens.market.domain.MarketIntradayRealtimeTick;
 import com.hana.omnilens.market.stream.MarketIndexStreamingService;
@@ -120,6 +121,15 @@ public class RealtimeMarketDataIngestionService {
     }
 
     public RealtimeMarketDataIngestionResult ingestKisMessage(String rawMessage) {
+        Optional<KisRealtimeMarketStatus> marketStatus = kisRealtimeMessageParser.parseMarketStatus(rawMessage);
+        if (marketStatus.isPresent()) {
+            KisRealtimeMarketStatus status = marketStatus.orElseThrow();
+            realtimeMarketDataCache.putMarketStatus(status);
+            // 거래가 멈춘 동안에도 상태 변경을 즉시 화면에 전달한다.
+            marketQuoteStreamingService.publishTick(status.stockCode(), "USD");
+            return RealtimeMarketDataIngestionResult.marketStatus(status.stockCode());
+        }
+
         Optional<KisRealtimeTradeTick> tradeTick = kisRealtimeMessageParser.parseTradeTick(rawMessage);
         if (tradeTick.isPresent()) {
             KisRealtimeTradeTick tick = tradeTick.orElseThrow();

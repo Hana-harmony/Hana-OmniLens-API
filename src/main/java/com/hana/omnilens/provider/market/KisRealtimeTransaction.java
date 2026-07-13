@@ -5,6 +5,7 @@ public enum KisRealtimeTransaction {
     ORDERBOOK("H0STASP0"),
     AFTER_HOURS_TRADE("H0STOUP0"),
     AFTER_HOURS_ORDERBOOK("H0STOAA0"),
+    MARKET_STATUS("H0STMKO0"),
     INDEX_TRADE("H0UPCNT0");
 
     private final String trId;

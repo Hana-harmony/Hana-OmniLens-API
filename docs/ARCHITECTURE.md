@@ -47,7 +47,7 @@
 - `MarketDataService`는 KIS 실시간 호가 cache를 우선 사용하고, 장외 또는 초기 구동처럼 cache가 비어 있으면 KIS REST 호가 snapshot으로 orderbook 응답을 보강한다.
 - `MarketQuoteWebSocketHandler`는 raw WebSocket `/ws/market/quotes`에서 인증된 협력사 연결을 관리하고, `RealtimeMarketDataIngestionService`가 KIS 체결 tick을 수신하면 KRW/현지통화/FX metadata가 포함된 `MarketQuote` JSON을 송신한다.
 - 협력사가 `QUOTE_STREAM_REPLAY` 메시지를 보내면 현재 quote snapshot을 요청 통화 기준으로 재송신한다.
-- `KisRealtimeSessionRunner`는 인기 10종목을 고정하고 KIS의 주식 체결·호가 40 TR 한도에서 남은 슬롯을 상세 종목 LRU로 운영한다. `KisRealtimeIndexSessionRunner`는 지수 3개를 같은 실전 provider 또는 별도 실전 연결에 고정한다. `QUOTE_STREAM_SUBSCRIBE`와 상세 구독 REST 계약은 같은 주식 구독 관리자를 사용하며, 교체 시 해제 프레임을 먼저 전송한다.
+- `KisRealtimeSessionRunner`는 인기 10종목의 체결·호가와 장운영정보(`H0STMKO0`)를 고정하고 KIS의 주식 체결·호가 40 TR 한도에서 남은 슬롯을 상세 종목 LRU로 운영한다. 장운영정보의 거래정지 사유에서 서킷브레이커를 판별하고 체결이 중단된 동안에도 상태 quote를 즉시 발행한다. 발동 후 재접속으로 상태 이벤트를 놓친 경우에는 신선한 실전 시장지수의 서킷 임계 하락과 같은 시장의 체결 중단을 함께 확인해 상태를 복구하고, 체결 재개 즉시 해제한다. `KisRealtimeIndexSessionRunner`는 지수 3개를 같은 실전 provider 또는 별도 실전 연결에 고정한다. `QUOTE_STREAM_SUBSCRIBE`와 상세 구독 REST 계약은 같은 주식 구독 관리자를 사용하며, 교체 시 해제 프레임을 먼저 전송한다.
 - `StandardKisRealtimeWebSocketConnection`은 close code와 관계없이 지수 백오프·jitter로 재연결하고 고정·동적 구독 프레임을 복원한다.
 - `MarketDataService`는 KRX 외국인보유량 cache에 snapshot이 있으면 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다. KIS 실시간 체결가·호가 WebSocket은 가격·호가·상태 전용이며 외국인 보유량 필드를 제공하지 않는다.
 - 주문 가능 여부 boundary는 KRX snapshot의 외국인 취득한도 제한 종목에만 보유 시계열 예측을 사용한다. 장전 batch가 Hannah-Montana-AI 모델로 금일 예측을 선계산해 cache에 저장하고 API 요청은 cache hit를 우선 반환한다. cache miss 또는 AI 장애 시 OmniLens 내부 시계열 엔진으로 fallback한다. 제한이 없는 종목은 `FOREIGN_LIMIT_NOT_APPLICABLE`로 반환한다. 외국인 한도 예측은 프론트 사전 고지용 경고 신호이며 주문 차단 조건에 포함하지 않는다.

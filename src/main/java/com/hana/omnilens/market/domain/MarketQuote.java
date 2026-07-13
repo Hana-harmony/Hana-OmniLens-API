@@ -31,6 +31,11 @@ public record MarketQuote(
         BigDecimal foreignLimitExhaustionRate,
         LocalDate foreignOwnershipBaseDate,
         Instant marketDataTime,
+        boolean viActive,
+        boolean singlePriceTrading,
+        boolean tradingHalted,
+        boolean circuitBreakerActive,
+        String tradingHaltReason,
         String source
 ) {
 }

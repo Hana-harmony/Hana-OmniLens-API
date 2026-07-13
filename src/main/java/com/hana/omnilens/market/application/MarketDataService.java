@@ -9,6 +9,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -47,6 +50,7 @@ import com.hana.omnilens.provider.market.KisIndexCurrentPriceClient;
 import com.hana.omnilens.provider.market.KisIndexCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
+import com.hana.omnilens.provider.market.KisRealtimeMarketStatus;
 import com.hana.omnilens.provider.market.KisRestOrderBookClient;
 import com.hana.omnilens.provider.market.KisRestOrderBookSnapshot;
 import com.hana.omnilens.provider.market.PublicDataStockPriceSnapshot;
@@ -67,6 +71,10 @@ public class MarketDataService {
     private static final List<String> DEFAULT_MARKET_INDEX_CODES = List.of("0001", "1001", "2001");
     private static final LocalTime REGULAR_MARKET_OPEN = LocalTime.of(9, 0);
     private static final LocalTime REGULAR_MARKET_CLOSE = LocalTime.of(15, 30);
+    private static final BigDecimal CIRCUIT_BREAKER_RECOVERY_THRESHOLD = new BigDecimal("-7.90");
+    private static final Duration CIRCUIT_BREAKER_INDEX_FRESHNESS = Duration.ofMinutes(2);
+    private static final Duration CIRCUIT_BREAKER_TRADE_FRESHNESS = Duration.ofSeconds(20);
+    private static final DateTimeFormatter KIS_TRADE_TIME = DateTimeFormatter.ofPattern("HHmmss");
 
     private final PublicDataStockSecuritiesClient publicDataStockSecuritiesClient;
     private final KisCurrentPriceClient kisCurrentPriceClient;
@@ -558,6 +566,7 @@ public class MarketDataService {
         BigDecimal afterHoursLocalCurrencyPrice = afterHoursPriceKrw == null || fxLookup == null
                 ? null
                 : afterHoursPriceKrw.multiply(fxLookup.fxRate()).setScale(4, RoundingMode.HALF_UP);
+        MarketStatus marketStatus = recoverCircuitBreakerStatus(stock, latestMarketStatus(stock.stockCode()));
 
         return new MarketQuote(
                 stock.stockCode(),
@@ -586,6 +595,11 @@ public class MarketDataService {
                 foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(null),
                 foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::baseDate).orElse(null),
                 currentPrice == null ? null : Instant.now(clock),
+                marketStatus.viActive(),
+                marketStatus.singlePriceTrading(),
+                marketStatus.tradingHalted(),
+                marketStatus.circuitBreakerActive(),
+                marketStatus.tradingHaltReason(),
                 source(priceLookup.source(), foreignOwnership.source()));
     }
 
@@ -1344,6 +1358,18 @@ public class MarketDataService {
     }
 
     private MarketStatus latestMarketStatus(String stockCode) {
+        Optional<KisRealtimeMarketStatus> realtimeMarketStatus = realtimeMarketDataCache.latestMarketStatus(stockCode);
+        if (realtimeMarketStatus.isPresent()) {
+            KisRealtimeMarketStatus status = realtimeMarketStatus.orElseThrow();
+            return new MarketStatus(
+                    status.viActive(),
+                    status.singlePriceTrading(),
+                    "NORMAL",
+                    status.tradingHalted(),
+                    status.circuitBreakerActive(),
+                    status.tradingHaltReason(),
+                    "KIS_WEBSOCKET_MARKET_STATUS");
+        }
         Optional<KisRealtimeTradeTick> realtimeTrade = realtimeMarketDataCache.latestTrade(stockCode);
         if (realtimeTrade.isPresent()) {
             KisRealtimeTradeTick tick = realtimeTrade.orElseThrow();
@@ -1352,6 +1378,8 @@ public class MarketDataService {
                         activeStatusCode(tick.singlePriceTradingCode()),
                         priceLimitState(tick),
                         activeStatusCode(tick.tradingHaltCode()),
+                        false,
+                        "",
                         "KIS_WEBSOCKET_TRADE_STATUS");
         }
         return latestRestOrderBook(stockCode)
@@ -1360,8 +1388,77 @@ public class MarketDataService {
                         false,
                         priceLimitState(orderBook),
                         false,
+                        false,
+                        "",
                         "KIS_REST_ORDERBOOK_STATUS_FALLBACK"))
                 .orElse(MarketStatus.unavailable());
+    }
+
+    private MarketStatus recoverCircuitBreakerStatus(StockSummary stock, MarketStatus status) {
+        if (status.circuitBreakerActive() || !isRegularMarketSession()) {
+            return status;
+        }
+        String indexCode = switch (stock.market()) {
+            case "KOSPI" -> "0001";
+            case "KOSDAQ" -> "1001";
+            default -> "";
+        };
+        if (indexCode.isEmpty() || !hasFreshCircuitBreakerIndex(indexCode)) {
+            return status;
+        }
+        if (hasRecentTradeForMarket(stock.market())) {
+            return status;
+        }
+        return status.withCircuitBreaker(
+                "시장지수 급락 및 시장 전체 체결 중단",
+                "KIS_WEBSOCKET_INDEX_TRADE_GAP_RECOVERY");
+    }
+
+    private boolean hasFreshCircuitBreakerIndex(String indexCode) {
+        Instant now = Instant.now(clock);
+        return realtimeMarketDataCache.latestIndices().stream()
+                .filter(index -> indexCode.equals(index.indexCode()))
+                .filter(index -> index.changeRate() != null
+                        && index.changeRate().compareTo(CIRCUIT_BREAKER_RECOVERY_THRESHOLD) <= 0)
+                .anyMatch(index -> index.marketDataTime() != null
+                        && !index.marketDataTime().isAfter(now.plus(INDEX_TICK_FUTURE_TOLERANCE))
+                        && Duration.between(index.marketDataTime(), now).abs()
+                                .compareTo(CIRCUIT_BREAKER_INDEX_FRESHNESS) <= 0);
+    }
+
+    private boolean hasRecentTradeForMarket(String market) {
+        Instant now = Instant.now(clock);
+        return realtimeMarketDataCache.latestTrades().stream()
+                .filter(tick -> stockMasterRepository.findByCode(tick.stockCode())
+                        .map(stock -> market.equals(stock.market()))
+                        .orElse(false))
+                .map(this::tradeTime)
+                .flatMap(Optional::stream)
+                .anyMatch(tradeTime -> Duration.between(tradeTime, now).abs()
+                        .compareTo(CIRCUIT_BREAKER_TRADE_FRESHNESS) <= 0);
+    }
+
+    private Optional<Instant> tradeTime(KisRealtimeTradeTick tick) {
+        if (tick.businessDate() == null || tick.tradeTime() == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(LocalDateTime.of(
+                            tick.businessDate(),
+                            LocalTime.parse(tick.tradeTime(), KIS_TRADE_TIME))
+                    .atZone(KOREA_ZONE)
+                    .toInstant());
+        } catch (DateTimeParseException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private boolean isRegularMarketSession() {
+        ZonedDateTime now = ZonedDateTime.now(clock).withZoneSameInstant(KOREA_ZONE);
+        LocalTime time = now.toLocalTime();
+        return now.getDayOfWeek().getValue() <= 5
+                && !time.isBefore(REGULAR_MARKET_OPEN)
+                && time.isBefore(REGULAR_MARKET_CLOSE);
     }
 
     private boolean activeStatusCode(String value) {
@@ -1611,10 +1708,23 @@ public class MarketDataService {
             boolean singlePriceTrading,
             String priceLimitState,
             boolean tradingHalted,
+            boolean circuitBreakerActive,
+            String tradingHaltReason,
             String source
     ) {
+        private MarketStatus withCircuitBreaker(String reason, String recoverySource) {
+            return new MarketStatus(
+                    viActive,
+                    singlePriceTrading,
+                    priceLimitState,
+                    true,
+                    true,
+                    reason,
+                    recoverySource);
+        }
+
         private static MarketStatus unavailable() {
-            return new MarketStatus(false, false, "UNKNOWN", false, "MARKET_STATUS_UNAVAILABLE");
+            return new MarketStatus(false, false, "UNKNOWN", false, false, "", "MARKET_STATUS_UNAVAILABLE");
         }
     }
 }

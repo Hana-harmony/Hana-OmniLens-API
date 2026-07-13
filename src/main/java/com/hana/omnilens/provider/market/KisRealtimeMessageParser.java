@@ -24,9 +24,8 @@ public class KisRealtimeMessageParser {
     private static final int TRADE_MIN_FIELD_COUNT = 46;
     private static final int AFTER_HOURS_TRADE_MIN_FIELD_COUNT = 41;
     private static final int INDEX_TRADE_MIN_FIELD_COUNT = 30;
-    private static final int VI_STATUS_INDEX = 43;
-    private static final int SINGLE_PRICE_TRADING_INDEX = 44;
-    private static final int TRADING_HALT_INDEX = 45;
+    private static final int MARKET_STATUS_MIN_FIELD_COUNT = 11;
+    private static final int TRADING_HALT_INDEX = 35;
     private static final int AFTER_HOURS_TRADING_HALT_INDEX = 35;
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter BUSINESS_DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
@@ -48,8 +47,8 @@ public class KisRealtimeMessageParser {
                 .map(fields -> tradeTick(
                         fields,
                         KisRealtimeTradeTick.REGULAR_SESSION,
-                        fields[VI_STATUS_INDEX],
-                        fields[SINGLE_PRICE_TRADING_INDEX],
+                        "",
+                        "",
                         fields[TRADING_HALT_INDEX]));
         if (regularTrade.isPresent()) {
             return regularTrade;
@@ -62,6 +61,23 @@ public class KisRealtimeMessageParser {
                         "",
                         "Y",
                         fields[AFTER_HOURS_TRADING_HALT_INDEX]));
+    }
+
+    public Optional<KisRealtimeMarketStatus> parseMarketStatus(String rawMessage) {
+        return payload(rawMessage, KisRealtimeTransaction.MARKET_STATUS)
+                .filter(fields -> fields.length >= MARKET_STATUS_MIN_FIELD_COUNT)
+                .map(fields -> new KisRealtimeMarketStatus(
+                        fields[0],
+                        fields[1],
+                        fields[2],
+                        fields[3],
+                        fields[4],
+                        fields[5],
+                        fields[6],
+                        fields[7],
+                        fields[8],
+                        fields[9],
+                        fields[10]));
     }
 
     public Optional<KisRealtimeOrderBookSnapshot> parseOrderBook(String rawMessage) {

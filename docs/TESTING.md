@@ -46,8 +46,8 @@ docker compose -f compose.local.yml up -d
 - 시장 데이터 종목 검색 API의 DB seed 데이터 반환
 - KIS Open API 현재가 provider 요청 헤더·쿼리·응답 매핑
 - KIS WebSocket 체결·호가 구독 frame JSON 계약
-- KIS WebSocket `H0STCNT0`, `H0STASP0` 실시간 payload 파싱
-- KIS WebSocket raw message ingestion과 실시간 cache 저장
+- KIS WebSocket `H0STCNT0`, `H0STASP0`, `H0STMKO0` 실시간 payload 파싱과 체결 VI 기준가/거래정지 필드 구분
+- KIS WebSocket raw message ingestion과 실시간 cache 저장, 서킷브레이커 상태 변경 시 체결 없이 quote 발행, 발동 후 재접속 시 실전 지수·시장 체결 공백 기반 상태 복구
 - KIS WebSocket session runner의 disabled no-op, 고정 구독 보호, 40 TR 한도 상세 종목 LRU 교체·해제 frame, 수신 메시지 cache 반영
 - 모의투자 credential의 실전 지수 endpoint 재사용 차단과 명시적 실전 credential 선택
 - 시장 데이터 quote/orderbook의 KIS 실시간 cache 우선 사용

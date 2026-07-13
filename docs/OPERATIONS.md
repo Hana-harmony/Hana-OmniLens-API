@@ -68,9 +68,9 @@ curl http://localhost:8080/api/v1/alerts/watchlists/partner-a \
 ## KIS 실시간 시세 수신
 - 기본값은 `KIS_REALTIME_ENABLED=true`이다.
 - 활성화하면 `KIS_REALTIME_STOCK_CODES`의 종목마다 KIS 실시간 체결과 선택된 호가를, `KIS_REALTIME_INDEX_CODES`의 지수를 구독한다.
-- 수신 메시지는 실시간 cache에 저장되고 quote/orderbook 응답에서 우선 사용된다.
+- 수신 메시지는 실시간 cache에 저장되고 quote/orderbook 응답에서 우선 사용된다. 장운영정보 `H0STMKO0`의 거래정지 사유는 `circuitBreakerActive`, `tradingHalted`, `tradingHaltReason`으로 정규화한다.
 - 장외, 휴장, 초기 구동 등으로 실시간 호가 cache가 비어 있으면 orderbook API는 KIS REST 호가 snapshot을 사용한다.
-- KIS 체결 tick 수신 시 `/ws/market/quotes` raw WebSocket 연결에도 `MarketQuote` JSON을 송신한다.
+- KIS 체결 tick 또는 장운영 상태 변경 수신 시 `/ws/market/quotes` raw WebSocket 연결에도 `MarketQuote` JSON을 송신한다. 거래가 멈춘 서킷브레이커 상태도 다음 체결을 기다리지 않는다.
 - 협력사는 `{"type":"QUOTE_STREAM_REPLAY","currency":"USD","after":"..."}` 메시지로 현재 quote snapshot replay를 요청할 수 있다.
 
 ```text
@@ -114,7 +114,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - 새 전일 snapshot이 저장되면 스케줄러가 제한 종목 전체 history를 Hannah `POST /api/v1/market/foreign-ownership/model/retrain`으로 전송한다. Hannah는 quality gate를 통과한 모델만 promote하고 reload한다.
 - 재학습 호출 이후 `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_ENABLED=true`와 `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_TRIGGER_AFTER_REFRESH=true`이면 제한 종목 금일 예측을 즉시 선계산해 cache에 저장한다. 따라서 장중 모바일 요청은 대부분 미리 계산된 결과만 조회한다.
 - SELL 요청은 외국인 한도소진율이 100% 이상이어도 외국인 한도 경고를 만들지 않는다.
-- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴을 이용해 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단하고, 체결 상태 필드로 `viActive`, `singlePriceTrading`, `tradingHalted`를 계산한다. 실시간 상태 tick이 아직 없으면 `priceLimitState=UNKNOWN`, source `MARKET_STATUS_UNAVAILABLE`로 반환한다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
+- KIS 실시간 체결 cache가 있으면 1호가 공백 패턴으로 `priceLimitState=UPPER_LIMIT|LOWER_LIMIT|NORMAL`을 판단한다. `viActive`, `singlePriceTrading`, `tradingHalted`, `circuitBreakerActive`는 `H0STMKO0` 장운영정보를 우선 사용하며, 체결 `H0STCNT0`의 35번 거래정지 여부만 fallback으로 사용한다. 발동 후 프로세스가 재접속해 `H0STMKO0` 변경 이벤트를 놓친 경우에는 2분 이내 실전 KOSPI/KOSDAQ 지수의 -7.90% 이하 하락과 같은 시장의 20초 이상 체결 부재가 동시에 확인될 때만 서킷 상태를 복구한다. VI 기준가인 45번 필드를 거래정지로 해석하지 않는다. 거래정지 상태가 활성화되면 주문 가능 여부는 `TRADING_HALTED`로 차단한다.
 
 ## 헬스체크
 - `GET /actuator/health`
@@ -130,7 +130,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 
 ## 실시간 시세 수요 구독
 - 인기 10종목은 `OMNILENS_MARKET_KIS_REALTIME_STOCK_CODES`로, KOSPI·KOSDAQ·KOSPI200 지수는 `OMNILENS_MARKET_KIS_REALTIME_INDEX_CODES=0001,1001,2001`로 API 기동 시 KIS WebSocket에 고정 선구독한다.
-- KIS 체결 `H0STCNT0`와 호가 `H0STASP0`의 합산 등록 한도는 40 TR이다. 지수 TR은 이 주식 체결·호가 합산값과 분리해 고정하며, 호가를 켜면 종목당 체결·호가 2 TR을 소비한다.
+- KIS 체결 `H0STCNT0`와 호가 `H0STASP0`의 합산 등록 한도는 40 TR이다. 장운영정보 `H0STMKO0`는 같은 종목 수명주기로 구독·해제하되 체결·호가 40 TR 로테이션 계산에서는 분리한다. 지수 TR도 이 합산값과 분리해 고정하며, 호가를 켜면 종목당 체결·호가 2 TR을 소비한다.
 - 상세 화면처럼 인기 종목 외 종목이 필요하면 협력사는 `/ws/market/quotes`에 아래 메시지를 전송한다.
 
 ```json

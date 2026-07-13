@@ -49,6 +49,18 @@ class RealtimeMarketDataIngestionServiceTest {
     }
 
     @Test
+    void ingestKisMessagePublishesCircuitBreakerStatusWithoutTradeTick() {
+        RealtimeMarketDataIngestionResult result = service.ingestKisMessage(kisFrame(
+                KisRealtimeTransaction.MARKET_STATUS,
+                "005930^Y^서킷브레이커 발동^2^2^0^0^0^0^0^KRX"));
+
+        assertThat(result.type()).isEqualTo(RealtimeMarketDataIngestionResult.Type.MARKET_STATUS);
+        assertThat(cache.latestMarketStatus("005930")).isPresent();
+        assertThat(cache.latestMarketStatus("005930").orElseThrow().circuitBreakerActive()).isTrue();
+        verify(streamingService).publishTick("005930", "USD");
+    }
+
+    @Test
     void ingestKisMessageStoresRealtimeTradeAsMinuteCandle() {
         RealtimeMarketDataCache localCache = new InMemoryRealtimeMarketDataCache();
         MarketQuoteStreamingService localStreamingService = mock(MarketQuoteStreamingService.class);

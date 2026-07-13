@@ -13,12 +13,14 @@ import org.springframework.stereotype.Component;
 import com.hana.omnilens.provider.market.KisRealtimeIndexTick;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
+import com.hana.omnilens.provider.market.KisRealtimeMarketStatus;
 
 @Component
 public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache {
 
     private final Map<String, CachedTradeTick> tradeTicks = new ConcurrentHashMap<>();
     private final Map<String, KisRealtimeOrderBookSnapshot> orderBooks = new ConcurrentHashMap<>();
+    private final Map<String, KisRealtimeMarketStatus> marketStatuses = new ConcurrentHashMap<>();
     private final Map<String, KisRealtimeIndexTick> indices = new ConcurrentHashMap<>();
     private final Clock clock;
 
@@ -56,6 +58,11 @@ public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache 
     }
 
     @Override
+    public Optional<KisRealtimeMarketStatus> latestMarketStatus(String stockCode) {
+        return Optional.ofNullable(marketStatuses.get(stockCode));
+    }
+
+    @Override
     public List<KisRealtimeIndexTick> latestIndices() {
         return indices.values().stream()
                 .sorted(Comparator.comparing(KisRealtimeIndexTick::indexCode))
@@ -79,6 +86,11 @@ public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache 
     }
 
     @Override
+    public void putMarketStatus(KisRealtimeMarketStatus marketStatus) {
+        marketStatuses.put(marketStatus.stockCode(), marketStatus);
+    }
+
+    @Override
     public void putIndex(KisRealtimeIndexTick indexTick) {
         indices.put(indexTick.indexCode(), indexTick);
     }
@@ -87,6 +99,7 @@ public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache 
     public void clear() {
         tradeTicks.clear();
         orderBooks.clear();
+        marketStatuses.clear();
         indices.clear();
     }
 

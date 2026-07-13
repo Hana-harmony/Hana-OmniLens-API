@@ -6,6 +6,7 @@ import java.util.List;
 import com.hana.omnilens.provider.market.KisRealtimeOrderBookSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeIndexTick;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
+import com.hana.omnilens.provider.market.KisRealtimeMarketStatus;
 
 public interface RealtimeMarketDataCache {
 
@@ -15,11 +16,15 @@ public interface RealtimeMarketDataCache {
 
     Optional<KisRealtimeOrderBookSnapshot> latestOrderBook(String stockCode);
 
+    Optional<KisRealtimeMarketStatus> latestMarketStatus(String stockCode);
+
     List<KisRealtimeIndexTick> latestIndices();
 
     void putTrade(KisRealtimeTradeTick tradeTick);
 
     void putOrderBook(KisRealtimeOrderBookSnapshot orderBookSnapshot);
+
+    void putMarketStatus(KisRealtimeMarketStatus marketStatus);
 
     void putIndex(KisRealtimeIndexTick indexTick);
 

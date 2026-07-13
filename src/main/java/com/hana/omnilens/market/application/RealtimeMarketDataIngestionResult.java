@@ -7,6 +7,7 @@ public record RealtimeMarketDataIngestionResult(
     public enum Type {
         TRADE,
         ORDERBOOK,
+        MARKET_STATUS,
         INDEX,
         IGNORED
     }
@@ -17,6 +18,10 @@ public record RealtimeMarketDataIngestionResult(
 
     static RealtimeMarketDataIngestionResult orderBook(String stockCode) {
         return new RealtimeMarketDataIngestionResult(Type.ORDERBOOK, stockCode);
+    }
+
+    static RealtimeMarketDataIngestionResult marketStatus(String stockCode) {
+        return new RealtimeMarketDataIngestionResult(Type.MARKET_STATUS, stockCode);
     }
 
     static RealtimeMarketDataIngestionResult index(String indexCode) {

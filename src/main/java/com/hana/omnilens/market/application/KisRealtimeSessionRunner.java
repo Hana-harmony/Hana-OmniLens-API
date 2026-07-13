@@ -169,7 +169,9 @@ public class KisRealtimeSessionRunner {
                     continue;
                 }
                 List<KisRealtimeSubscriptionFrame> frames = subscriptionFrames(approvalKey, List.of(stockCode), List.of());
-                while (activeStockSubscriptionFrameCount() + newFrames.size() + frames.size() > subscriptionFrameLimit()) {
+                while (activeStockSubscriptionFrameCount()
+                        + quotaFrameCount(newFrames)
+                        + quotaFrameCount(frames) > subscriptionFrameLimit()) {
                     String rotationCandidate = eldestDynamicStockCode();
                     if (rotationCandidate == null) {
                         break;
@@ -177,7 +179,9 @@ public class KisRealtimeSessionRunner {
                     unsubscribeDynamicStock(rotationCandidate, approvalKey);
                     rotatedOut.add(rotationCandidate);
                 }
-                if (activeStockSubscriptionFrameCount() + newFrames.size() + frames.size() > subscriptionFrameLimit()) {
+                if (activeStockSubscriptionFrameCount()
+                        + quotaFrameCount(newFrames)
+                        + quotaFrameCount(frames) > subscriptionFrameLimit()) {
                     rejected.add(stockCode);
                     continue;
                 }
@@ -298,6 +302,11 @@ public class KisRealtimeSessionRunner {
                             stockCode));
                     stockSubscriptionFrameCount++;
                 }
+                frames.add(frameFactory.create(
+                        approvalKey,
+                        KisRealtimeTransaction.MARKET_STATUS,
+                        subscriptionType,
+                        stockCode));
                 continue;
             }
             frames.add(frameFactory.create(
@@ -315,6 +324,11 @@ public class KisRealtimeSessionRunner {
                         stockCode));
                 stockSubscriptionFrameCount++;
             }
+            frames.add(frameFactory.create(
+                    approvalKey,
+                    KisRealtimeTransaction.MARKET_STATUS,
+                    subscriptionType,
+                    stockCode));
         }
         return List.copyOf(frames);
     }
@@ -359,10 +373,30 @@ public class KisRealtimeSessionRunner {
     }
 
     private int activeStockSubscriptionFrameCount() {
-        String indexPrefix = KisRealtimeTransaction.INDEX_TRADE.trId() + ":";
         return (int) activeSubscriptionFrameKeys.stream()
-                .filter(key -> !key.startsWith(indexPrefix))
+                .filter(this::isQuotaFrameKey)
                 .count();
+    }
+
+    private int quotaFrameCount(List<KisRealtimeSubscriptionFrame> frames) {
+        return (int) frames.stream()
+                .map(frame -> frame.body().input().trId())
+                .filter(this::isQuotaTransaction)
+                .count();
+    }
+
+    private boolean isQuotaFrameKey(String frameKey) {
+        int separatorIndex = frameKey.indexOf(':');
+        return separatorIndex > 0 && isQuotaTransaction(frameKey.substring(0, separatorIndex));
+    }
+
+    private boolean isQuotaTransaction(String trId) {
+        return List.of(
+                        KisRealtimeTransaction.TRADE.trId(),
+                        KisRealtimeTransaction.ORDERBOOK.trId(),
+                        KisRealtimeTransaction.AFTER_HOURS_TRADE.trId(),
+                        KisRealtimeTransaction.AFTER_HOURS_ORDERBOOK.trId())
+                .contains(trId);
     }
 
     private List<String> normalizeStockCodes(List<String> requestedStockCodes) {

@@ -66,9 +66,9 @@ class KisRealtimeSessionRunnerTest {
         runner.start();
 
         assertThat(connection.connected).isTrue();
-        assertThat(connection.frames).hasSize(6);
+        assertThat(connection.frames).hasSize(12);
         assertThat(connection.frames).extracting(frame -> frame.body().input().trId())
-                .containsOnly("H0STCNT0");
+                .containsOnly("H0STCNT0", "H0STMKO0");
     }
 
     @Test
@@ -83,11 +83,11 @@ class KisRealtimeSessionRunnerTest {
 
         assertThat(connection.connected).isTrue();
         assertThat(connection.websocketUrl).isEqualTo(URI.create("wss://kis.example/ws"));
-        assertThat(connection.frames).hasSize(4);
+        assertThat(connection.frames).hasSize(6);
         assertThat(connection.frames).extracting(frame -> frame.header().approvalKey())
                 .containsOnly("approval-key");
         assertThat(connection.frames).extracting(frame -> frame.body().input().trId())
-                .containsExactly("H0STCNT0", "H0STASP0", "H0STCNT0", "H0STASP0");
+                .containsExactly("H0STCNT0", "H0STASP0", "H0STMKO0", "H0STCNT0", "H0STASP0", "H0STMKO0");
     }
 
     @Test
@@ -116,9 +116,9 @@ class KisRealtimeSessionRunnerTest {
         runner.start();
 
         assertThat(connection.connected).isTrue();
-        assertThat(connection.frames).hasSize(1);
+        assertThat(connection.frames).hasSize(2);
         assertThat(connection.frames).extracting(frame -> frame.body().input().trId())
-                .containsExactly("H0STCNT0");
+                .containsExactly("H0STCNT0", "H0STMKO0");
     }
 
     @Test
@@ -134,9 +134,9 @@ class KisRealtimeSessionRunnerTest {
         runner.start();
 
         assertThat(connection.connected).isTrue();
-        assertThat(connection.frames).hasSize(2);
+        assertThat(connection.frames).hasSize(3);
         assertThat(connection.frames).extracting(frame -> frame.body().input().trId())
-                .containsExactly("H0STOUP0", "H0STOAA0");
+                .containsExactly("H0STOUP0", "H0STOAA0", "H0STMKO0");
     }
 
     @Test
@@ -152,9 +152,9 @@ class KisRealtimeSessionRunnerTest {
         runner.start();
 
         assertThat(connection.connected).isTrue();
-        assertThat(connection.frames).hasSize(2);
+        assertThat(connection.frames).hasSize(3);
         assertThat(connection.frames).extracting(frame -> frame.body().input().trId())
-                .containsExactly("H0STCNT0", "H0STASP0");
+                .containsExactly("H0STCNT0", "H0STASP0", "H0STMKO0");
     }
 
     @Test
@@ -176,8 +176,8 @@ class KisRealtimeSessionRunnerTest {
         runner.start();
 
         assertThat(connection.connectCount).isEqualTo(1);
-        assertThat(connection.allFrames).hasSize(2);
-        assertThat(connection.frameBatches).extracting(List::size).containsExactly(2);
+        assertThat(connection.allFrames).hasSize(4);
+        assertThat(connection.frameBatches).extracting(List::size).containsExactly(4);
     }
 
     @Test
@@ -200,7 +200,7 @@ class KisRealtimeSessionRunnerTest {
                 List.of("005930"),
                 List.of("0001", "1001", "2001"));
 
-        assertThat(frames).hasSize(4);
+        assertThat(frames).hasSize(5);
         assertThat(frames).extracting(frame -> frame.body().input().trKey())
                 .contains("0001", "1001", "2001", "005930");
     }
@@ -251,9 +251,9 @@ class KisRealtimeSessionRunnerTest {
         assertThat(result.subscribedStockCodes()).containsExactly("000660");
         assertThat(result.alreadySubscribedStockCodes()).containsExactly("005930");
         assertThat(result.unsupportedStockCodes()).containsExactly("999999");
-        assertThat(connection.sentFrames).hasSize(2);
+        assertThat(connection.sentFrames).hasSize(3);
         assertThat(connection.sentFrames).extracting(frame -> frame.body().input().trId())
-                .containsExactly("H0STCNT0", "H0STASP0");
+                .containsExactly("H0STCNT0", "H0STASP0", "H0STMKO0");
         assertThat(connection.sentFrames).extracting(frame -> frame.body().input().trKey())
                 .containsOnly("000660");
     }
@@ -272,7 +272,7 @@ class KisRealtimeSessionRunnerTest {
 
         assertThat(result.subscribedStockCodes()).containsExactly("035420");
         assertThat(result.rotatedOutStockCodes()).containsExactly("000660");
-        assertThat(connection.unsubscribedFrames).hasSize(1);
+        assertThat(connection.unsubscribedFrames).hasSize(2);
         assertThat(connection.unsubscribedFrames.get(0).header().trType()).isEqualTo("2");
         assertThat(connection.unsubscribedFrames.get(0).body().input().trKey()).isEqualTo("000660");
         assertThat(connection.sentFrames.get(connection.sentFrames.size() - 1).body().input().trKey())
