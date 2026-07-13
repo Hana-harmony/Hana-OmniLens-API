@@ -1341,7 +1341,7 @@ class MarketDataServiceTest {
                 1_001L,
                 new BigDecimal("99.475000"),
                 new BigDecimal("99.975000"),
-                new BigDecimal("100.475000"),
+                new BigDecimal("99.995166"),
                 new BigDecimal("0.100000"),
                 new BigDecimal("0.500000"),
                 0L,
@@ -1365,7 +1365,7 @@ class MarketDataServiceTest {
         assertThat(orderability.foreignOwnershipPrediction().confidenceLevel())
                 .isEqualTo("AI_LIMITED_TIME_SERIES");
         assertThat(orderability.foreignOwnershipPrediction().maxForeignLimitExhaustionRate())
-                .isGreaterThan(new BigDecimal("100.0000"));
+                .isEqualByComparingTo("99.995166");
     }
 
     @Test

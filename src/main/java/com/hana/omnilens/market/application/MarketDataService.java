@@ -60,7 +60,7 @@ import com.hana.omnilens.provider.market.PublicDataStockSecuritiesClient;
 public class MarketDataService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
-    private static final BigDecimal FOREIGN_LIMIT_WARNING_RATE = new BigDecimal("100.0000");
+    private static final BigDecimal FOREIGN_LIMIT_WARNING_RATE = new BigDecimal("99.9950");
     private static final Duration PRICE_CACHE_TTL = Duration.ofSeconds(20);
     private static final Duration INDEX_CURRENT_CACHE_TTL = Duration.ofSeconds(20);
     private static final Duration INDEX_TICK_FUTURE_TOLERANCE = Duration.ofMinutes(2);
@@ -448,6 +448,7 @@ public class MarketDataService {
                 prediction.confidenceScore(),
                 prediction.modelVersion(),
                 ownershipSnapshot.map(ForeignOwnershipSnapshot::baseDate).orElse(null),
+                orderability.foreignLimitExceeded(),
                 orderability.viActive(),
                 orderability.singlePriceTrading(),
                 orderability.priceLimitState(),
