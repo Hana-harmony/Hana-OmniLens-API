@@ -24,7 +24,7 @@ docker compose -f compose.local.yml down
 - 민감값은 `${...}` 환경변수 placeholder로만 작성한다.
 - KIS 현재가 provider는 실전 REST domain `https://openapi.koreainvestment.com:9443`을 기본으로 사용한다.
 - KIS 현재가 provider를 사용하려면 `KIS_APP_KEY`, `KIS_APP_SECRET`을 GitHub Secrets에 등록한다. `KIS_ACCESS_TOKEN`은 비워두면 앱이 자동 발급한다.
-- 로컬 Compose는 gitignored `.env.local`에서 `OMNILENS_PROVIDERS_KIS_*`와 `OMNILENS_PROVIDERS_REAL_KIS_*`에 동일한 실전 계정 자격증명을 주입한다. 승인키와 access token은 저장하지 않고 기동 시 발급한다.
+- 로컬 Compose는 gitignored `.env.local`에서 일반 종목용 `OMNILENS_PROVIDERS_KIS_*`에 모의 계정과 모의 endpoint를, 지수 전용 `OMNILENS_PROVIDERS_REAL_KIS_*`에 실전 계정과 실전 endpoint를 각각 주입한다. 승인키와 access token은 저장하지 않고 기동 시 계정별로 발급한다.
 - KIS WebSocket provider는 실전 WebSocket domain `ws://ops.koreainvestment.com:21000`을 기본으로 사용한다.
 - KIS WebSocket provider를 사용하려면 `KIS_WEBSOCKET_URL`을 설정할 수 있다. `KIS_APPROVAL_KEY`는 비워두면 앱이 자동 발급한다.
 - 환율 provider는 `FRANKFURTER_BASE_URL` 하나만 사용한다. Frankfurter public API는 별도 API key가 필요 없다.

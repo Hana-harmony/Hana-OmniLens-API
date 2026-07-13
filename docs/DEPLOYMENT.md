@@ -82,7 +82,8 @@ docker compose -f compose.local.yml up -d
 - `KIS_WEBSOCKET_URL`: KIS 모의투자 WebSocket endpoint 주소. 기본값은 `ws://ops.koreainvestment.com:31000`이다.
 - `KIS_REALTIME_STOCK_CODES`: 기동 시 해제하지 않는 인기 10종목 코드. 기본값은 로컬·운영 설정의 10종목이다.
 - `KIS_REALTIME_INDEX_CODES`: 기동 시 고정 구독하는 KOSPI·KOSDAQ·KOSPI200 코드. 기본값은 `0001,1001,2001`이다.
-- `KIS_REAL_APP_KEY`, `KIS_REAL_APP_SECRET`: 운영 profile의 실전 지수 WebSocket 전용 자격증명이다. 로컬 compose에서 직접 property를 주입할 때는 `OMNILENS_PROVIDERS_REAL_KIS_APP_KEY`, `OMNILENS_PROVIDERS_REAL_KIS_APP_SECRET`을 사용한다. 모의투자 자격증명을 실전 endpoint에 대입하지 않는다.
+- `KIS_ACCOUNT_NUMBER`, `KIS_APP_KEY`, `KIS_APP_SECRET`: 일반 종목 REST·WebSocket용 모의투자 자격증명이다. 로컬 Compose에서는 대응하는 `OMNILENS_PROVIDERS_KIS_*` 변수와 모의 endpoint를 사용한다.
+- `KIS_REAL_ACCOUNT_NUMBER`, `KIS_REAL_APP_KEY`, `KIS_REAL_APP_SECRET`: 실전 지수 WebSocket 전용 자격증명이다. 로컬 Compose에서는 대응하는 `OMNILENS_PROVIDERS_REAL_KIS_*` 변수와 실전 endpoint를 사용한다. 두 계정의 자격증명과 endpoint를 교차 사용하지 않는다.
 - `KIS_REALTIME_SHARD_SIZE`: KIS 연결 하나에서 허용할 주식 체결·호가 등록 TR 상한. provider 한도 보호를 위해 최대 40으로 제한된다.
 - `KIS_REALTIME_ORDER_BOOK_ENABLED`: `true`이면 종목마다 체결과 호가가 각각 1 TR을 사용한다. 고정 universe 이후 남은 슬롯은 상세 종목 LRU로 사용한다.
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.
