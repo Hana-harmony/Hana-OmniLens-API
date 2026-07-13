@@ -43,7 +43,7 @@ docker compose -f compose.local.yml down
 - 번역은 `HANNAH_AI_BASE_URL`의 Hannah `/api/v1/translation/ko-en`만 호출한다. Hannah는 로컬 Qwen 4B GGUF를 사용하며 OmniLens에는 provider 선택값이 없다. 내부 AI 호출은 `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`으로 제한한다. provider 장애, 빈 응답, 한글 잔존 시 원문과 `SOURCE_LANGUAGE_FALLBACK` 또는 `PARTIAL_SOURCE_LANGUAGE_FALLBACK` 상태를 반환하고 이벤트 발행은 중단하지 않는다.
 - watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
 - Hannah-Montana-AI 분석 결과의 `eventConfidence`, `sentimentConfidence`, `importanceConfidence`, `stockMatchConfidence`는 alert REST/WebSocket payload에 그대로 전파한다.
-- Hannah의 중요도는 의미 기반 분류와 파일 기반 K-FNSPID 시장영향 보조 모델을 품질 gate 뒤에서 결합한다. OmniLens는 `financial...|impact:k-fnspid...` 복합 `modelVersion`을 변경하지 않고 REST/WebSocket 이벤트에 전파하며, 시장 시세 데이터셋을 운영 DB에서 다시 export하지 않는다.
+- Hannah의 감성은 KF-DeBERTa LoRA·TF-IDF 확률 앙상블, 중요도는 의미 기반 분류·파일 기반 K-FNSPID 시장영향 보조 모델을 품질 gate 뒤에서 결합한다. OmniLens는 `financial...|sentiment:kf-deberta...|impact:k-fnspid...` 복합 `modelVersion`을 변경하지 않고 REST/WebSocket 이벤트에 전파하며, 시장 시세 데이터셋을 운영 DB에서 다시 export하지 않는다.
 - 주기는 `ALERT_SCHEDULER_FIXED_DELAY_MS`로 조정한다. 기본값은 `300000`이다.
 - 수집 범위는 `ALERT_SCHEDULER_NEWS_DISPLAY`, `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`로 조정한다. 최신 저장 이벤트는 완료 슬롯으로 계산하므로 주기 실행마다 원문과 번역을 다시 요청하지 않는다.
 - 기본 universe는 `ALERT_SCHEDULER_DEFAULT_UNIVERSE_ENABLED`, `ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT`, `ALERT_SCHEDULER_INCLUDE_FOREIGN_OWNERSHIP_RESTRICTED_STOCKS`, `ALERT_SCHEDULER_COLLECTION_BATCH_SIZE`로 조정한다.

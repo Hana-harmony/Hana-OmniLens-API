@@ -40,7 +40,7 @@ public record AlertPublishRequest(
         @Size(max = 40) String translationStatus,
         @Size(max = 128) String duplicateKey,
         @Size(max = 128) String clusterKey,
-        @Size(max = 120) String modelVersion,
+        @Size(max = 240) String modelVersion,
         Double eventConfidence,
         Double sentimentConfidence,
         Double importanceConfidence,
