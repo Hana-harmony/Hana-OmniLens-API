@@ -145,7 +145,7 @@ class KisIndexCurrentPriceClientTest {
     }
 
     @Test
-    void findCurrentIndexUsesPrimaryCredentialWithRealEndpointWhenRealKisCredentialIsEmpty() {
+    void findCurrentIndexDoesNotReuseVirtualCredentialForRealEndpoint() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         ExternalProviderProperties properties = properties(vtsKisWithoutPreissuedKeys(), realEndpointOnlyKis());
@@ -156,32 +156,9 @@ class KisIndexCurrentPriceClientTest {
                 ProviderTestResilience.disabled(),
                 FIXED_CLOCK);
 
-        server.expect(requestTo(containsString("openapi.koreainvestment.com:9443/oauth2/tokenP")))
-                .andRespond(withSuccess("""
-                        {
-                          "access_token": "issued-real-token",
-                          "expires_in": 86400
-                        }
-                        """, APPLICATION_JSON));
-        server.expect(requestTo(containsString("openapi.koreainvestment.com:9443")))
-                .andExpect(requestTo(containsString("/uapi/domestic-stock/v1/quotations/inquire-index-price")))
-                .andExpect(header("authorization", "Bearer issued-real-token"))
-                .andExpect(header("appkey", "vts-kis-app-key"))
-                .andExpect(header("appsecret", "vts-kis-app-secret"))
-                .andRespond(withSuccess("""
-                        {
-                          "rt_cd": "0",
-                          "output": {
-                            "hts_kor_isnm": "KOSPI",
-                            "bstp_nmix_prpr": "2,891.12"
-                          }
-                        }
-                        """, APPLICATION_JSON));
-
         Optional<KisIndexCurrentPriceSnapshot> snapshot = client.findCurrentIndex("0001");
 
-        assertThat(snapshot).isPresent();
-        assertThat(snapshot.orElseThrow().currentValue()).isEqualByComparingTo("2891.12");
+        assertThat(snapshot).isEmpty();
         server.verify();
     }
 

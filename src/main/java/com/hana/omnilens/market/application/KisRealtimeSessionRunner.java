@@ -327,7 +327,9 @@ public class KisRealtimeSessionRunner {
 
     private boolean primaryConnectionCanStreamRealIndex() {
         return KisProviderSupport.realIndexRealtimeProvider(externalProviderProperties)
-                .filter(provider -> KisProviderSupport.isSameProvider(provider, externalProviderProperties.kis()))
+                .filter(provider -> KisProviderSupport.isSameRealtimeIdentity(
+                        provider,
+                        externalProviderProperties.kis()))
                 .isPresent();
     }
 

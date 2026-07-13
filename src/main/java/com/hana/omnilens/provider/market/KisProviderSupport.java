@@ -29,9 +29,6 @@ public final class KisProviderSupport {
         if (primaryRealProvider.isPresent()) {
             return primaryRealProvider.map(KisProviderSupport::withoutPreissuedTokenWhenRefreshable);
         }
-        if (hasRestCredential(properties.kis()) && !isVirtualRestProvider(properties.realKis())) {
-            return Optional.of(realEndpointWithPrimaryCredential(properties.realKis(), properties.kis()));
-        }
         return Optional.empty();
     }
 
@@ -46,9 +43,6 @@ public final class KisProviderSupport {
                 usableProvider(properties.kis(), KisProviderSupport::hasRealtimeCredential, true);
         if (primaryRealProvider.isPresent()) {
             return primaryRealProvider.map(KisProviderSupport::withoutPreissuedApprovalWhenRefreshable);
-        }
-        if (hasRestCredential(properties.kis()) && !isVirtualRealtimeProvider(properties.realKis())) {
-            return Optional.of(realEndpointWithPrimaryCredential(properties.realKis(), properties.kis()));
         }
         return Optional.empty();
     }
@@ -67,10 +61,21 @@ public final class KisProviderSupport {
             ExternalProviderProperties.Kis second) {
         return first.baseUrl().equals(second.baseUrl())
                 && first.websocketUrl().equals(second.websocketUrl())
+                && safeText(first.accountNumber()).equals(safeText(second.accountNumber()))
                 && safeText(first.appKey()).equals(safeText(second.appKey()))
                 && safeText(first.appSecret()).equals(safeText(second.appSecret()))
                 && safeText(first.accessToken()).equals(safeText(second.accessToken()))
                 && safeText(first.approvalKey()).equals(safeText(second.approvalKey()));
+    }
+
+    public static boolean isSameRealtimeIdentity(
+            ExternalProviderProperties.Kis first,
+            ExternalProviderProperties.Kis second) {
+        return first.baseUrl().equals(second.baseUrl())
+                && first.websocketUrl().equals(second.websocketUrl())
+                && safeText(first.accountNumber()).equals(safeText(second.accountNumber()))
+                && safeText(first.appKey()).equals(safeText(second.appKey()))
+                && safeText(first.appSecret()).equals(safeText(second.appSecret()));
     }
 
     private static Optional<ExternalProviderProperties.Kis> usableProvider(
@@ -83,19 +88,6 @@ public final class KisProviderSupport {
                         ? !isVirtualRealtimeProvider(kis)
                         : !isVirtualRestProvider(kis))
                 .findFirst();
-    }
-
-    private static ExternalProviderProperties.Kis realEndpointWithPrimaryCredential(
-            ExternalProviderProperties.Kis realEndpoint,
-            ExternalProviderProperties.Kis credentialSource) {
-        return new ExternalProviderProperties.Kis(
-                realEndpoint.baseUrl(),
-                realEndpoint.websocketUrl(),
-                credentialSource.accountNumber(),
-                credentialSource.appKey(),
-                credentialSource.appSecret(),
-                "",
-                "");
     }
 
     private static ExternalProviderProperties.Kis withoutPreissuedTokenWhenRefreshable(
