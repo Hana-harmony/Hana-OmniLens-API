@@ -2168,8 +2168,8 @@ components:
           type:
             - string
             - "null"
-          maxLength: 120
-          description: AI model version that produced this alert analysis.
+          maxLength: 240
+          description: Composite Hannah model provenance for event, sentiment, and market-impact models. OmniLens propagates it without parsing or rewriting.
         eventConfidence:
           type:
             - number

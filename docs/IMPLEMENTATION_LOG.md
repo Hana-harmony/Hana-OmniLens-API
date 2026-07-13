@@ -1,5 +1,11 @@
 # 구현 기록
 
+## 2026-07-13 · KF-DeBERTa·K-FNSPID 복합 모델 출처 전파
+
+- Hannah의 이벤트·KF-DeBERTa 감성·K-FNSPID 시장영향 복합 `modelVersion`을 파싱·축약하지 않고 REST·WebSocket에 전파한다.
+- 복합 출처가 잘리지 않도록 alert 계약의 최대 길이를 240으로 늘리고 OpenAPI·역직렬화 회귀 테스트를 맞췄다.
+- 대용량 시세·라벨 파일은 Hannah 저장소의 파일 데이터셋으로 유지하고 OmniLens DB export 의존을 추가하지 않았다.
+
 ## 2026-07-13 · K-FNSPID 중요도 모델 버전 전파
 
 - Hannah가 품질 gate를 통과한 파일 기반 K-FNSPID 시장영향 모델을 의미 기반 중요도와 결합한다.
