@@ -54,7 +54,7 @@ public class KisRealtimeIndexSessionRunner {
                 frameFactory,
                 ingestionService,
                 KisProviderSupport.realIndexRealtimeProvider(externalProviderProperties)
-                        .filter(provider -> !KisProviderSupport.isSameProvider(
+                        .filter(provider -> !KisProviderSupport.isSameRealtimeIdentity(
                                 provider,
                                 externalProviderProperties.kis())),
                 restClientBuilder,
@@ -111,7 +111,9 @@ public class KisRealtimeIndexSessionRunner {
             return;
         }
         if (KisProviderSupport.realIndexRealtimeProvider(externalProviderProperties)
-                .filter(provider -> KisProviderSupport.isSameProvider(provider, externalProviderProperties.kis()))
+                .filter(provider -> KisProviderSupport.isSameRealtimeIdentity(
+                        provider,
+                        externalProviderProperties.kis()))
                 .isPresent()) {
             return;
         }

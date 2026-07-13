@@ -144,6 +144,8 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - OmniLens는 인기 종목과 지수 고정 슬롯을 해제하지 않는다. 남은 슬롯은 상세 종목 전용 LRU로 관리하며, 한도에 도달하면 가장 오래 사용하지 않은 상세 종목의 해제 프레임을 먼저 보낸 뒤 새 종목을 등록한다.
 - `POST/DELETE /api/v1/market/stocks/{stockCode}/realtime-subscription`은 상세 화면 진입·이탈 수명주기를 같은 관리자로 전달한다. 요청 직후 현재 REST snapshot도 파트너 WebSocket 세션으로 재송신한다.
 - KIS 연결이 정상 close code로 종료된 경우도 지수 백오프와 jitter로 재연결하고 고정·동적 구독을 복원한다.
+- 모의투자 app key는 실전 지수 endpoint 인증에 재사용하지 않는다. 지수 3개 실시간 구독에는 `real-kis` app key·app secret을 별도로 설정해야 하며, 누락 시 잘못된 승인키로 재시도하지 않고 지수 연결을 비활성화한다.
+- KIS가 `OPSP0011`로 승인키를 거부하면 같은 자격증명으로 재연결을 반복하지 않는다. 일반 원격 종료는 성공 제어 메시지 이후 attempt를 초기화하고, 연속 실패는 누적 attempt의 지수 백오프와 jitter를 적용한다.
 
 ## 한국 증시 시장뉴스
 - 종목별 뉴스·공시는 `/api/v1/alerts/stocks/{stockCode}/events`를 사용하고, 한국 증시 전체 뉴스는 별도 `/api/v1/market/news`를 사용한다.

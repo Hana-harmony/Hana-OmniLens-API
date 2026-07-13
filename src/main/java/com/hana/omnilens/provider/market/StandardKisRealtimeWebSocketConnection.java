@@ -12,6 +12,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -112,7 +113,9 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
                 websocketUrl,
                 subscriptionFrames.size(),
                 reconnectAttempt);
-        webSocketClient.execute(new Handler(websocketUrl, subscriptionFrames, messageConsumer), websocketUrl.toString())
+        webSocketClient.execute(
+                new Handler(websocketUrl, subscriptionFrames, messageConsumer, reconnectAttempt),
+                websocketUrl.toString())
                 .whenComplete((session, exception) -> {
                     if (exception != null) {
                         log.warn("KIS realtime websocket connection failed: {}", rootCauseMessage(exception));
@@ -135,14 +138,18 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
         private final List<KisRealtimeSubscriptionFrame> subscriptionFrames;
         private final Consumer<String> messageConsumer;
         private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
+        private final AtomicBoolean reconnectDisabled = new AtomicBoolean(false);
+        private final AtomicInteger nextReconnectAttempt;
 
         private Handler(
                 URI websocketUrl,
                 List<KisRealtimeSubscriptionFrame> subscriptionFrames,
-                Consumer<String> messageConsumer) {
+                Consumer<String> messageConsumer,
+                int reconnectAttempt) {
             this.websocketUrl = websocketUrl;
             this.subscriptionFrames = subscriptionFrames;
             this.messageConsumer = messageConsumer;
+            this.nextReconnectAttempt = new AtomicInteger(reconnectAttempt + 1);
         }
 
         @Override
@@ -159,6 +166,13 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
         protected void handleTextMessage(WebSocketSession session, TextMessage message) {
             String payload = message.getPayload();
             logKisMessage(session, payload);
+            if (disableReconnectForFatalControlFailure(payload)) {
+                reconnectDisabled.set(true);
+                return;
+            }
+            if (isSuccessfulControlMessage(payload)) {
+                nextReconnectAttempt.set(1);
+            }
             if (respondToPingPong(session, payload)) {
                 return;
             }
@@ -170,7 +184,9 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             log.warn("KIS realtime websocket transport error sessionId={} error={}",
                     session == null ? "" : session.getId(),
                     exception.toString());
-            scheduleReconnectOnce();
+            if (!reconnectDisabled.get()) {
+                scheduleReconnectOnce();
+            }
         }
 
         @Override
@@ -178,12 +194,43 @@ public class StandardKisRealtimeWebSocketConnection implements KisRealtimeWebSoc
             currentSession.compareAndSet(session, null);
             sentSubscriptionKeys.clear();
             log.warn("KIS realtime websocket closed sessionId={} status={}", session.getId(), status);
-            scheduleReconnectOnce();
+            if (!reconnectDisabled.get()) {
+                scheduleReconnectOnce();
+            }
         }
 
         private void scheduleReconnectOnce() {
             if (reconnectScheduled.compareAndSet(false, true)) {
-                scheduleReconnect(websocketUrl, subscriptionFrames, messageConsumer, 1);
+                scheduleReconnect(
+                        websocketUrl,
+                        subscriptionFrames,
+                        messageConsumer,
+                        nextReconnectAttempt.get());
+            }
+        }
+
+        private boolean disableReconnectForFatalControlFailure(String payload) {
+            if (payload == null || !payload.startsWith("{")) {
+                return false;
+            }
+            try {
+                JsonNode root = objectMapper.readTree(payload);
+                String resultCode = root.path("body").path("rt_cd").asText("");
+                String messageCode = root.path("body").path("msg_cd").asText("");
+                return "1".equals(resultCode) && "OPSP0011".equals(messageCode);
+            } catch (Exception exception) {
+                return false;
+            }
+        }
+
+        private boolean isSuccessfulControlMessage(String payload) {
+            if (payload == null || !payload.startsWith("{")) {
+                return false;
+            }
+            try {
+                return "0".equals(objectMapper.readTree(payload).path("body").path("rt_cd").asText(""));
+            } catch (Exception exception) {
+                return false;
             }
         }
 
