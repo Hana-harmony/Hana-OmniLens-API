@@ -10,12 +10,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
@@ -34,6 +37,8 @@ public class KisRealtimeSessionRunner {
 
     private static final Logger log = LoggerFactory.getLogger(KisRealtimeSessionRunner.class);
     private static final int KIS_APP_KEY_SUBSCRIPTION_LIMIT = 40;
+    private static final int MAX_STARTUP_RETRY_DELAY_SECONDS = 30;
+    private static final int STARTUP_RETRY_JITTER_BOUND_SECONDS = 5;
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final LocalTime AFTER_HOURS_OPEN = LocalTime.of(16, 0);
     private static final LocalTime AFTER_HOURS_CLOSE = LocalTime.of(18, 0);
@@ -46,6 +51,8 @@ public class KisRealtimeSessionRunner {
     private final KisRealtimeApprovalKeyProvider approvalKeyProvider;
     private final StockMasterRepository stockMasterRepository;
     private final Clock clock;
+    private final TaskScheduler taskScheduler;
+    private final AtomicBoolean startupRetryScheduled = new AtomicBoolean(false);
     private final Set<String> activeStockCodes = ConcurrentHashMap.newKeySet();
     private final Set<String> activeSubscriptionFrameKeys = ConcurrentHashMap.newKeySet();
     private final Set<String> pinnedStockCodes = ConcurrentHashMap.newKeySet();
@@ -60,7 +67,8 @@ public class KisRealtimeSessionRunner {
             KisRealtimeWebSocketConnection webSocketConnection,
             RealtimeMarketDataIngestionService ingestionService,
             KisRealtimeApprovalKeyProvider approvalKeyProvider,
-            StockMasterRepository stockMasterRepository) {
+            StockMasterRepository stockMasterRepository,
+            TaskScheduler taskScheduler) {
         this(
                 kisRealtimeProperties,
                 externalProviderProperties,
@@ -69,7 +77,8 @@ public class KisRealtimeSessionRunner {
                 ingestionService,
                 approvalKeyProvider,
                 stockMasterRepository,
-                Clock.system(KOREA_ZONE));
+                Clock.system(KOREA_ZONE),
+                taskScheduler);
     }
 
     KisRealtimeSessionRunner(
@@ -81,6 +90,28 @@ public class KisRealtimeSessionRunner {
             KisRealtimeApprovalKeyProvider approvalKeyProvider,
             StockMasterRepository stockMasterRepository,
             Clock clock) {
+        this(
+                kisRealtimeProperties,
+                externalProviderProperties,
+                frameFactory,
+                webSocketConnection,
+                ingestionService,
+                approvalKeyProvider,
+                stockMasterRepository,
+                clock,
+                null);
+    }
+
+    KisRealtimeSessionRunner(
+            KisRealtimeProperties kisRealtimeProperties,
+            ExternalProviderProperties externalProviderProperties,
+            KisRealtimeSubscriptionFrameFactory frameFactory,
+            KisRealtimeWebSocketConnection webSocketConnection,
+            RealtimeMarketDataIngestionService ingestionService,
+            KisRealtimeApprovalKeyProvider approvalKeyProvider,
+            StockMasterRepository stockMasterRepository,
+            Clock clock,
+            TaskScheduler taskScheduler) {
         this.kisRealtimeProperties = kisRealtimeProperties;
         this.externalProviderProperties = externalProviderProperties;
         this.frameFactory = frameFactory;
@@ -89,6 +120,7 @@ public class KisRealtimeSessionRunner {
         this.approvalKeyProvider = approvalKeyProvider;
         this.stockMasterRepository = stockMasterRepository;
         this.clock = clock;
+        this.taskScheduler = taskScheduler;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -103,6 +135,10 @@ public class KisRealtimeSessionRunner {
             log.warn("KIS realtime session runner is enabled but realtime universe is empty");
             return;
         }
+        startSession(stockCodes, indexCodes, 0);
+    }
+
+    private void startSession(List<String> stockCodes, List<String> indexCodes, int retryAttempt) {
         try {
             String approvalKey = approvalKeyProvider.approvalKey();
             List<KisRealtimeSubscriptionFrame> frames = subscriptionFrames(approvalKey, stockCodes, indexCodes);
@@ -124,10 +160,38 @@ public class KisRealtimeSessionRunner {
                     externalProviderProperties.kis().websocketUrl(),
                     frames,
                     ingestionService::ingestKisMessage);
+            startupRetryScheduled.set(false);
         } catch (RuntimeException exception) {
             // 외부 승인키/웹소켓 장애가 API 기동 실패로 전파되지 않게 한다.
             log.warn("KIS realtime session start failed: {}", exception.toString());
+            scheduleStartupRetry(stockCodes, indexCodes, retryAttempt + 1);
         }
+    }
+
+    private void scheduleStartupRetry(
+            List<String> stockCodes,
+            List<String> indexCodes,
+            int retryAttempt) {
+        if (taskScheduler == null || !startupRetryScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        long delaySeconds = startupRetryDelaySeconds(retryAttempt);
+        log.info("Scheduling KIS realtime session startup retry delay={}s retryAttempt={}",
+                delaySeconds,
+                retryAttempt);
+        taskScheduler.schedule(
+                () -> {
+                    startupRetryScheduled.set(false);
+                    startSession(stockCodes, indexCodes, retryAttempt);
+                },
+                clock.instant().plusSeconds(delaySeconds));
+    }
+
+    static long startupRetryDelaySeconds(int retryAttempt) {
+        long exponentialDelay = 1L << Math.min(Math.max(retryAttempt - 1, 0), 5);
+        long jitterBound = Math.min(STARTUP_RETRY_JITTER_BOUND_SECONDS, exponentialDelay);
+        long jitter = ThreadLocalRandom.current().nextLong(jitterBound + 1);
+        return Math.min(exponentialDelay + jitter, MAX_STARTUP_RETRY_DELAY_SECONDS);
     }
 
     public synchronized KisRealtimeDynamicSubscriptionResult subscribeStockCodes(List<String> requestedStockCodes) {

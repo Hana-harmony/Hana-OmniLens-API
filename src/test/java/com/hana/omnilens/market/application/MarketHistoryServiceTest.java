@@ -420,6 +420,34 @@ class MarketHistoryServiceTest {
     }
 
     @Test
+    void getIntradayHistoryReturnsProviderPricesWhenPersistenceFails() {
+        Clock fixedClock = Clock.fixed(Instant.parse("2025-06-05T01:00:30Z"), ZoneId.of("Asia/Seoul"));
+        MarketHistoryService intradayService = intradayService(fixedClock);
+        LocalDate today = LocalDate.of(2025, 6, 5);
+        StockSummary stock = stock();
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(intradayPriceRepository.findByStockCodeAndDate("005930", today, 390)).thenReturn(List.of());
+        when(kisMinuteChartPriceClient.findMinutePrices("005930", today, 390)).thenReturn(List.of(
+                new KisMinuteChartPrice(
+                        today.atTime(9, 1),
+                        new BigDecimal("58000"),
+                        new BigDecimal("58100"),
+                        new BigDecimal("57900"),
+                        new BigDecimal("58050"),
+                        12_345L,
+                        new BigDecimal("716000000"))));
+        when(intradayPriceRepository.upsertAll(anyList()))
+                .thenThrow(new IllegalStateException("database unavailable"));
+
+        List<MarketIntradayPrice> prices = intradayService.getIntradayHistory("005930", today, 390);
+
+        assertThat(prices).hasSize(1);
+        assertThat(prices.get(0).stockCode()).isEqualTo("005930");
+        assertThat(prices.get(0).bucketStart()).isEqualTo(today.atTime(9, 1));
+        assertThat(prices.get(0).source()).isEqualTo("KIS_TIME_ITEM_CHART_PRICE");
+    }
+
+    @Test
     void getIntradayHistoryUsesYahooMinutePricesBeforeKisRestBackfill() {
         Clock fixedClock = Clock.fixed(Instant.parse("2025-06-05T01:00:30Z"), ZoneId.of("Asia/Seoul"));
         MarketHistoryService intradayService = intradayServiceWithYahoo(fixedClock);

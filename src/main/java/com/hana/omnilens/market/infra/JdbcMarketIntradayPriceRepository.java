@@ -1,11 +1,15 @@
 package com.hana.omnilens.market.infra;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+
+import javax.sql.DataSource;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -20,11 +24,41 @@ import com.hana.omnilens.market.domain.MarketIntradayRealtimeTick;
 public class JdbcMarketIntradayPriceRepository implements MarketIntradayPriceRepository {
 
     private static final RowMapper<MarketIntradayPrice> ROW_MAPPER = new MarketIntradayPriceRowMapper();
+    private static final String POSTGRESQL_UPSERT_SQL = """
+            INSERT INTO market_intraday_minute_price (
+                stock_code, bucket_start, trade_date, market,
+                open_price_krw, high_price_krw, low_price_krw, close_price_krw,
+                trading_volume, trading_value_krw, source, collected_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT (stock_code, bucket_start) DO UPDATE SET
+                trade_date = EXCLUDED.trade_date,
+                market = EXCLUDED.market,
+                open_price_krw = EXCLUDED.open_price_krw,
+                high_price_krw = EXCLUDED.high_price_krw,
+                low_price_krw = EXCLUDED.low_price_krw,
+                close_price_krw = EXCLUDED.close_price_krw,
+                trading_volume = EXCLUDED.trading_volume,
+                trading_value_krw = EXCLUDED.trading_value_krw,
+                source = EXCLUDED.source,
+                collected_at = EXCLUDED.collected_at,
+                updated_at = CURRENT_TIMESTAMP
+            """;
+    private static final String H2_UPSERT_SQL = """
+            MERGE INTO market_intraday_minute_price (
+                stock_code, bucket_start, trade_date, market,
+                open_price_krw, high_price_krw, low_price_krw, close_price_krw,
+                trading_volume, trading_value_krw, source, collected_at, updated_at
+            ) KEY (stock_code, bucket_start)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """;
 
     private final JdbcTemplate jdbcTemplate;
+    private final String upsertSql;
 
-    public JdbcMarketIntradayPriceRepository(JdbcTemplate jdbcTemplate) {
+    public JdbcMarketIntradayPriceRepository(JdbcTemplate jdbcTemplate, DataSource dataSource) {
         this.jdbcTemplate = jdbcTemplate;
+        this.upsertSql = resolveUpsertSql(dataSource);
     }
 
     @Override
@@ -35,38 +69,7 @@ public class JdbcMarketIntradayPriceRepository implements MarketIntradayPriceRep
         }
         for (MarketIntradayPrice price : prices) {
             jdbcTemplate.update(
-                    """
-                    MERGE INTO market_intraday_minute_price AS target
-                    USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) AS incoming (
-                        stock_code, bucket_start, trade_date, market,
-                        open_price_krw, high_price_krw, low_price_krw, close_price_krw,
-                        trading_volume, trading_value_krw, source, collected_at
-                    )
-                    ON target.stock_code = incoming.stock_code
-                       AND target.bucket_start = incoming.bucket_start
-                    WHEN MATCHED THEN UPDATE SET
-                        trade_date = incoming.trade_date,
-                        market = incoming.market,
-                        open_price_krw = incoming.open_price_krw,
-                        high_price_krw = incoming.high_price_krw,
-                        low_price_krw = incoming.low_price_krw,
-                        close_price_krw = incoming.close_price_krw,
-                        trading_volume = incoming.trading_volume,
-                        trading_value_krw = incoming.trading_value_krw,
-                        source = incoming.source,
-                        collected_at = incoming.collected_at,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHEN NOT MATCHED THEN INSERT (
-                        stock_code, bucket_start, trade_date, market,
-                        open_price_krw, high_price_krw, low_price_krw, close_price_krw,
-                        trading_volume, trading_value_krw, source, collected_at, updated_at
-                    ) VALUES (
-                        incoming.stock_code, incoming.bucket_start, incoming.trade_date, incoming.market,
-                        incoming.open_price_krw, incoming.high_price_krw, incoming.low_price_krw,
-                        incoming.close_price_krw, incoming.trading_volume, incoming.trading_value_krw,
-                        incoming.source, incoming.collected_at, CURRENT_TIMESTAMP
-                    )
-                    """,
+                    upsertSql,
                     price.stockCode(),
                     Timestamp.valueOf(price.bucketStart()),
                     price.bucketStart().toLocalDate(),
@@ -81,6 +84,20 @@ public class JdbcMarketIntradayPriceRepository implements MarketIntradayPriceRep
                     Timestamp.from(price.collectedAt()));
         }
         return prices.size();
+    }
+
+    private static String resolveUpsertSql(DataSource dataSource) {
+        try (Connection connection = dataSource.getConnection()) {
+            DatabaseMetaData metadata = connection.getMetaData();
+            return switch (metadata.getDatabaseProductName()) {
+                case "PostgreSQL" -> POSTGRESQL_UPSERT_SQL;
+                case "H2" -> H2_UPSERT_SQL;
+                default -> throw new IllegalStateException(
+                        "Unsupported market price database: " + metadata.getDatabaseProductName());
+            };
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to detect market price database", exception);
+        }
     }
 
     @Override

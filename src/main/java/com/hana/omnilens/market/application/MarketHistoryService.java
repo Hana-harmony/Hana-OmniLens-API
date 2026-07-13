@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -224,10 +225,22 @@ public class MarketHistoryService {
                 .filter(price -> isRegularSessionPrice(price) && isMissingSavedBucket(savedPrices, price))
                 .toList();
         if (marketIntradayPriceRepository != null && !fetchedPrices.isEmpty()) {
-            marketIntradayPriceRepository.upsertAll(fetchedPrices);
-            List<MarketIntradayPrice> reloadedPrices =
-                    regularSessionPrices(findSavedIntradayPrices(stockCode, resolvedDate, limit));
-            return reloadedPrices.isEmpty() ? fetchedPrices : reloadedPrices;
+            try {
+                marketIntradayPriceRepository.upsertAll(fetchedPrices);
+                List<MarketIntradayPrice> reloadedPrices =
+                        regularSessionPrices(findSavedIntradayPrices(stockCode, resolvedDate, limit));
+                return reloadedPrices.isEmpty() ? fetchedPrices : reloadedPrices;
+            } catch (RuntimeException exception) {
+                // 저장 장애가 이미 확보한 provider 분봉 응답까지 제거하지 않게 한다.
+                log.warn("Intraday backfill persistence failed stockCode={} date={}, returning provider data",
+                        stockCode,
+                        resolvedDate,
+                        exception);
+                return Stream.concat(savedPrices.stream(), fetchedPrices.stream())
+                        .sorted(Comparator.comparing(MarketIntradayPrice::bucketStart))
+                        .limit(limit)
+                        .toList();
+            }
         }
         return fetchedPrices.isEmpty() ? savedPrices : fetchedPrices;
     }

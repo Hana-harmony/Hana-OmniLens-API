@@ -22,9 +22,10 @@ docker compose -f compose.local.yml down
 ## 운영 설정
 - `src/main/resources/application-prod.yml`은 커밋되는 실제 운영 profile 설정 파일이다.
 - 민감값은 `${...}` 환경변수 placeholder로만 작성한다.
-- KIS 현재가 provider는 모의투자 REST domain `https://openapivts.koreainvestment.com:29443`을 기본으로 사용한다.
+- KIS 현재가 provider는 실전 REST domain `https://openapi.koreainvestment.com:9443`을 기본으로 사용한다.
 - KIS 현재가 provider를 사용하려면 `KIS_APP_KEY`, `KIS_APP_SECRET`을 GitHub Secrets에 등록한다. `KIS_ACCESS_TOKEN`은 비워두면 앱이 자동 발급한다.
-- KIS WebSocket provider는 모의투자 WebSocket domain `ws://ops.koreainvestment.com:31000`을 기본으로 사용한다.
+- 로컬 Compose는 gitignored `.env.local`에서 `OMNILENS_PROVIDERS_KIS_*`와 `OMNILENS_PROVIDERS_REAL_KIS_*`에 동일한 실전 계정 자격증명을 주입한다. 승인키와 access token은 저장하지 않고 기동 시 발급한다.
+- KIS WebSocket provider는 실전 WebSocket domain `ws://ops.koreainvestment.com:21000`을 기본으로 사용한다.
 - KIS WebSocket provider를 사용하려면 `KIS_WEBSOCKET_URL`을 설정할 수 있다. `KIS_APPROVAL_KEY`는 비워두면 앱이 자동 발급한다.
 - 환율 provider는 `FRANKFURTER_BASE_URL` 하나만 사용한다. Frankfurter public API는 별도 API key가 필요 없다.
 - `main` push 시 GitHub Secrets로 원격 서버의 `application-prod.env`를 생성한다.
@@ -107,6 +108,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - 제한이 없는 종목은 Hannah를 호출하지 않고 confidence `FOREIGN_LIMIT_NOT_APPLICABLE`, model version `foreign-ownership-unrestricted-v1`로 현재 snapshot 값을 반환한다.
 - 외국인 한도 예측은 주문 차단 조건이 아니다. 제한 종목의 AI 예측 상단이 화면 표시 기준 `100.00%`로 반올림되는 `99.995%` 이상이면 orderability의 `foreignLimitExceeded=true`와 상세의 `foreignLimitBuyWarning=true`를 반환한다. 이는 BUY 주문이 체결되지 않을 수 있음을 프론트에서 미리 고지하기 위한 경고 신호이며, `orderable=false`는 거래정지 같은 시장 상태 차단에만 사용한다.
 - KIS 실시간 체결가·호가 WebSocket에는 외국인 보유수량, 보유율, 한도소진율 필드가 없다. 외국인 한도 정보는 KRX Data Marketplace snapshot refresh와 Redis/in-memory cache로 공급한다.
+- 고정 WebSocket 구독 밖의 종목 상세 1분봉은 Yahoo Finance를 우선 조회하고 부족한 구간을 KIS REST 분봉으로 장 시작 시각부터 백필한 뒤 PostgreSQL `ON CONFLICT` upsert로 저장한다. 저장소 장애가 발생해도 이미 조회한 provider 분봉을 해당 요청에 반환해 차트와 High/Low/Prev 표시가 빈 상태로 내려가지 않게 한다.
 - 제한 종목 예측은 장전 batch가 Redis/in-memory `ForeignOwnershipPredictionCache`에 선계산한다. Hannah `hannah-foreign-owned-quantity-ml-v2`는 종목별 walk-forward 검증 절대오차 90분위수를 안전 상한으로 두고 최신 60개 관측의 일별 절대변화 90분위수로 현재 변동성 국면을 반영하며, 전체 종목에 동일 비율을 적용하지 않는다. Redis key namespace는 `v2`로 분리해 이전 모델의 넓은 구간이 남지 않게 한다. 모바일 거래소의 `orderability/detail` 요청은 cache를 먼저 읽고, cache miss일 때만 Hannah-Montana-AI `POST /api/v1/market/foreign-ownership/predict`를 호출한다.
 - Hannah 호출 실패, circuit open, 비정상 envelope 응답 시에는 OmniLens 내부 deterministic 시계열 엔진으로 fallback해 응답 계약과 주문 전 확인 흐름을 유지한다.
 - 외국인 보유 일별 history는 `POST /api/v1/market/foreign-ownership/collect`, `POST /api/v1/market/foreign-ownership/backfill`, `ForeignOwnershipRefreshScheduler`가 `foreign_ownership_daily_snapshot`에 upsert한다. 기본 수집 대상은 현재 상장 외국인 취득한도 제한 32종목 allowlist이며, `stockCodes`를 명시한 수동 요청만 별도 종목을 조회한다.
@@ -144,6 +146,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - OmniLens는 인기 종목과 지수 고정 슬롯을 해제하지 않는다. 남은 슬롯은 상세 종목 전용 LRU로 관리하며, 한도에 도달하면 가장 오래 사용하지 않은 상세 종목의 해제 프레임을 먼저 보낸 뒤 새 종목을 등록한다.
 - `POST/DELETE /api/v1/market/stocks/{stockCode}/realtime-subscription`은 상세 화면 진입·이탈 수명주기를 같은 관리자로 전달한다. 요청 직후 현재 REST snapshot도 파트너 WebSocket 세션으로 재송신한다.
 - KIS 연결이 정상 close code로 종료된 경우도 지수 백오프와 jitter로 재연결하고 고정·동적 구독을 복원한다.
+- API 기동 시 승인키 발급이 실패해 WebSocket 연결 전 단계에서 중단된 경우에도 최대 30초의 지수 백오프와 jitter로 승인키 발급부터 다시 시도한다.
 - 모의투자 app key는 실전 지수 endpoint 인증에 재사용하지 않는다. 지수 3개 실시간 구독에는 `real-kis` app key·app secret을 별도로 설정해야 하며, 누락 시 잘못된 승인키로 재시도하지 않고 지수 연결을 비활성화한다.
 - KIS가 `OPSP0011`로 승인키를 거부하면 같은 자격증명으로 재연결을 반복하지 않는다. 일반 원격 종료는 성공 제어 메시지 이후 attempt를 초기화하고, 연속 실패는 누적 attempt의 지수 백오프와 jitter를 적용한다.
 

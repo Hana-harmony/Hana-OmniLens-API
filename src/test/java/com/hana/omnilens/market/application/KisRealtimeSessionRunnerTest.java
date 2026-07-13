@@ -1,7 +1,9 @@
 package com.hana.omnilens.market.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.net.URI;
@@ -14,6 +16,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.scheduling.TaskScheduler;
 
 import com.hana.omnilens.config.ExternalProviderProperties;
 import com.hana.omnilens.config.KisRealtimeProperties;
@@ -219,6 +223,36 @@ class KisRealtimeSessionRunnerTest {
         runner.start();
 
         assertThat(connection.connected).isFalse();
+    }
+
+    @Test
+    void startRetriesFromApprovalKeyStepAfterTransientFailure() {
+        FakeConnection connection = new FakeConnection();
+        TaskScheduler taskScheduler = mock(TaskScheduler.class);
+        KisRealtimeApprovalKeyProvider approvalKeyProvider = mock(KisRealtimeApprovalKeyProvider.class);
+        when(approvalKeyProvider.approvalKey())
+                .thenThrow(new IllegalStateException("approval timeout"))
+                .thenReturn("approval-key");
+        KisRealtimeSessionRunner runner = new KisRealtimeSessionRunner(
+                new KisRealtimeProperties(true, List.of("005930")),
+                externalProviderProperties(),
+                new KisRealtimeSubscriptionFrameFactory(),
+                connection,
+                new RealtimeMarketDataIngestionService(
+                        new KisRealtimeMessageParser(),
+                        new InMemoryRealtimeMarketDataCache(),
+                        mock(MarketQuoteStreamingService.class)),
+                approvalKeyProvider,
+                new InMemoryStockMasterRepository(),
+                REGULAR_MARKET_CLOCK,
+                taskScheduler);
+
+        runner.start();
+        ArgumentCaptor<Runnable> retryTask = ArgumentCaptor.forClass(Runnable.class);
+        verify(taskScheduler).schedule(retryTask.capture(), any(Instant.class));
+        retryTask.getValue().run();
+
+        assertThat(connection.connected).isTrue();
     }
 
     @Test
