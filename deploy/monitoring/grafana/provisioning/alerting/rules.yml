@@ -1,0 +1,168 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: omnilens-production
+    folder: Production
+    interval: 1m
+    rules:
+      - uid: omnilens-api-down
+        title: OmniLens API unavailable
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 180, to: 0}
+            datasourceUid: prometheus
+            model: {expr: 'up{job="hana-omnilens-api"}', instant: true, refId: A}
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions: [{evaluator: {params: [1], type: lt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              refId: B
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: "OmniLens API metrics endpoint is unavailable"}
+        labels: {service: omnilens, severity: critical}
+
+      - uid: omnilens-api-errors
+        title: OmniLens API error logs detected
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 180, to: 0}
+            datasourceUid: prometheus
+            model: {expr: 'sum(increase(logback_events_total{application="hana-omnilens-api",level="error"}[2m]))', instant: true, refId: A}
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              refId: B
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations: {summary: "OmniLens API emitted an ERROR log in the last two minutes"}
+        labels: {service: omnilens, severity: critical}
+
+      - uid: omnilens-public-down
+        title: OmniLens public HTTPS unavailable
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 180, to: 0}
+            datasourceUid: prometheus
+            model: {expr: 'min(probe_success{job="blackbox-https"})', instant: true, refId: A}
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions: [{evaluator: {params: [1], type: lt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              refId: B
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: "OmniLens frontend or API HTTPS probe failed"}
+        labels: {service: omnilens, severity: critical}
+
+      - uid: hannah-ai-down
+        title: Hannah Montana AI unavailable
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 180, to: 0}
+            datasourceUid: prometheus
+            model: {expr: 'up{job="hannah-montana-ai"}', instant: true, refId: A}
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions: [{evaluator: {params: [1], type: lt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              refId: B
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 2m
+        annotations: {summary: "Hannah Montana AI metrics endpoint is unavailable"}
+        labels: {service: hannah-ai, severity: critical}
+
+      - uid: hannah-ai-errors
+        title: Hannah Montana AI error logs detected
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 180, to: 0}
+            datasourceUid: prometheus
+            model: {expr: 'sum(increase(application_log_events_total{level="error"}[2m]))', instant: true, refId: A}
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              refId: B
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations: {summary: "Hannah Montana AI emitted an ERROR log in the last two minutes"}
+        labels: {service: hannah-ai, severity: critical}
+
+      - uid: omnilens-host-disk-low
+        title: OCI host disk space low
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model: {expr: '100 * node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}', instant: true, refId: A}
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions: [{evaluator: {params: [10], type: lt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              refId: B
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        annotations: {summary: "OCI root filesystem has less than 10 percent free space"}
+        labels: {service: omnilens, severity: warning}
+
+      - uid: omnilens-support-errors
+        title: OCI supporting service error logs detected
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: {from: 180, to: 0}
+            datasourceUid: loki
+            model:
+              datasource: {type: loki, uid: loki}
+              editorMode: code
+              expr: 'sum(count_over_time({container=~"hana-omnilens-postgres|hana-omnilens-redis|hannah-qwen"} |~ "(?i)(error|fatal|panic)" [2m]))'
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: range
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource: {type: __expr__, uid: __expr__}
+              expression: A
+              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              refId: B
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations: {summary: "PostgreSQL, Redis, or local Qwen emitted an error log"}
+        labels: {service: omnilens, severity: critical}

@@ -23,13 +23,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 omnilens:
+  observability:
+    discord:
+      webhook-url: ${OMNILENS_DISCORD_WEBHOOK_URL:}
   security:
     api-key-sha256: ${OMNILENS_API_KEY_SHA256:}
     api-key-partner-ids: ${OMNILENS_API_KEY_PARTNER_IDS:stock-exchange}

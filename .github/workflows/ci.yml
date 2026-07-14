@@ -63,12 +63,18 @@ jobs:
           KIS_REAL_APP_KEY: ${{ secrets.KIS_REAL_APP_KEY }}
           KIS_REAL_APP_SECRET: ${{ secrets.KIS_REAL_APP_SECRET }}
           LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+          OMNILENS_DISCORD_WEBHOOK: ${{ secrets.OMNILENS_DISCORD_WEBHOOK_URL }}
+          HANNAH_DISCORD_WEBHOOK: ${{ secrets.HANNAH_DISCORD_WEBHOOK_URL }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
-          for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_HOST_KEY GHCR_USERNAME GHCR_TOKEN DB_PASSWORD REDIS_PASSWORD API_KEY_SHA256 PORTAL_SESSION_KEY PORTAL_ENCRYPTION_KEY PORTAL_BOOTSTRAP_PASSWORD TERM_SALT AI_TOKEN PUBLIC_DATA_KEY NAVER_ID NAVER_SECRET OPEN_DART_KEY KRX_ID KRX_PASSWORD KRX_OPEN_API_KEY KIS_ACCOUNT KIS_APP_KEY KIS_APP_SECRET KIS_REAL_ACCOUNT KIS_REAL_APP_KEY KIS_REAL_APP_SECRET LETSENCRYPT_EMAIL; do
+          for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_HOST_KEY GHCR_USERNAME GHCR_TOKEN DB_PASSWORD REDIS_PASSWORD API_KEY_SHA256 PORTAL_SESSION_KEY PORTAL_ENCRYPTION_KEY PORTAL_BOOTSTRAP_PASSWORD TERM_SALT AI_TOKEN PUBLIC_DATA_KEY NAVER_ID NAVER_SECRET OPEN_DART_KEY KRX_ID KRX_PASSWORD KRX_OPEN_API_KEY KIS_ACCOUNT KIS_APP_KEY KIS_APP_SECRET KIS_REAL_ACCOUNT KIS_REAL_APP_KEY KIS_REAL_APP_SECRET LETSENCRYPT_EMAIL OMNILENS_DISCORD_WEBHOOK HANNAH_DISCORD_WEBHOOK GRAFANA_ADMIN_PASSWORD; do
             : "${!name:?${name} is required}"
           done
           [[ "${#DB_PASSWORD}" -ge 32 && "${DB_PASSWORD}" != *[[:space:]]* ]]
           [[ "${#REDIS_PASSWORD}" -ge 32 && "${REDIS_PASSWORD}" != *[[:space:]]* ]]
+          [[ "${#GRAFANA_ADMIN_PASSWORD}" -ge 32 ]]
+          [[ "${OMNILENS_DISCORD_WEBHOOK}" == https://discord.com/api/webhooks/* ]]
+          [[ "${HANNAH_DISCORD_WEBHOOK}" == https://discord.com/api/webhooks/* ]]
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
       - name: 이미지 이름 설정
         run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
@@ -115,6 +121,9 @@ jobs:
           KIS_REAL_ACCOUNT: ${{ secrets.KIS_REAL_ACCOUNT_NUMBER }}
           KIS_REAL_APP_KEY: ${{ secrets.KIS_REAL_APP_KEY }}
           KIS_REAL_APP_SECRET: ${{ secrets.KIS_REAL_APP_SECRET }}
+          OMNILENS_DISCORD_WEBHOOK: ${{ secrets.OMNILENS_DISCORD_WEBHOOK_URL }}
+          HANNAH_DISCORD_WEBHOOK: ${{ secrets.HANNAH_DISCORD_WEBHOOK_URL }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
           printf '%s\n' \
             'JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError' \
@@ -148,6 +157,7 @@ jobs:
             "KIS_REAL_ACCOUNT_NUMBER=${KIS_REAL_ACCOUNT}" \
             "KIS_REAL_APP_KEY=${KIS_REAL_APP_KEY}" \
             "KIS_REAL_APP_SECRET=${KIS_REAL_APP_SECRET}" \
+            "OMNILENS_DISCORD_WEBHOOK_URL=${OMNILENS_DISCORD_WEBHOOK}" \
             > application.env
           printf '%s\n' \
             "IMAGE=${IMAGE_NAME}:${GITHUB_SHA}" \
@@ -156,12 +166,20 @@ jobs:
             > deploy.env
           printf '%s' "${DB_PASSWORD}" > postgres-password
           printf 'user default off\nuser omnilens_app reset on >%s ~omnilens:* &* +@connection +@read +@write +@scripting -@dangerous\n' "${REDIS_PASSWORD}" > redis-users.acl
-          chmod 600 application.env deploy.env postgres-password redis-users.acl
+          printf '%s\n' \
+            "GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}" \
+            "OMNILENS_DISCORD_WEBHOOK_URL=${OMNILENS_DISCORD_WEBHOOK}" \
+            "HANNAH_DISCORD_WEBHOOK_URL=${HANNAH_DISCORD_WEBHOOK}" \
+            > monitoring.env
+          chmod 600 application.env deploy.env monitoring.env postgres-password redis-users.acl
       - name: OCI 운영 배포
         run: |
-          ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 700 /opt/hana-omnilens-api'
-          scp -i ~/.ssh/prod_key application.env deploy.env postgres-password redis-users.acl scripts/deploy-prod.sh scripts/bootstrap-host.sh scripts/bootstrap-data-services.sh scripts/bootstrap-https.sh scripts/backup-postgres.sh deploy/compose/hana-omnilens-data.yml deploy/nginx/hana-omnilens-api.conf deploy/nginx/bootstrap-http.conf deploy/systemd/hana-omnilens-postgres-backup.service deploy/systemd/hana-omnilens-postgres-backup.timer '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/hana-omnilens-api/'
+          ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 700 /opt/hana-omnilens-api /opt/hana-omnilens-api/deploy /opt/hana-omnilens-api/deploy/systemd'
+          scp -i ~/.ssh/prod_key application.env deploy.env monitoring.env postgres-password redis-users.acl scripts/deploy-prod.sh scripts/bootstrap-host.sh scripts/bootstrap-data-services.sh scripts/bootstrap-https.sh scripts/bootstrap-monitoring.sh scripts/backup-postgres.sh deploy/compose/hana-omnilens-data.yml deploy/nginx/hana-omnilens-api.conf deploy/nginx/bootstrap-http.conf deploy/systemd/hana-omnilens-postgres-backup.service deploy/systemd/hana-omnilens-postgres-backup.timer '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/hana-omnilens-api/'
+          scp -r -i ~/.ssh/prod_key deploy/monitoring '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/hana-omnilens-api/deploy/'
+          scp -i ~/.ssh/prod_key deploy/systemd/hana-omnilens-monitoring.service '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/hana-omnilens-api/deploy/systemd/'
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/bootstrap-host.sh && /opt/hana-omnilens-api/bootstrap-host.sh'
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/bootstrap-data-services.sh && /opt/hana-omnilens-api/bootstrap-data-services.sh'
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' "if [ ! -f /etc/letsencrypt/live/api.hanaomilens.cloud/fullchain.pem ]; then chmod 700 /opt/hana-omnilens-api/bootstrap-https.sh && LETSENCRYPT_EMAIL='${{ secrets.LETSENCRYPT_EMAIL }}' /opt/hana-omnilens-api/bootstrap-https.sh; fi"
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/deploy-prod.sh && /opt/hana-omnilens-api/deploy-prod.sh'
+          ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/bootstrap-monitoring.sh && /opt/hana-omnilens-api/bootstrap-monitoring.sh'
