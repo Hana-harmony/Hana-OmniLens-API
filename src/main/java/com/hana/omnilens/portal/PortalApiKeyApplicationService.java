@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.hana.omnilens.common.exception.BusinessException;
 import com.hana.omnilens.common.exception.ErrorCode;
+import com.hana.omnilens.observability.BusinessEventPublisher;
 import com.hana.omnilens.security.PartnerCredentialRotationResult;
 import com.hana.omnilens.security.PartnerCredentialRotationService;
 
@@ -19,14 +20,17 @@ public class PortalApiKeyApplicationService {
     private final PortalApiKeyApplicationRepository applicationRepository;
     private final PartnerCredentialRotationService credentialRotationService;
     private final PortalSecretCipher secretCipher;
+    private final BusinessEventPublisher businessEventPublisher;
 
     public PortalApiKeyApplicationService(
             PortalApiKeyApplicationRepository applicationRepository,
             PartnerCredentialRotationService credentialRotationService,
-            PortalSecretCipher secretCipher) {
+            PortalSecretCipher secretCipher,
+            BusinessEventPublisher businessEventPublisher) {
         this.applicationRepository = applicationRepository;
         this.credentialRotationService = credentialRotationService;
         this.secretCipher = secretCipher;
+        this.businessEventPublisher = businessEventPublisher;
     }
 
     @Transactional
@@ -48,6 +52,7 @@ public class PortalApiKeyApplicationService {
                     terminal.applicationId(), terminal.userId(), terminal.partnerId(), ApiKeyApplicationStatus.PENDING,
                     now, null, null, null, null, null, now);
             applicationRepository.resubmit(resubmitted);
+            publishApplicationEvent("portal.api_key.requested", "API 이용 재신청", resubmitted);
             return resubmitted;
         }
         PortalApiKeyApplication application = new PortalApiKeyApplication(
@@ -63,6 +68,7 @@ public class PortalApiKeyApplicationService {
                 null,
                 now);
         applicationRepository.save(application);
+        publishApplicationEvent("portal.api_key.requested", "API 이용 신청", application);
         return application;
     }
 
@@ -80,6 +86,7 @@ public class PortalApiKeyApplicationService {
             PortalApiKeyApplication revoked = reviewed(application, ApiKeyApplicationStatus.REVOKED,
                     administrator.userId(), null, null, null, now);
             applicationRepository.update(revoked);
+            publishApplicationEvent("portal.api_key.revoked", "API 키 폐기 승인", revoked);
             return revoked;
         }
         PartnerCredentialRotationResult issued = credentialRotationService.rotate(application.partnerId());
@@ -88,6 +95,7 @@ public class PortalApiKeyApplicationService {
                 application.requestedAt(), now, administrator.userId(), secretCipher.encrypt(issued.apiKey()),
                 issued.apiKeySha256Prefix(), null, now);
         applicationRepository.update(approved);
+        publishApplicationEvent("portal.api_key.approved", "API 이용 신청 승인", approved);
         return approved;
     }
 
@@ -106,6 +114,7 @@ public class PortalApiKeyApplicationService {
         PortalApiKeyApplication rejected = reviewed(application, rejectedStatus, administrator.userId(),
                 application.encryptedApiKey(), application.apiKeySha256Prefix(), reason.trim(), now);
         applicationRepository.update(rejected);
+        publishApplicationEvent("portal.api_key.reviewed", "API 이용 신청 검토", rejected);
         return rejected;
     }
 
@@ -223,5 +232,12 @@ public class PortalApiKeyApplicationService {
             Instant now) {
         return new PortalApiKeyApplication(application.applicationId(), application.userId(), application.partnerId(), status,
                 application.requestedAt(), now, reviewer, encryptedApiKey, prefix, reason, now);
+    }
+
+    private void publishApplicationEvent(String type, String title, PortalApiKeyApplication application) {
+        businessEventPublisher.publish(type, title, java.util.Map.of(
+                "applicationId", application.applicationId(),
+                "partnerId", application.partnerId(),
+                "status", application.status().name()));
     }
 }

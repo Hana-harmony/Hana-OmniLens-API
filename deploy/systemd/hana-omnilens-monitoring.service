@@ -1,0 +1,18 @@
+[Unit]
+Description=Hana OmniLens observability stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/hana-omnilens-api
+ExecStart=/usr/bin/docker compose --env-file monitoring.env -f deploy/monitoring/compose.yml up -d --remove-orphans
+ExecReload=/usr/bin/docker compose --env-file monitoring.env -f deploy/monitoring/compose.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file monitoring.env -f deploy/monitoring/compose.yml stop
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

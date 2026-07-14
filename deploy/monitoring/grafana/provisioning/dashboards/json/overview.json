@@ -1,0 +1,18 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {"type": "stat", "title": "OmniLens API", "id": 1, "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "up{job=\"hana-omnilens-api\"}", "refId": "A"}]},
+    {"type": "stat", "title": "Hannah AI", "id": 2, "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "up{job=\"hannah-montana-ai\"}", "refId": "A"}]},
+    {"type": "timeseries", "title": "API ERROR logs", "id": 3, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "sum(rate(logback_events_total{level=\"error\"}[5m]))", "refId": "A"}, {"expr": "sum(rate(application_log_events_total{level=\"error\"}[5m]))", "refId": "B"}]},
+    {"type": "timeseries", "title": "Host memory available", "id": 4, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "node_memory_MemAvailable_bytes", "refId": "A"}]},
+    {"type": "timeseries", "title": "Root disk available percent", "id": 5, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "100 * node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}", "refId": "A"}]}
+  ],
+  "schemaVersion": 42,
+  "tags": ["production", "omnilens"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "Hana OmniLens Operations",
+  "uid": "hana-omnilens-operations",
+  "version": 1
+}

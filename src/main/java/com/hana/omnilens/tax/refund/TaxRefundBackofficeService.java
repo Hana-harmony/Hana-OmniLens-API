@@ -12,13 +12,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.hana.omnilens.common.exception.BusinessException;
 import com.hana.omnilens.common.exception.ErrorCode;
+import com.hana.omnilens.observability.BusinessEventPublisher;
 
 @Service
 public class TaxRefundBackofficeService {
 
     private final TaxRefundBackofficeRepository repository;
+    private final BusinessEventPublisher businessEventPublisher;
 
-    public TaxRefundBackofficeService(TaxRefundBackofficeRepository repository) { this.repository = repository; }
+    public TaxRefundBackofficeService(
+            TaxRefundBackofficeRepository repository,
+            BusinessEventPublisher businessEventPublisher) {
+        this.repository = repository;
+        this.businessEventPublisher = businessEventPublisher;
+    }
 
     @Transactional
     public TaxRefundCaseSyncResponse sync(TaxRefundCaseSyncRequest request) {
@@ -34,6 +41,12 @@ public class TaxRefundBackofficeService {
                 current == null ? null : current.correctionPreparedAt(),
                 current == null ? null : current.approvedAt()));
         repository.replaceDocumentContents(request.caseId(), request.verifiedDocuments());
+        if (current == null) {
+            businessEventPublisher.publish("tax.refund_case.received", "세무 환급 신청 접수", Map.of(
+                    "caseId", request.caseId(),
+                    "taxYear", request.taxYear(),
+                    "status", status));
+        }
         return new TaxRefundCaseSyncResponse(request.caseId(), status, now, "HANA_OMNILENS_BACKOFFICE");
     }
 
@@ -54,7 +67,12 @@ public class TaxRefundBackofficeService {
             throw new BusinessException(ErrorCode.TAX_CORRECTION_NOT_PREPARED);
         }
         repository.approve(caseId, administratorId, now);
-        return caseById(caseId);
+        TaxRefundBackofficeCase approved = caseById(caseId);
+        businessEventPublisher.publish("tax.correction.approved", "세무 경정청구 승인", Map.of(
+                "caseId", approved.caseId(),
+                "taxYear", approved.taxYear(),
+                "status", approved.correctionRequestStatus()));
+        return approved;
     }
 
     public void savePreparedCorrection(String caseId, Map<String, String> fields, byte[] pdf, String administratorId) {

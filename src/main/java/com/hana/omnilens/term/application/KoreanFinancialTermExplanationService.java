@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 
 import com.hana.omnilens.provider.ProviderCircuitOpenException;
+import com.hana.omnilens.observability.BusinessEventPublisher;
 import com.hana.omnilens.provider.ai.HannahAiFinancialTermEvidence;
 import com.hana.omnilens.provider.ai.HannahAiKoreanFinancialTermClient;
 import com.hana.omnilens.provider.ai.HannahAiKoreanFinancialTermExplainRequest;
@@ -41,24 +42,28 @@ public class KoreanFinancialTermExplanationService {
     private final HannahAiKoreanFinancialTermClient hannahAiClient;
     private final Clock clock;
     private final String analyticsHashSalt;
+    private final BusinessEventPublisher businessEventPublisher;
 
     @Autowired
     public KoreanFinancialTermExplanationService(
             KoreanFinancialTermExplanationRepository repository,
             HannahAiKoreanFinancialTermClient hannahAiClient,
-            @Value("${omnilens.term.analytics.hash-salt:local-term-analytics-salt}") String analyticsHashSalt) {
-        this(repository, hannahAiClient, Clock.systemUTC(), analyticsHashSalt);
+            @Value("${omnilens.term.analytics.hash-salt:local-term-analytics-salt}") String analyticsHashSalt,
+            BusinessEventPublisher businessEventPublisher) {
+        this(repository, hannahAiClient, Clock.systemUTC(), analyticsHashSalt, businessEventPublisher);
     }
 
     KoreanFinancialTermExplanationService(
             KoreanFinancialTermExplanationRepository repository,
             HannahAiKoreanFinancialTermClient hannahAiClient,
             Clock clock,
-            String analyticsHashSalt) {
+            String analyticsHashSalt,
+            BusinessEventPublisher businessEventPublisher) {
         this.repository = repository;
         this.hannahAiClient = hannahAiClient;
         this.clock = clock;
         this.analyticsHashSalt = analyticsHashSalt == null ? "" : analyticsHashSalt;
+        this.businessEventPublisher = businessEventPublisher;
     }
 
     public KoreanFinancialTermExplanation explain(KoreanFinancialTermExplainRequest request) {
@@ -82,6 +87,11 @@ public class KoreanFinancialTermExplanationService {
                 cacheHit,
                 now);
         long clickCount = repository.recordClick(clickLog);
+        businessEventPublisher.publish("term.explanation.clicked", "금융 용어 설명 클릭", java.util.Map.of(
+                "termHash", saltedHash("discord-term|" + canonicalNormalizedTerm).substring(0, 16),
+                "source", explanation.source(),
+                "cacheHit", cacheHit,
+                "clickCount", clickCount));
         return explanation.withAnalytics(cacheHit, clickCount);
     }
 

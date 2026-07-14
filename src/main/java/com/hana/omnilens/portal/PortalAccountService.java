@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import com.hana.omnilens.common.exception.BusinessException;
 import com.hana.omnilens.common.exception.ErrorCode;
+import com.hana.omnilens.observability.BusinessEventPublisher;
 
 @Service
 public class PortalAccountService {
@@ -19,14 +20,17 @@ public class PortalAccountService {
     private final PortalTokenService tokenService;
     private final PasswordEncoder passwordEncoder;
     private final String dummyPasswordHash;
+    private final BusinessEventPublisher businessEventPublisher;
 
     public PortalAccountService(
             PortalUserRepository userRepository,
             PortalTokenService tokenService,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            BusinessEventPublisher businessEventPublisher) {
         this.userRepository = userRepository;
         this.tokenService = tokenService;
         this.passwordEncoder = passwordEncoder;
+        this.businessEventPublisher = businessEventPublisher;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-not-used");
     }
 
@@ -54,6 +58,9 @@ public class PortalAccountService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.PORTAL_USER_ALREADY_EXISTS);
         }
+        businessEventPublisher.publish("portal.user.signup", "신규 회원 가입", java.util.Map.of(
+                "userId", user.userId(),
+                "role", user.role().name()));
         return session(user);
     }
 
