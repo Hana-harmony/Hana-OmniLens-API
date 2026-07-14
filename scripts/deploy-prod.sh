@@ -78,8 +78,10 @@ install_nginx_config() {
     had_server=true
   fi
 
-  printf 'upstream hana_omnilens_api { server 127.0.0.1:%s; keepalive 64; }\n' "${APP_PORT}" +    > "${backup_dir}/new-upstream.conf"
-  if ! sudo install -o root -g root -m 0644 "${backup_dir}/new-upstream.conf" "${upstream_path}" +    || ! sudo install -o root -g root -m 0644 "${APP_DIR}/hana-omnilens-api.conf" "${server_path}" +    || ! sudo nginx -t; then
+  printf 'upstream hana_omnilens_api { server 127.0.0.1:%s; keepalive 64; }\n' "${APP_PORT}" > "${backup_dir}/new-upstream.conf"
+  if ! sudo install -o root -g root -m 0644 "${backup_dir}/new-upstream.conf" "${upstream_path}" \
+    || ! sudo install -o root -g root -m 0644 "${APP_DIR}/hana-omnilens-api.conf" "${server_path}" \
+    || ! sudo nginx -t; then
     if [[ "${had_upstream}" == true ]]; then
       sudo install -o root -g root -m 0644 "${backup_dir}/upstream.conf" "${upstream_path}"
     else
