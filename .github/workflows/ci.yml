@@ -125,7 +125,7 @@ jobs:
             "OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY=${PORTAL_ENCRYPTION_KEY}" \
             "OMNILENS_TERM_ANALYTICS_HASH_SALT=${TERM_SALT}" \
             "HANNAH_AI_MAINTENANCE_TOKEN=${AI_TOKEN}" \
-            'HANNAH_AI_BASE_URL=http://host.docker.internal:18090' \
+            'HANNAH_AI_BASE_URL=http://hannah-montana-ai:8000' \
             'DB_URL=jdbc:postgresql://hana-omnilens-postgres:5432/omnilens' \
             'DB_USERNAME=omnilens_app' \
             "DB_PASSWORD=${DB_PASSWORD}" \
@@ -154,7 +154,7 @@ jobs:
           printf '%s' "${DB_PASSWORD}" > postgres-password
           printf 'user default off\nuser omnilens_app reset on >%s ~omnilens:* &* +@connection +@read +@write +@scripting -@dangerous\n' "${REDIS_PASSWORD}" > redis-users.acl
           chmod 600 application.env deploy.env postgres-password redis-users.acl
-      - name: OCI 무중단 배포
+      - name: OCI 운영 배포
         run: |
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 700 /opt/hana-omnilens-api'
           scp -i ~/.ssh/prod_key application.env deploy.env postgres-password redis-users.acl scripts/deploy-prod.sh scripts/bootstrap-host.sh scripts/bootstrap-data-services.sh scripts/bootstrap-https.sh scripts/backup-postgres.sh deploy/compose/hana-omnilens-data.yml deploy/nginx/hana-omnilens-api.conf deploy/nginx/bootstrap-http.conf deploy/systemd/hana-omnilens-postgres-backup.service deploy/systemd/hana-omnilens-postgres-backup.timer '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/hana-omnilens-api/'
