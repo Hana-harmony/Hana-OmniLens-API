@@ -1,6 +1,7 @@
 package com.hana.omnilens.provider.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.MediaType.APPLICATION_OCTET_STREAM;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -14,9 +15,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hana.omnilens.provider.ProviderTestResilience;
 
 class HannahAiAnalysisClientTest {
+
+    @Test
+    void rejectsPartialMarketImpactPayloadAtProviderBoundary() {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        assertThatThrownBy(() -> objectMapper.readValue("""
+                {
+                  "market_impact_importance": "HIGH",
+                  "market_impact_score": 0.8
+                }
+                """, HannahAiAnalysisResponse.class))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("market impact fields must be all present or all absent");
+    }
 
     @Test
     void analyzeUsesInternalAiContractWithoutServiceToken() {
@@ -46,6 +62,9 @@ class HannahAiAnalysisClientTest {
                             "event_tags": ["EARNINGS"],
                             "sentiment": "POSITIVE",
                             "importance": "HIGH",
+                            "market_impact_importance": "MEDIUM",
+                            "market_impact_score": 0.42,
+                            "market_impact_confidence": 0.81,
                             "related_stocks": ["005930"],
                             "holder_target": true,
                             "watchlist_target": true,
@@ -83,6 +102,9 @@ class HannahAiAnalysisClientTest {
         assertThat(response.stockCode()).isEqualTo("005930");
         assertThat(response.eventTags()).containsExactly("EARNINGS");
         assertThat(response.sentiment()).isEqualTo("POSITIVE");
+        assertThat(response.marketImpactImportance()).isEqualTo("MEDIUM");
+        assertThat(response.marketImpactScore()).isEqualTo(0.42);
+        assertThat(response.marketImpactConfidence()).isEqualTo(0.81);
         assertThat(response.holderTarget()).isTrue();
         assertThat(response.glossaryTerms()).hasSize(1);
         assertThat(response.glossaryTerms().get(0).englishTerm()).isEqualTo("earnings");

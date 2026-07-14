@@ -1,5 +1,18 @@
 # 구현 기록
 
+## 2026-07-13 · Hana Montana AI(KF-DeBERTa + K-FNSPID) v3 문서 동기화
+
+- 서비스 모델명을 `Hana Montana AI(KF-DeBERTa + K-FNSPID)`로 통일했다.
+- K-FNSPID v3의 550,662문서·10,691,998행 일별 시세·공시 원문 보유 문서 8,972건은 Hannah 저장소 정본으로 유지한다. 내부 운영 공시 4건을 더한 전체본문 학습자료는 공시 8,976건이며, 기본 뉴스/공시 Gold 680건과 학습 비중복 공시 stress Gold 310건을 별도로 검증한다.
+- 시장영향 KF-DeBERTa는 Validation 전용 class-prior 보정을 포함하며 OmniLens는 보정 완료된 독립 시장영향 필드와 복합 모델 버전을 그대로 전파한다.
+- seed 17/42/73 중 Validation으로 선택된 seed 73 시장영향 모델의 시간 Test 10,750건 성능은 accuracy 0.5095 / macro F1 0.3820 / QWK 0.4694이며, OmniLens는 이 버전을 파싱하거나 축약하지 않는다.
+- 공시 의미 중요도는 Gold를 보지 않고 2026 Validation의 macro F1·Brier score로 제목+요약 뷰를 선택한다. 모델 단독 기본 Gold 600건은 accuracy 0.9850 / macro F1 0.9470이고, 존속위험 정책을 포함한 기본+stress Gold 910건은 0.9989 / 0.9962다. 기존 로직 대비 정확도 차이 95% bootstrap CI [0.0747, 0.1132], macro F1 차이 CI [0.1420, 0.2132], McNemar p=1.14e-24다.
+- OmniLens는 모델 학습이나 시세 dataset export를 구현하지 않고 Hannah의 복합 `modelVersion`과 분석 결과를 무손실 전파한다.
+- 의미 중요도와 예측 가격충격을 분리해 `importance`와 `marketImpactImportance/Score/Confidence`로 각각 전파한다.
+- 정적 OpenAPI에 전문·What/Why/Impact·본문 가용상태·중복 cluster와 세 시장영향 필드를 모두 반영하고 문서 회귀 테스트로 고정했다. 거래소 백엔드용 raw WebSocket에도 시장영향·confidence·복합 모델 출처를 추가해 REST·STOMP·raw stream이 같은 신호를 보존한다.
+- 시장영향 등급·점수·confidence는 모두 제공하거나 모두 생략하도록 요청 검증을 추가하고, 미제공 raw WebSocket 등급은 빈 문자열이 아닌 `null`로 전파한다.
+- AI provider 응답 생성 경계에서도 시장영향 3개 필드의 all-or-none, 등급, 0~1 범위를 검증해 내부 생성 경로가 Bean Validation을 우회하지 못하게 했다.
+
 ## 2026-07-13 · KF-DeBERTa·K-FNSPID 복합 모델 출처 전파
 
 - Hannah의 이벤트·KF-DeBERTa 감성·K-FNSPID 시장영향 복합 `modelVersion`을 파싱·축약하지 않고 REST·WebSocket에 전파한다.

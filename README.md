@@ -6,8 +6,8 @@
 
 | 저장소 | 책임 |
 | --- | --- |
-| `Hana-OmniLens-API` | KIS·KRX·환율·뉴스·공시 수집, 데이터 정규화, Hannah AI 호출, 협력사 REST/WebSocket 제공 |
-| `Hannah-Montana-AI` | 뉴스·공시 NLP, 번역, 금융 용어 해설, 글로벌 피어, 외국인 보유 예측, 세무 OCR·규칙 추론 |
+| `Hana-OmniLens-API` | KIS·KRX·환율·뉴스·공시 수집, 데이터 정규화, Hana Montana AI 호출, 협력사 REST/WebSocket 제공 |
+| `Hannah-Montana-AI` | `Hana Montana AI(KF-DeBERTa + K-FNSPID)` 뉴스·공시 NLP, 번역, 금융 용어 해설, 글로벌 피어, 외국인 보유 예측, 세무 OCR·규칙 추론 |
 | `Stock-exchange-BE` | 사용자·계좌·관심종목·모의 원장·알림·세무 신청 상태와 FE용 API |
 | `Stock-exchange-FE` | Flutter iOS/Android 영어 MTS 화면 |
 
@@ -15,7 +15,7 @@
 
 - Naver News와 OpenDART에서 신규 시장·종목 뉴스와 공시를 수집하면 분석·번역·저장 파이프라인을 거쳐 협력사 REST와 WebSocket으로 즉시 발행한다.
 - 협력사 watchlist와 인기·외국인 보유 제한 종목을 수집 대상으로 관리하고, 해외 MTS가 사용자의 보유·관심종목 이벤트를 실시간 피드와 알림으로 제공할 수 있게 한다.
-- 금융 특화 NLP가 종목 연관성, 이벤트, 감성, 중요도, confidence를 분류한다.
+- `Hana Montana AI(KF-DeBERTa + K-FNSPID)`가 종목 연관성·이벤트·감성을 분류하고, 의미 중요도와 사후 가격반응 등급을 독립 신호로 반환한다. 가격반응은 의미 중요도를 덮어쓰지 않는다.
 - 로컬 LLM이 원문 문단·줄바꿈을 보존하며 번역하고 What/Why/Impact 구조로 요약한다. provider·model version·품질 플래그를 payload에 함께 남긴다.
 - RAG 기반 검증 사전이 한국 증시 고유어의 영문 표기, 문맥 해설, evidence, confidence를 제공하고 해시 기반 실제 클릭을 날짜별로 기록해 일·월·년·전체 시계열로 집계한다.
 - 섹터·산업·사업 모델·재무 특성을 결합해 한국 종목과 비교할 글로벌 상장 피어를 매칭하고, 비교 차원·근거·신뢰도를 반환한다.

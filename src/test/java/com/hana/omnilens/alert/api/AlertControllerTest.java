@@ -209,16 +209,30 @@ class AlertControllerTest {
                 "삼성전자",
                 "NEWS",
                 "삼성전자 실적 개선",
+                "",
                 "반도체 회복으로 실적 개선 기대가 커졌습니다.",
+                AlertSummaryLines.fromSummary("반도체 회복으로 실적 개선 기대가 커졌습니다."),
+                "",
+                "SUMMARY_ONLY",
+                "",
+                "",
+                List.of(),
                 List.of("EARNINGS"),
                 "POSITIVE",
                 "HIGH",
+                "MEDIUM",
+                0.42,
+                0.81,
                 List.of("005930"),
                 true,
                 true,
                 List.of(new HannahAiGlossaryTerm("실적", "실적", "earnings", "event")),
                 List.of("FINANCIAL_GLOSSARY_APPLIED"),
+                "",
+                "",
+                "",
                 "duplicate-key",
+                "cluster-key",
                 "financial-keyword-baseline-2026-06-04",
                 0.91,
                 0.89,
@@ -276,6 +290,9 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.summaryLines.why", equalTo(expectedEnglishWhy)))
                 .andExpect(jsonPath("$.data.summaryLines.impact", equalTo(expectedEnglishImpact)))
                 .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
+                .andExpect(jsonPath("$.data.marketImpactImportance", equalTo("MEDIUM")))
+                .andExpect(jsonPath("$.data.marketImpactScore", equalTo(0.42)))
+                .andExpect(jsonPath("$.data.marketImpactConfidence", equalTo(0.81)))
                 .andExpect(jsonPath("$.data.holderTarget", equalTo(true)))
                 .andExpect(jsonPath("$.data.watchlistTarget", equalTo(true)))
                 .andExpect(jsonPath("$.data.glossaryTerms").isEmpty())
@@ -1101,6 +1118,36 @@ class AlertControllerTest {
                                   "watchlistTarget": true,
                                   "duplicateKey": "manual-duplicate",
                                   "modelVersion": "manual-publisher"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", equalTo(false)))
+                .andExpect(jsonPath("$.code", equalTo("COMMON_002")));
+    }
+
+    @Test
+    void publishRejectsPartialMarketImpactPayload() throws Exception {
+        mockMvc.perform(post("/api/v1/alerts/events")
+                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "partnerId": "partner-a",
+                                  "stockCode": "005930",
+                                  "stockName": "삼성전자",
+                                  "sourceType": "NEWS",
+                                  "originalTitle": "삼성전자 실적 개선",
+                                  "translatedTitle": "Samsung Electronics earnings improve",
+                                  "summary": "반도체 회복으로 실적 개선 기대",
+                                  "originalUrl": "https://example.com/news/partial-market-impact",
+                                  "publishedAt": "2026-06-04T00:00:00Z",
+                                  "eventTags": ["EARNINGS"],
+                                  "sentiment": "POSITIVE",
+                                  "importance": "HIGH",
+                                  "marketImpactScore": 0.42,
+                                  "relatedStocks": ["005930"],
+                                  "holderTarget": true,
+                                  "watchlistTarget": true
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
