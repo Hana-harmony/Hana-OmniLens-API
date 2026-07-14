@@ -25,3 +25,16 @@ fi
 
 sudo usermod -aG docker "$(id -un)"
 sudo systemctl enable --now docker nginx certbot.timer
+
+sudo install -o root -g root -m 0750 \
+  /opt/hana-omnilens-api/backup-postgres.sh \
+  /usr/local/sbin/hana-omnilens-postgres-backup
+sudo install -o root -g root -m 0644 \
+  /opt/hana-omnilens-api/hana-omnilens-postgres-backup.service \
+  /etc/systemd/system/hana-omnilens-postgres-backup.service
+sudo install -o root -g root -m 0644 \
+  /opt/hana-omnilens-api/hana-omnilens-postgres-backup.timer \
+  /etc/systemd/system/hana-omnilens-postgres-backup.timer
+sudo install -d -o root -g root -m 0700 /var/backups/hana-omnilens/postgresql
+sudo systemctl daemon-reload
+sudo systemctl enable --now hana-omnilens-postgres-backup.timer

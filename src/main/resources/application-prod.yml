@@ -160,4 +160,5 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
+      username: omnilens_app
       password: ${REDIS_PASSWORD:}
