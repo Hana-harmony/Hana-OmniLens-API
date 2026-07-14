@@ -39,11 +39,9 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
           PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
           PROD_HOST_KEY: ${{ secrets.PROD_HOST_KEY }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          DB_URL: ${{ secrets.DB_URL }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          REDIS_HOST: ${{ secrets.REDIS_HOST }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           API_KEY_SHA256: ${{ secrets.OMNILENS_API_KEY_SHA256 }}
           PORTAL_SESSION_KEY: ${{ secrets.OMNILENS_PORTAL_SESSION_SIGNING_KEY }}
@@ -65,9 +63,11 @@ jobs:
           KIS_REAL_APP_SECRET: ${{ secrets.KIS_REAL_APP_SECRET }}
           LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
         run: |
-          for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_HOST_KEY GHCR_TOKEN DB_URL DB_USERNAME DB_PASSWORD REDIS_HOST REDIS_PASSWORD API_KEY_SHA256 PORTAL_SESSION_KEY PORTAL_ENCRYPTION_KEY TERM_SALT AI_TOKEN PUBLIC_DATA_KEY NAVER_ID NAVER_SECRET OPEN_DART_KEY KRX_ID KRX_PASSWORD KRX_OPEN_API_KEY KIS_ACCOUNT KIS_APP_KEY KIS_APP_SECRET KIS_REAL_ACCOUNT KIS_REAL_APP_KEY KIS_REAL_APP_SECRET LETSENCRYPT_EMAIL; do
+          for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_HOST_KEY GHCR_USERNAME GHCR_TOKEN DB_PASSWORD REDIS_PASSWORD API_KEY_SHA256 PORTAL_SESSION_KEY PORTAL_ENCRYPTION_KEY TERM_SALT AI_TOKEN PUBLIC_DATA_KEY NAVER_ID NAVER_SECRET OPEN_DART_KEY KRX_ID KRX_PASSWORD KRX_OPEN_API_KEY KIS_ACCOUNT KIS_APP_KEY KIS_APP_SECRET KIS_REAL_ACCOUNT KIS_REAL_APP_KEY KIS_REAL_APP_SECRET LETSENCRYPT_EMAIL; do
             : "${!name:?${name} is required}"
           done
+          [[ "${#DB_PASSWORD}" -ge 32 && "${DB_PASSWORD}" != *[[:space:]]* ]]
+          [[ "${#REDIS_PASSWORD}" -ge 32 && "${REDIS_PASSWORD}" != *[[:space:]]* ]]
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
       - name: 이미지 이름 설정
         run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
@@ -91,12 +91,9 @@ jobs:
           chmod 600 ~/.ssh/prod_key ~/.ssh/known_hosts
       - name: 운영 설정 생성
         env:
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          DB_URL: ${{ secrets.DB_URL }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          REDIS_HOST: ${{ secrets.REDIS_HOST }}
-          REDIS_PORT: ${{ secrets.REDIS_PORT }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           API_KEY_SHA256: ${{ secrets.OMNILENS_API_KEY_SHA256 }}
           PORTAL_SESSION_KEY: ${{ secrets.OMNILENS_PORTAL_SESSION_SIGNING_KEY }}
@@ -129,11 +126,11 @@ jobs:
             "OMNILENS_TERM_ANALYTICS_HASH_SALT=${TERM_SALT}" \
             "HANNAH_AI_MAINTENANCE_TOKEN=${AI_TOKEN}" \
             'HANNAH_AI_BASE_URL=http://host.docker.internal:18090' \
-            "DB_URL=${DB_URL}" \
-            "DB_USERNAME=${DB_USERNAME}" \
+            'DB_URL=jdbc:postgresql://hana-omnilens-postgres:5432/omnilens' \
+            'DB_USERNAME=omnilens_app' \
             "DB_PASSWORD=${DB_PASSWORD}" \
-            "REDIS_HOST=${REDIS_HOST}" \
-            "REDIS_PORT=${REDIS_PORT:-6379}" \
+            'REDIS_HOST=hana-omnilens-redis' \
+            'REDIS_PORT=6379' \
             "REDIS_PASSWORD=${REDIS_PASSWORD}" \
             "PUBLIC_DATA_SERVICE_KEY=${PUBLIC_DATA_KEY}" \
             "NAVER_NEWS_CLIENT_ID=${NAVER_ID}" \
@@ -151,13 +148,17 @@ jobs:
             > application.env
           printf '%s\n' \
             "IMAGE=${IMAGE_NAME}:${GITHUB_SHA}" \
+            "GHCR_USERNAME=${GHCR_USERNAME}" \
             "GHCR_TOKEN=${GHCR_TOKEN}" \
             > deploy.env
-          chmod 600 application.env deploy.env
+          printf '%s' "${DB_PASSWORD}" > postgres-password
+          printf 'user default off\nuser omnilens_app reset on >%s ~omnilens:* &* +@connection +@read +@write +@scripting -@dangerous\n' "${REDIS_PASSWORD}" > redis-users.acl
+          chmod 600 application.env deploy.env postgres-password redis-users.acl
       - name: OCI 무중단 배포
         run: |
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 700 /opt/hana-omnilens-api'
-          scp -i ~/.ssh/prod_key application.env deploy.env scripts/deploy-prod.sh scripts/bootstrap-host.sh scripts/bootstrap-https.sh deploy/nginx/hana-omnilens-api.conf deploy/nginx/bootstrap-http.conf '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/hana-omnilens-api/'
+          scp -i ~/.ssh/prod_key application.env deploy.env postgres-password redis-users.acl scripts/deploy-prod.sh scripts/bootstrap-host.sh scripts/bootstrap-data-services.sh scripts/bootstrap-https.sh scripts/backup-postgres.sh deploy/compose/hana-omnilens-data.yml deploy/nginx/hana-omnilens-api.conf deploy/nginx/bootstrap-http.conf deploy/systemd/hana-omnilens-postgres-backup.service deploy/systemd/hana-omnilens-postgres-backup.timer '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/hana-omnilens-api/'
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/bootstrap-host.sh && /opt/hana-omnilens-api/bootstrap-host.sh'
+          ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/bootstrap-data-services.sh && /opt/hana-omnilens-api/bootstrap-data-services.sh'
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' "if [ ! -f /etc/letsencrypt/live/api.hanaomilens.cloud/fullchain.pem ]; then chmod 700 /opt/hana-omnilens-api/bootstrap-https.sh && LETSENCRYPT_EMAIL='${{ secrets.LETSENCRYPT_EMAIL }}' /opt/hana-omnilens-api/bootstrap-https.sh; fi"
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/deploy-prod.sh && /opt/hana-omnilens-api/deploy-prod.sh'

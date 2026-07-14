@@ -39,6 +39,10 @@ class DeploymentProfileGuardrailTest {
         assertThat(gitignore).contains("src/main/resources/application-local.yml");
         assertThat(gitignore).contains("/application-prod.env");
         assertThat(gitignore).contains("/deploy-prod.env");
+        assertThat(gitignore).contains("/application.env");
+        assertThat(gitignore).contains("/deploy.env");
+        assertThat(gitignore).contains("/postgres-password");
+        assertThat(gitignore).contains("/redis-users.acl");
         assertThat(Path.of("src/main/resources/application-prod.yml")).exists();
         assertThat(Path.of("src/main/resources/application-local.example.yml")).exists();
     }
@@ -93,8 +97,42 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).contains("deploy.env");
         assertThat(workflow).contains("platforms: linux/arm64");
         assertThat(workflow).contains("PROD_HOST_KEY");
+        assertThat(workflow).contains("GHCR_USERNAME");
         assertThat(workflow).contains("scripts/bootstrap-https.sh");
-        assertThat(workflow).doesNotContain("GHCR_USERNAME");
+        assertThat(workflow).doesNotContain("secrets.DB_URL");
+        assertThat(workflow).doesNotContain("secrets.DB_USERNAME");
+        assertThat(workflow).doesNotContain("secrets.REDIS_HOST");
+        assertThat(workflow).doesNotContain("secrets.REDIS_PORT");
+        assertThat(workflow).contains("jdbc:postgresql://hana-omnilens-postgres:5432/omnilens");
+        assertThat(workflow).contains("REDIS_HOST=hana-omnilens-redis");
+    }
+
+    @Test
+    void prodPostgresAndRedisUsePrivatePersistentContainers() throws IOException {
+        String compose = read("deploy/compose/hana-omnilens-data.yml");
+        String bootstrap = read("scripts/bootstrap-data-services.sh");
+
+        assertThat(compose).contains("postgres:17.10-bookworm@sha256:");
+        assertThat(compose).contains("redis:8.2.7-bookworm@sha256:");
+        assertThat(compose).contains("POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --data-checksums");
+        assertThat(compose).contains("--appendonly");
+        assertThat(compose).contains("noeviction");
+        assertThat(compose).contains("--user omnilens_app");
+        assertThat(compose).contains("name: hana-omnilens-postgres-data");
+        assertThat(compose).contains("name: hana-omnilens-redis-data");
+        assertThat(compose).contains("name: hana-omnilens-internal");
+        assertThat(compose).doesNotContain("ports:");
+        assertThat(bootstrap).contains("docker compose");
+        assertThat(bootstrap).contains("State.Health.Status");
+
+        String prodConfig = read("src/main/resources/application-prod.yml");
+        assertThat(prodConfig).contains("username: omnilens_app");
+        assertThat(workflow()).contains("user default off");
+        assertThat(workflow()).contains("~omnilens:*");
+    }
+
+    private String workflow() throws IOException {
+        return read(".github/workflows/ci.yml");
     }
 
     @Test
@@ -104,7 +142,9 @@ class DeploymentProfileGuardrailTest {
         assertThat(deployScript).contains("APP_DIR=/opt/hana-omnilens-api");
         assertThat(deployScript).contains("source \"${APP_DIR}/deploy.env\"");
         assertThat(deployScript).contains("docker login ghcr.io");
+        assertThat(deployScript).contains("GHCR_USERNAME");
         assertThat(deployScript).contains("--env-file \"${APP_DIR}/application.env\"");
+        assertThat(deployScript).contains("--network hana-omnilens-internal");
         assertThat(deployScript).contains("sudo nginx -t");
         assertThat(deployScript).contains("sudo systemctl reload nginx");
         assertThat(deployScript).contains("https://api.hanaomilens.cloud/actuator/health");

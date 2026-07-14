@@ -14,25 +14,24 @@ docker compose -f compose.local.yml up -d
 
 ## 운영
 - `main` push 시 GitHub Actions의 `deploy-prod` job이 실행된다.
-- CI는 Docker 이미지를 빌드해 GHCR에 push한다.
-- 원격 서버에는 `application-prod.yml`, `application-prod.env`, `deploy-prod.env`, `compose.prod.yml`, `deploy.sh`를 전송한다.
-- 원격 서버의 `deploy.sh`가 GHCR에서 이미지를 pull하고 Docker Compose로 `prod` profile 컨테이너를 재시작한다.
-- 배포 환경 분리 guardrail 테스트가 로컬 설정 gitignore, 운영 placeholder, prod compose profile, GHCR 배포 흐름을 검증한다.
-- `deploy-prod` job은 필수 운영 secret이 모두 있을 때만 이미지 push와 SSH 배포를 실행한다. 미설정 환경에서는 배포 단계를 skip하고 CI를 성공으로 종료한다.
+- CI는 ARM64 API 이미지를 빌드해 GHCR에 push한다.
+- OCI `VM.Standard.A1.Flex` 한 대에서 PostgreSQL, Redis, OmniLens API를 컨테이너로 운영한다.
+- PostgreSQL과 Redis는 `hana-omnilens-internal` 네트워크에서만 접근하며 호스트 포트를 공개하지 않는다.
+- PostgreSQL과 Redis 데이터는 Docker named volume에 보존한다.
+- PostgreSQL은 SCRAM-SHA-256과 data checksum을 사용하고 Redis는 ACL, AOF, `noeviction` 정책을 사용한다.
+- 데이터 서비스가 healthy 상태가 된 뒤 API blue/green 컨테이너를 기동하고 Nginx upstream을 원자적으로 전환한다.
+- 필수 secret이 없으면 운영 secret 확인 단계에서 실패 닫힘 처리한다.
+- PostgreSQL 논리 백업은 systemd timer로 매일 실행하고 14일간 로컬 보존한다. OCI 볼륨 백업 정책은 별도로 적용한다.
 
 ## 필요한 GitHub Secrets
 - `PROD_HOST`: 운영 서버 호스트
 - `PROD_USER`: SSH 사용자
 - `PROD_SSH_KEY`: 운영 서버 접근용 private key
+- `PROD_HOST_KEY`: 운영 서버 SSH host key
+- `GHCR_USERNAME`: GHCR pull token을 발급한 GitHub 사용자
 - `GHCR_TOKEN`: 운영 서버에서 GHCR 이미지 pull에 사용할 token
-- `SERVER_PORT`: 운영 서버 포트
 - `OMNILENS_API_KEY_SHA256`: 협력사 API key SHA-256 해시
-- `OMNILENS_CORS_ALLOWED_ORIGINS`: 허용 origin 목록
-- `DB_URL`: 운영 DB JDBC URL
-- `DB_USERNAME`: 운영 DB 사용자
 - `DB_PASSWORD`: 운영 DB 비밀번호
-- `REDIS_HOST`: 운영 Redis 호스트
-- `REDIS_PORT`: 운영 Redis 포트
 - `REDIS_PASSWORD`: 운영 Redis 비밀번호
 - `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 API 인증키
 - `KIS_APP_KEY`: KIS 현재가, 일봉 보강, REST 호가 호출용 App Key
@@ -41,6 +40,16 @@ docker compose -f compose.local.yml up -d
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART API 인증키
+
+DB와 Redis 연결 정보는 배포 계약으로 고정한다.
+
+```text
+DB_URL=jdbc:postgresql://hana-omnilens-postgres:5432/omnilens
+DB_USERNAME=omnilens_app
+REDIS_HOST=hana-omnilens-redis
+REDIS_PORT=6379
+REDIS_USERNAME=omnilens_app
+```
 
 ## 선택 운영 변수
 - `SERVER_SSL_ENABLED`: Spring Boot TLS 활성화 여부. mTLS 사용 시 `true`로 설정한다.

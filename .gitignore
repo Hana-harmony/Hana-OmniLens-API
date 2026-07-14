@@ -6,6 +6,10 @@ build/
 /application-prod.yml
 /application-prod.env
 /deploy-prod.env
+/application.env
+/deploy.env
+/postgres-password
+/redis-users.acl
 /.env
 /.env.local
 /secrets.local.env
