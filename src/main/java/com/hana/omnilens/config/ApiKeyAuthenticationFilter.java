@@ -97,7 +97,14 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        RateLimitDecision decision = apiKeyRateLimiter.consume(providedKeyHash);
+        RateLimitDecision decision;
+        try {
+            decision = apiKeyRateLimiter.consume(providedKeyHash);
+        } catch (RuntimeException exception) {
+            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_store_unavailable");
+            writeError(response, ErrorCode.SECURITY_SERVICE_UNAVAILABLE);
+            return;
+        }
         if (!decision.allowed()) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_exceeded");
             response.setHeader("Retry-After", String.valueOf(decision.retryAfterSeconds()));
@@ -108,6 +115,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         SignatureVerificationResult signature = apiRequestSignatureVerifier.verify(
                 cachedRequest,
                 providedKeyHash,
+                providedKey,
                 cachedRequest.body());
         if (!signature.valid()) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "invalid_signature");
@@ -121,6 +129,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 .ifPresent(partnerId -> cachedRequest.setAttribute(
                         PartnerAuthentication.PARTNER_ID_ATTRIBUTE,
                         partnerId));
+        cachedRequest.setAttribute(PartnerAuthentication.PARTNER_IDS_ATTRIBUTE, authentication.partnerIds());
+        cachedRequest.setAttribute(PartnerAuthentication.BOOTSTRAP_ATTRIBUTE, authentication.bootstrap());
         filterChain.doFilter(cachedRequest, response);
     }
 
@@ -146,7 +156,10 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private ApiKeyAuthentication authenticate(String providedKeyHash) {
         if (matchesConfiguredHash(providedKeyHash)) {
-            return ApiKeyAuthentication.globalFallback();
+			if (properties.apiKeyPartnerIds().isEmpty()) {
+                return ApiKeyAuthentication.notConfigured();
+            }
+			return ApiKeyAuthentication.bootstrap(properties.apiKeyPartnerIds());
         }
         Optional<PartnerCredential> partnerCredential;
         boolean hasActiveCredential;
@@ -188,23 +201,26 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private record ApiKeyAuthentication(
             boolean configured,
             boolean authenticated,
-            Optional<String> partnerId
+            Optional<String> partnerId,
+			java.util.List<String> partnerIds,
+            boolean bootstrap
     ) {
 
-        private static ApiKeyAuthentication globalFallback() {
-            return new ApiKeyAuthentication(true, true, Optional.empty());
+		private static ApiKeyAuthentication bootstrap(java.util.List<String> partnerIds) {
+			Optional<String> primary = partnerIds.size() == 1 ? Optional.of(partnerIds.get(0)) : Optional.empty();
+			return new ApiKeyAuthentication(true, true, primary, partnerIds, true);
         }
 
         private static ApiKeyAuthentication partner(String partnerId) {
-            return new ApiKeyAuthentication(true, true, Optional.of(partnerId));
+			return new ApiKeyAuthentication(true, true, Optional.of(partnerId), java.util.List.of(partnerId), false);
         }
 
         private static ApiKeyAuthentication invalid() {
-            return new ApiKeyAuthentication(true, false, Optional.empty());
+			return new ApiKeyAuthentication(true, false, Optional.empty(), java.util.List.of(), false);
         }
 
         private static ApiKeyAuthentication notConfigured() {
-            return new ApiKeyAuthentication(false, false, Optional.empty());
+			return new ApiKeyAuthentication(false, false, Optional.empty(), java.util.List.of(), false);
         }
 
     }

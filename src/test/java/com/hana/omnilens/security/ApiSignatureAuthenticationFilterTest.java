@@ -24,7 +24,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
         "omnilens.security.api-key-sha256=4c806362b613f7496abf284146efd31da90e4b16169fe001841ca17290f427c4",
         "omnilens.security.rate-limit.enabled=false",
         "omnilens.security.signature.enabled=true",
-        "omnilens.security.signature.secret=test-signature-secret",
         "omnilens.security.signature.allowed-clock-skew=5m",
         "omnilens.security.signature.nonce-store-mode=in-memory",
         "omnilens.alert.dedupe.mode=in-memory",
@@ -35,7 +34,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class ApiSignatureAuthenticationFilterTest {
 
     private static final String API_KEY = "test-api-key";
-    private static final String SECRET = "test-signature-secret";
 
     @Autowired
     private MockMvc mockMvc;
@@ -96,7 +94,7 @@ class ApiSignatureAuthenticationFilterTest {
                 + sha256Hex(body);
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            mac.init(new SecretKeySpec(API_KEY.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             return HexFormat.of().formatHex(mac.doFinal(canonical.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception exception) {
             throw new IllegalStateException(exception);

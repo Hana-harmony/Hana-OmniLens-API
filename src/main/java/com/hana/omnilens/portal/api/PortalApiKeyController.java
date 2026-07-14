@@ -27,7 +27,6 @@ import com.hana.omnilens.portal.PortalAccountService;
 import com.hana.omnilens.portal.PortalApiKeyApplication;
 import com.hana.omnilens.portal.PortalApiKeyApplicationService;
 import com.hana.omnilens.portal.PortalUser;
-import com.hana.omnilens.portal.ApiKeyApplicationStatus;
 import com.hana.omnilens.term.application.KoreanFinancialTermExplanationService;
 import com.hana.omnilens.term.domain.KoreanFinancialTermClickStat;
 import com.hana.omnilens.term.domain.KoreanFinancialTermClickPoint;
@@ -73,6 +72,13 @@ public class PortalApiKeyController {
         return ApiResponse.success(PortalAuthController.PortalUserResponse.from(accessService.requireUser(request)));
     }
 
+    @PostMapping("/logout")
+    @Operation(summary = "Revoke every active portal session for the signed-in member")
+    public ApiResponse<Void> logout(HttpServletRequest request) {
+        accountService.logout(accessService.requireUser(request));
+        return ApiResponse.success(null);
+    }
+
     @PostMapping("/me/password")
     @Operation(summary = "Change the signed-in portal member password")
     public ApiResponse<PortalAuthController.PortalSessionResponse> changePassword(
@@ -93,9 +99,22 @@ public class PortalApiKeyController {
     public ApiResponse<List<ApiKeyApplicationResponse>> myApplications(HttpServletRequest request) {
         PortalUser user = accessService.requireUser(request);
         return ApiResponse.success(applicationService.listForUser(user).stream()
-                .map(application -> ApiKeyApplicationResponse.from(application,
-                        hasActiveKey(application.status()) ? applicationService.revealKey(application, user) : null))
+                .map(application -> ApiKeyApplicationResponse.from(application, null))
                 .toList());
+    }
+
+    @PostMapping("/api-key-applications/{applicationId}/reveal")
+    @Operation(summary = "Reveal an approved API key once")
+    public ResponseEntity<ApiResponse<ApiKeyApplicationResponse>> revealApiKey(
+            HttpServletRequest request,
+            @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
+        PortalUser user = accessService.requireUser(request);
+        PortalApiKeyApplication application = applicationService.find(applicationId);
+        String apiKey = applicationService.revealKeyOnce(applicationId, user);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .header("Pragma", "no-cache")
+                .body(ApiResponse.success(ApiKeyApplicationResponse.from(application, apiKey)));
     }
 
     @PostMapping("/api-key-applications/{applicationId}/cancel")
@@ -299,8 +318,8 @@ public class PortalApiKeyController {
 
     public record PasswordChangeRequest(
             @NotBlank String currentPassword,
-            @NotBlank @Size(min = 8, max = 128) String newPassword,
-            @NotBlank @Size(min = 8, max = 128) String newPasswordConfirmation
+            @NotBlank @Size(min = 12, max = 128) String newPassword,
+            @NotBlank @Size(min = 12, max = 128) String newPasswordConfirmation
     ) {
     }
 
@@ -329,9 +348,4 @@ public class PortalApiKeyController {
         }
     }
 
-    private boolean hasActiveKey(ApiKeyApplicationStatus status) {
-        return status == ApiKeyApplicationStatus.APPROVED
-                || status == ApiKeyApplicationStatus.REISSUE_REQUESTED
-                || status == ApiKeyApplicationStatus.REVOCATION_REQUESTED;
-    }
 }

@@ -21,7 +21,16 @@ class DeploymentProfileGuardrailTest {
                     "PUBLIC_DATA_SERVICE_KEY",
                     "NAVER_NEWS_CLIENT_ID",
                     "NAVER_NEWS_CLIENT_SECRET",
-                    "OPEN_DART_API_KEY");
+                    "OPEN_DART_API_KEY",
+                    "KRX_ID",
+                    "KRX_PW",
+                    "KRX_OPEN_API_AUTH_KEY",
+                    "KIS_ACCOUNT_NUMBER",
+                    "KIS_APP_KEY",
+                    "KIS_APP_SECRET",
+                    "KIS_REAL_ACCOUNT_NUMBER",
+                    "KIS_REAL_APP_KEY",
+                    "KIS_REAL_APP_SECRET");
 
     @Test
     void localRuntimeFilesStayIgnoredAndProdProfileIsTracked() throws IOException {
@@ -47,15 +56,18 @@ class DeploymentProfileGuardrailTest {
     }
 
     @Test
-    void prodComposeRunsOnlyProdProfileWithExternalEnvFile() throws IOException {
-        String compose = read("compose.prod.yml");
+    void prodDeploymentUsesHardenedBlueGreenContainers() throws IOException {
+        String deployScript = read("scripts/deploy-prod.sh");
 
-        assertThat(compose).contains("env_file:");
-        assertThat(compose).contains("application-prod.env");
-        assertThat(compose).contains("--spring.profiles.active=prod");
-        assertThat(compose).contains("--spring.config.additional-location=file:/app/config/application-prod.yml");
-        assertThat(compose).contains("./application-prod.yml:/app/config/application-prod.yml:ro");
-        assertThat(compose).doesNotContain("application-local.yml");
+        assertThat(deployScript).contains("active-slot");
+        assertThat(deployScript).contains("inactive=green");
+        assertThat(deployScript).contains("inactive=blue");
+        assertThat(deployScript).contains("--read-only");
+        assertThat(deployScript).contains("--cap-drop ALL");
+        assertThat(deployScript).contains("--security-opt no-new-privileges:true");
+        assertThat(deployScript).contains("--env-file \"${APP_DIR}/application.env\"");
+        assertThat(deployScript).contains("--spring.profiles.active=prod");
+        assertThat(deployScript).doesNotContain("application-local.yml");
     }
 
     @Test
@@ -77,22 +89,25 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).contains("registry: ghcr.io");
         assertThat(workflow).contains("docker/build-push-action");
         assertThat(workflow).contains("push: true");
-        assertThat(workflow).contains("application-prod.env");
-        assertThat(workflow).contains("deploy-prod.env");
-        assertThat(workflow).contains("src/main/resources/application-prod.yml");
-        assertThat(workflow).contains("compose.prod.yml");
+        assertThat(workflow).contains("application.env");
+        assertThat(workflow).contains("deploy.env");
+        assertThat(workflow).contains("platforms: linux/arm64");
+        assertThat(workflow).contains("PROD_HOST_KEY");
+        assertThat(workflow).contains("scripts/bootstrap-https.sh");
         assertThat(workflow).doesNotContain("GHCR_USERNAME");
     }
 
     @Test
-    void remoteDeployScriptUsesProdEnvFileAndImageTagOnly() throws IOException {
+    void remoteDeployScriptUsesRequiredEnvAndAtomicNginxSwitch() throws IOException {
         String deployScript = read("scripts/deploy-prod.sh");
 
-        assertThat(deployScript).contains("APP_DIR=\"/opt/hana-omnilens-api\"");
-        assertThat(deployScript).contains("source \"${APP_DIR}/deploy-prod.env\"");
+        assertThat(deployScript).contains("APP_DIR=/opt/hana-omnilens-api");
+        assertThat(deployScript).contains("source \"${APP_DIR}/deploy.env\"");
         assertThat(deployScript).contains("docker login ghcr.io");
-        assertThat(deployScript).contains("--env-file \"${APP_DIR}/application-prod.env\"");
-        assertThat(deployScript).contains("-f \"${APP_DIR}/compose.prod.yml\"");
+        assertThat(deployScript).contains("--env-file \"${APP_DIR}/application.env\"");
+        assertThat(deployScript).contains("sudo nginx -t");
+        assertThat(deployScript).contains("sudo systemctl reload nginx");
+        assertThat(deployScript).contains("https://api.hanaomilens.cloud/actuator/health");
         assertThat(deployScript).doesNotContain("application-local.yml");
     }
 

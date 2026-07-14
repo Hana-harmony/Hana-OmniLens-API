@@ -32,26 +32,26 @@ public class PartnerTopicAuthorizationInterceptor implements ChannelInterceptor 
             return message;
         }
 
-        String authenticatedPartnerId = authenticatedPartnerId(accessor);
+		java.util.List<String> authenticatedPartnerIds = authenticatedPartnerIds(accessor);
         String destination = accessor.getDestination();
-        if (!StringUtils.hasText(authenticatedPartnerId) || !StringUtils.hasText(destination)) {
+		if (authenticatedPartnerIds.isEmpty() || !StringUtils.hasText(destination)) {
             return message;
         }
 
-        assertPartnerTopicAccess(authenticatedPartnerId, destination);
+		assertPartnerTopicAccess(authenticatedPartnerIds, destination);
         return message;
     }
 
-    private void assertPartnerTopicAccess(String authenticatedPartnerId, String destination) {
+	private void assertPartnerTopicAccess(java.util.List<String> authenticatedPartnerIds, String destination) {
         Matcher partnerTopic = PARTNER_TOPIC_PATTERN.matcher(destination);
         if (partnerTopic.matches()) {
-            assertPartnerId(authenticatedPartnerId, partnerTopic.group(1));
+			assertPartnerId(authenticatedPartnerIds, partnerTopic.group(1));
             return;
         }
 
         Matcher partnerStockTopic = PARTNER_STOCK_TOPIC_PATTERN.matcher(destination);
         if (partnerStockTopic.matches()) {
-            assertPartnerId(authenticatedPartnerId, partnerStockTopic.group(1));
+			assertPartnerId(authenticatedPartnerIds, partnerStockTopic.group(1));
             return;
         }
 
@@ -60,11 +60,24 @@ public class PartnerTopicAuthorizationInterceptor implements ChannelInterceptor 
         }
     }
 
-    private void assertPartnerId(String authenticatedPartnerId, String requestedPartnerId) {
-        if (!authenticatedPartnerId.equals(requestedPartnerId)) {
+	private void assertPartnerId(java.util.List<String> authenticatedPartnerIds, String requestedPartnerId) {
+		if (!authenticatedPartnerIds.contains(requestedPartnerId)) {
             throw new AccessDeniedException("Partner credential cannot subscribe to another partner topic");
         }
     }
+
+	private java.util.List<String> authenticatedPartnerIds(StompHeaderAccessor accessor) {
+		Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+		if (sessionAttributes == null) {
+			return java.util.List.of();
+		}
+		Object partnerIds = sessionAttributes.get(PartnerAuthentication.PARTNER_IDS_ATTRIBUTE);
+		if (partnerIds instanceof java.util.List<?> values) {
+			return values.stream().filter(String.class::isInstance).map(String.class::cast).toList();
+		}
+		String partnerId = authenticatedPartnerId(accessor);
+		return StringUtils.hasText(partnerId) ? java.util.List.of(partnerId) : java.util.List.of();
+	}
 
     private String authenticatedPartnerId(StompHeaderAccessor accessor) {
         Map<String, Object> sessionAttributes = accessor.getSessionAttributes();

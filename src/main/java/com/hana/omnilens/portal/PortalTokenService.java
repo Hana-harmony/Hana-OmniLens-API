@@ -17,7 +17,7 @@ import com.hana.omnilens.common.exception.ErrorCode;
 @Service
 public class PortalTokenService {
 
-    private static final long TTL_SECONDS = 60L * 60L * 8L;
+    private static final long TTL_SECONDS = 60L * 15L;
 
     private final PortalProperties properties;
 

@@ -1,33 +1,20 @@
 server:
   port: ${SERVER_PORT:8080}
-  ssl:
-    enabled: ${SERVER_SSL_ENABLED:false}
-    client-auth: ${SERVER_SSL_CLIENT_AUTH:none}
-    key-store: ${SERVER_SSL_KEY_STORE:}
-    key-store-password: ${SERVER_SSL_KEY_STORE_PASSWORD:}
-    key-store-type: ${SERVER_SSL_KEY_STORE_TYPE:PKCS12}
-    trust-store: ${SERVER_SSL_TRUST_STORE:}
-    trust-store-password: ${SERVER_SSL_TRUST_STORE_PASSWORD:}
-    trust-store-type: ${SERVER_SSL_TRUST_STORE_TYPE:PKCS12}
 
 omnilens:
   security:
     api-key-sha256: ${OMNILENS_API_KEY_SHA256}
+    api-key-partner-ids: ${OMNILENS_API_KEY_PARTNER_IDS}
     cors-allowed-origins: ${OMNILENS_CORS_ALLOWED_ORIGINS}
     rate-limit:
-      enabled: ${OMNILENS_RATE_LIMIT_ENABLED:true}
-      capacity: ${OMNILENS_RATE_LIMIT_CAPACITY:120}
-      refill-tokens: ${OMNILENS_RATE_LIMIT_REFILL_TOKENS:120}
-      refill-period: ${OMNILENS_RATE_LIMIT_REFILL_PERIOD:1m}
-      max-buckets: ${OMNILENS_RATE_LIMIT_MAX_BUCKETS:10000}
+      enabled: true
+      max-requests: 120
+      window: 1m
     signature:
-      enabled: ${OMNILENS_SIGNATURE_ENABLED:false}
-      secret: ${OMNILENS_SIGNATURE_SECRET:}
-      allowed-clock-skew: ${OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW:5m}
-      nonce-store-mode: ${OMNILENS_SIGNATURE_NONCE_STORE_MODE:redis}
-      max-nonces: ${OMNILENS_SIGNATURE_MAX_NONCES:10000}
-    mtls:
-      enabled: ${OMNILENS_MTLS_ENABLED:false}
+      enabled: true
+      allowed-clock-skew: 2m
+      nonce-store-mode: redis
+      max-nonces: 10000
   portal:
     session-signing-key: ${OMNILENS_PORTAL_SESSION_SIGNING_KEY}
     api-key-encryption-key: ${OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY}
@@ -44,41 +31,37 @@ omnilens:
       api-key: ${OPEN_DART_API_KEY}
     krx:
       base-url: ${KRX_BASE_URL:https://data.krx.co.kr}
-      scraping-enabled: ${KRX_SCRAPING_ENABLED:true}
-      id: ${KRX_ID:}
-      password: ${KRX_PW:}
+      scraping-enabled: true
+      id: ${KRX_ID}
+      password: ${KRX_PW}
       login-path: ${KRX_LOGIN_PATH:/contents/MDC/COMS/client/MDCCOMS001D1.cmd}
       foreign-ownership-history-bld: ${KRX_FOREIGN_OWNERSHIP_HISTORY_BLD:dbms/MDC/STAT/standard/MDCSTAT03702}
     krx-open-api:
       base-url: ${KRX_OPEN_API_BASE_URL:https://data-dbg.krx.co.kr}
-      auth-key: ${KRX_OPEN_API_AUTH_KEY:}
+      auth-key: ${KRX_OPEN_API_AUTH_KEY}
     kis:
       base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
       websocket-url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}
-      account-number: ${KIS_ACCOUNT_NUMBER:}
-      app-key: ${KIS_APP_KEY:}
-      app-secret: ${KIS_APP_SECRET:}
-      access-token: ${KIS_ACCESS_TOKEN:}
-      approval-key: ${KIS_APPROVAL_KEY:}
+      account-number: ${KIS_ACCOUNT_NUMBER}
+      app-key: ${KIS_APP_KEY}
+      app-secret: ${KIS_APP_SECRET}
     real-kis:
       base-url: ${KIS_REAL_BASE_URL:https://openapi.koreainvestment.com:9443}
       websocket-url: ${KIS_REAL_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}
-      account-number: ${KIS_REAL_ACCOUNT_NUMBER:}
-      app-key: ${KIS_REAL_APP_KEY:}
-      app-secret: ${KIS_REAL_APP_SECRET:}
-      access-token: ${KIS_REAL_ACCESS_TOKEN:}
-      approval-key: ${KIS_REAL_APPROVAL_KEY:}
+      account-number: ${KIS_REAL_ACCOUNT_NUMBER}
+      app-key: ${KIS_REAL_APP_KEY}
+      app-secret: ${KIS_REAL_APP_SECRET}
     frankfurter:
       base-url: ${FRANKFURTER_BASE_URL:https://api.frankfurter.dev}
     resilience:
       connect-timeout: ${PROVIDER_CONNECT_TIMEOUT:2s}
       read-timeout: ${PROVIDER_READ_TIMEOUT:5s}
       retry:
-        enabled: ${PROVIDER_RETRY_ENABLED:true}
+        enabled: true
         max-attempts: ${PROVIDER_RETRY_MAX_ATTEMPTS:2}
         backoff: ${PROVIDER_RETRY_BACKOFF:150ms}
       circuit-breaker:
-        enabled: ${PROVIDER_CIRCUIT_BREAKER_ENABLED:true}
+        enabled: true
         failure-threshold: ${PROVIDER_CIRCUIT_BREAKER_FAILURE_THRESHOLD:5}
         open-duration: ${PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION:30s}
   ai:
@@ -92,17 +75,17 @@ omnilens:
   market:
     stock-master:
       seed:
-        enabled: ${STOCK_MASTER_SEED_ENABLED:true}
+        enabled: true
         location: ${STOCK_MASTER_SEED_LOCATION:classpath:data/stock-master-seed.csv}
-        kis-master-sync-enabled: ${STOCK_MASTER_KIS_SYNC_ENABLED:true}
+        kis-master-sync-enabled: true
     exchange-rate-cache:
-      mode: ${EXCHANGE_RATE_CACHE_MODE:redis}
+      mode: redis
       ttl: ${EXCHANGE_RATE_CACHE_TTL:24h}
     foreign-ownership-cache:
-      mode: ${FOREIGN_OWNERSHIP_CACHE_MODE:redis}
+      mode: redis
       ttl: ${FOREIGN_OWNERSHIP_CACHE_TTL:24h}
     foreign-ownership-refresh:
-      enabled: ${FOREIGN_OWNERSHIP_REFRESH_ENABLED:true}
+      enabled: true
       fixed-delay-ms: ${FOREIGN_OWNERSHIP_REFRESH_FIXED_DELAY_MS:86400000}
       initial-delay-ms: ${FOREIGN_OWNERSHIP_REFRESH_INITIAL_DELAY_MS:60000}
       cron: "${FOREIGN_OWNERSHIP_REFRESH_CRON:0 10 8,16 * * MON-FRI}"
@@ -112,8 +95,8 @@ omnilens:
       stock-limit: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_LIMIT:5000}
       stock-codes: ${FOREIGN_OWNERSHIP_REFRESH_STOCK_CODES:}
     foreign-ownership-model-training:
-      enabled: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_ENABLED:true}
-      trigger-after-refresh: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_TRIGGER_AFTER_REFRESH:true}
+      enabled: true
+      trigger-after-refresh: true
       connect-timeout: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_CONNECT_TIMEOUT:2s}
       read-timeout: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_READ_TIMEOUT:20m}
       maintenance-token: ${HANNAH_AI_MAINTENANCE_TOKEN:}
@@ -122,41 +105,41 @@ omnilens:
       minimum-promotable-observations: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_MIN_OBSERVATIONS:50000}
       max-model-training-samples: ${FOREIGN_OWNERSHIP_MODEL_TRAINING_MAX_SAMPLES:250000}
     foreign-ownership-prediction-precompute:
-      enabled: ${FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_ENABLED:true}
-      trigger-after-refresh: ${FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_TRIGGER_AFTER_REFRESH:true}
+      enabled: true
+      trigger-after-refresh: true
       stock-limit: ${FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_STOCK_LIMIT:5000}
     kis-realtime:
-      enabled: ${KIS_REALTIME_ENABLED:true}
+      enabled: true
       stock-codes: ${KIS_REALTIME_STOCK_CODES:005930,000660,005380,000270,086790,035420,068270,105560,055550,012330}
       index-codes: ${KIS_REALTIME_INDEX_CODES:0001,1001,2001}
       stock-limit: ${KIS_REALTIME_STOCK_LIMIT:5000}
       shard-size: ${KIS_REALTIME_SHARD_SIZE:40}
-      order-book-enabled: ${KIS_REALTIME_ORDER_BOOK_ENABLED:false}
-      after-hours-enabled: ${KIS_REALTIME_AFTER_HOURS_ENABLED:false}
+      order-book-enabled: true
+      after-hours-enabled: true
     exchange-rate-refresh:
-      enabled: ${EXCHANGE_RATE_REFRESH_ENABLED:false}
+      enabled: true
       fixed-delay-ms: ${EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS:300000}
       base-date-offset-days: ${EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS:0}
-      currencies: ${EXCHANGE_RATE_REFRESH_CURRENCIES:}
+      currencies: USD,JPY
     history-collection:
-      enabled: ${MARKET_HISTORY_COLLECTION_ENABLED:false}
+      enabled: true
       fixed-delay-ms: ${MARKET_HISTORY_COLLECTION_FIXED_DELAY_MS:86400000}
       base-date-offset-days: ${MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS:1}
-      provider: ${MARKET_HISTORY_COLLECTION_PROVIDER:KRX_OPEN_API_WITH_KIS_BACKUP}
+      provider: KIS_DAILY_CHART
   market-news:
     scheduler:
-      enabled: ${MARKET_NEWS_SCHEDULER_ENABLED:true}
+      enabled: true
       fixed-delay-ms: ${MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS:300000}
       initial-delay-ms: ${MARKET_NEWS_SCHEDULER_INITIAL_DELAY_MS:60000}
       display: ${MARKET_NEWS_SCHEDULER_DISPLAY:5}
       queries: "${MARKET_NEWS_SCHEDULER_QUERIES:한국 증시,코스피,코스닥,국내 증시,외국인 순매수}"
   alert:
     dedupe:
-      mode: ${ALERT_DEDUPE_MODE:redis}
+      mode: redis
       ttl: ${ALERT_DEDUPE_TTL:24h}
       max-in-memory-entries: ${ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES:10000}
     scheduler:
-      enabled: ${ALERT_SCHEDULER_ENABLED:true}
+      enabled: true
       fixed-delay-ms: ${ALERT_SCHEDULER_FIXED_DELAY_MS:300000}
       initial-delay-ms: ${ALERT_SCHEDULER_INITIAL_DELAY_MS:60000}
       news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:5}

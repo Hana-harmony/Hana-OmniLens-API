@@ -50,6 +50,7 @@ public class ApiRequestSignatureVerifier {
     public SignatureVerificationResult verify(
             HttpServletRequest request,
             String apiKeyFingerprint,
+            String signingSecret,
             byte[] body) {
         if (!properties.enabled()) {
             return SignatureVerificationResult.ok();
@@ -78,7 +79,7 @@ public class ApiRequestSignatureVerifier {
 
         String expectedSignature;
         try {
-            expectedSignature = sign(canonicalRequest(request, timestampHeader, nonce, body));
+            expectedSignature = sign(canonicalRequest(request, timestampHeader, nonce, body), signingSecret);
         } catch (IllegalStateException exception) {
             return SignatureVerificationResult.serviceUnavailable(exception.getMessage());
         }
@@ -118,10 +119,10 @@ public class ApiRequestSignatureVerifier {
         return request.getRequestURI() + "?" + queryString;
     }
 
-    private String sign(String canonicalRequest) {
+    private String sign(String canonicalRequest, String signingSecret) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(properties.requiredSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            mac.init(new SecretKeySpec(signingSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             return HexFormat.of().formatHex(mac.doFinal(canonicalRequest.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException | InvalidKeyException exception) {
             throw new IllegalStateException("HmacSHA256 request signing is not available", exception);

@@ -37,7 +37,7 @@ class ApiRequestSignatureVerifierTest {
                 body);
 
         ApiRequestSignatureVerifier.SignatureVerificationResult result =
-                verifier.verify(request, API_KEY_FINGERPRINT, body);
+                verifier.verify(request, API_KEY_FINGERPRINT, SECRET, body);
 
         assertThat(result.valid()).isTrue();
     }
@@ -56,7 +56,7 @@ class ApiRequestSignatureVerifierTest {
                 signedBody);
 
         ApiRequestSignatureVerifier.SignatureVerificationResult result =
-                verifier.verify(request, API_KEY_FINGERPRINT, tamperedBody);
+                verifier.verify(request, API_KEY_FINGERPRINT, SECRET, tamperedBody);
 
         assertThat(result.valid()).isFalse();
         assertThat(result.message()).isEqualTo("Invalid request signature");
@@ -66,7 +66,6 @@ class ApiRequestSignatureVerifierTest {
         ApiSignatureProperties properties =
                 new ApiSignatureProperties(
                         true,
-                        SECRET,
                         Duration.ofMinutes(5),
                         ApiSignatureProperties.NonceStoreMode.IN_MEMORY,
                         10_000);

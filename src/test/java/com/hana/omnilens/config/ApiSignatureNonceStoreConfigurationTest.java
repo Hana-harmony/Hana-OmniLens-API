@@ -49,7 +49,6 @@ class ApiSignatureNonceStoreConfigurationTest {
     private ApiSignatureProperties properties(ApiSignatureProperties.NonceStoreMode mode) {
         return new ApiSignatureProperties(
                 true,
-                "secret",
                 Duration.ofMinutes(5),
                 mode,
                 10_000);

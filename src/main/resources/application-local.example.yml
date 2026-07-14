@@ -4,23 +4,19 @@ server:
 omnilens:
   security:
     api-key-sha256: ${OMNILENS_API_KEY_SHA256:}
+    api-key-partner-ids: ${OMNILENS_API_KEY_PARTNER_IDS:stock-exchange}
     cors-allowed-origins:
       - http://localhost:3000
       - http://localhost:5173
     rate-limit:
-      enabled: false
-      capacity: 120
-      refill-tokens: 120
-      refill-period: 1m
-      max-buckets: 10000
+      enabled: true
+      max-requests: 120
+      window: 1m
     signature:
-      enabled: false
-      secret: "replace-with-local-hmac-secret"
-      allowed-clock-skew: 5m
-      nonce-store-mode: in-memory
+      enabled: true
+      allowed-clock-skew: 2m
+      nonce-store-mode: redis
       max-nonces: 10000
-    mtls:
-      enabled: false
   portal:
     session-signing-key: ${OMNILENS_PORTAL_SESSION_SIGNING_KEY}
     api-key-encryption-key: ${OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY}

@@ -85,12 +85,17 @@ class PortalApiKeyControllerTest {
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.apiKey").doesNotExist());
 
-        String memberApplications = mockMvc.perform(get("/api/v1/portal/api-key-applications")
+        String revealedApplication = mockMvc.perform(post(
+                        "/api/v1/portal/api-key-applications/{id}/reveal", applicationId)
                         .header("Authorization", "Bearer " + memberToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].apiKey").isNotEmpty())
+                .andExpect(jsonPath("$.data.apiKey").isNotEmpty())
                 .andReturn().getResponse().getContentAsString();
-        String apiKey = objectMapper.readTree(memberApplications).path("data").get(0).path("apiKey").asText();
+        String apiKey = objectMapper.readTree(revealedApplication).path("data").path("apiKey").asText();
+
+        mockMvc.perform(post("/api/v1/portal/api-key-applications/{id}/reveal", applicationId)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isConflict());
 
         mockMvc.perform(get("/api/v1/unknown").header("X-HANA-OMNILENS-API-KEY", apiKey))
                 .andExpect(status().isNotFound());
@@ -99,7 +104,7 @@ class PortalApiKeyControllerTest {
     @Test
     void memberAndAdministratorManageApiKeyLifecycle() throws Exception {
         String memberToken = token(postJson("/api/v1/portal/auth/sign-up", """
-                {"username":"key-lifecycle","password":"Eight8!x","passwordConfirmation":"Eight8!x","name":"Key Lifecycle","phoneNumber":"+82 10-1234-5678"}
+                {"username":"key-lifecycle","password":"LongEight8!x","passwordConfirmation":"LongEight8!x","name":"Key Lifecycle","phoneNumber":"+82 10-1234-5678"}
                 """));
         String cancelledId = applicationId(mockMvc.perform(post("/api/v1/portal/api-key-applications")
                         .header("Authorization", "Bearer " + memberToken))

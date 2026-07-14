@@ -43,6 +43,18 @@ public class PortalUserRepository {
                 passwordHash, Timestamp.from(changedAt), Timestamp.from(changedAt), userId);
     }
 
+    public void upgradePasswordHash(String userId, String passwordHash, Instant updatedAt) {
+        jdbcTemplate.update(
+                "UPDATE portal_users SET password_hash = ?, session_version = session_version + 1, updated_at = ? WHERE user_id = ?",
+                passwordHash, Timestamp.from(updatedAt), userId);
+    }
+
+    public void revokeSessions(String userId, Instant changedAt) {
+        jdbcTemplate.update(
+                "UPDATE portal_users SET session_version = session_version + 1, updated_at = ? WHERE user_id = ?",
+                Timestamp.from(changedAt), userId);
+    }
+
     private String select() {
         return "SELECT user_id, username, password_hash, display_name, phone_number, role, created_at, updated_at, password_change_required, session_version, password_changed_at FROM portal_users";
     }

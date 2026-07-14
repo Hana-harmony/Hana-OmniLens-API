@@ -32,21 +32,17 @@ management:
 omnilens:
   security:
     api-key-sha256: ${OMNILENS_API_KEY_SHA256:}
+    api-key-partner-ids: ${OMNILENS_API_KEY_PARTNER_IDS:stock-exchange}
     cors-allowed-origins: []
     rate-limit:
       enabled: true
-      capacity: 120
-      refill-tokens: 120
-      refill-period: 1m
-      max-buckets: 10000
+      max-requests: 120
+      window: 1m
     signature:
-      enabled: false
-      secret: ""
-      allowed-clock-skew: 5m
+      enabled: true
+      allowed-clock-skew: 2m
       nonce-store-mode: redis
       max-nonces: 10000
-    mtls:
-      enabled: false
   portal:
     session-signing-key: ${OMNILENS_PORTAL_SESSION_SIGNING_KEY:}
     api-key-encryption-key: ${OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY:}
@@ -163,18 +159,20 @@ omnilens:
         - "2001"
       stock-limit: 5000
       shard-size: 40
-      order-book-enabled: false
-      after-hours-enabled: false
+      order-book-enabled: true
+      after-hours-enabled: true
     exchange-rate-refresh:
-      enabled: false
+      enabled: true
       fixed-delay-ms: 300000
       base-date-offset-days: 0
-      currencies: []
+      currencies:
+        - "USD"
+        - "JPY"
     history-collection:
-      enabled: false
+      enabled: true
       fixed-delay-ms: 86400000
       base-date-offset-days: 1
-      provider: KRX_OPEN_API_WITH_KIS_BACKUP
+      provider: KIS_DAILY_CHART
     chart-warmup:
       enabled: true
       fixed-delay-ms: 300000

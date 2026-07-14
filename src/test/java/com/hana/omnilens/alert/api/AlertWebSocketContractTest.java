@@ -70,23 +70,19 @@ class AlertWebSocketContractTest {
     }
 
     @Test
-    void partnerAndStockSubscribersReceivePublishedAlertEvent() throws Exception {
+	void partnerSubscriberReceivesPublishedAlertEvent() throws Exception {
         StompSession session = connect("test-api-key");
 
         BlockingQueue<AlertEvent> partnerEvents = new LinkedBlockingQueue<>();
-        BlockingQueue<AlertEvent> stockEvents = new LinkedBlockingQueue<>();
-        session.subscribe("/topic/partners/partner-a/alerts", queueingHandler(partnerEvents));
-        session.subscribe("/topic/stocks/005930/alerts", queueingHandler(stockEvents));
+		session.subscribe("/topic/partners/partner-a/alerts", queueingHandler(partnerEvents));
         TimeUnit.MILLISECONDS.sleep(300);
 
         var response = publishAlert("test-api-key", "partner-a");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         AlertEvent partnerEvent = partnerEvents.poll(5, TimeUnit.SECONDS);
-        AlertEvent stockEvent = stockEvents.poll(5, TimeUnit.SECONDS);
 
-        assertThat(partnerEvent).isNotNull();
-        assertThat(stockEvent).isNotNull();
+		assertThat(partnerEvent).isNotNull();
         assertThat(partnerEvent.partnerId()).isEqualTo("partner-a");
         assertThat(partnerEvent.stockCode()).isEqualTo("005930");
         assertThat(partnerEvent.eventTags()).containsExactly("EARNINGS");
@@ -100,7 +96,6 @@ class AlertWebSocketContractTest {
         assertThat(partnerEvent.modelVersion()).isEqualTo("manual-publisher");
         assertThat(partnerEvent.eventConfidence()).isEqualTo(0.91);
         assertThat(partnerEvent.stockMatchConfidence()).isEqualTo(1.0);
-        assertThat(stockEvent.alertId()).isEqualTo(partnerEvent.alertId());
 
         if (session.isConnected()) {
             session.disconnect();

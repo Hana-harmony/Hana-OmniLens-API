@@ -22,10 +22,18 @@ public class PartnerWebSocketHandshakeInterceptor implements HandshakeIntercepto
             Map<String, Object> attributes) {
         if (request instanceof ServletServerHttpRequest servletRequest) {
             copyAttribute(servletRequest, attributes, PartnerAuthentication.PARTNER_ID_ATTRIBUTE);
+			copyPartnerIds(servletRequest, attributes);
             copyAttribute(servletRequest, attributes, PartnerAuthentication.API_KEY_FINGERPRINT_ATTRIBUTE);
         }
         return true;
     }
+
+	private void copyPartnerIds(ServletServerHttpRequest request, Map<String, Object> attributes) {
+		Object value = request.getServletRequest().getAttribute(PartnerAuthentication.PARTNER_IDS_ATTRIBUTE);
+		if (value instanceof java.util.List<?> partnerIds) {
+			attributes.put(PartnerAuthentication.PARTNER_IDS_ATTRIBUTE, java.util.List.copyOf(partnerIds));
+		}
+	}
 
     @Override
     public void afterHandshake(

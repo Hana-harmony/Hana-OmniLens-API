@@ -10,12 +10,10 @@ class ApiRateLimitPropertiesTest {
 
     @Test
     void defaultsAreBoundedAndEnabled() {
-        ApiRateLimitProperties properties = new ApiRateLimitProperties(true, 0, 0, null, 0);
+        ApiRateLimitProperties properties = new ApiRateLimitProperties(true, 0, null);
 
         assertThat(properties.enabled()).isTrue();
-        assertThat(properties.capacity()).isEqualTo(120);
-        assertThat(properties.refillTokens()).isEqualTo(120);
-        assertThat(properties.refillPeriod()).isEqualTo(Duration.ofMinutes(1));
-        assertThat(properties.maxBuckets()).isEqualTo(10_000);
+        assertThat(properties.maxRequests()).isEqualTo(120);
+        assertThat(properties.window()).isEqualTo(Duration.ofMinutes(1));
     }
 }

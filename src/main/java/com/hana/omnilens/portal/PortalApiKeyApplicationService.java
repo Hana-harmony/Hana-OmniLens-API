@@ -168,7 +168,10 @@ public class PortalApiKeyApplicationService {
         return applicationRepository.findAll();
     }
 
-    public String revealKey(PortalApiKeyApplication application, PortalUser user) {
+    @Transactional
+    public String revealKeyOnce(String applicationId, PortalUser user) {
+        PortalApiKeyApplication application = applicationRepository.findByIdForUpdate(applicationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.API_KEY_APPLICATION_NOT_FOUND));
         if (!application.userId().equals(user.userId()) && user.role() != PortalRole.ADMIN) {
             throw new BusinessException(ErrorCode.PORTAL_ACCESS_DENIED);
         }
@@ -178,7 +181,9 @@ public class PortalApiKeyApplicationService {
                 && application.status() != ApiKeyApplicationStatus.REVOCATION_REQUESTED) {
             throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
         }
-        return secretCipher.decrypt(application.encryptedApiKey());
+        String apiKey = secretCipher.decrypt(application.encryptedApiKey());
+        applicationRepository.clearEncryptedApiKey(application.applicationId(), Instant.now());
+        return apiKey;
     }
 
     public PortalApiKeyApplication find(String applicationId) {
