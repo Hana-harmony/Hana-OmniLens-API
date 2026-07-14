@@ -33,7 +33,7 @@ omnilens:
       api-key: "replace-with-open-dart-api-key"
     krx:
       base-url: https://data.krx.co.kr
-      scraping-enabled: ${KRX_SCRAPING_ENABLED:true}
+      scraping-enabled: true
       id: ${KRX_ID:}
       password: ${KRX_PW:}
       login-path: /contents/MDC/COMS/client/MDCCOMS001D1.cmd

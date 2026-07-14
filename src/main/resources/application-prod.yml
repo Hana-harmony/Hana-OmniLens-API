@@ -144,7 +144,7 @@ omnilens:
       initial-delay-ms: ${ALERT_SCHEDULER_INITIAL_DELAY_MS:60000}
       news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:5}
       disclosure-lookback-days: ${ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS:365}
-      default-universe-enabled: ${ALERT_SCHEDULER_DEFAULT_UNIVERSE_ENABLED:true}
+      default-universe-enabled: true
       default-universe-partner-id: ${ALERT_SCHEDULER_DEFAULT_UNIVERSE_PARTNER_ID:omnilens-default-universe}
       priority-stock-limit: ${ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT:10}
       include-foreign-ownership-restricted-stocks: ${ALERT_SCHEDULER_INCLUDE_FOREIGN_OWNERSHIP_RESTRICTED_STOCKS:true}
