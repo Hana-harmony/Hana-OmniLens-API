@@ -90,6 +90,10 @@ class AlertWebSocketContractTest {
         assertThat(partnerEvent.partnerId()).isEqualTo("partner-a");
         assertThat(partnerEvent.stockCode()).isEqualTo("005930");
         assertThat(partnerEvent.eventTags()).containsExactly("EARNINGS");
+        assertThat(partnerEvent.importance()).isEqualTo("HIGH");
+        assertThat(partnerEvent.marketImpactImportance()).isEqualTo("MEDIUM");
+        assertThat(partnerEvent.marketImpactScore()).isEqualTo(0.42);
+        assertThat(partnerEvent.marketImpactConfidence()).isEqualTo(0.81);
         assertThat(partnerEvent.glossaryTerms()).isEmpty();
         assertThat(partnerEvent.translationQualityFlags()).isEmpty();
         assertThat(partnerEvent.duplicateKey()).isEqualTo("manual-duplicate");
@@ -126,6 +130,11 @@ class AlertWebSocketContractTest {
         assertThat(event.get("title")).isEqualTo("Samsung Electronics earnings improve");
         assertThat(event.get("stockCode")).isEqualTo("005930");
         assertThat(event.get("riskLevel")).isEqualTo("HIGH");
+        assertThat(event.get("importance")).isEqualTo("HIGH");
+        assertThat(event.get("marketImpactImportance")).isEqualTo("MEDIUM");
+        assertThat(event.get("marketImpactScore")).isEqualTo(0.42);
+        assertThat(event.get("marketImpactConfidence")).isEqualTo(0.81);
+        assertThat(event.get("modelVersion")).isEqualTo("manual-publisher");
 
         if (session.isOpen()) {
             session.close();
@@ -241,6 +250,9 @@ class AlertWebSocketContractTest {
         payload.put("eventTags", List.of("EARNINGS"));
         payload.put("sentiment", "POSITIVE");
         payload.put("importance", "HIGH");
+        payload.put("marketImpactImportance", "MEDIUM");
+        payload.put("marketImpactScore", 0.42);
+        payload.put("marketImpactConfidence", 0.81);
         payload.put("relatedStocks", List.of("005930"));
         payload.put("holderTarget", true);
         payload.put("watchlistTarget", true);

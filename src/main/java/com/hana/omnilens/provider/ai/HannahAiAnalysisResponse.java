@@ -21,6 +21,9 @@ public record HannahAiAnalysisResponse(
         @JsonProperty("event_tags") List<String> eventTags,
         String sentiment,
         String importance,
+        @JsonProperty("market_impact_importance") String marketImpactImportance,
+        @JsonProperty("market_impact_score") Double marketImpactScore,
+        @JsonProperty("market_impact_confidence") Double marketImpactConfidence,
         @JsonProperty("related_stocks") List<String> relatedStocks,
         @JsonProperty("holder_target") boolean holderTarget,
         @JsonProperty("watchlist_target") boolean watchlistTarget,
@@ -37,6 +40,27 @@ public record HannahAiAnalysisResponse(
         @JsonProperty("importance_confidence") Double importanceConfidence,
         @JsonProperty("stock_match_confidence") Double stockMatchConfidence
 ) {
+    public HannahAiAnalysisResponse {
+        int marketImpactFieldCount = 0;
+        marketImpactFieldCount += marketImpactImportance == null ? 0 : 1;
+        marketImpactFieldCount += marketImpactScore == null ? 0 : 1;
+        marketImpactFieldCount += marketImpactConfidence == null ? 0 : 1;
+        if (marketImpactFieldCount != 0 && marketImpactFieldCount != 3) {
+            throw new IllegalArgumentException("market impact fields must be all present or all absent");
+        }
+        if (marketImpactImportance != null
+                && !List.of("LOW", "MEDIUM", "HIGH", "CRITICAL").contains(marketImpactImportance)) {
+            throw new IllegalArgumentException("market impact importance is invalid");
+        }
+        if (!isUnitInterval(marketImpactScore) || !isUnitInterval(marketImpactConfidence)) {
+            throw new IllegalArgumentException("market impact score and confidence must be between 0 and 1");
+        }
+    }
+
+    private static boolean isUnitInterval(Double value) {
+        return value == null || (Double.isFinite(value) && value >= 0.0 && value <= 1.0);
+    }
+
     public HannahAiAnalysisResponse(
             String stockCode,
             String stockName,
@@ -78,6 +102,9 @@ public record HannahAiAnalysisResponse(
                 eventTags,
                 sentiment,
                 importance,
+                null,
+                null,
+                null,
                 relatedStocks,
                 holderTarget,
                 watchlistTarget,
@@ -131,6 +158,9 @@ public record HannahAiAnalysisResponse(
                 eventTags,
                 sentiment,
                 importance,
+                null,
+                null,
+                null,
                 relatedStocks,
                 holderTarget,
                 watchlistTarget,

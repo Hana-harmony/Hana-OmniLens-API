@@ -2108,6 +2108,41 @@ components:
         summary:
           type: string
           maxLength: 1000
+        summaryLines:
+          anyOf:
+            - $ref: "#/components/schemas/AlertSummaryLines"
+            - type: "null"
+        translatedSummary:
+          type:
+            - string
+            - "null"
+          maxLength: 2000
+        originalContent:
+          type:
+            - string
+            - "null"
+          maxLength: 1000000
+          description: 문단과 줄바꿈을 보존한 뉴스 또는 공시 원문이다.
+        translatedContent:
+          type:
+            - string
+            - "null"
+          maxLength: 1000000
+        imageUrls:
+          type: array
+          items:
+            type: string
+            maxLength: 1000
+        contentAvailability:
+          type:
+            - string
+            - "null"
+          enum:
+            - FULL_TEXT
+            - ORIGINAL_TEXT_ONLY
+            - SUMMARY_ONLY
+            - null
+          description: 원문과 번역 전문의 실제 저장 상태다.
         originalUrl:
           type: string
           maxLength: 500
@@ -2122,6 +2157,25 @@ components:
           $ref: "#/components/schemas/Sentiment"
         importance:
           $ref: "#/components/schemas/Importance"
+        marketImpactImportance:
+          description: Hana Montana AI(KF-DeBERTa + K-FNSPID)가 예측한 사후 가격반응 등급이다. 의미 중요도와 독립된 보조 신호이며 세 시장영향 필드는 함께 제공하거나 모두 생략한다.
+          anyOf:
+            - $ref: "#/components/schemas/Importance"
+            - type: "null"
+        marketImpactScore:
+          type:
+            - number
+            - "null"
+          minimum: 0
+          maximum: 1
+          description: K-FNSPID v3의 시장반응 순서형 점수다. 투자수익이나 인과효과를 의미하지 않는다.
+        marketImpactConfidence:
+          type:
+            - number
+            - "null"
+          minimum: 0
+          maximum: 1
+          description: 파일 기반 시장영향 모델의 예측 confidence다. 의미 중요도 confidence와 합산하지 않는다.
         relatedStocks:
           type: array
           items:
@@ -2164,12 +2218,18 @@ components:
             - "null"
           maxLength: 128
           description: AI normalized duplicate key for downstream idempotency.
+        clusterKey:
+          type:
+            - string
+            - "null"
+          maxLength: 128
+          description: 동일 사건의 반복 기사와 공시를 묶는 시간창 기반 cluster key다.
         modelVersion:
           type:
             - string
             - "null"
           maxLength: 240
-          description: Composite Hannah model provenance for event, sentiment, and market-impact models. OmniLens propagates it without parsing or rewriting.
+          description: Hana Montana AI(KF-DeBERTa + K-FNSPID)의 event, sentiment, semantic materiality, market-impact 복합 출처다. OmniLens는 파싱하거나 변경하지 않고 전파한다.
         eventConfidence:
           type:
             - number
@@ -2198,6 +2258,22 @@ components:
           minimum: 0
           maximum: 1
           description: Stock mapping confidence propagated from Hannah-Montana-AI for observation and UI display only. It is not an automatic blocking decision.
+    AlertSummaryLines:
+      type: object
+      required:
+        - what
+        - why
+        - impact
+      properties:
+        what:
+          type: string
+          description: 발생한 사실과 주체를 근거 범위에서 요약한다.
+        why:
+          type: string
+          description: 기사 또는 공시에 명시된 배경을 요약한다.
+        impact:
+          type: string
+          description: 의미 중요도와 감성에 따른 확인 사항을 요약한다.
     AlertGlossaryTerm:
       type: object
       required:

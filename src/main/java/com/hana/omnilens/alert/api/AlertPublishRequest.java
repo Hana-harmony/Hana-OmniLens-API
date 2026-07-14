@@ -3,11 +3,15 @@ package com.hana.omnilens.alert.api;
 import java.time.Instant;
 import java.util.List;
 
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hana.omnilens.alert.domain.AlertGlossaryTerm;
 import com.hana.omnilens.alert.domain.AlertSummaryLines;
 
@@ -30,6 +34,9 @@ public record AlertPublishRequest(
         List<String> eventTags,
         @NotBlank @Pattern(regexp = "POSITIVE|NEUTRAL|NEGATIVE") String sentiment,
         @NotBlank @Pattern(regexp = "LOW|MEDIUM|HIGH|CRITICAL") String importance,
+        @Pattern(regexp = "LOW|MEDIUM|HIGH|CRITICAL") String marketImpactImportance,
+        @DecimalMin("0.0") @DecimalMax("1.0") Double marketImpactScore,
+        @DecimalMin("0.0") @DecimalMax("1.0") Double marketImpactConfidence,
         List<String> relatedStocks,
         boolean holderTarget,
         boolean watchlistTarget,
@@ -46,6 +53,16 @@ public record AlertPublishRequest(
         Double importanceConfidence,
         Double stockMatchConfidence
 ) {
+    @JsonIgnore
+    @AssertTrue(message = "market impact fields must be all present or all absent")
+    public boolean isMarketImpactPayloadComplete() {
+        int present = 0;
+        present += marketImpactImportance == null ? 0 : 1;
+        present += marketImpactScore == null ? 0 : 1;
+        present += marketImpactConfidence == null ? 0 : 1;
+        return present == 0 || present == 3;
+    }
+
     public String effectiveContentAvailability() {
         return contentAvailability == null || contentAvailability.isBlank() ? "SUMMARY_ONLY" : contentAvailability;
     }
