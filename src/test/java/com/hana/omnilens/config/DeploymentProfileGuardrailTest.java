@@ -60,12 +60,14 @@ class DeploymentProfileGuardrailTest {
     }
 
     @Test
-    void prodDeploymentUsesHardenedBlueGreenContainers() throws IOException {
+    void prodDeploymentUsesHardenedSingleContainerWithRollback() throws IOException {
         String deployScript = read("scripts/deploy-prod.sh");
 
-        assertThat(deployScript).contains("active-slot");
-        assertThat(deployScript).contains("inactive=green");
-        assertThat(deployScript).contains("inactive=blue");
+        assertThat(deployScript).contains("previous_image");
+        assertThat(deployScript).contains("rollback");
+        assertThat(deployScript).doesNotContain("active-slot");
+        assertThat(deployScript).doesNotContain("inactive=green");
+        assertThat(deployScript).doesNotContain("inactive=blue");
         assertThat(deployScript).contains("--read-only");
         assertThat(deployScript).contains("--cap-drop ALL");
         assertThat(deployScript).contains("--security-opt no-new-privileges:true");
@@ -78,7 +80,10 @@ class DeploymentProfileGuardrailTest {
     void localComposeBindsHannahAiUrlToSpringConfigurationProperty() throws IOException {
         String compose = read("compose.local.yml");
 
-        assertThat(compose).contains("OMNILENS_AI_HANNAH_BASE_URL: http://host.docker.internal:8000");
+        assertThat(compose).contains("OMNILENS_AI_HANNAH_BASE_URL: http://hannah-montana-ai:8000");
+        assertThat(compose).contains("name: hana-omnilens-internal");
+        assertThat(compose).doesNotContain("host.docker.internal");
+        assertThat(compose).doesNotContain("OMNILENS_MARKET_HISTORY_COLLECTION_ENABLED: \"false\"");
         assertThat(compose).contains("SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/application-local.yml");
         assertThat(compose).contains("./src/main/resources/application-local.yml:/app/config/application-local.yml:ro");
         assertThat(compose).doesNotContain("PROVIDERS_AI_HANNAH_BASE_URL");
@@ -105,6 +110,8 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).doesNotContain("secrets.REDIS_PORT");
         assertThat(workflow).contains("jdbc:postgresql://hana-omnilens-postgres:5432/omnilens");
         assertThat(workflow).contains("REDIS_HOST=hana-omnilens-redis");
+        assertThat(workflow).contains("HANNAH_AI_BASE_URL=http://hannah-montana-ai:8000");
+        assertThat(workflow).doesNotContain("HANNAH_AI_BASE_URL=http://host.docker.internal");
     }
 
     @Test
@@ -121,6 +128,7 @@ class DeploymentProfileGuardrailTest {
         assertThat(compose).contains("name: hana-omnilens-postgres-data");
         assertThat(compose).contains("name: hana-omnilens-redis-data");
         assertThat(compose).contains("name: hana-omnilens-internal");
+        assertThat(compose).contains("external: true");
         assertThat(compose).doesNotContain("ports:");
         assertThat(bootstrap).contains("docker compose");
         assertThat(bootstrap).contains("State.Health.Status");
@@ -144,7 +152,8 @@ class DeploymentProfileGuardrailTest {
         assertThat(deployScript).contains("docker login ghcr.io");
         assertThat(deployScript).contains("GHCR_USERNAME");
         assertThat(deployScript).contains("--env-file \"${APP_DIR}/application.env\"");
-        assertThat(deployScript).contains("--network hana-omnilens-internal");
+        assertThat(deployScript).contains("NETWORK=hana-omnilens-internal");
+        assertThat(deployScript).contains("--network \"${NETWORK}\"");
         assertThat(deployScript).contains("sudo nginx -t");
         assertThat(deployScript).contains("sudo systemctl reload nginx");
         assertThat(deployScript).contains("https://api.hanaomilens.cloud/actuator/health");

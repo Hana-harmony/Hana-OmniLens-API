@@ -19,7 +19,8 @@ docker compose -f compose.local.yml up -d
 - PostgreSQL과 Redis는 `hana-omnilens-internal` 네트워크에서만 접근하며 호스트 포트를 공개하지 않는다.
 - PostgreSQL과 Redis 데이터는 Docker named volume에 보존한다.
 - PostgreSQL은 SCRAM-SHA-256과 data checksum을 사용하고 Redis는 ACL, AOF, `noeviction` 정책을 사용한다.
-- 데이터 서비스가 healthy 상태가 된 뒤 API blue/green 컨테이너를 기동하고 Nginx upstream을 원자적으로 전환한다.
+- 데이터 서비스가 healthy 상태가 된 뒤 API 단일 컨테이너를 교체한다. 새 이미지가 준비되지 않으면 직전 이미지를 자동 복구한다.
+- Nginx와 Certbot은 Ubuntu 호스트의 systemd 서비스로 운영하고 애플리케이션 컨테이너와 수명주기를 분리한다.
 - 필수 secret이 없으면 운영 secret 확인 단계에서 실패 닫힘 처리한다.
 - PostgreSQL 논리 백업은 systemd timer로 매일 실행하고 14일간 로컬 보존한다. OCI 볼륨 백업 정책은 별도로 적용한다.
 

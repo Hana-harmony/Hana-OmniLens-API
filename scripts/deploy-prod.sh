@@ -3,117 +3,112 @@ set -euo pipefail
 
 APP_DIR=/opt/hana-omnilens-api
 APP_NAME=hana-omnilens-api
-ACTIVE_FILE="${APP_DIR}/active-slot"
+APP_PORT=18080
+NETWORK=hana-omnilens-internal
 
-set -a
 source "${APP_DIR}/deploy.env"
-set +a
 
 : "${IMAGE:?IMAGE is required}"
 : "${GHCR_USERNAME:?GHCR_USERNAME is required}"
 : "${GHCR_TOKEN:?GHCR_TOKEN is required}"
 
-active=green
-if [[ -f "${ACTIVE_FILE}" ]]; then
-  active="$(<"${ACTIVE_FILE}")"
-fi
-if [[ "${active}" == blue ]]; then
-  inactive=green
-  port=18081
-else
-  inactive=blue
-  port=18080
-fi
+run_container() {
+  local image="$1"
+  docker run -d \
+    --name "${APP_NAME}" \
+    --restart unless-stopped \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --pids-limit 512 \
+    --memory 3g \
+    --cpus 1.25 \
+    --env-file "${APP_DIR}/application.env" \
+    --network "${NETWORK}" \
+    --tmpfs /tmp:rw,noexec,nosuid,size=512m \
+    -p "127.0.0.1:${APP_PORT}:8080" \
+    "${image}" \
+    --spring.profiles.active=prod
+}
 
+wait_until_ready() {
+  for _ in $(seq 1 90); do
+    if curl --fail --silent --show-error "http://127.0.0.1:${APP_PORT}/actuator/health" \
+      | grep -q '"status":"UP"'; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+stop_container() {
+  if docker container inspect "${APP_NAME}" >/dev/null 2>&1; then
+    docker stop --time 30 "${APP_NAME}" >/dev/null || true
+    docker rm "${APP_NAME}" >/dev/null 2>&1 || true
+  fi
+}
+
+previous_image="$(docker inspect --format '{{.Config.Image}}' "${APP_NAME}" 2>/dev/null || true)"
+
+rollback() {
+  docker logs --tail 200 "${APP_NAME}" 2>/dev/null || true
+  docker rm -f "${APP_NAME}" >/dev/null 2>&1 || true
+  if [[ -n "${previous_image}" ]]; then
+    run_container "${previous_image}" >/dev/null
+    wait_until_ready || true
+  fi
+  exit 1
+}
+
+install_nginx_config() {
+  local upstream_path=/etc/nginx/conf.d/hana-omnilens-api-upstream.conf
+  local server_path=/etc/nginx/conf.d/hana-omnilens-api.conf
+  local backup_dir
+  local had_upstream=false
+  local had_server=false
+  backup_dir="$(mktemp -d)"
+
+  if sudo test -f "${upstream_path}"; then
+    sudo cat "${upstream_path}" > "${backup_dir}/upstream.conf"
+    had_upstream=true
+  fi
+  if sudo test -f "${server_path}"; then
+    sudo cat "${server_path}" > "${backup_dir}/server.conf"
+    had_server=true
+  fi
+
+  printf 'upstream hana_omnilens_api { server 127.0.0.1:%s; keepalive 64; }\n' "${APP_PORT}" +    > "${backup_dir}/new-upstream.conf"
+  if ! sudo install -o root -g root -m 0644 "${backup_dir}/new-upstream.conf" "${upstream_path}" +    || ! sudo install -o root -g root -m 0644 "${APP_DIR}/hana-omnilens-api.conf" "${server_path}" +    || ! sudo nginx -t; then
+    if [[ "${had_upstream}" == true ]]; then
+      sudo install -o root -g root -m 0644 "${backup_dir}/upstream.conf" "${upstream_path}"
+    else
+      sudo rm -f "${upstream_path}"
+    fi
+    if [[ "${had_server}" == true ]]; then
+      sudo install -o root -g root -m 0644 "${backup_dir}/server.conf" "${server_path}"
+    else
+      sudo rm -f "${server_path}"
+    fi
+    sudo nginx -t >/dev/null 2>&1 || true
+    rm -rf "${backup_dir}"
+    return 1
+  fi
+
+  rm -rf "${backup_dir}"
+}
+
+docker network inspect "${NETWORK}" >/dev/null 2>&1 \
+  || docker network create "${NETWORK}" >/dev/null
 printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 docker pull "${IMAGE}"
-docker rm -f "${APP_NAME}-${inactive}" >/dev/null 2>&1 || true
-docker run -d \
-  --name "${APP_NAME}-${inactive}" \
-  --restart unless-stopped \
-  --read-only \
-  --cap-drop ALL \
-  --security-opt no-new-privileges:true \
-  --pids-limit 512 \
-  --memory 4g \
-  --cpus 1.25 \
-  --env-file "${APP_DIR}/application.env" \
-  --network hana-omnilens-internal \
-  --add-host host.docker.internal:host-gateway \
-  --tmpfs /tmp:rw,noexec,nosuid,size=512m \
-  -p "127.0.0.1:${port}:8080" \
-  "${IMAGE}" \
-  --spring.profiles.active=prod
 
-ready=false
-for _ in $(seq 1 90); do
-  if curl --fail --silent --show-error "http://127.0.0.1:${port}/actuator/health" | grep -q '"status":"UP"'; then
-    ready=true
-    break
-  fi
-  sleep 2
-done
-if [[ "${ready}" != true ]]; then
-  docker logs --tail 200 "${APP_NAME}-${inactive}"
-  docker rm -f "${APP_NAME}-${inactive}" >/dev/null
-  exit 1
-fi
+install_nginx_config
 
-upstream_path=/etc/nginx/conf.d/hana-omnilens-api-upstream.conf
-server_path=/etc/nginx/conf.d/hana-omnilens-api.conf
-upstream_tmp="$(mktemp)"
-upstream_backup="$(mktemp)"
-server_backup="$(mktemp)"
-had_upstream=false
-had_server=false
-if sudo test -f "${upstream_path}"; then
-  sudo cat "${upstream_path}" > "${upstream_backup}"
-  had_upstream=true
-fi
-if sudo test -f "${server_path}"; then
-  sudo cat "${server_path}" > "${server_backup}"
-  had_server=true
-fi
+stop_container
+run_container "${IMAGE}" >/dev/null || rollback
+wait_until_ready || rollback
 
-restore_nginx() {
-  if [[ "${had_upstream}" == true ]]; then
-    sudo install -o root -g root -m 0644 "${upstream_backup}" "${upstream_path}"
-  else
-    sudo rm -f "${upstream_path}"
-  fi
-  if [[ "${had_server}" == true ]]; then
-    sudo install -o root -g root -m 0644 "${server_backup}" "${server_path}"
-  else
-    sudo rm -f "${server_path}"
-  fi
-  sudo nginx -t
-  sudo systemctl reload nginx
-}
-
-abort_switch() {
-  restore_nginx || true
-  docker rm -f "${APP_NAME}-${inactive}" >/dev/null 2>&1 || true
-  rm -f "${upstream_tmp}" "${upstream_backup}" "${server_backup}"
-  exit 1
-}
-
-printf 'upstream hana_omnilens_api { server 127.0.0.1:%s; keepalive 64; }\n' "${port}" > "${upstream_tmp}"
-sudo install -o root -g root -m 0644 "${upstream_tmp}" "${upstream_path}"
-sudo install -o root -g root -m 0644 "${APP_DIR}/hana-omnilens-api.conf" "${server_path}"
-if ! sudo nginx -t; then
-  abort_switch
-fi
-if ! sudo systemctl reload nginx; then
-  abort_switch
-fi
-if ! curl --fail --silent --show-error https://api.hanaomilens.cloud/actuator/health >/dev/null; then
-  abort_switch
-fi
-rm -f "${upstream_tmp}" "${upstream_backup}" "${server_backup}"
-printf '%s\n' "${inactive}" > "${ACTIVE_FILE}"
-
-if docker ps --format '{{.Names}}' | grep -Fxq "${APP_NAME}-${active}"; then
-  docker stop --time 30 "${APP_NAME}-${active}" >/dev/null
-  docker rm "${APP_NAME}-${active}" >/dev/null
-fi
+sudo systemctl reload nginx || rollback
+curl --fail --silent --show-error https://api.hanaomilens.cloud/actuator/health >/dev/null || rollback
 docker image prune -f >/dev/null

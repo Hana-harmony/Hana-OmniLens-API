@@ -133,4 +133,4 @@ volumes:
 networks:
   internal:
     name: hana-omnilens-internal
-    driver: bridge
+    external: true

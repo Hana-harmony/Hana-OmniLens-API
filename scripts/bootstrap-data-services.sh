@@ -12,6 +12,8 @@ for file in "${COMPOSE_FILE}" "${APP_DIR}/postgres-password" "${APP_DIR}/redis-u
 done
 
 chmod 600 "${APP_DIR}/postgres-password" "${APP_DIR}/redis-users.acl"
+docker network inspect hana-omnilens-internal >/dev/null 2>&1 \
+  || docker network create hana-omnilens-internal >/dev/null
 docker compose -f "${COMPOSE_FILE}" pull
 docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
 
