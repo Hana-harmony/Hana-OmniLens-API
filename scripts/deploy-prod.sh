@@ -10,6 +10,7 @@ source "${APP_DIR}/deploy.env"
 set +a
 
 : "${IMAGE:?IMAGE is required}"
+: "${GHCR_USERNAME:?GHCR_USERNAME is required}"
 : "${GHCR_TOKEN:?GHCR_TOKEN is required}"
 
 active=green
@@ -24,8 +25,7 @@ else
   port=18080
 fi
 
-owner="$(printf '%s' "${IMAGE}" | cut -d/ -f2)"
-printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${owner}" --password-stdin
+printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 docker pull "${IMAGE}"
 docker rm -f "${APP_NAME}-${inactive}" >/dev/null 2>&1 || true
 docker run -d \
@@ -35,9 +35,10 @@ docker run -d \
   --cap-drop ALL \
   --security-opt no-new-privileges:true \
   --pids-limit 512 \
-  --memory 5g \
-  --cpus 1.5 \
+  --memory 4g \
+  --cpus 1.25 \
   --env-file "${APP_DIR}/application.env" \
+  --network hana-omnilens-internal \
   --add-host host.docker.internal:host-gateway \
   --tmpfs /tmp:rw,noexec,nosuid,size=512m \
   -p "127.0.0.1:${port}:8080" \

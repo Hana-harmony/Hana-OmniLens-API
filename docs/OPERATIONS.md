@@ -336,3 +336,12 @@ PROVIDER_CIRCUIT_BREAKER_OPEN_DURATION=30s
 
 ## 운영 전 보강
 - 없음. 신규 운영 보강은 `docs/ROADMAP.md`의 다음 milestone으로 추가한다.
+
+## OCI 컨테이너 데이터 서비스
+- PostgreSQL과 Redis는 API와 같은 OCI A1 호스트의 `hana-omnilens-internal` Docker 네트워크에서 실행한다.
+- DB와 Redis는 호스트 포트를 publish하지 않는다.
+- `hana-omnilens-postgres-data`, `hana-omnilens-redis-data` named volume을 삭제하지 않는다.
+- PostgreSQL backup timer 상태는 `systemctl status hana-omnilens-postgres-backup.timer`로 확인한다.
+- 수동 백업은 `sudo systemctl start hana-omnilens-postgres-backup.service`로 실행한다.
+- 복구 전에는 API 컨테이너를 중지하고 `pg_restore --clean --if-exists`로 검증된 dump를 복원한다.
+- OCI boot volume 또는 block volume에는 일일 backup policy와 보존 정책을 적용한다.
