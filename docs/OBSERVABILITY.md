@@ -6,6 +6,8 @@
 
 OCI에는 Prometheus, Grafana, Loki, Alloy, node-exporter, blackbox-exporter를 컨테이너로 실행한다. Prometheus는 OmniLens API와 Hannah AI 메트릭을 수집하고 Alloy는 Docker 로그를 Loki로 전달한다. Blackbox exporter는 `hanaomilens.cloud`와 API HTTPS 상태를 실제 외부 경로로 검사한다.
 
+`/actuator/prometheus`는 내부 Docker 네트워크의 Prometheus 수집을 위해 애플리케이션 인증에서 제외하지만, Nginx가 외부 요청에는 `404`를 반환한다.
+
 Grafana는 `127.0.0.1:3300`에만 바인딩한다. 로컬에서 다음 터널로 접속한다.
 
 ```bash

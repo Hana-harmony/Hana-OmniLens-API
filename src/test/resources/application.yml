@@ -8,6 +8,10 @@ spring:
     enabled: true
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
   health:
     redis:
       enabled: false

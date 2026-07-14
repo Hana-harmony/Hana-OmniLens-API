@@ -48,7 +48,7 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, exception) -> writePortalError(
                                 response, objectMapper, ErrorCode.PORTAL_ACCESS_DENIED)))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/v1/portal/auth/**").permitAll()
                         .requestMatchers("/api/v1/portal/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/portal/**").authenticated()
