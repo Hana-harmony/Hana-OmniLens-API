@@ -13,6 +13,8 @@ management:
       enabled: false
 
 omnilens:
+  portal:
+    bootstrap-admin-password: Local-Test-Only-Initial-Secret-2026!
   security:
     api-key-partner-ids:
       - partner-api

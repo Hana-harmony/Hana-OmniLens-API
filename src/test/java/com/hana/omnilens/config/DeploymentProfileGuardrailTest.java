@@ -14,6 +14,7 @@ class DeploymentProfileGuardrailTest {
             List.of(
                     "OMNILENS_API_KEY_SHA256",
                     "OMNILENS_CORS_ALLOWED_ORIGINS",
+                    "OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD",
                     "DB_URL",
                     "DB_USERNAME",
                     "DB_PASSWORD",

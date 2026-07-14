@@ -32,6 +32,9 @@ docker compose -f compose.local.yml up -d
 - `GHCR_USERNAME`: GHCR pull token을 발급한 GitHub 사용자
 - `GHCR_TOKEN`: 운영 서버에서 GHCR 이미지 pull에 사용할 token
 - `OMNILENS_API_KEY_SHA256`: 협력사 API key SHA-256 해시
+- `OMNILENS_PORTAL_SESSION_SIGNING_KEY`: 포털 세션 HMAC-SHA256 키, 최소 32 byte
+- `OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY`: 포털 API 키 암호화용 32 byte 값을 Base64로 인코딩한 키
+- `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`: 신규 DB의 초기 관리자 임시 비밀번호, 16~128자이며 앞뒤 공백을 허용하지 않음
 - `DB_PASSWORD`: 운영 DB 비밀번호
 - `REDIS_PASSWORD`: 운영 Redis 비밀번호
 - `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 API 인증키

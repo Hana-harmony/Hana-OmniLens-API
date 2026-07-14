@@ -2,14 +2,10 @@ package com.hana.omnilens.portal;
 
 import java.time.Instant;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
-import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -24,16 +20,14 @@ public class PortalAccountService {
     private final PasswordEncoder passwordEncoder;
     private final String dummyPasswordHash;
 
-    public PortalAccountService(PortalUserRepository userRepository, PortalTokenService tokenService) {
+    public PortalAccountService(
+            PortalUserRepository userRepository,
+            PortalTokenService tokenService,
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.tokenService = tokenService;
-        BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder(12);
-        Argon2PasswordEncoder argon2 = new Argon2PasswordEncoder(16, 32, 1, 19_456, 2);
-        DelegatingPasswordEncoder delegating = new DelegatingPasswordEncoder(
-                "argon2", Map.of("argon2", argon2, "bcrypt", bcrypt));
-        delegating.setDefaultPasswordEncoderForMatches(bcrypt);
-        this.passwordEncoder = delegating;
-        this.dummyPasswordHash = delegating.encode("dummy-password-not-used");
+        this.passwordEncoder = passwordEncoder;
+        this.dummyPasswordHash = passwordEncoder.encode("dummy-password-not-used");
     }
 
     public PortalSession signUp(String username, String password, String passwordConfirmation, String displayName, String phoneNumber) {

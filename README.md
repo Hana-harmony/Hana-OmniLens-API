@@ -70,8 +70,8 @@
 - 외부 자격증명과 DB·Redis 비밀번호는 GitHub Secrets가 생성하는 서버 환경 파일로만 주입한다.
 - 세무 파일은 허용 형식·크기·magic byte를 검증하고 계정별 경로 격리, 무작위 저장명, 접근 로그를 적용한다.
 - 웹 포털은 Bearer 토큰과 Spring Security RBAC를 사용하며, 비밀번호 변경 시 세션 버전을 올려 기존 토큰을 즉시 폐기한다.
-- 초기 관리자는 Flyway DB migration이 `admin`/`admin`으로 생성하며 초기 로그인 직후 비밀번호 변경을 강제한다. YAML은 관리자 계정을 생성하지 않는다.
-- 포털 비밀번호는 8~128자이며 API 키 원문은 암호화 보관하고 활성 키의 소유 회원에게만 표시한다. 취소·승인·반려·재발급·폐기는 상태 전이와 RBAC로 통제한다.
+- 초기 관리자 비밀번호는 `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로만 주입한다. 신규 DB 또는 레거시 초기 계정은 기동 시 Argon2id 해시로 교체되며 초기 로그인 직후 비밀번호 변경을 강제한다.
+- 포털 비밀번호는 12~128자이며 API 키 원문은 암호화 보관하고 활성 키의 소유 회원에게만 표시한다. 취소·승인·반려·재발급·폐기는 상태 전이와 RBAC로 통제한다.
 
 ## 로컬 실행과 검증
 
@@ -82,7 +82,7 @@ curl http://localhost:8080/actuator/health
 ./gradlew bootJar --no-daemon
 ```
 
-로컬 시크릿은 gitignore된 `src/main/resources/application-local.yml`에만 둔다.
+로컬 시크릿은 gitignore된 `src/main/resources/application-local.yml`에만 둔다. 신규 DB를 처음 기동할 때는 16~128자의 `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`를 환경 변수로 주입한다. 이미 초기 비밀번호를 변경한 DB에는 이 값이 없어도 된다.
 
 ## 문서
 
