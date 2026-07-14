@@ -13,9 +13,41 @@ management:
       enabled: false
 
 omnilens:
+  security:
+    api-key-partner-ids:
+      - partner-api
+      - partner-a
+      - partner-b
+      - partner-provider-collection
+      - partner-invalid-stock
+      - partner-unknown-stock
+    rate-limit:
+      enabled: false
+    signature:
+      enabled: false
   market:
     stock-master:
       seed:
         enabled: true
         location: classpath:data/stock-master-seed.csv
         kis-master-sync-enabled: false
+    chart-warmup:
+      enabled: false
+    exchange-rate-refresh:
+      enabled: false
+    history-collection:
+      enabled: false
+    foreign-ownership-refresh:
+      enabled: false
+    foreign-ownership-model-training:
+      enabled: false
+    foreign-ownership-prediction-precompute:
+      enabled: false
+    kis-realtime:
+      enabled: false
+  market-news:
+    scheduler:
+      enabled: false
+  alert:
+    scheduler:
+      enabled: false

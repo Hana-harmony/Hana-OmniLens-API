@@ -1,5 +1,6 @@
 package com.hana.omnilens.portal.api;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hana.omnilens.common.api.ApiResponse;
 import com.hana.omnilens.portal.PortalAccountService;
 import com.hana.omnilens.portal.PortalAccountService.PortalSession;
+import com.hana.omnilens.portal.PortalAuthenticationRateLimiter;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,28 +25,38 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class PortalAuthController {
 
     private final PortalAccountService accountService;
+    private final PortalAuthenticationRateLimiter rateLimiter;
 
-    public PortalAuthController(PortalAccountService accountService) {
+    public PortalAuthController(PortalAccountService accountService, PortalAuthenticationRateLimiter rateLimiter) {
         this.accountService = accountService;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/sign-up")
     @Operation(summary = "Create a Hana OmniLens portal member account")
-    public ApiResponse<PortalSessionResponse> signUp(@Valid @RequestBody PortalSignUpRequest request) {
+    public ApiResponse<PortalSessionResponse> signUp(
+            @Valid @RequestBody PortalSignUpRequest request,
+            HttpServletRequest servletRequest) {
+        rateLimiter.check(request.username(), servletRequest);
         return ApiResponse.success(PortalSessionResponse.from(accountService.signUp(
                 request.username(), request.password(), request.passwordConfirmation(), request.name(), request.phoneNumber())));
     }
 
     @PostMapping("/login")
     @Operation(summary = "Create a Hana OmniLens portal session")
-    public ApiResponse<PortalSessionResponse> login(@Valid @RequestBody PortalLoginRequest request) {
-        return ApiResponse.success(PortalSessionResponse.from(accountService.login(request.username(), request.password())));
+    public ApiResponse<PortalSessionResponse> login(
+            @Valid @RequestBody PortalLoginRequest request,
+            HttpServletRequest servletRequest) {
+        PortalAuthenticationRateLimiter.Attempt attempt = rateLimiter.check(request.username(), servletRequest);
+        PortalSession session = accountService.login(request.username(), request.password());
+        rateLimiter.clear(attempt);
+        return ApiResponse.success(PortalSessionResponse.from(session));
     }
 
     public record PortalSignUpRequest(
             @NotBlank @Pattern(regexp = "[A-Za-z0-9._-]{4,64}") String username,
-            @NotBlank @Size(min = 8, max = 128) String password,
-            @NotBlank @Size(min = 8, max = 128) String passwordConfirmation,
+            @NotBlank @Size(min = 12, max = 128) String password,
+            @NotBlank @Size(min = 12, max = 128) String passwordConfirmation,
             @NotBlank @Size(max = 100) String name,
             @NotBlank @Pattern(regexp = "[0-9+() -]{7,30}") String phoneNumber
     ) {

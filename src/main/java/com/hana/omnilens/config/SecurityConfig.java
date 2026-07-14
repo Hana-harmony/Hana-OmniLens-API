@@ -28,7 +28,6 @@ import com.hana.omnilens.portal.PortalProperties;
         OmniLensSecurityProperties.class,
         ApiRateLimitProperties.class,
         ApiSignatureProperties.class,
-        MtlsProperties.class,
         PortalProperties.class
 })
 public class SecurityConfig {
@@ -36,7 +35,6 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            MtlsClientCertificateFilter mtlsClientCertificateFilter,
             ApiKeyAuthenticationFilter apiKeyFilter,
             PortalAuthenticationFilter portalAuthenticationFilter,
             ObjectMapper objectMapper) throws Exception {
@@ -55,8 +53,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/portal/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/portal/**").authenticated()
                         .anyRequest().permitAll())
-                .addFilterBefore(mtlsClientCertificateFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(apiKeyFilter, MtlsClientCertificateFilter.class)
+				.addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(portalAuthenticationFilter, ApiKeyAuthenticationFilter.class)
                 .build();
     }

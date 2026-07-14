@@ -2,6 +2,8 @@ package com.hana.omnilens.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -11,20 +13,24 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class PartnerAuthorizationService {
 
     public void assertPartnerAccess(String requestedPartnerId) {
-        String authenticatedPartnerId = authenticatedPartnerId();
-        if (!StringUtils.hasText(authenticatedPartnerId)) {
-            return;
-        }
-        if (!authenticatedPartnerId.equals(requestedPartnerId)) {
-            throw new PartnerAccessDeniedException(authenticatedPartnerId, requestedPartnerId);
+		List<String> authenticatedPartnerIds = authenticatedPartnerIds();
+		if (!authenticatedPartnerIds.contains(requestedPartnerId)) {
+			throw new PartnerAccessDeniedException(String.join(",", authenticatedPartnerIds), requestedPartnerId);
         }
     }
 
     public void assertBootstrapAccess() {
-        String authenticatedPartnerId = authenticatedPartnerId();
-        if (StringUtils.hasText(authenticatedPartnerId)) {
+        if (!bootstrapAuthenticated()) {
+            String authenticatedPartnerId = authenticatedPartnerId();
             throw new PartnerAccessDeniedException(authenticatedPartnerId, "bootstrap");
         }
+    }
+
+    private boolean bootstrapAuthenticated() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            return Boolean.TRUE.equals(attributes.getRequest().getAttribute(PartnerAuthentication.BOOTSTRAP_ATTRIBUTE));
+        }
+        return false;
     }
 
     private String authenticatedPartnerId() {
@@ -35,4 +41,16 @@ public class PartnerAuthorizationService {
         }
         return "";
     }
+
+	private List<String> authenticatedPartnerIds() {
+		if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+			Object partnerIds = attributes.getRequest().getAttribute(PartnerAuthentication.PARTNER_IDS_ATTRIBUTE);
+			if (partnerIds instanceof List<?> values) {
+				return values.stream().filter(String.class::isInstance).map(String.class::cast).toList();
+			}
+			String partnerId = authenticatedPartnerId();
+			return StringUtils.hasText(partnerId) ? List.of(partnerId) : List.of();
+		}
+		return List.of();
+	}
 }

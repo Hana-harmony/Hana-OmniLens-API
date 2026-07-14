@@ -1,12 +1,10 @@
 package com.hana.omnilens.security;
 
+import java.util.List;
 import java.time.Duration;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.LongSupplier;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import com.hana.omnilens.config.ApiRateLimitProperties;
@@ -14,43 +12,52 @@ import com.hana.omnilens.config.ApiRateLimitProperties;
 @Component
 public class ApiKeyRateLimiter {
 
+    private static final String KEY_PREFIX = "omnilens:security:rate-limit:";
+    private static final long PACKING_FACTOR = 1_000_000_000L;
+    private static final DefaultRedisScript<Long> CONSUME_SCRIPT = new DefaultRedisScript<>("""
+            local current = redis.call('INCR', KEYS[1])
+            if current == 1 then
+              redis.call('PEXPIRE', KEYS[1], ARGV[1])
+            end
+            local ttl = redis.call('PTTL', KEYS[1])
+            return current * 1000000000 + ttl
+            """, Long.class);
+
     private final ApiRateLimitProperties properties;
-    private final LongSupplier nanoTime;
-    private final Map<String, TokenBucket> buckets = new ConcurrentHashMap<>();
+    private final StringRedisTemplate redisTemplate;
 
-    @Autowired
-    public ApiKeyRateLimiter(ApiRateLimitProperties properties) {
-        this(properties, System::nanoTime);
-    }
-
-    ApiKeyRateLimiter(ApiRateLimitProperties properties, LongSupplier nanoTime) {
+    public ApiKeyRateLimiter(ApiRateLimitProperties properties, StringRedisTemplate redisTemplate) {
         this.properties = properties;
-        this.nanoTime = nanoTime;
+        this.redisTemplate = redisTemplate;
     }
 
-    public RateLimitDecision consume(String apiKeyFingerprint) {
+    public RateLimitDecision consume(String key) {
+        return consume(key, properties.maxRequests(), properties.window());
+    }
+
+    public RateLimitDecision consume(String key, int maxRequests, Duration window) {
         if (!properties.enabled()) {
             return RateLimitDecision.accepted();
         }
-
-        evictIfNeeded();
-        TokenBucket bucket = buckets.computeIfAbsent(
-                apiKeyFingerprint,
-                ignored -> new TokenBucket(properties.capacity(), nanoTime.getAsLong()));
-        return bucket.consume(properties, nanoTime.getAsLong());
+        Long packed = redisTemplate.execute(
+                CONSUME_SCRIPT,
+                List.of(KEY_PREFIX + key),
+                String.valueOf(window.toMillis()));
+        if (packed == null) {
+            throw new IllegalStateException("rate limit store is unavailable");
+        }
+        long count = packed / PACKING_FACTOR;
+        long ttlMillis = Math.max(1, packed % PACKING_FACTOR);
+        return count <= maxRequests
+                ? RateLimitDecision.accepted()
+                : RateLimitDecision.rejected((ttlMillis + 999) / 1000);
     }
 
-    private void evictIfNeeded() {
-        int overflow = buckets.size() - properties.maxBuckets();
-        if (overflow < 0) {
+    public void clear(String key) {
+        if (!properties.enabled()) {
             return;
         }
-
-        Iterator<String> iterator = buckets.keySet().iterator();
-        for (int removed = 0; iterator.hasNext() && removed <= overflow; removed++) {
-            iterator.next();
-            iterator.remove();
-        }
+        redisTemplate.delete(KEY_PREFIX + key);
     }
 
     public record RateLimitDecision(boolean allowed, long retryAfterSeconds) {
@@ -61,48 +68,6 @@ public class ApiKeyRateLimiter {
 
         static RateLimitDecision rejected(long retryAfterSeconds) {
             return new RateLimitDecision(false, Math.max(1, retryAfterSeconds));
-        }
-    }
-
-    private static final class TokenBucket {
-
-        private int tokens;
-        private long lastRefillNanos;
-
-        private TokenBucket(int capacity, long nowNanos) {
-            this.tokens = capacity;
-            this.lastRefillNanos = nowNanos;
-        }
-
-        private synchronized RateLimitDecision consume(ApiRateLimitProperties properties, long nowNanos) {
-            refill(properties, nowNanos);
-            if (tokens > 0) {
-                tokens--;
-                return RateLimitDecision.accepted();
-            }
-            return RateLimitDecision.rejected(retryAfterSeconds(properties.refillPeriod()));
-        }
-
-        private void refill(ApiRateLimitProperties properties, long nowNanos) {
-            long refillPeriodNanos = properties.refillPeriod().toNanos();
-            if (refillPeriodNanos <= 0) {
-                tokens = properties.capacity();
-                lastRefillNanos = nowNanos;
-                return;
-            }
-
-            long elapsedPeriods = (nowNanos - lastRefillNanos) / refillPeriodNanos;
-            if (elapsedPeriods <= 0) {
-                return;
-            }
-
-            long refilledTokens = elapsedPeriods * properties.refillTokens();
-            tokens = (int) Math.min(properties.capacity(), tokens + refilledTokens);
-            lastRefillNanos += elapsedPeriods * refillPeriodNanos;
-        }
-
-        private long retryAfterSeconds(Duration refillPeriod) {
-            return Math.max(1, refillPeriod.toSeconds());
         }
     }
 }

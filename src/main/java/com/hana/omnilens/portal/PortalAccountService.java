@@ -1,12 +1,14 @@
 package com.hana.omnilens.portal;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,14 +22,18 @@ public class PortalAccountService {
     private final PortalUserRepository userRepository;
     private final PortalTokenService tokenService;
     private final PasswordEncoder passwordEncoder;
+    private final String dummyPasswordHash;
 
     public PortalAccountService(PortalUserRepository userRepository, PortalTokenService tokenService) {
         this.userRepository = userRepository;
         this.tokenService = tokenService;
         BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder(12);
-        DelegatingPasswordEncoder delegating = new DelegatingPasswordEncoder("bcrypt", Map.of("bcrypt", bcrypt));
+        Argon2PasswordEncoder argon2 = new Argon2PasswordEncoder(16, 32, 1, 19_456, 2);
+        DelegatingPasswordEncoder delegating = new DelegatingPasswordEncoder(
+                "argon2", Map.of("argon2", argon2, "bcrypt", bcrypt));
         delegating.setDefaultPasswordEncoderForMatches(bcrypt);
         this.passwordEncoder = delegating;
+        this.dummyPasswordHash = delegating.encode("dummy-password-not-used");
     }
 
     public PortalSession signUp(String username, String password, String passwordConfirmation, String displayName, String phoneNumber) {
@@ -58,10 +64,20 @@ public class PortalAccountService {
     }
 
     public PortalSession login(String username, String password) {
-        PortalUser user = userRepository.findByUsername(normalizeUsername(username))
-                .orElseThrow(() -> new BusinessException(ErrorCode.PORTAL_INVALID_CREDENTIALS));
+        Optional<PortalUser> candidate = userRepository.findByUsername(normalizeUsername(username));
+        if (candidate.isEmpty()) {
+            passwordEncoder.matches(password, dummyPasswordHash);
+            throw new BusinessException(ErrorCode.PORTAL_INVALID_CREDENTIALS);
+        }
+        PortalUser user = candidate.get();
         if (!passwordEncoder.matches(password, user.passwordHash())) {
             throw new BusinessException(ErrorCode.PORTAL_INVALID_CREDENTIALS);
+        }
+        if (!user.passwordHash().startsWith("{argon2}")) {
+            Instant now = Instant.now();
+            userRepository.upgradePasswordHash(user.userId(), passwordEncoder.encode(password), now);
+            user = userRepository.findByUserId(user.userId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PORTAL_INVALID_CREDENTIALS));
         }
         return session(user);
     }
@@ -79,6 +95,10 @@ public class PortalAccountService {
         PortalUser updated = userRepository.findByUserId(user.userId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PORTAL_AUTHENTICATION_REQUIRED));
         return session(updated);
+    }
+
+    public void logout(PortalUser user) {
+        userRepository.revokeSessions(user.userId(), Instant.now());
     }
 
     private PortalSession session(PortalUser user) {
