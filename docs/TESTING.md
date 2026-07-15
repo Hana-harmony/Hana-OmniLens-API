@@ -86,6 +86,7 @@ docker compose -f compose.local.yml up -d
 - 수집된 뉴스·공시의 AI 분석 후 WebSocket 알림 발행
 - AI 분석 `duplicateKey`, `modelVersion` 추적 메타데이터 전파
 - K-FNSPID 시장영향 모델이 포함된 복합 `modelVersion` 무손실 역직렬화와 전파
+- K-FNSPID v4 뉴스·공시 출처별 전문가 버전이 240자 계약 안에서 REST·STOMP·raw WebSocket에 무손실 전파되는지 검증
 - 의미 중요도와 `marketImpactImportance/Score/Confidence`가 REST·STOMP·raw WebSocket에서 독립 값으로 보존되는 계약
 - AI 분석 `glossaryTerms`, `translationQualityFlags` 번역 품질 메타데이터 전파
 - AI 분석 confidence 메타데이터 전파
