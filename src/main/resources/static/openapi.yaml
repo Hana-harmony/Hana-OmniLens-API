@@ -2189,7 +2189,7 @@ components:
             - "null"
           minimum: 0
           maximum: 1
-          description: K-FNSPID v3의 시장반응 순서형 점수다. 투자수익이나 인과효과를 의미하지 않는다.
+          description: K-FNSPID v4의 시장반응 순서형 점수다. 투자수익이나 인과효과를 의미하지 않는다.
         marketImpactConfidence:
           type:
             - number
