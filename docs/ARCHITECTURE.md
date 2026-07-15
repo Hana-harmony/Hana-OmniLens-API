@@ -29,7 +29,7 @@
 - Naver News Search: 뉴스 제목, snippet, 원문 링크 발견. 사용 허가된 원문 URL은 API 서버가 fetch해 전문과 대표 이미지 URL을 정제한다.
 - OpenDART: 공시 제목, 유형, 제출시각, 원문 링크, 접수번호 기반 document 전문
 - Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석, 한국 금융 고유어·전문용어 해설, 외국인 보유 시계열 예측 boundary 산출, 글로벌 피어 매칭, 세무 문서 템플릿·영역 OCR 검증
-- 뉴스 응답의 `modelVersion`은 Hana Montana AI(KF-DeBERTa + K-FNSPID)의 이벤트·금융 감성·공시 의미 중요도·시장영향 모델 버전을 함께 보존한다. 의미 중요도 `importance`와 가격반응 `marketImpactImportance/Score/Confidence`는 서로 다른 과제로 분리해 전파한다. K-FNSPID v3 원천·시세 파일 생성과 학습은 Hannah 저장소 책임이며 OmniLens DB를 데이터셋 원천으로 사용하지 않는다.
+- 뉴스 응답의 `modelVersion`은 Hana Montana AI(KF-DeBERTa + K-FNSPID)의 이벤트·금융 감성·공시 의미 중요도와 요청 출처에 맞는 K-FNSPID v4 시장영향 전문가 버전을 함께 보존한다. 의미 중요도 `importance`와 가격반응 `marketImpactImportance/Score/Confidence`는 서로 다른 과제로 분리해 전파한다. 1,247,685문서와 10,691,998행 일별 시세로 구성된 K-FNSPID v4 원천·시세 파일 생성과 학습은 Hannah 저장소 책임이며 OmniLens DB를 데이터셋 원천으로 사용하지 않는다.
 
 ## 현재 구현 상태
 - KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX Open API 과거 일별매매정보, Frankfurter FX 환율, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
