@@ -1,5 +1,6 @@
 package com.hana.omnilens.market.application;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -12,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,12 +42,14 @@ public class MarketHistoryService {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final String SOURCE = "KRX_OPEN_API_DAILY_TRADE";
     private static final String KIS_SOURCE = "KIS_DAILY_ITEM_CHART_PRICE";
+    private static final String INTRADAY_DAILY_SOURCE = "KIS_REALTIME_TRADE_DAILY_AGGREGATE";
     private static final String KIS_FALLBACK_MARKET = "KIS_DAILY_CHART";
     private static final String YAHOO_INTRADAY_SOURCE = "YAHOO_FINANCE_CHART_PRICE";
     private static final int KIS_FALLBACK_STOCK_LIMIT = 2_000;
     private static final Duration KIS_FALLBACK_REQUEST_INTERVAL = Duration.ofMillis(2_200);
     private static final Duration KIS_RATE_LIMIT_RETRY_DELAY = Duration.ofMillis(3_000);
     private static final Duration INTRADAY_CACHE_FRESHNESS = Duration.ofSeconds(60);
+    private static final int RECENT_INTRADAY_DAILY_FALLBACK_DAYS = 7;
     private static final LocalTime REGULAR_MARKET_OPEN = LocalTime.of(9, 0);
     private static final LocalTime REGULAR_MARKET_CLOSE = LocalTime.of(15, 30);
     private static final LocalTime REGULAR_MARKET_FIRST_MINUTE = LocalTime.of(9, 1);
@@ -165,13 +170,91 @@ public class MarketHistoryService {
         if (resolvedFrom.isAfter(resolvedTo)) {
             return List.of();
         }
-        List<MarketDailyPrice> savedHistory =
+        List<MarketDailyPrice> persistedHistory =
                 marketDailyPriceRepository.findByStockCode(stockCode, resolvedFrom, resolvedTo, limit);
+        Set<LocalDate> persistedTradeDates = persistedHistory.stream()
+                .map(MarketDailyPrice::tradeDate)
+                .collect(Collectors.toSet());
+        List<MarketDailyPrice> savedHistory = mergeHistory(
+                persistedHistory,
+                dailyHistoryFromPersistedIntraday(
+                        stock,
+                        resolvedFrom,
+                        resolvedTo,
+                        persistedTradeDates),
+                limit);
         if (!savedHistory.isEmpty() && coversRequestedStart(savedHistory, resolvedFrom)) {
             return savedHistory;
         }
         List<MarketDailyPrice> fetchedHistory = loadKisHistoryFallback(stock, resolvedFrom, resolvedTo, limit);
         return mergeHistory(savedHistory, fetchedHistory, limit);
+    }
+
+    private List<MarketDailyPrice> dailyHistoryFromPersistedIntraday(
+            StockSummary stock,
+            LocalDate from,
+            LocalDate to,
+            Set<LocalDate> existingDailyDates) {
+        if (marketIntradayPriceRepository == null) {
+            return List.of();
+        }
+        List<MarketDailyPrice> aggregated = new ArrayList<>();
+        LocalDate earliestFallbackDate = LocalDate.now(clock).minusDays(RECENT_INTRADAY_DAILY_FALLBACK_DAYS);
+        LocalDate fallbackFrom = from.isAfter(earliestFallbackDate) ? from : earliestFallbackDate;
+        try {
+            for (LocalDate tradeDate = fallbackFrom; !tradeDate.isAfter(to); tradeDate = tradeDate.plusDays(1)) {
+                if (existingDailyDates.contains(tradeDate)) {
+                    continue;
+                }
+                List<MarketIntradayPrice> prices = regularSessionPrices(
+                        marketIntradayPriceRepository.findByStockCodeAndDate(stock.stockCode(), tradeDate, 390));
+                if (prices.isEmpty()) {
+                    continue;
+                }
+                aggregated.add(toDailyPrice(stock, prices));
+            }
+        } catch (RuntimeException exception) {
+            // 분봉 저장소 장애가 일봉 provider fallback을 막지 않게 한다.
+            log.warn("Persisted intraday daily aggregation failed stockCode={} from={} to={}",
+                    stock.stockCode(), fallbackFrom, to, exception);
+        }
+        if (!aggregated.isEmpty()) {
+            try {
+                marketDailyPriceRepository.upsertAll(aggregated);
+            } catch (RuntimeException exception) {
+                // 저장 실패에도 이미 검증된 집계값은 현재 chart 응답에 사용한다.
+                log.warn("Persisted intraday daily aggregation save failed stockCode={}", stock.stockCode(), exception);
+            }
+        }
+        return aggregated;
+    }
+
+    private MarketDailyPrice toDailyPrice(StockSummary stock, List<MarketIntradayPrice> prices) {
+        MarketIntradayPrice first = prices.get(0);
+        MarketIntradayPrice last = prices.get(prices.size() - 1);
+        BigDecimal previousClose = marketDailyPriceRepository.findLatestBefore(stock.stockCode(), first.bucketStart().toLocalDate())
+                .map(MarketDailyPrice::closePriceKrw)
+                .orElse(null);
+        BigDecimal changeRate = previousClose == null || previousClose.signum() == 0
+                ? BigDecimal.ZERO
+                : last.closePriceKrw()
+                        .subtract(previousClose)
+                        .multiply(BigDecimal.valueOf(100))
+                        .divide(previousClose, 4, java.math.RoundingMode.HALF_UP);
+        return new MarketDailyPrice(
+                stock.stockCode(),
+                first.bucketStart().toLocalDate(),
+                stock.market(),
+                first.openPriceKrw(),
+                prices.stream().map(MarketIntradayPrice::highPriceKrw).max(BigDecimal::compareTo).orElse(first.highPriceKrw()),
+                prices.stream().map(MarketIntradayPrice::lowPriceKrw).min(BigDecimal::compareTo).orElse(first.lowPriceKrw()),
+                last.closePriceKrw(),
+                changeRate,
+                prices.stream().mapToLong(MarketIntradayPrice::tradingVolume).sum(),
+                prices.stream().map(MarketIntradayPrice::tradingValueKrw).reduce(BigDecimal.ZERO, BigDecimal::add),
+                last.closePriceKrw(),
+                INTRADAY_DAILY_SOURCE,
+                Instant.now(clock));
     }
 
     private boolean coversRequestedStart(List<MarketDailyPrice> savedHistory, LocalDate requestedFrom) {

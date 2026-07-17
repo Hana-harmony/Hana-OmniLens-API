@@ -58,6 +58,8 @@
 - `POST /api/v1/market/foreign-ownership/backfill`
 - `fromDate`부터 `toDate`까지 이미 저장된 날짜를 제외하고 비어 있는 평일만 과거 provider에서 조회해 저장한다.
 - 과거 provider가 비어 있으면 현재 snapshot을 과거 날짜로 복제하지 않고 `PROVIDER_EMPTY`, `PARTIAL`, `FAILED` 상태로 반환한다.
+- 시장 quote/detail의 `marketDataTime`은 응답 생성 시각이 아니라 실제 가격의 체결·수집 시각이다. 휴장일 fallback은 가장 최근 정규장 분봉을 사용하며, `source`로 `KIS_INTRADAY_PRICE_SNAPSHOT`을 반환한다.
+- history는 최근 7일 요청 범위 안의 저장된 정규장 분봉을 실제 OHLCV로 집계할 수 있으며, 이 경우 `source`는 `KIS_REALTIME_TRADE_DAILY_AGGREGATE`다.
 
 ## Global Peer Matching
 
