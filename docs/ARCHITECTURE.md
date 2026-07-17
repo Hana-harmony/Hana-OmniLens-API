@@ -37,13 +37,13 @@
 - `GET /api/v1/market/quotes`는 stockCodes가 있으면 요청 순서의 다건 snapshot을, 없으면 종목 마스터 기반 전체 snapshot을 반환한다.
 - `POST /api/v1/market/history/collect`는 `omnilens.market.history-collection.provider`에 따라 KRX KOSPI/KOSDAQ/KONEX 일별매매정보 또는 KIS 일봉 chart API를 수집해 `market_daily_price`에 upsert한다. `KIS_DAILY_CHART` 모드는 KIS를 primary 실 provider로 사용하므로 KRX egress 차단 환경에서도 mock 없이 성공한다.
 - `POST /api/v1/market/foreign-ownership/collect`, `POST /api/v1/market/foreign-ownership/backfill`, `ForeignOwnershipRefreshScheduler`는 KRX Data Marketplace 로그인 기반 외국인 보유 snapshot을 `foreign_ownership_daily_snapshot`에 upsert해 Hannah 외국인 보유 시계열 예측 입력을 지속적으로 누적한다.
-- `GET /api/v1/market/stocks/{stockCode}/history`는 저장된 KRX 기반 OHLCV/거래대금 일봉 데이터를 우선 반환하고, 저장 row가 없으면 KIS 일봉 chart API로 보강한다.
+- `GET /api/v1/market/stocks/{stockCode}/history`는 저장된 KRX 기반 OHLCV/거래대금 일봉 데이터를 우선 반환하고, 저장 row가 없으면 KIS 일봉 chart API 또는 저장된 정규장 분봉의 OHLCV 집계로 보강한다. 휴장일에는 이전 거래일 가격을 요청 날짜로 복제하지 않는다.
 - 종목 마스터는 Flyway가 생성한 `stock_master` 테이블과 JDBC 저장소를 사용한다. KIS KOSPI·KOSDAQ·KONEX 마스터를 시장별 스냅샷으로 reconcile하며, 현재 스냅샷에 없는 역사 종목은 `active=false`로 전환한다.
 - 초기 seed는 부트스트랩으로만 사용하고, 검색·전체 quote·AI 연동 universe는 `active=true`인 현재 KIS 종목만 사용한다.
 - 협력사 watchlist는 Flyway가 생성한 `partner_watchlist_subscription` 테이블과 JDBC 저장소를 사용한다.
 - watchlist 종목은 `stock_master` FK로 제한하며, REST API 저장 시 미지원 종목은 404로 거부한다.
 - 협력사 API key는 Flyway가 생성한 `partner_api_credential` 테이블에 SHA-256 해시와 `partner_id`로 저장한다.
-- `MarketDataService`는 KIS 실시간 체결 cache, KIS 현재가 REST, 공공데이터 전일 snapshot 순서로 실제 provider 가격을 조회한다. 가격, KRX 외국인 보유량 snapshot, 또는 FX cache가 없으면 가짜 시장 데이터로 성공 응답을 만들지 않고 `MARKET_002`로 실패한다.
+- `MarketDataService`는 KIS 실시간 체결 cache, KIS 현재가 REST, PostgreSQL 최신 정규장 분봉, 공공데이터 전일 snapshot 순서로 실제 provider 가격을 조회한다. 재기동·휴장일에는 저장 분봉의 체결 시각과 출처를 그대로 노출하며, 가격, KRX 외국인 보유량 snapshot, 또는 FX cache가 없으면 가짜 시장 데이터로 성공 응답을 만들지 않고 `MARKET_002`로 실패한다.
 - `MarketDataService`는 KIS 실시간 호가 cache를 우선 사용하고, 장외 또는 초기 구동처럼 cache가 비어 있으면 KIS REST 호가 snapshot으로 orderbook 응답을 보강한다.
 - `MarketQuoteWebSocketHandler`는 raw WebSocket `/ws/market/quotes`에서 인증된 협력사 연결을 관리하고, `RealtimeMarketDataIngestionService`가 KIS 체결 tick을 수신하면 KRW/현지통화/FX metadata가 포함된 `MarketQuote` JSON을 송신한다.
 - 협력사가 `QUOTE_STREAM_REPLAY` 메시지를 보내면 현재 quote snapshot을 요청 통화 기준으로 재송신한다.

@@ -256,6 +256,47 @@ class MarketHistoryServiceTest {
     }
 
     @Test
+    void getHistoryBuildsHolidayChartFromPersistedRegularSessionTicksBeforeCallingKis() {
+        LocalDate from = LocalDate.of(2025, 6, 4);
+        LocalDate to = LocalDate.of(2025, 6, 5);
+        MarketHistoryService intradayService = intradayService(
+                Clock.fixed(Instant.parse("2025-06-05T00:00:00Z"), ZoneId.of("Asia/Seoul")));
+        MarketIntradayPrice first = intradayPrice(
+                LocalDateTime.of(2025, 6, 4, 9, 1), Instant.parse("2025-06-04T00:01:00Z"));
+        MarketIntradayPrice last = new MarketIntradayPrice(
+                "005930",
+                LocalDateTime.of(2025, 6, 4, 15, 30),
+                "KOSPI",
+                new BigDecimal("58000"),
+                new BigDecimal("58500"),
+                new BigDecimal("57900"),
+                new BigDecimal("58400"),
+                13_000L,
+                new BigDecimal("759200000"),
+                "KIS_REALTIME_TRADE",
+                Instant.parse("2025-06-04T06:30:00Z"));
+
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock()));
+        when(dailyPriceRepository.findByStockCode("005930", from, to, 10)).thenReturn(List.of());
+        when(intradayPriceRepository.findByStockCodeAndDate("005930", from, 390))
+                .thenReturn(List.of(first, last));
+        when(intradayPriceRepository.findByStockCodeAndDate("005930", to, 390))
+                .thenReturn(List.of());
+        when(dailyPriceRepository.findLatestBefore("005930", from))
+                .thenReturn(Optional.of(previousDailyPrice(LocalDate.of(2025, 6, 3), "57000")));
+
+        List<MarketDailyPrice> prices = intradayService.getHistory("005930", from, to, 10);
+
+        assertThat(prices).singleElement().satisfies(price -> {
+            assertThat(price.tradeDate()).isEqualTo(from);
+            assertThat(price.closePriceKrw()).isEqualByComparingTo("58400");
+            assertThat(price.source()).isEqualTo("KIS_REALTIME_TRADE_DAILY_AGGREGATE");
+        });
+        verify(dailyPriceRepository).upsertAll(anyList());
+        verifyNoInteractions(kisDailyChartPriceClient);
+    }
+
+    @Test
     void getHistoryBackfillsKisDailyChartWhenSavedRowsDoNotCoverRequestedStart() {
         LocalDate from = LocalDate.of(2025, 6, 1);
         LocalDate to = LocalDate.of(2025, 7, 1);
@@ -636,6 +677,24 @@ class MarketHistoryServiceTest {
                 new BigDecimal("59500"),
                 source,
                 Instant.parse("2025-07-01T07:00:00Z"));
+    }
+
+    private static MarketDailyPrice previousDailyPrice(LocalDate tradeDate, String closePrice) {
+        BigDecimal close = new BigDecimal(closePrice);
+        return new MarketDailyPrice(
+                "005930",
+                tradeDate,
+                "KOSPI",
+                close,
+                close,
+                close,
+                close,
+                BigDecimal.ZERO,
+                20_000L,
+                close.multiply(BigDecimal.valueOf(20_000L)),
+                close,
+                "KRX_OPEN_API_DAILY_TRADE",
+                Instant.parse("2025-06-03T07:00:00Z"));
     }
 
     private static MarketHistoryCollectionProperties defaultCollectionProperties() {

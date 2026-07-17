@@ -432,7 +432,7 @@ public class MarketDataService {
                 priceLookup.volume().orElse(0L),
                 localCurrency,
                 localCurrencyPrice,
-                currentPriceKrw == null ? null : Instant.now(clock),
+                currentPriceKrw == null ? null : priceLookup.marketDataTime().orElseGet(() -> Instant.now(clock)),
                 ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnedQuantity).orElse(0L),
                 ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
                 ownershipSnapshot.map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(null),
@@ -595,7 +595,7 @@ public class MarketDataService {
                 foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignOwnershipRate).orElse(null),
                 foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::foreignLimitExhaustionRate).orElse(null),
                 foreignOwnership.snapshot().map(ForeignOwnershipSnapshot::baseDate).orElse(null),
-                currentPrice == null ? null : Instant.now(clock),
+                currentPrice == null ? null : priceLookup.marketDataTime().orElseGet(() -> Instant.now(clock)),
                 marketStatus.viActive(),
                 marketStatus.singlePriceTrading(),
                 marketStatus.tradingHalted(),
@@ -1059,7 +1059,7 @@ public class MarketDataService {
         }
         try {
             LocalDate tradeDate = LocalDate.now(clock);
-            return marketIntradayPriceRepository.findLatestByStockCodeAndDate(stockCode, tradeDate)
+            return marketIntradayPriceRepository.findLatestByStockCodeAtOrBefore(stockCode, tradeDate)
                     .filter(price -> price.closePriceKrw() != null && price.closePriceKrw().signum() > 0)
                     .map(price -> PriceLookup.intraday(
                             price,
@@ -1567,6 +1567,7 @@ public class MarketDataService {
             Optional<BigDecimal> changeRate,
             Optional<Long> volume,
             Optional<LocalDate> baseDate,
+            Optional<Instant> marketDataTime,
             Optional<ForeignOwnershipSnapshot> foreignOwnershipSnapshot,
             String marketSession,
             PriceSource source
@@ -1580,6 +1581,7 @@ public class MarketDataService {
                     Optional.of(tick.accumulatedVolume()),
                     Optional.of(tick.businessDate()),
                     Optional.empty(),
+                    Optional.empty(),
                     tick.marketSession(),
                     PriceSource.KIS_WEBSOCKET_TRADE);
         }
@@ -1592,6 +1594,7 @@ public class MarketDataService {
                     Optional.of(snapshot.changeRate()),
                     Optional.of(snapshot.volume()),
                     Optional.of(baseDate),
+                    Optional.empty(),
                     snapshot.foreignOwnershipSnapshot(baseDate),
                     KisRealtimeTradeTick.REGULAR_SESSION,
                     PriceSource.KIS_OPEN_API);
@@ -1605,6 +1608,7 @@ public class MarketDataService {
                     Optional.of(snapshot.changeRate()),
                     Optional.of(snapshot.volume()),
                     Optional.of(snapshot.baseDate()),
+                    Optional.empty(),
                     Optional.empty(),
                     KisRealtimeTradeTick.REGULAR_SESSION,
                     PriceSource.PUBLIC_DATA);
@@ -1621,6 +1625,7 @@ public class MarketDataService {
                     previousDailyPrice.map(previous -> changeRate(price.closePriceKrw(), previous.closePriceKrw())),
                     accumulatedVolume > 0 ? Optional.of(accumulatedVolume) : Optional.empty(),
                     Optional.of(price.bucketStart().toLocalDate()),
+                    Optional.of(price.bucketStart().atZone(KOREA_ZONE).toInstant()),
                     Optional.empty(),
                     KisRealtimeTradeTick.REGULAR_SESSION,
                     PriceSource.KIS_INTRADAY_PRICE);
@@ -1637,6 +1642,7 @@ public class MarketDataService {
 
         private static PriceLookup empty() {
             return new PriceLookup(
+                    Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),

@@ -72,6 +72,8 @@ curl http://localhost:8080/api/v1/alerts/watchlists/partner-a \
 - 활성화하면 `KIS_REALTIME_STOCK_CODES`의 종목마다 KIS 실시간 체결과 선택된 호가를, `KIS_REALTIME_INDEX_CODES`의 지수를 구독한다.
 - 수신 메시지는 실시간 cache에 저장되고 quote/orderbook 응답에서 우선 사용된다. 장운영정보 `H0STMKO0`의 거래정지 사유는 `circuitBreakerActive`, `tradingHalted`, `tradingHaltReason`으로 정규화한다.
 - 장외, 휴장, 초기 구동 등으로 실시간 호가 cache가 비어 있으면 orderbook API는 KIS REST 호가 snapshot을 사용한다.
+- 휴장일 또는 재기동 직후 KIS 현재가가 지연·장애이면 PostgreSQL `market_intraday_minute_price`의 가장 최근 정규장 체결가를 quote/detail fallback으로 사용한다. `marketDataTime`은 응답 생성 시각이 아니라 해당 체결 시각이며 `source`는 `KIS_INTRADAY_PRICE_SNAPSHOT`으로 유지한다.
+- 호가처럼 마지막 확정 snapshot을 저장하지 않는 데이터는 빈 호가를 임의 생성하지 않는다. KIS 실시간·REST 호가가 모두 없으면 orderbook API는 명시적으로 unavailable을 반환한다.
 - KIS 체결 tick 또는 장운영 상태 변경 수신 시 `/ws/market/quotes` raw WebSocket 연결에도 `MarketQuote` JSON을 송신한다. 거래가 멈춘 서킷브레이커 상태도 다음 체결을 기다리지 않는다.
 - 협력사는 `{"type":"QUOTE_STREAM_REPLAY","currency":"USD","after":"..."}` 메시지로 현재 quote snapshot replay를 요청할 수 있다.
 
@@ -92,6 +94,7 @@ KIS_REALTIME_INDEX_CODES=0001,1001,2001
 - KIS 일봉 수집은 provider 초당 제한을 넘지 않도록 종목별 호출 간격을 1.2초로 둔다. 제한 응답은 짧게 대기 후 재시도한다.
 - 차트 조회는 `GET /api/v1/market/stocks/{stockCode}/history?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=365`를 사용한다.
 - 저장된 KRX row가 없을 때는 KIS 일봉 chart API를 호출해 해당 종목의 일봉을 저장하고 반환한다.
+- KIS·KRX 일봉 provider가 휴장일 또는 외부 장애로 응답하지 않아도, 최근 7일 요청 범위에 저장된 정규장 분봉이 있으면 서버가 실제 OHLCV를 집계해 `KIS_REALTIME_TRADE_DAILY_AGGREGATE` 출처로 일봉을 저장·반환한다. 집계 대상이 없는 날짜를 다른 날짜의 가격으로 복제하지 않는다.
 - Stock-exchange-BE는 KRX를 직접 호출하지 않고 이 history API를 호출해 앱 차트 응답으로 재가공한다.
 
 ```text

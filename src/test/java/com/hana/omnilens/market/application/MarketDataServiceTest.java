@@ -885,7 +885,7 @@ class MarketDataServiceTest {
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
         when(kisCurrentPriceClient.findCurrentPrice("000660"))
                 .thenThrow(new IllegalStateException("EGW00201"));
-        when(intradayRepository.findLatestByStockCodeAndDate("000660", LocalDate.of(2025, 6, 4)))
+        when(intradayRepository.findLatestByStockCodeAtOrBefore("000660", LocalDate.of(2025, 6, 4)))
                 .thenReturn(Optional.of(new MarketIntradayPrice(
                         "000660",
                         LocalDateTime.of(2025, 6, 4, 15, 30),
@@ -994,7 +994,7 @@ class MarketDataServiceTest {
         when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
         cache.put(foreignOwnershipSnapshot());
         when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
-        when(intradayPriceRepository.findLatestByStockCodeAndDate("005930", LocalDate.of(2025, 6, 4)))
+        when(intradayPriceRepository.findLatestByStockCodeAtOrBefore("005930", LocalDate.of(2025, 6, 4)))
                 .thenReturn(Optional.of(new MarketIntradayPrice(
                         "005930",
                         LocalDateTime.of(2025, 6, 4, 10, 46),
@@ -1020,6 +1020,65 @@ class MarketDataServiceTest {
         assertThat(quote.currentPriceKrw()).isEqualByComparingTo("81400");
         assertThat(quote.changeRate()).isEqualByComparingTo("1.7500");
         assertThat(quote.volume()).isEqualTo(18_300_000L);
+        assertThat(quote.source()).isEqualTo("KIS_INTRADAY_PRICE_SNAPSHOT+KRX_FOREIGN_OWNERSHIP_CACHE");
+    }
+
+    @Test
+    void getQuoteUsesMostRecentPersistedIntradaySnapshotOnHolidayWhenKisIsUnavailable() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        MarketIntradayPriceRepository intradayPriceRepository = mock(MarketIntradayPriceRepository.class);
+        MarketDailyPriceRepository dailyPriceRepository = mock(MarketDailyPriceRepository.class);
+        ForeignOwnershipSnapshotCache cache = new InMemoryForeignOwnershipSnapshotCache();
+        Clock holidayClock = Clock.fixed(Instant.parse("2025-06-05T00:00:00Z"), ZoneId.of("Asia/Seoul"));
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                null,
+                null,
+                repository,
+                cache,
+                new InMemoryForeignOwnershipDailySnapshotRepository(),
+                new InMemoryForeignOwnershipPredictionCache(),
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                new InMemoryMarketIndexSnapshotRepository(),
+                null,
+                intradayPriceRepository,
+                dailyPriceRepository,
+                null,
+                new ForeignOwnershipPredictionEngine(holidayClock),
+                holidayClock);
+
+        when(repository.findByCode("005930")).thenReturn(Optional.of(samsungElectronics()));
+        cache.put(foreignOwnershipSnapshot());
+        when(kisCurrentPriceClient.findCurrentPrice("005930")).thenReturn(Optional.empty());
+        when(intradayPriceRepository.findLatestByStockCodeAtOrBefore("005930", LocalDate.of(2025, 6, 5)))
+                .thenReturn(Optional.of(new MarketIntradayPrice(
+                        "005930",
+                        LocalDateTime.of(2025, 6, 4, 15, 30),
+                        "KOSPI",
+                        new BigDecimal("81200"),
+                        new BigDecimal("81500"),
+                        new BigDecimal("81100"),
+                        new BigDecimal("81400"),
+                        12_000L,
+                        new BigDecimal("976800000"),
+                        "KIS_REALTIME_TRADE",
+                        holidayClock.instant())));
+        when(dailyPriceRepository.findLatestBefore("005930", LocalDate.of(2025, 6, 4)))
+                .thenReturn(Optional.of(dailyPrice(
+                        "005930",
+                        LocalDate.of(2025, 6, 3),
+                        "80000")));
+        when(intradayPriceRepository.sumTradingVolumeByStockCodeAndDate(
+                "005930", LocalDate.of(2025, 6, 4))).thenReturn(18_300_000L);
+
+        MarketQuote quote = service.getQuote("005930", "USD", new BigDecimal("0.00072"));
+
+        assertThat(quote.currentPriceKrw()).isEqualByComparingTo("81400");
+        assertThat(quote.marketDataTime()).isEqualTo(Instant.parse("2025-06-04T06:30:00Z"));
         assertThat(quote.source()).isEqualTo("KIS_INTRADAY_PRICE_SNAPSHOT+KRX_FOREIGN_OWNERSHIP_CACHE");
     }
 

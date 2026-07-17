@@ -73,6 +73,8 @@ docker compose -f compose.local.yml up -d
 - KRX 수집 실패 시 KIS 일봉 chart API로 기준일 데이터를 보강 저장하는 계약과 provider rate limit pacing
 - `KIS_DAILY_CHART` provider 모드에서 KRX를 호출하지 않고 KIS 일봉 chart API만으로 수집 성공을 반환하는 계약
 - 저장된 KRX row가 없을 때 KIS 일봉 chart API로 history를 보강하는 계약
+- KIS 현재가 장애·휴장일 재기동에 저장된 전일 정규장 분봉을 quote/detail의 실제 시각·출처로 반환하는 계약
+- 외부 일봉 provider 장애 시 저장된 정규장 분봉을 실제 OHLCV 일봉으로 집계하고, 휴장일 가격을 복제하지 않는 계약
 - KIS REST 현재가와 호가 API가 `EGW00201` 초당 제한을 반환하면 backoff 후 재시도하는 계약
 - 과거 시세 history API의 공동 응답 envelope과 OHLCV/거래대금 payload
 - Naver News Search 응답 정규화
