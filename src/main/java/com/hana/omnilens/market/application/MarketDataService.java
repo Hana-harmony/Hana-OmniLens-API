@@ -1327,7 +1327,7 @@ public class MarketDataService {
             LocalDate expectedBaseDate) {
         try {
             return foreignOwnershipDailySnapshotRepository.findRecent(stockCode, expectedBaseDate, 1).stream()
-                    .filter(snapshot -> expectedBaseDate.equals(snapshot.baseDate()))
+                    .filter(snapshot -> !snapshot.baseDate().isBefore(expectedBaseDate.minusDays(7)))
                     .findFirst()
                     .map(snapshot -> new ForeignOwnershipSnapshot(
                             snapshot.stockCode(),

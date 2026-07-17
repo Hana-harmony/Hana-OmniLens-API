@@ -1355,6 +1355,42 @@ class MarketDataServiceTest {
     }
 
     @Test
+    void getStockDetailUsesLatestStoredForeignOwnershipSnapshotOnHoliday() {
+        PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
+        KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
+        StockMasterRepository repository = mock(StockMasterRepository.class);
+        InMemoryForeignOwnershipDailySnapshotRepository dailySnapshotRepository =
+                new InMemoryForeignOwnershipDailySnapshotRepository();
+        Clock holidayAfterClose = Clock.fixed(
+                Instant.parse("2026-07-17T07:00:00Z"),
+                ZoneId.of("Asia/Seoul"));
+        MarketDataService service = new MarketDataService(
+                client,
+                kisCurrentPriceClient,
+                null,
+                repository,
+                new InMemoryForeignOwnershipSnapshotCache(),
+                dailySnapshotRepository,
+                new InMemoryExchangeRateCache(),
+                new InMemoryRealtimeMarketDataCache(),
+                null,
+                new ForeignOwnershipPredictionEngine(holidayAfterClose),
+                holidayAfterClose);
+        dailySnapshotRepository.upsert(foreignOwnershipDailySnapshot(
+                "015760", LocalDate.of(2026, 7, 16), "99.5000"));
+
+        when(repository.findByCode("015760")).thenReturn(Optional.of(foreignLimitRestrictedStock()));
+        when(kisCurrentPriceClient.findCurrentPrice("015760")).thenReturn(Optional.empty());
+
+        StockDetail detail = service.getStockDetail("015760", "USD", new BigDecimal("0.00072"));
+
+        assertThat(detail.foreignOwnershipRate()).isEqualByComparingTo("49.75");
+        assertThat(detail.foreignLimitExhaustionRate()).isEqualByComparingTo("99.5000");
+        assertThat(detail.foreignOwnershipBaseDate()).isEqualTo(LocalDate.of(2026, 7, 16));
+        assertThat(detail.foreignOwnershipPredictionConfidenceLevel()).isNotEqualTo("NO_SNAPSHOT");
+    }
+
+    @Test
     void getOrderabilityUsesHannahAiForeignOwnershipPredictionWhenAvailable() {
         PublicDataStockSecuritiesClient client = mock(PublicDataStockSecuritiesClient.class);
         KisCurrentPriceClient kisCurrentPriceClient = mock(KisCurrentPriceClient.class);
