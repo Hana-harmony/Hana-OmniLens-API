@@ -1,6 +1,7 @@
 package com.hana.omnilens.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -42,13 +43,16 @@ class ApiSignatureAuthenticationFilterTest {
     void acceptsValidSignedRequest() throws Exception {
         Instant timestamp = Instant.now();
 
-        mockMvc.perform(signedGet("/openapi.yaml", timestamp, "nonce-valid"))
-                .andExpect(status().isOk());
+        mockMvc.perform(signedGet("/api/v1/partner/readiness", timestamp, "nonce-valid"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("UP"))
+                .andExpect(jsonPath("$.data.contractVersion").value("hmac-sha256-v1"));
     }
 
     @Test
     void rejectsMissingSignatureHeaders() throws Exception {
-        mockMvc.perform(get("/openapi.yaml")
+        mockMvc.perform(get("/api/v1/partner/readiness")
                         .header("X-HANA-OMNILENS-API-KEY", API_KEY))
                 .andExpect(status().isUnauthorized());
     }
@@ -57,10 +61,10 @@ class ApiSignatureAuthenticationFilterTest {
     void rejectsReusedNonce() throws Exception {
         Instant timestamp = Instant.now();
 
-        mockMvc.perform(signedGet("/openapi.yaml", timestamp, "nonce-replay"))
+        mockMvc.perform(signedGet("/api/v1/partner/readiness", timestamp, "nonce-replay"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(signedGet("/openapi.yaml", timestamp, "nonce-replay"))
+        mockMvc.perform(signedGet("/api/v1/partner/readiness", timestamp, "nonce-replay"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -68,7 +72,7 @@ class ApiSignatureAuthenticationFilterTest {
     void rejectsStaleTimestamp() throws Exception {
         Instant timestamp = Instant.now().minus(Duration.ofMinutes(10));
 
-        mockMvc.perform(signedGet("/openapi.yaml", timestamp, "nonce-stale"))
+        mockMvc.perform(signedGet("/api/v1/partner/readiness", timestamp, "nonce-stale"))
                 .andExpect(status().isUnauthorized());
     }
 

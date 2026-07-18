@@ -25,6 +25,36 @@ class ApiRequestSignatureVerifierTest {
     private static final String API_KEY_FINGERPRINT = "api-key-fingerprint";
 
     @Test
+    void verifyMatchesFrozenStockExchangeContractVector() {
+        Instant contractTime = Instant.parse("2026-07-18T15:30:00Z");
+        ApiSignatureProperties properties = new ApiSignatureProperties(
+                true,
+                Duration.ofMinutes(5),
+                ApiSignatureProperties.NonceStoreMode.IN_MEMORY,
+                10_000);
+        ApiRequestSignatureVerifier verifier = new ApiRequestSignatureVerifier(
+                properties,
+                new InMemoryApiSignatureNonceStore(properties, Clock.fixed(contractTime, ZoneOffset.UTC)),
+                Clock.fixed(contractTime, ZoneOffset.UTC));
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET",
+                "/api/v1/partner/readiness");
+        request.addHeader(ApiRequestSignatureVerifier.TIMESTAMP_HEADER, "2026-07-18T15:30:00Z");
+        request.addHeader(ApiRequestSignatureVerifier.NONCE_HEADER, "frozen-contract-nonce-0001");
+        request.addHeader(
+                ApiRequestSignatureVerifier.SIGNATURE_HEADER,
+                "4fc6f6372bc57493446b1694733af1bc65fa933182e9ffbe35a08462d94648d8");
+
+        ApiRequestSignatureVerifier.SignatureVerificationResult result = verifier.verify(
+                request,
+                API_KEY_FINGERPRINT,
+                "contract-test-secret-32-bytes-minimum",
+                new byte[0]);
+
+        assertThat(result.valid()).isTrue();
+    }
+
+    @Test
     void verifyAcceptsBodyBoundSignature() {
         ApiRequestSignatureVerifier verifier = verifier();
         byte[] body = "{\"title\":\"삼성전자\"}".getBytes(StandardCharsets.UTF_8);

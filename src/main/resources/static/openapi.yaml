@@ -16,6 +16,15 @@ servers:
     description: Local development
 security:
   - partnerApiKey: []
+x-hmac-request-signing:
+  algorithm: HMAC-SHA256
+  headers:
+    timestamp: X-HANA-OMNILENS-TIMESTAMP
+    nonce: X-HANA-OMNILENS-NONCE
+    signature: X-HANA-OMNILENS-SIGNATURE
+  canonicalRequest: "METHOD\\nURI_WITH_QUERY\\nTIMESTAMP\\nNONCE\\nSHA256_BODY_HEX"
+  nonceBits: 192
+  description: All protected REST and WebSocket handshake requests require a fresh UTC timestamp and nonce.
 tags:
   - name: Market Data
     description: Korea stock quote, orderbook, and stock search APIs.
@@ -773,6 +782,26 @@ paths:
           description: None of the requested stock codes are supported.
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/partner/readiness:
+    get:
+      tags:
+        - Security
+      operationId: getPartnerReadiness
+      summary: Verify API key and HMAC request-signing interoperability.
+      description: >
+        Returns UP only after the partner API key, UTC timestamp, one-time nonce,
+        and HMAC-SHA256 signature have passed the same filters as business APIs.
+      responses:
+        "200":
+          description: Partner request-signing contract verified.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerReadinessApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/security/partners/{partnerId}/credentials/rotate:
     post:
       tags:
@@ -1314,6 +1343,15 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/PartnerWatchlistResponse"
+    PartnerReadinessApiResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponseBase"
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: "#/components/schemas/PartnerReadinessResponse"
     PartnerCredentialRotationApiResponse:
       allOf:
         - $ref: "#/components/schemas/ApiResponseBase"
@@ -2420,6 +2458,18 @@ components:
           items:
             type: string
             pattern: "^\\d{6}$"
+    PartnerReadinessResponse:
+      type: object
+      required:
+        - status
+        - contractVersion
+      properties:
+        status:
+          type: string
+          enum: [UP]
+        contractVersion:
+          type: string
+          enum: [hmac-sha256-v1]
     PartnerCredentialRotationResult:
       type: object
       required:

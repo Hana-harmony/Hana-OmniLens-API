@@ -107,11 +107,11 @@ REDIS_USERNAME=omnilens_app
 - `OMNILENS_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
 - `OMNILENS_RATE_LIMIT_REFILL_PERIOD`: refill 주기. 기본값은 `1m`이다.
 - `OMNILENS_RATE_LIMIT_MAX_BUCKETS`: 메모리에 보관할 최대 API key bucket 수. 기본값은 `10000`이다.
-- `OMNILENS_SIGNATURE_ENABLED`: HMAC 요청 서명 검증 활성화 여부. 기본값은 `false`이다.
-- `OMNILENS_SIGNATURE_SECRET`: HMAC 요청 서명 검증 secret. 서명 검증 활성화 시 필수다.
-- `OMNILENS_SIGNATURE_ALLOWED_CLOCK_SKEW`: 서명 timestamp 허용 오차. 기본값은 `5m`이다.
-- `OMNILENS_SIGNATURE_NONCE_STORE_MODE`: 서명 nonce 저장소. 운영 기본값은 `redis`, 로컬 테스트는 `in-memory`를 사용할 수 있다.
-- `OMNILENS_SIGNATURE_MAX_NONCES`: 인메모리 nonce 저장 최대 개수. 기본값은 `10000`이다.
+- `OMNILENS_SECURITY_SIGNATURE_ENABLED`: HMAC 요청 서명 검증 활성화 여부. 애플리케이션과 운영 기본값은 `true`이며 자동 테스트 외에는 끄지 않는다.
+- HMAC secret은 협력사 API key 원문을 사용한다. 별도의 `OMNILENS_SIGNATURE_SECRET`은 사용하지 않는다.
+- `OMNILENS_SECURITY_SIGNATURE_ALLOWED_CLOCK_SKEW`: 서명 timestamp 허용 오차. 기본값은 `2m`이다.
+- `OMNILENS_SECURITY_SIGNATURE_NONCE_STORE_MODE`: 서명 nonce 저장소. 애플리케이션과 운영 기본값은 `redis`, 격리된 자동 테스트는 `in-memory`를 사용할 수 있다.
+- `OMNILENS_SECURITY_SIGNATURE_MAX_NONCES`: 인메모리 nonce 저장 최대 개수. 기본값은 `10000`이다.
 - `OMNILENS_MTLS_ENABLED`: 보호 API client certificate 필수 검증 활성화 여부. 기본값은 `false`이다.
 - `ALERT_DEDUPE_MODE`: 알림 중복 방지 저장소 모드. 기본값은 `redis`이다.
 - `ALERT_DEDUPE_TTL`: Redis dedupe key 보존 시간. 기본값은 `24h`이다.

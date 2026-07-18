@@ -36,6 +36,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/portal/admin/tax/refund-cases/{caseId}/approve']", notNullValue()))
                 .andExpect(jsonPath("$.paths['/api/v1/security/partners/{partnerId}/credentials/rotate']",
                         notNullValue()))
+                .andExpect(jsonPath("$.paths['/api/v1/partner/readiness']", notNullValue()))
                 .andExpect(jsonPath("$.components.securitySchemes.hanaApiKey", notNullValue()));
     }
 }
