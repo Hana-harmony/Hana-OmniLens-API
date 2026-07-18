@@ -25,6 +25,8 @@ docker compose -f compose.local.yml up -d
 - HMAC 요청 서명 성공
 - HMAC 요청 서명 누락, nonce 재사용, stale timestamp 거부
 - 요청 body 변조 시 HMAC 서명 불일치 거부
+- 거래소 백엔드와 OmniLens가 동일 고정 입력에서 같은 HMAC-SHA256 값을 계산하는 상호운용 계약 벡터
+- 서명된 `/api/v1/partner/readiness` 성공, 서명 누락·nonce 재사용·stale timestamp 거부
 - mTLS 활성화 시 보호 API의 client certificate 필수 검증과 health endpoint 예외
 - Redis 기반 HMAC nonce `SETNX` TTL 저장과 duplicate nonce 거부
 - Redis/in-memory/unavailable HMAC nonce store 설정 선택

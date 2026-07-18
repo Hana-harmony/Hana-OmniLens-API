@@ -1,6 +1,6 @@
 # 보안
 
-공개 개발자 문서의 연동 계약은 `X-HANA-OMNILENS-API-KEY` 하나만 안내한다. 요청 서명과 mTLS는 운영자가 별도 정책으로 활성화할 때 사용하는 내부 배포 통제이며 일반 API key 이용자 계약에 포함하지 않는다.
+보호 API의 서버 간 연동 계약은 API key와 HMAC-SHA256 요청 서명을 함께 사용한다. 공개 OpenAPI에도 서명 헤더와 canonical request 규격을 명시하며, 브라우저나 모바일 앱이 이 자격증명을 직접 보유하지 않는다.
 
 ## 현재 기준
 - 모든 운영 API 요청은 `X-HANA-OMNILENS-API-KEY`를 사용한다.
@@ -11,10 +11,11 @@
 - DB credential로 인증된 요청은 알림 API의 요청 `partnerId`가 인증 `partnerId`와 다르면 `403`으로 거부한다.
 - 인증된 요청은 API key SHA-256 fingerprint 단위로 rate limit을 적용한다.
 - rate limit 초과 요청은 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
-- 운영에서 `OMNILENS_SIGNATURE_ENABLED=true`인 경우 모든 보호 API 요청은 HMAC-SHA256 요청 서명을 함께 검증한다.
+- 모든 실행 profile은 `omnilens.security.signature.enabled=true`를 기본값으로 사용하며 운영 보호 API 요청은 HMAC-SHA256 요청 서명을 함께 검증한다. Spring 환경 변수 이름은 `OMNILENS_SECURITY_SIGNATURE_ENABLED`이다.
 - 요청 서명 canonical string은 `METHOD`, `URI_WITH_QUERY`, `TIMESTAMP`, `NONCE`, `SHA256_BODY_HEX`를 줄바꿈으로 연결한 값이다.
 - 서명 헤더는 `X-HANA-OMNILENS-TIMESTAMP`, `X-HANA-OMNILENS-NONCE`, `X-HANA-OMNILENS-SIGNATURE`를 사용한다.
 - timestamp는 허용 clock skew 안에 있어야 하고, nonce는 같은 API key fingerprint에서 한 번만 사용할 수 있다.
+- `GET /api/v1/partner/readiness`는 같은 인증 필터를 통과한 뒤 계약 버전 `hmac-sha256-v1`을 반환한다. 거래소 readiness는 이 호출 실패를 장애로 처리한다.
 - 운영 기본 nonce 저장소는 Redis이며, Redis nonce store가 없거나 장애가 발생하면 서명 검증 요청은 실패 닫힘 방식으로 `503`을 반환한다.
 - 운영에서 `OMNILENS_MTLS_ENABLED=true`인 경우 health/info를 제외한 보호 API 요청은 client certificate가 없으면 `401`로 거부한다.
 - mTLS 직접 종료는 Spring Boot `server.ssl` 설정을 사용하고, 운영 healthcheck를 위해 `SERVER_SSL_CLIENT_AUTH=want`와 앱 필터 강제를 함께 사용한다.
@@ -64,7 +65,7 @@
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART 공시검색 API 인증키
-- `OMNILENS_SIGNATURE_SECRET`: 협력사 요청 서명 검증용 HMAC secret
+- HMAC secret은 요청의 협력사 API key 원문이며 별도의 중복 서명 secret을 두지 않는다. 서버에는 API key SHA-256 해시만 저장한다.
 - `SERVER_SSL_KEY_STORE_PASSWORD`: 서버 TLS keystore 비밀번호
 - `SERVER_SSL_TRUST_STORE_PASSWORD`: 협력사 client certificate CA truststore 비밀번호
 - 외부 API 키는 로그, 예외 메시지, 테스트 fixture, 커밋 파일에 남기지 않는다.

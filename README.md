@@ -60,6 +60,7 @@
 | 세무 OCR | `POST /api/v1/tax/documents/verify` |
 | 웹 회원·관리자 | `/api/v1/portal/**` |
 | 협력사 자격증명 | `/api/v1/security/partners/**` |
+| 서명 연동 준비 상태 | `GET /api/v1/partner/readiness` |
 | 계약 문서 | `/openapi.yaml`, `/v3/api-docs`, `/swagger-ui/index.html` |
 
 모든 REST 응답은 `success/status/code/message/data/timestamp` envelope을 사용한다.
@@ -67,7 +68,8 @@
 ## 보안 기준
 
 - 협력사 서버 요청은 해시로 저장한 API key, rate limit, correlation ID와 감사 로그로 보호한다.
-- 운영 환경은 요청 서명 nonce 검증과 mTLS를 설정으로 강제할 수 있다.
+- 모든 보호 REST 요청과 WebSocket handshake는 API key, UTC timestamp, 192-bit nonce, canonical request HMAC-SHA256 서명을 검증한다.
+- `GET /api/v1/partner/readiness`도 같은 인증 필터를 통과해야 하며 거래소 백엔드는 이 결과를 자신의 readiness에 포함한다.
 - 프론트엔드에는 Hana, KIS, KRX, Naver, OpenDART 자격증명을 전달하지 않는다.
 - 외부 자격증명과 DB·Redis 비밀번호는 GitHub Secrets가 생성하는 서버 환경 파일로만 주입한다.
 - 세무 파일은 허용 형식·크기·magic byte를 검증하고 계정별 경로 격리, 무작위 저장명, 접근 로그를 적용한다.
