@@ -44,6 +44,8 @@ class OpenApiDocumentTest {
                 .andExpect(content().string(containsString("keyStrengths")))
                 .andExpect(content().string(containsString("operational_scale")))
                 .andExpect(content().string(containsString("PartnerWatchlistApiResponse")))
+                .andExpect(content().string(containsString("/api/v1/partner/readiness")))
+                .andExpect(content().string(containsString("hmac-sha256-v1")))
                 .andExpect(content().string(containsString("/api/v1/security/partners/{partnerId}/credentials/rotate")))
                 .andExpect(content().string(containsString("PartnerCredentialRotationApiResponse")))
                 .andExpect(content().string(containsString("raw key exactly once")))
@@ -66,7 +68,7 @@ class OpenApiDocumentTest {
                 .andExpect(content().string(containsString("/ws/market/quotes")))
                 .andExpect(content().string(containsString("QUOTE_STREAM_REPLAY")))
                 .andExpect(content().string(containsString("X-HANA-OMNILENS-API-KEY")))
-                .andExpect(content().string(not(containsString("X-HANA-OMNILENS-SIGNATURE"))))
+                .andExpect(content().string(containsString("X-HANA-OMNILENS-SIGNATURE")))
                 .andExpect(content().string(not(containsString("type: mutualTLS"))));
     }
 

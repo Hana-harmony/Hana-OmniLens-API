@@ -1,5 +1,12 @@
 # 구현 기록
 
+## 2026-07-19 · 거래소 HMAC 상호운용 readiness 고정
+
+- 보호 REST·WebSocket 요청의 API key, UTC timestamp, 192-bit nonce, HMAC-SHA256 계약을 공개 OpenAPI와 보안·배포 문서에 일치시켰다.
+- `GET /api/v1/partner/readiness`가 다른 비즈니스 API와 같은 인증 필터를 통과한 뒤 `hmac-sha256-v1` 계약 버전을 반환하도록 추가했다.
+- Stock-exchange-BE와 동일한 고정 서명 벡터를 검증해 canonical request 또는 header 규격이 한쪽에서 바뀌면 두 저장소 CI가 실패하도록 했다.
+- 거래소 readiness가 서명된 호출 결과를 포함하므로 뒤처진 이미지나 잘못된 키가 실행 중인 상태를 정상으로 보고하지 않는다.
+
 ## 2026-07-15 · K-FNSPID v4 출처별 시장영향 전문가 전파
 
 - Hana Montana AI(KF-DeBERTa + K-FNSPID)가 뉴스와 공시 요청을 각각 전용 시장영향 전문가로 라우팅하고 출처 불일치 추론을 거부하도록 변경했다.

@@ -49,7 +49,14 @@
 
 - Swagger UI: `/swagger-ui/index.html`
 - OpenAPI JSON: `/v3/api-docs`
-- Server-to-server 인증은 `X-HANA-OMNILENS-API-KEY` header로 문서화한다.
+- Server-to-server 인증은 `X-HANA-OMNILENS-API-KEY`, `X-HANA-OMNILENS-TIMESTAMP`, `X-HANA-OMNILENS-NONCE`, `X-HANA-OMNILENS-SIGNATURE` header로 문서화한다.
+
+## Partner Request Signing Readiness
+
+- `GET /api/v1/partner/readiness`
+- API key, UTC timestamp, 일회성 192-bit nonce, HMAC-SHA256 서명을 다른 보호 API와 동일하게 검증한 뒤 `status=UP`, `contractVersion=hmac-sha256-v1`을 반환한다.
+- canonical request는 `METHOD`, query를 포함한 raw URI, timestamp, nonce, SHA-256 body hash를 줄바꿈으로 연결한다.
+- 거래소 백엔드 readiness는 이 endpoint의 성공을 포함하므로 키 누락, 서명 규격 불일치, timestamp 오차, nonce 재사용은 배포 health 실패로 나타난다.
 
 ## Foreign Ownership History
 
