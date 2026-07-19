@@ -48,7 +48,6 @@ import com.hana.omnilens.provider.news.OriginalArticleClient;
 import com.hana.omnilens.provider.news.OriginalArticleContent;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-sha256=4c806362b613f7496abf284146efd31da90e4b16169fe001841ca17290f427c4",
         "omnilens.alert.dedupe.mode=in-memory",
         "management.health.redis.enabled=false"
 })
@@ -79,12 +78,22 @@ class AlertControllerTest {
     @BeforeEach
     void deletePartnerCredentials() {
         jdbcTemplate.update("DELETE FROM partner_api_credential");
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-a", "test-api-key");
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-api", "partner-api-test-key");
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-unknown-stock", "partner-unknown-stock-test-key");
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-invalid-stock", "partner-invalid-stock-test-key");
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-provider-collection", "partner-provider-collection-test-key");
     }
 
     @Test
     void replaceAndGetPartnerWatchlist() throws Exception {
         mockMvc.perform(put("/api/v1/alerts/watchlists/partner-api")
-                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .header("X-HANA-OMNILENS-API-KEY", "partner-api-test-key")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -100,7 +109,7 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.stockCodes[1]", equalTo("000660")));
 
         mockMvc.perform(get("/api/v1/alerts/watchlists/partner-api")
-                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
+                        .header("X-HANA-OMNILENS-API-KEY", "partner-api-test-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success", equalTo(true)))
                 .andExpect(jsonPath("$.data.partnerId", equalTo("partner-api")))
@@ -111,7 +120,7 @@ class AlertControllerTest {
     @Test
     void replacePartnerWatchlistRejectsUnsupportedStockCode() throws Exception {
         mockMvc.perform(put("/api/v1/alerts/watchlists/partner-unknown-stock")
-                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .header("X-HANA-OMNILENS-API-KEY", "partner-unknown-stock-test-key")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -127,7 +136,7 @@ class AlertControllerTest {
     @Test
     void replacePartnerWatchlistRejectsInvalidStockCode() throws Exception {
         mockMvc.perform(put("/api/v1/alerts/watchlists/partner-invalid-stock")
-                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .header("X-HANA-OMNILENS-API-KEY", "partner-invalid-stock-test-key")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {
@@ -1056,7 +1065,7 @@ class AlertControllerTest {
         when(alertTitleTranslationService.translateTextWithResult(any(), any(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
-                        .header("X-HANA-OMNILENS-API-KEY", "test-api-key")
+                        .header("X-HANA-OMNILENS-API-KEY", "partner-provider-collection-test-key")
                         .contentType(APPLICATION_JSON)
                         .content("""
                                 {

@@ -9,7 +9,7 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "COMMON_999", "Internal server error"),
     MARKET_DATA_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "MARKET_002", "Market data provider is unavailable"),
     INVALID_API_KEY(HttpStatus.UNAUTHORIZED, "AUTH_001", "Invalid API key"),
-    API_KEY_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_002", "API key hash is not configured"),
+    API_KEY_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_002", "No active partner API key is configured"),
 	SECURITY_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AUTH_008", "Security service is unavailable"),
     PORTAL_AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "AUTH_006", "Portal authentication is required"),
     PORTAL_ACCESS_DENIED(HttpStatus.FORBIDDEN, "AUTH_007", "Portal access denied"),

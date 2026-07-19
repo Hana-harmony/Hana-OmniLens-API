@@ -1,5 +1,13 @@
 # 구현 기록
 
+## 2026-07-20 · 포털 발급 API key 단일화
+
+- 전역 API key hash fallback과 bootstrap 전용 협력사 key 강제 rotation API를 제거했다.
+- 보호 REST·WebSocket 요청은 포털 승인·재발급으로 `partner_api_credential`에 저장된 활성 협력사 key만 인증한다.
+- bootstrap 호환용 전역 WebSocket topic 발행을 제거하고 협력사별 topic만 허용한다.
+- 초기 관리자 임시 비밀번호는 신규 DB 최초 기동에만 허용하고 최초 비밀번호 변경 후 GitHub Secret에서 삭제할 수 있도록 배포 검사를 변경했다.
+- 테스트도 전역 설정 key 대신 실제 DB credential을 등록해 운영 인증 경로와 동일하게 검증한다.
+
 ## 2026-07-19 · 거래소 HMAC 상호운용 readiness 고정
 
 - 보호 REST·WebSocket 요청의 API key, UTC timestamp, 192-bit nonce, HMAC-SHA256 계약을 공개 OpenAPI와 보안·배포 문서에 일치시켰다.

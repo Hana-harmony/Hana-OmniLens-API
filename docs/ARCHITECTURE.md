@@ -17,7 +17,7 @@
 - WebSocket: `/ws/alerts`, `/ws/market/quotes`
 - 협력사 topic: `/topic/partners/{partnerId}/alerts`
 - 협력사 종목 topic: `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`
-- 전역 종목 topic: `/topic/stocks/{stockCode}/alerts`
+- 협력사 종목 topic: `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`
 - REST와 WebSocket handshake는 모두 협력사 API key와 HMAC-SHA256 요청 서명 보호 대상이다.
 - 거래소 백엔드는 서명된 `/api/v1/partner/readiness` 응답의 `hmac-sha256-v1` 계약을 자신의 readiness에 포함한다. 이 경계는 애플리케이션 기동 여부가 아니라 실제 서버 간 인증 상호운용성을 확인한다.
 - 협력사별 DB credential로 인증된 알림 API 요청은 요청 `partnerId`와 인증 `partnerId`가 일치해야 한다.

@@ -81,7 +81,6 @@ public class AlertStreamingService {
         messagingTemplate.convertAndSend(
                 "/topic/partners/" + request.partnerId() + "/stocks/" + request.stockCode() + "/alerts",
                 storedEvent);
-        messagingTemplate.convertAndSend("/topic/stocks/" + request.stockCode() + "/alerts", storedEvent);
         rawStreamingService.publish(storedEvent);
         return storedEvent;
     }

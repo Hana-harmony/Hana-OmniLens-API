@@ -45,10 +45,8 @@ x-websocket:
     subscribeTopics:
       partnerAlerts: /topic/partners/{partnerId}/alerts
       partnerStockAlerts: /topic/partners/{partnerId}/stocks/{stockCode}/alerts
-      stockAlerts: /topic/stocks/{stockCode}/alerts
     authorization: >
       DB-bound partner credentials may subscribe only to their own partner topics.
-      The global stock topic is retained for bootstrap/global-key compatibility.
     payloadSchema: AlertEvent
   marketQuoteStream:
     endpoint: /ws/market/quotes
@@ -802,34 +800,6 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
-  /api/v1/security/partners/{partnerId}/credentials/rotate:
-    post:
-      tags:
-        - Security
-      operationId: rotatePartnerCredential
-      summary: Rotate a partner API key using the bootstrap admin key.
-      description: >
-        Generates a new high-entropy partner API key, stores only its SHA-256
-        hash, deactivates currently active keys for the partner, and returns the
-        raw key exactly once in this response. DB-bound partner credentials are
-        not allowed to call this operation.
-      parameters:
-        - $ref: "#/components/parameters/PartnerId"
-      responses:
-        "200":
-          description: Partner credential rotated.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PartnerCredentialRotationApiResponse"
-        "400":
-          $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/PartnerAccessDenied"
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/korean-financial-terms/explain:
     post:
       tags:
@@ -1352,15 +1322,6 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/PartnerReadinessResponse"
-    PartnerCredentialRotationApiResponse:
-      allOf:
-        - $ref: "#/components/schemas/ApiResponseBase"
-        - type: object
-          required:
-            - data
-          properties:
-            data:
-              $ref: "#/components/schemas/PartnerCredentialRotationResult"
     AlertEventApiResponse:
       allOf:
         - $ref: "#/components/schemas/ApiResponseBase"
@@ -2470,35 +2431,6 @@ components:
         contractVersion:
           type: string
           enum: [hmac-sha256-v1]
-    PartnerCredentialRotationResult:
-      type: object
-      required:
-        - partnerId
-        - apiKey
-        - apiKeySha256Prefix
-        - rotatedAt
-        - deactivatedCredentialCount
-      properties:
-        partnerId:
-          type: string
-          maxLength: 80
-        apiKey:
-          type: string
-          minLength: 43
-          maxLength: 43
-          description: Newly generated raw API key. This value is returned once and is never stored in plain text.
-        apiKeySha256Prefix:
-          type: string
-          minLength: 12
-          maxLength: 12
-          pattern: "^[a-f0-9]{12}$"
-          description: First 12 hex characters of the stored SHA-256 hash for audit correlation.
-        rotatedAt:
-          type: string
-          format: date-time
-        deactivatedCredentialCount:
-          type: integer
-          minimum: 0
     AlertCollectPublishResponse:
       type: object
       required:

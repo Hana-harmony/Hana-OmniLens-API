@@ -20,13 +20,6 @@ omnilens:
   portal:
     bootstrap-admin-password: Local-Test-Only-Initial-Secret-2026!
   security:
-    api-key-partner-ids:
-      - partner-api
-      - partner-a
-      - partner-b
-      - partner-provider-collection
-      - partner-invalid-stock
-      - partner-unknown-stock
     rate-limit:
       enabled: false
     signature:
