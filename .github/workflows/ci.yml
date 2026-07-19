@@ -39,7 +39,6 @@ jobs:
           PROD_USER: ${{ secrets.PROD_USER }}
           PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
           PROD_HOST_KEY: ${{ secrets.PROD_HOST_KEY }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
@@ -63,7 +62,7 @@ jobs:
           HANNAH_DISCORD_WEBHOOK: ${{ secrets.HANNAH_DISCORD_WEBHOOK_URL }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
-          for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_HOST_KEY GHCR_USERNAME GHCR_TOKEN DB_PASSWORD REDIS_PASSWORD API_KEY_SHA256 PORTAL_BOOTSTRAP_PASSWORD PUBLIC_DATA_KEY NAVER_ID NAVER_SECRET OPEN_DART_KEY KRX_ID KRX_PASSWORD KRX_OPEN_API_KEY KIS_ACCOUNT KIS_APP_KEY KIS_APP_SECRET KIS_REAL_ACCOUNT KIS_REAL_APP_KEY KIS_REAL_APP_SECRET LETSENCRYPT_EMAIL OMNILENS_DISCORD_WEBHOOK HANNAH_DISCORD_WEBHOOK GRAFANA_ADMIN_PASSWORD; do
+          for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_HOST_KEY GHCR_TOKEN DB_PASSWORD REDIS_PASSWORD API_KEY_SHA256 PORTAL_BOOTSTRAP_PASSWORD PUBLIC_DATA_KEY NAVER_ID NAVER_SECRET OPEN_DART_KEY KRX_ID KRX_PASSWORD KRX_OPEN_API_KEY KIS_ACCOUNT KIS_APP_KEY KIS_APP_SECRET KIS_REAL_ACCOUNT KIS_REAL_APP_KEY KIS_REAL_APP_SECRET LETSENCRYPT_EMAIL OMNILENS_DISCORD_WEBHOOK HANNAH_DISCORD_WEBHOOK GRAFANA_ADMIN_PASSWORD; do
             : "${!name:?${name} is required}"
           done
           [[ "${#DB_PASSWORD}" -ge 32 && "${DB_PASSWORD}" != *[[:space:]]* ]]
@@ -94,7 +93,6 @@ jobs:
           chmod 600 ~/.ssh/prod_key ~/.ssh/known_hosts
       - name: 운영 설정 생성
         env:
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
@@ -117,6 +115,17 @@ jobs:
           HANNAH_DISCORD_WEBHOOK: ${{ secrets.HANNAH_DISCORD_WEBHOOK_URL }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
+          GHCR_USERNAME="$(
+            curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+              --retry 3 --retry-all-errors \
+              --header "Authorization: Bearer ${GHCR_TOKEN}" \
+              --header 'Accept: application/vnd.github+json' \
+              --header 'X-GitHub-Api-Version: 2022-11-28' \
+              https://api.github.com/user \
+              | jq --exit-status --raw-output \
+                  '.login | strings | select(length <= 39 and test("^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"))'
+          )"
+          [[ -n "${GHCR_USERNAME}" ]]
           printf '%s\n' \
             'JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError' \
             'SERVER_PORT=8080' \

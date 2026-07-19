@@ -30,8 +30,7 @@ docker compose -f compose.local.yml up -d
 - `PROD_USER`: SSH 사용자
 - `PROD_SSH_KEY`: 운영 서버 접근용 private key
 - `PROD_HOST_KEY`: 운영 서버 SSH host key
-- `GHCR_USERNAME`: GHCR pull token을 발급한 GitHub 사용자
-- `GHCR_TOKEN`: 운영 서버에서 GHCR 이미지 pull에 사용할 token
+- `GHCR_TOKEN`: 운영 서버에서 GHCR 이미지 pull에 사용할 token. 배포 workflow가 GitHub API로 token 소유자를 검증해 GHCR 사용자명을 자동 결정하므로 `GHCR_USERNAME` Secret은 등록하지 않는다.
 - `OMNILENS_API_KEY_SHA256`: 협력사 API key SHA-256 해시
 - `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`: 신규 DB의 초기 관리자 임시 비밀번호, 16~128자이며 앞뒤 공백을 허용하지 않음
 - `DB_PASSWORD`: 운영 DB 비밀번호
