@@ -111,6 +111,7 @@ class DeploymentProfileGuardrailTest {
                 "PreferredAuthentications publickey,password",
                 "StrictHostKeyChecking yes",
                 "scripts/ssh-askpass.sh");
+        assertThat(workflow).doesNotContain("ControlMaster", "ControlPersist");
         assertThat(workflow).contains("GHCR_USERNAME", "https://api.github.com/user", "secrets.GHCR_TOKEN");
         assertThat(workflow).doesNotContain("secrets.GHCR_USERNAME");
         assertThat(workflow).contains("scripts/bootstrap-https.sh");
