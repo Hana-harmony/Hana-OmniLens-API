@@ -29,6 +29,7 @@ docker compose -f compose.local.yml up -d
 - `PROD_HOST`: 운영 서버 호스트
 - `PROD_USER`: SSH 사용자
 - `PROD_SSH_KEY`: 운영 서버 접근용 private key
+- `PROD_SSH_PASSWORD`: OCI SSH의 private key 인증 뒤 요구되는 계정 비밀번호
 - `PROD_HOST_KEY`: 운영 서버 SSH host key
 - `GHCR_TOKEN`: 운영 서버에서 GHCR 이미지 pull에 사용할 token. 배포 workflow가 GitHub API로 token 소유자를 검증해 GHCR 사용자명을 자동 결정하므로 `GHCR_USERNAME` Secret은 등록하지 않는다.
 - `DB_PASSWORD`: 운영 DB 비밀번호
@@ -40,6 +41,8 @@ docker compose -f compose.local.yml up -d
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART API 인증키
+
+CI는 `PROD_SSH_PASSWORD`를 파일이나 명령 인자에 쓰지 않고 배포 단계의 마스킹된 환경변수로만 전달한다. OpenSSH `SSH_ASKPASS`가 `publickey,password` 순서의 두 번째 인증에 사용하며, 고정한 `PROD_HOST_KEY`와 `PROD_SSH_KEY`가 모두 일치해야 접속한다.
 
 ## 최초 기동 전용 GitHub Secret
 
