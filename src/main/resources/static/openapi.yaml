@@ -1,16 +1,16 @@
 openapi: 3.1.0
 info:
-  title: Hana OmniLens API
+  title: Hana Omni-Connect API
   version: 0.1.0-feature
   summary: B2B Korea market data and watchlist alert API
   description: >
-    Hana OmniLens API provides Korea stock information, foreign ownership
+    Hana Omni-Connect API provides Korea stock information, foreign ownership
     snapshots, and news/disclosure alert events for overseas exchange and broker
     partners. It does not provide order, execution, settlement, FX trading, or
     omnibus account processing. Every response includes
-    X-HANA-OMNILENS-CORRELATION-ID for support and incident tracing.
+    X-HANA-OMNI-CONNECT-CORRELATION-ID for support and incident tracing.
 servers:
-  - url: https://api.hana-omnilens.example.com
+  - url: https://api.hana-omni-connect.example.com
     description: Production placeholder
   - url: http://localhost:8080
     description: Local development
@@ -19,9 +19,9 @@ security:
 x-hmac-request-signing:
   algorithm: HMAC-SHA256
   headers:
-    timestamp: X-HANA-OMNILENS-TIMESTAMP
-    nonce: X-HANA-OMNILENS-NONCE
-    signature: X-HANA-OMNILENS-SIGNATURE
+    timestamp: X-HANA-OMNI-CONNECT-TIMESTAMP
+    nonce: X-HANA-OMNI-CONNECT-NONCE
+    signature: X-HANA-OMNI-CONNECT-SIGNATURE
   canonicalRequest: "METHOD\\nURI_WITH_QUERY\\nTIMESTAMP\\nNONCE\\nSHA256_BODY_HEX"
   nonceBits: 192
   description: All protected REST and WebSocket handshake requests require a fresh UTC timestamp and nonce.
@@ -169,8 +169,8 @@ paths:
       description: >
         Sends tax document bytes to Hannah-Montana-AI for OCR, field extraction,
         and document rule review. Existing partner OCR text can be supplied as
-        extractedText, but OmniLens does not fabricate OCR confidence or fraud
-        scores. Document bytes are base64 encoded and never stored by OmniLens.
+        extractedText, but OmniConnect does not fabricate OCR confidence or fraud
+        scores. Document bytes are base64 encoded and never stored by OmniConnect.
       requestBody:
         required: true
         content:
@@ -395,7 +395,7 @@ paths:
       summary: Check partner mock-order boundary for a Korea stock.
       description: >
         Returns the market boundary that overseas exchange backends must check
-        before writing their own mock ledger. Hana-OmniLens-API does not place
+        before writing their own mock ledger. Hana-Omni-Connect-API does not place
         a real order or call a KIS mock-trading order endpoint.
       parameters:
         - $ref: "#/components/parameters/StockCode"
@@ -438,7 +438,7 @@ paths:
       operationId: getMarketHistory
       summary: Get KRX-based Korea stock daily OHLCV history.
       description: >
-        Returns normalized daily chart data saved by Hana-OmniLens-API from KRX
+        Returns normalized daily chart data saved by Hana-Omni-Connect-API from KRX
         Open API daily trade feeds. Overseas exchange backends use this REST
         snapshot for chart rendering and do not call KRX directly.
       parameters:
@@ -487,7 +487,7 @@ paths:
       description: >
         Operational endpoint used by scheduled jobs or administrators to collect
         KOSPI, KOSDAQ, and KONEX daily trade rows from KRX Open API and upsert
-        them into Hana-OmniLens-API DB.
+        them into Hana-Omni-Connect-API DB.
       parameters:
         - name: baseDate
           in: query
@@ -861,7 +861,7 @@ components:
     partnerApiKey:
       type: apiKey
       in: header
-      name: X-HANA-OMNILENS-API-KEY
+      name: X-HANA-OMNI-CONNECT-API-KEY
       description: Partner API key. The server stores only SHA-256 hashes and can bind keys to partner IDs.
     portalBearer:
       type: http
@@ -2249,7 +2249,7 @@ components:
             - string
             - "null"
           maxLength: 240
-          description: Hana Montana AI(KF-DeBERTa + K-FNSPID)의 event, sentiment, semantic materiality, market-impact 복합 출처다. OmniLens는 파싱하거나 변경하지 않고 전파한다.
+          description: Hana Montana AI(KF-DeBERTa + K-FNSPID)의 event, sentiment, semantic materiality, market-impact 복합 출처다. OmniConnect는 파싱하거나 변경하지 않고 전파한다.
         eventConfidence:
           type:
             - number

@@ -24,14 +24,14 @@
 ## 2026-07-15 · K-FNSPID v4 출처별 시장영향 전문가 전파
 
 - Hana Montana AI(KF-DeBERTa + K-FNSPID)가 뉴스와 공시 요청을 각각 전용 시장영향 전문가로 라우팅하고 출처 불일치 추론을 거부하도록 변경했다.
-- K-FNSPID v4는 뉴스 524,696건·공시 722,989건, 총 1,247,685문서와 파일 기반 일별 시세 10,691,998행을 사용한다. OmniLens 운영 DB의 `market_daily_price`를 학습 원천으로 연결하지 않는다.
+- K-FNSPID v4는 뉴스 524,696건·공시 722,989건, 총 1,247,685문서와 파일 기반 일별 시세 10,691,998행을 사용한다. OmniConnect 운영 DB의 `market_daily_price`를 학습 원천으로 연결하지 않는다.
 - 시간 Test에서 뉴스 전문가는 9,560건 macro F1 0.3745 / QWK 0.4754, 공시 전문가는 4,615건 macro F1 0.3216 / QWK 0.1550을 기록했다. 두 출처 모두 자체 TF-IDF 기준선보다 높고 거래일 군집 부트스트랩 95% CI가 0보다 크다.
 - 공시 TF-IDF 기준선은 독립 배포 gate를 통과하지 못하므로 공시 Transformer 장애 시 부적격 기준선으로 후퇴하지 않고 시장영향 필드를 생략한다. 의미 중요도와 나머지 분석은 계속 제공한다.
 - API 계약 필드는 변경하지 않고 요청 출처별 복합 `modelVersion`과 시장영향 3개 필드를 REST·STOMP·raw WebSocket에 무손실 전파한다.
 
 ## 2026-07-14 · 경정청구서 PDF 직접 편집 계약
 
-- Stock-exchange-BE가 발급하는 세무 신청 ID 규격인 `TAX-` + 영숫자 12자리를 OmniLens 동기화·관리자 API 전체에 동일하게 적용했다.
+- Stock-exchange-BE가 발급하는 세무 신청 ID 규격인 `TAX-` + 영숫자 12자리를 OmniConnect 동기화·관리자 API 전체에 동일하게 적용했다.
 - 메서드 경로 검증 예외를 공통 400 envelope으로 처리해 잘못된 ID가 `Internal server error`로 노출되지 않게 했다.
 - 서버의 신뢰된 2쪽 PDF 양식을 PNG로 렌더링하고, PDF 출력과 동일한 필드 좌표·크기·한글 라벨을 관리자 전용 API로 제공한다.
 - 웹 편집 입력과 최종 PDF 생성이 같은 좌표 목록을 사용하며 템플릿 페이지, 좌표, 12자리 실제 신청 ID를 통합 테스트로 고정했다.
@@ -40,10 +40,10 @@
 
 - 서비스 모델명을 `Hana Montana AI(KF-DeBERTa + K-FNSPID)`로 통일했다.
 - K-FNSPID v3의 550,662문서·10,691,998행 일별 시세·공시 원문 보유 문서 8,972건은 Hannah 저장소 정본으로 유지한다. 내부 운영 공시 4건을 더한 전체본문 학습자료는 공시 8,976건이며, 기본 뉴스/공시 Gold 680건과 학습 비중복 공시 stress Gold 310건을 별도로 검증한다.
-- 시장영향 KF-DeBERTa는 Validation 전용 class-prior 보정을 포함하며 OmniLens는 보정 완료된 독립 시장영향 필드와 복합 모델 버전을 그대로 전파한다.
-- seed 17/42/73 중 Validation으로 선택된 seed 73 시장영향 모델의 시간 Test 10,750건 성능은 accuracy 0.5095 / macro F1 0.3820 / QWK 0.4694이며, OmniLens는 이 버전을 파싱하거나 축약하지 않는다.
+- 시장영향 KF-DeBERTa는 Validation 전용 class-prior 보정을 포함하며 OmniConnect는 보정 완료된 독립 시장영향 필드와 복합 모델 버전을 그대로 전파한다.
+- seed 17/42/73 중 Validation으로 선택된 seed 73 시장영향 모델의 시간 Test 10,750건 성능은 accuracy 0.5095 / macro F1 0.3820 / QWK 0.4694이며, OmniConnect는 이 버전을 파싱하거나 축약하지 않는다.
 - 공시 의미 중요도는 Gold를 보지 않고 2026 Validation의 macro F1·Brier score로 제목+요약 뷰를 선택한다. 모델 단독 기본 Gold 600건은 accuracy 0.9850 / macro F1 0.9470이고, 존속위험 정책을 포함한 기본+stress Gold 910건은 0.9989 / 0.9962다. 기존 로직 대비 정확도 차이 95% bootstrap CI [0.0747, 0.1132], macro F1 차이 CI [0.1420, 0.2132], McNemar p=1.14e-24다.
-- OmniLens는 모델 학습이나 시세 dataset export를 구현하지 않고 Hannah의 복합 `modelVersion`과 분석 결과를 무손실 전파한다.
+- OmniConnect는 모델 학습이나 시세 dataset export를 구현하지 않고 Hannah의 복합 `modelVersion`과 분석 결과를 무손실 전파한다.
 - 의미 중요도와 예측 가격충격을 분리해 `importance`와 `marketImpactImportance/Score/Confidence`로 각각 전파한다.
 - 정적 OpenAPI에 전문·What/Why/Impact·본문 가용상태·중복 cluster와 세 시장영향 필드를 모두 반영하고 문서 회귀 테스트로 고정했다. 거래소 백엔드용 raw WebSocket에도 시장영향·confidence·복합 모델 출처를 추가해 REST·STOMP·raw stream이 같은 신호를 보존한다.
 - 시장영향 등급·점수·confidence는 모두 제공하거나 모두 생략하도록 요청 검증을 추가하고, 미제공 raw WebSocket 등급은 빈 문자열이 아닌 `null`로 전파한다.
@@ -53,13 +53,13 @@
 
 - Hannah의 이벤트·KF-DeBERTa 감성·K-FNSPID 시장영향 복합 `modelVersion`을 파싱·축약하지 않고 REST·WebSocket에 전파한다.
 - 복합 출처가 잘리지 않도록 alert 계약의 최대 길이를 240으로 늘리고 OpenAPI·역직렬화 회귀 테스트를 맞췄다.
-- 대용량 시세·라벨 파일은 Hannah 저장소의 파일 데이터셋으로 유지하고 OmniLens DB export 의존을 추가하지 않았다.
+- 대용량 시세·라벨 파일은 Hannah 저장소의 파일 데이터셋으로 유지하고 OmniConnect DB export 의존을 추가하지 않았다.
 
 ## 2026-07-13 · K-FNSPID 중요도 모델 버전 전파
 
 - Hannah가 품질 gate를 통과한 파일 기반 K-FNSPID 시장영향 모델을 의미 기반 중요도와 결합한다.
-- OmniLens는 복합 `modelVersion`을 변경하지 않고 뉴스 REST/WebSocket 계약에 전파한다.
-- K-FNSPID 시세는 독립 파일 스냅샷으로 생성하며 OmniLens 운영 DB export endpoint를 만들지 않는다.
+- OmniConnect는 복합 `modelVersion`을 변경하지 않고 뉴스 REST/WebSocket 계약에 전파한다.
+- K-FNSPID 시세는 독립 파일 스냅샷으로 생성하며 OmniConnect 운영 DB export endpoint를 만들지 않는다.
 
 ## 2026-07-13 · 연결형 포털·세무·뉴스 운영 완성
 

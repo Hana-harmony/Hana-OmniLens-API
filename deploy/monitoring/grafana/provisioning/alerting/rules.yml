@@ -2,18 +2,18 @@ apiVersion: 1
 
 groups:
   - orgId: 1
-    name: omnilens-production
+    name: omni-connect-production
     folder: Production
     interval: 1m
     rules:
-      - uid: omnilens-api-down
-        title: OmniLens API unavailable
+      - uid: omni-connect-api-down
+        title: OmniConnect API unavailable
         condition: B
         data:
           - refId: A
             relativeTimeRange: {from: 180, to: 0}
             datasourceUid: prometheus
-            model: {expr: 'up{job="hana-omnilens-api"}', instant: true, refId: A}
+            model: {expr: 'up{job="hana-omni-connect-api"}', instant: true, refId: A}
           - refId: B
             datasourceUid: __expr__
             model:
@@ -25,17 +25,17 @@ groups:
         noDataState: Alerting
         execErrState: Alerting
         for: 2m
-        annotations: {summary: "OmniLens API metrics endpoint is unavailable"}
-        labels: {service: omnilens, severity: critical}
+        annotations: {summary: "OmniConnect API metrics endpoint is unavailable"}
+        labels: {service: omni-connect, severity: critical}
 
-      - uid: omnilens-api-errors
-        title: OmniLens API error logs detected
+      - uid: omni-connect-api-errors
+        title: OmniConnect API error logs detected
         condition: B
         data:
           - refId: A
             relativeTimeRange: {from: 180, to: 0}
             datasourceUid: prometheus
-            model: {expr: 'sum(increase(logback_events_total{application="hana-omnilens-api",level="error"}[2m]))', instant: true, refId: A}
+            model: {expr: 'sum(increase(logback_events_total{application="hana-omni-connect-api",level="error"}[2m]))', instant: true, refId: A}
           - refId: B
             datasourceUid: __expr__
             model:
@@ -47,11 +47,11 @@ groups:
         noDataState: OK
         execErrState: Alerting
         for: 0s
-        annotations: {summary: "OmniLens API emitted an ERROR log in the last two minutes"}
-        labels: {service: omnilens, severity: critical}
+        annotations: {summary: "OmniConnect API emitted an ERROR log in the last two minutes"}
+        labels: {service: omni-connect, severity: critical}
 
-      - uid: omnilens-public-down
-        title: OmniLens public HTTPS unavailable
+      - uid: omni-connect-public-down
+        title: OmniConnect public HTTPS unavailable
         condition: B
         data:
           - refId: A
@@ -69,8 +69,8 @@ groups:
         noDataState: Alerting
         execErrState: Alerting
         for: 2m
-        annotations: {summary: "OmniLens frontend or API HTTPS probe failed"}
-        labels: {service: omnilens, severity: critical}
+        annotations: {summary: "OmniConnect frontend or API HTTPS probe failed"}
+        labels: {service: omni-connect, severity: critical}
 
       - uid: hannah-ai-down
         title: Hannah Montana AI unavailable
@@ -116,7 +116,7 @@ groups:
         annotations: {summary: "Hannah Montana AI emitted an ERROR log in the last two minutes"}
         labels: {service: hannah-ai, severity: critical}
 
-      - uid: omnilens-host-disk-low
+      - uid: omni-connect-host-disk-low
         title: OCI host disk space low
         condition: B
         data:
@@ -136,9 +136,9 @@ groups:
         execErrState: Alerting
         for: 5m
         annotations: {summary: "OCI root filesystem has less than 10 percent free space"}
-        labels: {service: omnilens, severity: warning}
+        labels: {service: omni-connect, severity: warning}
 
-      - uid: omnilens-support-errors
+      - uid: omni-connect-support-errors
         title: OCI supporting service error logs detected
         condition: B
         data:
@@ -148,7 +148,7 @@ groups:
             model:
               datasource: {type: loki, uid: loki}
               editorMode: code
-              expr: 'sum(count_over_time({container=~"hana-omnilens-postgres|hana-omnilens-redis|hannah-qwen"} |~ "(?i)(error|fatal|panic)" [2m]))'
+              expr: 'sum(count_over_time({container=~"hana-omni-connect-postgres|hana-omni-connect-redis|hannah-qwen"} |~ "(?i)(error|fatal|panic)" [2m]))'
               intervalMs: 1000
               maxDataPoints: 43200
               queryType: range
@@ -165,4 +165,4 @@ groups:
         execErrState: Alerting
         for: 0s
         annotations: {summary: "PostgreSQL, Redis, or local Qwen emitted an error log"}
-        labels: {service: omnilens, severity: critical}
+        labels: {service: omni-connect, severity: critical}

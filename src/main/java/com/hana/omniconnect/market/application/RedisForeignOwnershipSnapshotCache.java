@@ -1,0 +1,97 @@
+package com.hana.omniconnect.market.application;
+
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.util.Optional;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+import com.hana.omniconnect.provider.market.ForeignOwnershipSnapshot;
+
+public class RedisForeignOwnershipSnapshotCache implements ForeignOwnershipSnapshotCache {
+
+    private static final String KEY_PREFIX = "omni-connect:market:foreign-ownership:";
+
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+    private final ForeignOwnershipSnapshotCache fallbackCache;
+    private final Duration ttl;
+
+    public RedisForeignOwnershipSnapshotCache(
+            StringRedisTemplate redisTemplate,
+            ObjectMapper objectMapper,
+            ForeignOwnershipSnapshotCache fallbackCache,
+            Duration ttl) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+        this.fallbackCache = fallbackCache;
+        this.ttl = ttl;
+    }
+
+    @Override
+    public Optional<ForeignOwnershipSnapshot> find(String stockCode) {
+        try {
+            String payload = redisTemplate.opsForValue().get(redisKey(stockCode));
+            if (payload == null) {
+                return fallbackCache.find(stockCode);
+            }
+            return Optional.of(toSnapshot(payload));
+        } catch (RuntimeException | JsonProcessingException exception) {
+            return fallbackCache.find(stockCode);
+        }
+    }
+
+    @Override
+    public void put(ForeignOwnershipSnapshot snapshot) {
+        try {
+            redisTemplate.opsForValue().set(
+                    redisKey(snapshot.stockCode()),
+                    objectMapper.writeValueAsString(RedisForeignOwnershipSnapshot.from(snapshot)),
+                    ttl);
+        } catch (RuntimeException | JsonProcessingException exception) {
+            fallbackCache.put(snapshot);
+            return;
+        }
+        fallbackCache.put(snapshot);
+    }
+
+    private ForeignOwnershipSnapshot toSnapshot(String payload) throws JsonProcessingException {
+        RedisForeignOwnershipSnapshot snapshot =
+                objectMapper.readValue(payload, RedisForeignOwnershipSnapshot.class);
+        return new ForeignOwnershipSnapshot(
+                snapshot.stockCode(),
+                snapshot.foreignOwnedQuantity(),
+                snapshot.foreignOwnershipRate(),
+                snapshot.foreignLimitQuantity(),
+                snapshot.foreignLimitExhaustionRate(),
+                snapshot.baseDate());
+    }
+
+    private String redisKey(String stockCode) {
+        return KEY_PREFIX + stockCode;
+    }
+
+    private record RedisForeignOwnershipSnapshot(
+            String stockCode,
+            long foreignOwnedQuantity,
+            BigDecimal foreignOwnershipRate,
+            long foreignLimitQuantity,
+            BigDecimal foreignLimitExhaustionRate,
+            LocalDate baseDate
+    ) {
+
+        private static RedisForeignOwnershipSnapshot from(ForeignOwnershipSnapshot snapshot) {
+            return new RedisForeignOwnershipSnapshot(
+                    snapshot.stockCode(),
+                    snapshot.foreignOwnedQuantity(),
+                    snapshot.foreignOwnershipRate(),
+                    snapshot.foreignLimitQuantity(),
+                    snapshot.foreignLimitExhaustionRate(),
+                    snapshot.baseDate());
+        }
+    }
+}

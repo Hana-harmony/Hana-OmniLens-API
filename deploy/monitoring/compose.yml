@@ -1,4 +1,4 @@
-name: hana-omnilens-observability
+name: hana-omni-connect-observability
 
 services:
   prometheus:
@@ -109,7 +109,7 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_PLUGINS_PREINSTALL_SYNC: ""
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
-      OMNILENS_DISCORD_WEBHOOK_URL: ${OMNILENS_DISCORD_WEBHOOK_URL:?required}
+      OMNI_CONNECT_DISCORD_WEBHOOK_URL: ${OMNI_CONNECT_DISCORD_WEBHOOK_URL:?required}
       HANNAH_DISCORD_WEBHOOK_URL: ${HANNAH_DISCORD_WEBHOOK_URL:?required}
     volumes:
       - grafana-data:/var/lib/grafana
@@ -126,7 +126,7 @@ services:
 networks:
   monitoring:
   app:
-    name: hana-omnilens-internal
+    name: hana-omni-connect-internal
     external: true
 
 volumes:

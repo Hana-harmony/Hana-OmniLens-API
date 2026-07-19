@@ -1,0 +1,114 @@
+package com.hana.omniconnect.market.application;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.springframework.stereotype.Component;
+
+import com.hana.omniconnect.provider.market.KisRealtimeIndexTick;
+import com.hana.omniconnect.provider.market.KisRealtimeOrderBookSnapshot;
+import com.hana.omniconnect.provider.market.KisRealtimeTradeTick;
+import com.hana.omniconnect.provider.market.KisRealtimeMarketStatus;
+
+@Component
+public class InMemoryRealtimeMarketDataCache implements RealtimeMarketDataCache {
+
+    private final Map<String, CachedTradeTick> tradeTicks = new ConcurrentHashMap<>();
+    private final Map<String, KisRealtimeOrderBookSnapshot> orderBooks = new ConcurrentHashMap<>();
+    private final Map<String, KisRealtimeMarketStatus> marketStatuses = new ConcurrentHashMap<>();
+    private final Map<String, KisRealtimeIndexTick> indices = new ConcurrentHashMap<>();
+    private final Clock clock;
+
+    public InMemoryRealtimeMarketDataCache() {
+        this(Clock.systemUTC());
+    }
+
+    InMemoryRealtimeMarketDataCache(Clock clock) {
+        this.clock = clock;
+    }
+
+    @Override
+    public Optional<KisRealtimeTradeTick> latestTrade(String stockCode) {
+        CachedTradeTick cached = tradeTicks.get(stockCode);
+        if (cached == null) {
+            return Optional.empty();
+        }
+        return Optional.of(cached.tick());
+    }
+
+    @Override
+    public List<KisRealtimeTradeTick> latestTrades() {
+        return tradeTicks.values().stream()
+                .sorted(Comparator
+                        .comparing(CachedTradeTick::updatedAt)
+                        .reversed()
+                        .thenComparing(cached -> cached.tick().stockCode()))
+                .map(CachedTradeTick::tick)
+                .toList();
+    }
+
+    @Override
+    public Optional<KisRealtimeOrderBookSnapshot> latestOrderBook(String stockCode) {
+        return Optional.ofNullable(orderBooks.get(stockCode));
+    }
+
+    @Override
+    public Optional<KisRealtimeMarketStatus> latestMarketStatus(String stockCode) {
+        return Optional.ofNullable(marketStatuses.get(stockCode));
+    }
+
+    @Override
+    public List<KisRealtimeIndexTick> latestIndices() {
+        return indices.values().stream()
+                .sorted(Comparator.comparing(KisRealtimeIndexTick::indexCode))
+                .toList();
+    }
+
+    @Override
+    public void putTrade(KisRealtimeTradeTick tradeTick) {
+        tradeTicks.compute(tradeTick.stockCode(), (stockCode, cached) -> {
+            if (cached != null && sameTrade(cached.tick(), tradeTick)) {
+                // 반복 tick도 화면 표시용 최신 시세로 유지한다.
+                return cached;
+            }
+            return new CachedTradeTick(tradeTick, Instant.now(clock));
+        });
+    }
+
+    @Override
+    public void putOrderBook(KisRealtimeOrderBookSnapshot orderBookSnapshot) {
+        orderBooks.put(orderBookSnapshot.stockCode(), orderBookSnapshot);
+    }
+
+    @Override
+    public void putMarketStatus(KisRealtimeMarketStatus marketStatus) {
+        marketStatuses.put(marketStatus.stockCode(), marketStatus);
+    }
+
+    @Override
+    public void putIndex(KisRealtimeIndexTick indexTick) {
+        indices.put(indexTick.indexCode(), indexTick);
+    }
+
+    @Override
+    public void clear() {
+        tradeTicks.clear();
+        orderBooks.clear();
+        marketStatuses.clear();
+        indices.clear();
+    }
+
+    private boolean sameTrade(KisRealtimeTradeTick left, KisRealtimeTradeTick right) {
+        return left.currentPriceKrw().compareTo(right.currentPriceKrw()) == 0
+                && left.accumulatedVolume() == right.accumulatedVolume()
+                && left.executionVolume() == right.executionVolume();
+    }
+
+    private record CachedTradeTick(KisRealtimeTradeTick tick, Instant updatedAt) {
+    }
+}

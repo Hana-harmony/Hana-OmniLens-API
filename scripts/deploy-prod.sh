@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR=/opt/hana-omnilens-api
-APP_NAME=hana-omnilens-api
+APP_DIR=/opt/hana-omni-connect-api
+APP_NAME=hana-omni-connect-api
 APP_PORT=18080
-NETWORK=hana-omnilens-internal
+NETWORK=hana-omni-connect-internal
 RUNTIME_APP_ENV="${APP_DIR}/runtime-application.env"
 
 source "${APP_DIR}/deploy.env"
@@ -16,17 +16,17 @@ source "${APP_DIR}/runtime-secrets.sh"
 
 write_runtime_secret_env() {
   local portal_session_key portal_encryption_key term_salt ai_token temp_file
-  portal_session_key="$(derive_runtime_secret_hex 'hana/omnilens/portal-session-signing/v1')"
-  portal_encryption_key="$(derive_runtime_secret_base64 'hana/omnilens/portal-api-key-encryption/v1')"
-  term_salt="$(derive_runtime_secret_hex 'hana/omnilens/term-analytics-hash/v1')"
+  portal_session_key="$(derive_runtime_secret_hex 'hana/omni-connect/portal-session-signing/v1')"
+  portal_encryption_key="$(derive_runtime_secret_base64 'hana/omni-connect/portal-api-key-encryption/v1')"
+  term_salt="$(derive_runtime_secret_hex 'hana/omni-connect/term-analytics-hash/v1')"
   ai_token="$(derive_runtime_secret_hex 'hana/ai/maintenance-auth/v1')"
   temp_file="$(mktemp "${APP_DIR}/.runtime-application.XXXXXX")"
 
   umask 077
   printf '%s\n' \
-    "OMNILENS_PORTAL_SESSION_SIGNING_KEY=${portal_session_key}" \
-    "OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY=${portal_encryption_key}" \
-    "OMNILENS_TERM_ANALYTICS_HASH_SALT=${term_salt}" \
+    "OMNI_CONNECT_PORTAL_SESSION_SIGNING_KEY=${portal_session_key}" \
+    "OMNI_CONNECT_PORTAL_API_KEY_ENCRYPTION_KEY=${portal_encryption_key}" \
+    "OMNI_CONNECT_TERM_ANALYTICS_HASH_SALT=${term_salt}" \
     "HANNAH_AI_MAINTENANCE_TOKEN=${ai_token}" \
     > "${temp_file}"
   chmod 600 "${temp_file}"
@@ -86,8 +86,8 @@ rollback() {
 }
 
 install_nginx_config() {
-  local upstream_path=/etc/nginx/conf.d/hana-omnilens-api-upstream.conf
-  local server_path=/etc/nginx/conf.d/hana-omnilens-api.conf
+  local upstream_path=/etc/nginx/conf.d/hana-omni-connect-api-upstream.conf
+  local server_path=/etc/nginx/conf.d/hana-omni-connect-api.conf
   local backup_dir
   local had_upstream=false
   local had_server=false
@@ -102,9 +102,9 @@ install_nginx_config() {
     had_server=true
   fi
 
-  printf 'upstream hana_omnilens_api { server 127.0.0.1:%s; keepalive 64; }\n' "${APP_PORT}" > "${backup_dir}/new-upstream.conf"
+  printf 'upstream hana_omni_connect_api { server 127.0.0.1:%s; keepalive 64; }\n' "${APP_PORT}" > "${backup_dir}/new-upstream.conf"
   if ! sudo install -o root -g root -m 0644 "${backup_dir}/new-upstream.conf" "${upstream_path}" \
-    || ! sudo install -o root -g root -m 0644 "${APP_DIR}/hana-omnilens-api.conf" "${server_path}" \
+    || ! sudo install -o root -g root -m 0644 "${APP_DIR}/hana-omni-connect-api.conf" "${server_path}" \
     || ! sudo nginx -t; then
     if [[ "${had_upstream}" == true ]]; then
       sudo install -o root -g root -m 0644 "${backup_dir}/upstream.conf" "${upstream_path}"

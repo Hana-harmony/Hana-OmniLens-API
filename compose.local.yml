@@ -3,7 +3,7 @@ services:
     platform: linux/arm64
     build:
       context: .
-    container_name: hana-omnilens-api
+    container_name: hana-omni-connect-api
     cpus: "1.40"
     mem_limit: 4g
     env_file:
@@ -12,13 +12,13 @@ services:
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
       SPRING_PROFILES_ACTIVE: local
       SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/application-local.yml
-      SPRING_DATASOURCE_URL: jdbc:postgresql://hana-omnilens-postgres:5432/omnilens
-      SPRING_DATASOURCE_USERNAME: omnilens
-      SPRING_DATASOURCE_PASSWORD: omnilens-local-password
-      SPRING_DATA_REDIS_HOST: hana-omnilens-redis
+      SPRING_DATASOURCE_URL: jdbc:postgresql://hana-omni-connect-postgres:5432/omni-connect
+      SPRING_DATASOURCE_USERNAME: omni-connect
+      SPRING_DATASOURCE_PASSWORD: omni-connect-local-password
+      SPRING_DATA_REDIS_HOST: hana-omni-connect-redis
       SPRING_DATA_REDIS_PORT: "6379"
-      OMNILENS_AI_HANNAH_BASE_URL: http://hannah-montana-ai:8000
-      OMNILENS_AI_HANNAH_READ_TIMEOUT: 30m
+      OMNI_CONNECT_AI_HANNAH_BASE_URL: http://hannah-montana-ai:8000
+      OMNI_CONNECT_AI_HANNAH_READ_TIMEOUT: 30m
     volumes:
       - ./src/main/resources/application-local.yml:/app/config/application-local.yml:ro
     ports:
@@ -39,19 +39,19 @@ services:
   postgres:
     platform: linux/arm64
     image: postgres:17-alpine
-    container_name: hana-omnilens-postgres
+    container_name: hana-omni-connect-postgres
     cpus: "0.60"
     mem_limit: 3g
     environment:
-      POSTGRES_DB: omnilens
-      POSTGRES_USER: omnilens
-      POSTGRES_PASSWORD: omnilens-local-password
+      POSTGRES_DB: omni-connect
+      POSTGRES_USER: omni-connect
+      POSTGRES_PASSWORD: omni-connect-local-password
     ports:
       - "5432:5432"
     volumes:
-      - hana-omnilens-postgres-data:/var/lib/postgresql/data
+      - hana-omni-connect-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U omnilens -d omnilens"]
+      test: ["CMD-SHELL", "pg_isready -U omni-connect -d omni-connect"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -61,14 +61,14 @@ services:
   redis:
     platform: linux/arm64
     image: redis:8-alpine
-    container_name: hana-omnilens-redis
+    container_name: hana-omni-connect-redis
     cpus: "0.20"
     mem_limit: 512m
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
-      - hana-omnilens-redis-data:/data
+      - hana-omni-connect-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -78,10 +78,10 @@ services:
       - internal
 
 volumes:
-  hana-omnilens-postgres-data:
-  hana-omnilens-redis-data:
+  hana-omni-connect-postgres-data:
+  hana-omni-connect-redis-data:
 
 networks:
   internal:
-    name: hana-omnilens-internal
+    name: hana-omni-connect-internal
     external: true

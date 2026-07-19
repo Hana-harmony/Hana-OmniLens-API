@@ -3,29 +3,29 @@
 보호 API의 서버 간 연동 계약은 API key와 HMAC-SHA256 요청 서명을 함께 사용한다. 공개 OpenAPI에도 서명 헤더와 canonical request 규격을 명시하며, 브라우저나 모바일 앱이 이 자격증명을 직접 보유하지 않는다.
 
 ## 현재 기준
-- 모든 운영 API 요청은 `X-HANA-OMNILENS-API-KEY`를 사용한다.
+- 모든 운영 API 요청은 `X-HANA-OMNI-CONNECT-API-KEY`를 사용한다.
 - 서버는 API key 원문을 저장하지 않고 SHA-256 해시만 비교한다.
 - 협력사별 운영 키는 `partner_api_credential` 테이블에 SHA-256 해시와 `partner_id`로 저장한다.
 - DB에 활성 API key 해시가 없으면 운영 API는 실패 닫힘 방식으로 `503`을 반환한다.
 - DB credential로 인증된 요청은 알림 API의 요청 `partnerId`가 인증 `partnerId`와 다르면 `403`으로 거부한다.
 - 인증된 요청은 API key SHA-256 fingerprint 단위로 rate limit을 적용한다.
 - rate limit 초과 요청은 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
-- 모든 실행 profile은 `omnilens.security.signature.enabled=true`를 기본값으로 사용하며 운영 보호 API 요청은 HMAC-SHA256 요청 서명을 함께 검증한다. Spring 환경 변수 이름은 `OMNILENS_SECURITY_SIGNATURE_ENABLED`이다.
+- 모든 실행 profile은 `omni-connect.security.signature.enabled=true`를 기본값으로 사용하며 운영 보호 API 요청은 HMAC-SHA256 요청 서명을 함께 검증한다. Spring 환경 변수 이름은 `OMNI_CONNECT_SECURITY_SIGNATURE_ENABLED`이다.
 - 요청 서명 canonical string은 `METHOD`, `URI_WITH_QUERY`, `TIMESTAMP`, `NONCE`, `SHA256_BODY_HEX`를 줄바꿈으로 연결한 값이다.
-- 서명 헤더는 `X-HANA-OMNILENS-TIMESTAMP`, `X-HANA-OMNILENS-NONCE`, `X-HANA-OMNILENS-SIGNATURE`를 사용한다.
+- 서명 헤더는 `X-HANA-OMNI-CONNECT-TIMESTAMP`, `X-HANA-OMNI-CONNECT-NONCE`, `X-HANA-OMNI-CONNECT-SIGNATURE`를 사용한다.
 - timestamp는 허용 clock skew 안에 있어야 하고, nonce는 같은 API key fingerprint에서 한 번만 사용할 수 있다.
 - `GET /api/v1/partner/readiness`는 같은 인증 필터를 통과한 뒤 계약 버전 `hmac-sha256-v1`을 반환한다. 거래소 readiness는 이 호출 실패를 장애로 처리한다.
 - 운영 기본 nonce 저장소는 Redis이며, Redis nonce store가 없거나 장애가 발생하면 서명 검증 요청은 실패 닫힘 방식으로 `503`을 반환한다.
-- 운영에서 `OMNILENS_MTLS_ENABLED=true`인 경우 health/info를 제외한 보호 API 요청은 client certificate가 없으면 `401`로 거부한다.
+- 운영에서 `OMNI_CONNECT_MTLS_ENABLED=true`인 경우 health/info를 제외한 보호 API 요청은 client certificate가 없으면 `401`로 거부한다.
 - mTLS 직접 종료는 Spring Boot `server.ssl` 설정을 사용하고, 운영 healthcheck를 위해 `SERVER_SSL_CLIENT_AUTH=want`와 앱 필터 강제를 함께 사용한다.
-- 모든 응답에는 `X-HANA-OMNILENS-CORRELATION-ID`를 포함하고, 같은 값은 로그 MDC `correlationId`에 저장한다.
+- 모든 응답에는 `X-HANA-OMNI-CONNECT-CORRELATION-ID`를 포함하고, 같은 값은 로그 MDC `correlationId`에 저장한다.
 - 보안 감사 로그는 인증 결과, method, path, API key hash prefix, 실패 사유만 기록한다.
 - mTLS 실패 감사 로그는 `client_certificate_missing`, `client_certificate_invalid` 사유를 사용한다.
 - CORS는 profile별 설정 파일의 허용 목록만 사용한다.
 - 웹 포털 origin에는 `Authorization`, `Content-Type`만 필요 범위로 CORS 허용하며 wildcard origin을 사용하지 않는다.
 - 포털 세션 토큰은 32 byte 이상 HMAC-SHA256 키로 서명하고 15분 후 만료한다. 요청마다 DB의 사용자 역할·세션 버전을 다시 검증한다.
 - 신규·변경 비밀번호는 Argon2id로 해시하고 12~128자를 허용한다. 기존 bcrypt 해시는 로그인 성공 시 Argon2id로 자동 전환하며 변경 시 `session_version`을 올려 모든 기존 토큰을 폐기한다.
-- 초기 관리자 비밀번호는 `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로만 주입한다. 신규 DB와 레거시 migration 계정은 기동 시 Argon2id로 교체하고 `password_change_required=true`를 유지한다. 초기 토큰은 비밀번호 변경 API 외의 포털 API에 사용할 수 없다.
+- 초기 관리자 비밀번호는 `OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로만 주입한다. 신규 DB와 레거시 migration 계정은 기동 시 Argon2id로 교체하고 `password_change_required=true`를 유지한다. 초기 토큰은 비밀번호 변경 API 외의 포털 API에 사용할 수 없다.
 - Spring Boot 기본 메모리 사용자 자동설정을 비활성화하고 DB 포털 계정과 파트너 API key 인증만 사용한다.
 - WebSocket `/ws/alerts`, `/ws/market/quotes` handshake도 API key 검증 대상이다.
 - DB credential로 인증된 WebSocket 세션은 `/topic/partners/{partnerId}/alerts`와 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`에서 자기 `partnerId`만 구독할 수 있다.
@@ -46,10 +46,10 @@
 - `application-local.yml`은 커밋하지 않는다.
 - `application-prod.yml`은 커밋하되 `${...}` 환경변수 placeholder만 사용한다.
 - 로컬 시크릿은 `application-local.yml`에만 둔다.
-- 외부 데이터 수집 credential인 `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`, `OPEN_DART_API_KEY`는 Hana-OmniLens-API에서만 사용한다.
+- 외부 데이터 수집 credential인 `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`, `OPEN_DART_API_KEY`는 Hana-Omni-Connect-API에서만 사용한다.
 - Hannah-Montana-AI와 Stock-exchange-* 레포에는 Naver/OpenDART/KRX credential을 두지 않는다.
 - 외부 provider credential, DB·Redis 비밀번호와 초기 관리자 비밀번호는 GitHub Secrets로 주입한다. 포털 세션·API 키 암호화·클릭 분석·AI 유지보수 내부키는 OCI 호스트의 영속 루트키에서 용도별로 자동 파생한다.
-- 초기 관리자 비밀번호는 최초 기동에만 GitHub Secret `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로 주입한다. 최초 로그인에서 비밀번호를 변경한 뒤 Secret을 삭제하며 저장소, 로그, 배포 문서에 원문을 남기지 않는다.
+- 초기 관리자 비밀번호는 최초 기동에만 GitHub Secret `OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로 주입한다. 최초 로그인에서 비밀번호를 변경한 뒤 Secret을 삭제하며 저장소, 로그, 배포 문서에 원문을 남기지 않는다.
 - `application-prod.env`는 커밋하지 않는다.
 - GHCR pull token은 원격 서버의 `deploy-prod.env`에만 생성하고 앱 컨테이너에는 주입하지 않는다.
 - `deploy-prod.env`는 커밋하지 않는다.

@@ -30,13 +30,13 @@
 - Naver News Search: 뉴스 제목, snippet, 원문 링크 발견. 사용 허가된 원문 URL은 API 서버가 fetch해 전문과 대표 이미지 URL을 정제한다.
 - OpenDART: 공시 제목, 유형, 제출시각, 원문 링크, 접수번호 기반 document 전문
 - Hannah-Montana-AI: 뉴스·공시 종목 매핑, 이벤트, 감성, 중요도 분석, 한국 금융 고유어·전문용어 해설, 외국인 보유 시계열 예측 boundary 산출, 글로벌 피어 매칭, 세무 문서 템플릿·영역 OCR 검증
-- 뉴스 응답의 `modelVersion`은 Hana Montana AI(KF-DeBERTa + K-FNSPID)의 이벤트·금융 감성·공시 의미 중요도와 요청 출처에 맞는 K-FNSPID v4 시장영향 전문가 버전을 함께 보존한다. 의미 중요도 `importance`와 가격반응 `marketImpactImportance/Score/Confidence`는 서로 다른 과제로 분리해 전파한다. 1,247,685문서와 10,691,998행 일별 시세로 구성된 K-FNSPID v4 원천·시세 파일 생성과 학습은 Hannah 저장소 책임이며 OmniLens DB를 데이터셋 원천으로 사용하지 않는다.
+- 뉴스 응답의 `modelVersion`은 Hana Montana AI(KF-DeBERTa + K-FNSPID)의 이벤트·금융 감성·공시 의미 중요도와 요청 출처에 맞는 K-FNSPID v4 시장영향 전문가 버전을 함께 보존한다. 의미 중요도 `importance`와 가격반응 `marketImpactImportance/Score/Confidence`는 서로 다른 과제로 분리해 전파한다. 1,247,685문서와 10,691,998행 일별 시세로 구성된 K-FNSPID v4 원천·시세 파일 생성과 학습은 Hannah 저장소 책임이며 OmniConnect DB를 데이터셋 원천으로 사용하지 않는다.
 
 ## 현재 구현 상태
 - KIS 모의투자 현재가 REST, KIS 모의투자 실시간 체결·호가 WebSocket runner, 공공데이터 주식시세, KRX Open API 과거 일별매매정보, Frankfurter FX 환율, Naver News Search, OpenDART, Hannah-Montana-AI 어댑터가 구현되어 있다.
 - `MarketDataService`가 표준 응답 구조와 현지 통화 환산 로직을 제공한다.
 - `GET /api/v1/market/quotes`는 stockCodes가 있으면 요청 순서의 다건 snapshot을, 없으면 종목 마스터 기반 전체 snapshot을 반환한다.
-- `POST /api/v1/market/history/collect`는 `omnilens.market.history-collection.provider`에 따라 KRX KOSPI/KOSDAQ/KONEX 일별매매정보 또는 KIS 일봉 chart API를 수집해 `market_daily_price`에 upsert한다. `KIS_DAILY_CHART` 모드는 KIS를 primary 실 provider로 사용하므로 KRX egress 차단 환경에서도 mock 없이 성공한다.
+- `POST /api/v1/market/history/collect`는 `omni-connect.market.history-collection.provider`에 따라 KRX KOSPI/KOSDAQ/KONEX 일별매매정보 또는 KIS 일봉 chart API를 수집해 `market_daily_price`에 upsert한다. `KIS_DAILY_CHART` 모드는 KIS를 primary 실 provider로 사용하므로 KRX egress 차단 환경에서도 mock 없이 성공한다.
 - `POST /api/v1/market/foreign-ownership/collect`, `POST /api/v1/market/foreign-ownership/backfill`, `ForeignOwnershipRefreshScheduler`는 KRX Data Marketplace 로그인 기반 외국인 보유 snapshot을 `foreign_ownership_daily_snapshot`에 upsert해 Hannah 외국인 보유 시계열 예측 입력을 지속적으로 누적한다.
 - `GET /api/v1/market/stocks/{stockCode}/history`는 저장된 KRX 기반 OHLCV/거래대금 일봉 데이터를 우선 반환하고, 저장 row가 없으면 KIS 일봉 chart API 또는 저장된 정규장 분봉의 OHLCV 집계로 보강한다. 휴장일에는 이전 거래일 가격을 요청 날짜로 복제하지 않는다.
 - 종목 마스터는 Flyway가 생성한 `stock_master` 테이블과 JDBC 저장소를 사용한다. KIS KOSPI·KOSDAQ·KONEX 마스터를 시장별 스냅샷으로 reconcile하며, 현재 스냅샷에 없는 역사 종목은 `active=false`로 전환한다.
@@ -51,7 +51,7 @@
 - `KisRealtimeSessionRunner`는 인기 10종목의 체결·호가와 장운영정보(`H0STMKO0`)를 고정하고 KIS의 주식 체결·호가 40 TR 한도에서 남은 슬롯을 상세 종목 LRU로 운영한다. 장운영정보의 거래정지 사유에서 서킷브레이커를 판별하고 체결이 중단된 동안에도 상태 quote를 즉시 발행한다. 발동 후 재접속으로 상태 이벤트를 놓친 경우에는 신선한 실전 시장지수의 서킷 임계 하락과 같은 시장의 체결 중단을 함께 확인해 상태를 복구하고, 체결 재개 즉시 해제한다. `KisRealtimeIndexSessionRunner`는 지수 3개를 같은 실전 provider 또는 별도 실전 연결에 고정한다. `QUOTE_STREAM_SUBSCRIBE`와 상세 구독 REST 계약은 같은 주식 구독 관리자를 사용하며, 교체 시 해제 프레임을 먼저 전송한다.
 - `StandardKisRealtimeWebSocketConnection`은 close code와 관계없이 지수 백오프·jitter로 재연결하고 고정·동적 구독 프레임을 복원한다.
 - `MarketDataService`는 KRX 외국인보유량 cache에 snapshot이 있으면 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다. KIS 실시간 체결가·호가 WebSocket은 가격·호가·상태 전용이며 외국인 보유량 필드를 제공하지 않는다.
-- 주문 가능 여부 boundary는 KRX snapshot의 외국인 취득한도 제한 종목에만 보유 시계열 예측을 사용한다. 장전 batch가 Hannah-Montana-AI 모델로 금일 예측을 선계산해 cache에 저장하고 API 요청은 cache hit를 우선 반환한다. cache miss 또는 AI 장애 시 OmniLens 내부 시계열 엔진으로 fallback한다. 제한이 없는 종목은 `FOREIGN_LIMIT_NOT_APPLICABLE`로 반환한다. 외국인 한도 예측은 프론트 사전 고지용 경고 신호이며 주문 차단 조건에 포함하지 않는다.
+- 주문 가능 여부 boundary는 KRX snapshot의 외국인 취득한도 제한 종목에만 보유 시계열 예측을 사용한다. 장전 batch가 Hannah-Montana-AI 모델로 금일 예측을 선계산해 cache에 저장하고 API 요청은 cache hit를 우선 반환한다. cache miss 또는 AI 장애 시 OmniConnect 내부 시계열 엔진으로 fallback한다. 제한이 없는 종목은 `FOREIGN_LIMIT_NOT_APPLICABLE`로 반환한다. 외국인 한도 예측은 프론트 사전 고지용 경고 신호이며 주문 차단 조건에 포함하지 않는다.
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`는 종목 master metadata를 Hannah-Montana-AI 글로벌 피어 매칭 모델에 전달해 외국인 투자자용 peer popup copy, 미국 상장 peer 목록, 속성별 `comparisons`, 국내 종목 자체의 4개 `keyStrengths`를 반환한다. AI 응답의 dimension/icon key allowlist와 카드 개수를 provider 경계에서 검증하며, Hannah 장애 fallback은 근거 없는 비교·강점 카드를 만들지 않고 빈 배열로 응답한다.
 - `POST /api/v1/korean-financial-terms/explain`는 뉴스/공시 본문에서 선택한 한국 금융 고유어·전문용어를 Hannah-Montana-AI 단일 검증 사전에 전달한다. `개미`는 번역 문장에서 `Ants`, glossary 정규 라벨에서 `Ant`로 고정한다. 검증된 응답만 TTL cache에 저장하고 클릭 식별자는 salted SHA-256 hash로 기록한다.
 - `POST /api/v1/tax/documents/verify`는 원본 문서 바이트와 국가 정보를 Hannah-Montana-AI로 전달하며 내부 사용자·계정 ID를 OCR 필수 필드로 사용하지 않는다.

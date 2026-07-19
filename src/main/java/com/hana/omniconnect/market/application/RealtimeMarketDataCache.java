@@ -1,0 +1,32 @@
+package com.hana.omniconnect.market.application;
+
+import java.util.Optional;
+import java.util.List;
+
+import com.hana.omniconnect.provider.market.KisRealtimeOrderBookSnapshot;
+import com.hana.omniconnect.provider.market.KisRealtimeIndexTick;
+import com.hana.omniconnect.provider.market.KisRealtimeTradeTick;
+import com.hana.omniconnect.provider.market.KisRealtimeMarketStatus;
+
+public interface RealtimeMarketDataCache {
+
+    Optional<KisRealtimeTradeTick> latestTrade(String stockCode);
+
+    List<KisRealtimeTradeTick> latestTrades();
+
+    Optional<KisRealtimeOrderBookSnapshot> latestOrderBook(String stockCode);
+
+    Optional<KisRealtimeMarketStatus> latestMarketStatus(String stockCode);
+
+    List<KisRealtimeIndexTick> latestIndices();
+
+    void putTrade(KisRealtimeTradeTick tradeTick);
+
+    void putOrderBook(KisRealtimeOrderBookSnapshot orderBookSnapshot);
+
+    void putMarketStatus(KisRealtimeMarketStatus marketStatus);
+
+    void putIndex(KisRealtimeIndexTick indexTick);
+
+    void clear();
+}

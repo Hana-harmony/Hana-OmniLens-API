@@ -1,6 +1,6 @@
 # 변경 구현 순서
 
-이 문서는 Hana-OmniLens-API 변경 시 적용할 저장소별 순서다. 전체 기능 설명은 README를 기준으로 한다.
+이 문서는 Hana-Omni-Connect-API 변경 시 적용할 저장소별 순서다. 전체 기능 설명은 README를 기준으로 한다.
 
 1. KIS·KRX·뉴스·공시·환율·Hannah 계약과 소유 저장소를 확인한다.
 2. `api` request/response와 오류 코드를 먼저 고정하고 controller test를 작성한다.

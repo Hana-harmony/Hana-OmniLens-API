@@ -49,7 +49,7 @@
 
 - Swagger UI: `/swagger-ui/index.html`
 - OpenAPI JSON: `/v3/api-docs`
-- Server-to-server 인증은 `X-HANA-OMNILENS-API-KEY`, `X-HANA-OMNILENS-TIMESTAMP`, `X-HANA-OMNILENS-NONCE`, `X-HANA-OMNILENS-SIGNATURE` header로 문서화한다.
+- Server-to-server 인증은 `X-HANA-OMNI-CONNECT-API-KEY`, `X-HANA-OMNI-CONNECT-TIMESTAMP`, `X-HANA-OMNI-CONNECT-NONCE`, `X-HANA-OMNI-CONNECT-SIGNATURE` header로 문서화한다.
 
 ## Partner Request Signing Readiness
 
@@ -76,7 +76,7 @@
 - 각 peer는 `sector`, `industry`, `businessModel`, `scaleBucket`, `marketCapUsd`, `revenueUsd`, `operatingIncomeUsd`, `netIncomeUsd`, `financialDataSource`, `financialSimilarityScore`, `matchedFactors`, `rationale`을 포함한다.
 - 정상 AI 응답의 `comparisons`는 1~3개이며 `dimension`, 비교 설명, 기존 peer와 같은 구조의 `peer`를 포함한다. `dimension`은 서버 allowlist 값만 허용한다.
 - 정상 AI 응답의 `keyStrengths`는 정확히 4개이며 해당 국내 종목 자체의 강점을 설명하는 `title`, `description`, `iconKey`를 포함한다. `iconKey`는 앱 자산과 합의한 allowlist 값만 허용한다.
-- Hannah의 `key_strengths[].icon_key` snake_case 계약은 OmniLens가 검증한 뒤 `keyStrengths[].iconKey` camelCase로 변환한다.
+- Hannah의 `key_strengths[].icon_key` snake_case 계약은 OmniConnect가 검증한 뒤 `keyStrengths[].iconKey` camelCase로 변환한다.
 - 정상 경로는 Hannah-Montana-AI 글로벌 피어 모델이다. AI 장애나 계약 위반은 `MARKET_DATA_UNAVAILABLE`로 반환하며 임의 peer fallback을 만들지 않는다.
 
 ## Tax Document OCR
@@ -91,6 +91,6 @@
 - 뉴스·공시 본문에서 사용자가 클릭한 한국 금융 고유어·전문용어를 외국인 투자자가 이해할 수 있는 영어 해설로 반환한다.
 - `개미`는 문장 번역에서 자연스러운 `Ants`, glossary 라벨에서는 정규형 `Ant`로 제공하며 `Retail investors`로 일반화하지 않는다.
 - 정상 경로는 Hannah-Montana-AI 단일 검증 사전이며, 응답은 explanation, evidence, confidence, display mode, cacheable flag를 포함한다.
-- OmniLens는 검증된 Hannah 응답만 TTL cache에 저장하고, confidence가 낮은 신조어는 review 대상 상태로 반환한다.
+- OmniConnect는 검증된 Hannah 응답만 TTL cache에 저장하고, confidence가 낮은 신조어는 review 대상 상태로 반환한다.
 - `GET /api/v1/korean-financial-terms/stats`
 - 클릭 통계는 salted SHA-256 사용자/세션 해시만 저장해 인기 용어와 검수 후보를 집계한다.

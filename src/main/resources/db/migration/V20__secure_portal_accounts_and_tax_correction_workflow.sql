@@ -14,7 +14,7 @@ SELECT
     'PUSR-ADMIN000000000000000',
     'admin',
     '{bcrypt}$2y$12$QYdm5Z2QBMF/9XgtNMvA5umnErMvlTRskDzg4U5wcIN5PH.X9Sf/K',
-    'Hana OmniLens Admin',
+    'Hana Omni-Connect Admin',
     '',
     'ADMIN',
     CURRENT_TIMESTAMP,
