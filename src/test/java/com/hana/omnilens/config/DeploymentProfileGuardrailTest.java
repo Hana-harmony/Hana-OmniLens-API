@@ -109,6 +109,11 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).doesNotContain("secrets.DB_USERNAME");
         assertThat(workflow).doesNotContain("secrets.REDIS_HOST");
         assertThat(workflow).doesNotContain("secrets.REDIS_PORT");
+        assertThat(workflow).doesNotContain(
+                "secrets.OMNILENS_PORTAL_SESSION_SIGNING_KEY",
+                "secrets.OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY",
+                "secrets.OMNILENS_TERM_ANALYTICS_HASH_SALT",
+                "secrets.HANNAH_AI_MAINTENANCE_TOKEN");
         assertThat(workflow).contains("jdbc:postgresql://hana-omnilens-postgres:5432/omnilens");
         assertThat(workflow).contains("REDIS_HOST=hana-omnilens-redis");
         assertThat(workflow).contains("HANNAH_AI_BASE_URL=http://hannah-montana-ai:8000");
@@ -153,12 +158,37 @@ class DeploymentProfileGuardrailTest {
         assertThat(deployScript).contains("docker login ghcr.io");
         assertThat(deployScript).contains("GHCR_USERNAME");
         assertThat(deployScript).contains("--env-file \"${APP_DIR}/application.env\"");
+        assertThat(deployScript).contains("--env-file \"${RUNTIME_APP_ENV}\"");
         assertThat(deployScript).contains("NETWORK=hana-omnilens-internal");
         assertThat(deployScript).contains("--network \"${NETWORK}\"");
         assertThat(deployScript).contains("sudo nginx -t");
         assertThat(deployScript).contains("sudo systemctl reload nginx");
         assertThat(deployScript).contains("https://api.hanaomni.cloud/actuator/health");
         assertThat(deployScript).doesNotContain("application-local.yml");
+    }
+
+    @Test
+    void runtimeKeysAreDerivedFromThePersistentOciHostRoot() throws IOException {
+        String workflow = read(".github/workflows/ci.yml");
+        String bootstrap = read("scripts/bootstrap-host.sh");
+        String runtimeSecrets = read("scripts/runtime-secrets.sh");
+        String deploy = read("scripts/deploy-prod.sh");
+
+        assertThat(workflow).contains("scripts/runtime-secrets.sh");
+        assertThat(bootstrap).contains("ensure_runtime_root_secret");
+        assertThat(runtimeSecrets).contains(
+                "HANA_RUNTIME_SECRET_DIR=/opt/hana-runtime",
+                "root-secret",
+                "openssl rand -hex 32",
+                "flock -x",
+                "derive_runtime_secret_hex",
+                "derive_runtime_secret_base64");
+        assertThat(deploy).contains(
+                "hana/omnilens/portal-session-signing/v1",
+                "hana/omnilens/portal-api-key-encryption/v1",
+                "hana/omnilens/term-analytics-hash/v1",
+                "hana/ai/maintenance-auth/v1",
+                "runtime-application.env");
     }
 
     @Test

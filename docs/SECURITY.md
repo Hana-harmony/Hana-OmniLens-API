@@ -49,7 +49,7 @@
 - 로컬 시크릿은 `application-local.yml`에만 둔다.
 - 외부 데이터 수집 credential인 `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`, `OPEN_DART_API_KEY`는 Hana-OmniLens-API에서만 사용한다.
 - Hannah-Montana-AI와 Stock-exchange-* 레포에는 Naver/OpenDART/KRX credential을 두지 않는다.
-- 운영 시크릿은 GitHub Secrets로 주입하고 원격 서버의 `application-prod.env`에만 생성한다.
+- 외부 provider credential, DB·Redis 비밀번호와 초기 관리자 비밀번호는 GitHub Secrets로 주입한다. 포털 세션·API 키 암호화·클릭 분석·AI 유지보수 내부키는 OCI 호스트의 영속 루트키에서 용도별로 자동 파생한다.
 - 초기 관리자 비밀번호는 GitHub Secret `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로 주입하며 저장소, 로그, 배포 문서에 원문을 남기지 않는다.
 - `application-prod.env`는 커밋하지 않는다.
 - GHCR pull token은 원격 서버의 `deploy-prod.env`에만 생성하고 앱 컨테이너에는 주입하지 않는다.

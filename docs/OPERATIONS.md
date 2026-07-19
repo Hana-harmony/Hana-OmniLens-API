@@ -29,7 +29,7 @@ docker compose -f compose.local.yml down
 - KIS WebSocket provider는 실전 WebSocket domain `ws://ops.koreainvestment.com:21000`을 기본으로 사용한다.
 - KIS WebSocket provider를 사용하려면 `KIS_WEBSOCKET_URL`을 설정할 수 있다. `KIS_APPROVAL_KEY`는 비워두면 앱이 자동 발급한다.
 - 환율 provider는 `FRANKFURTER_BASE_URL` 하나만 사용한다. Frankfurter public API는 별도 API key가 필요 없다.
-- `main` push 시 GitHub Secrets로 원격 서버의 `application-prod.env`를 생성한다.
+- `main` push 시 외부 credential과 데이터 서비스 비밀번호는 GitHub Secrets로 원격 서버 환경 파일을 생성하고, 내부 런타임 키는 OCI 호스트 루트키에서 자동 파생한다.
 - `main` push 시 Docker 이미지를 GHCR에 push한다.
 - 원격 서버는 GHCR에서 이미지를 pull하고 `compose.prod.yml`로 컨테이너를 실행한다.
 - `deploy-prod.env`는 GHCR pull용 값과 배포할 이미지 태그만 담고 앱 컨테이너에는 주입하지 않는다.
@@ -278,7 +278,7 @@ FOREIGN_OWNERSHIP_MODEL_TRAINING_TRIGGER_AFTER_REFRESH=true
 FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_ENABLED=true
 FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_TRIGGER_AFTER_REFRESH=true
 FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_STOCK_LIMIT=5000
-HANNAH_AI_MAINTENANCE_TOKEN=<server-secret>
+HANNAH_AI_MAINTENANCE_TOKEN=<호스트 루트키에서 자동 파생>
 ```
 
 ## Rate Limit
