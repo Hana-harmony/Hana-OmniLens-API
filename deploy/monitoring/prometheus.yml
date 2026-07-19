@@ -23,8 +23,8 @@ scrape_configs:
       module: [https_2xx]
     static_configs:
       - targets:
-          - https://hanaomilens.cloud
-          - https://api.hanaomilens.cloud/actuator/health
+          - https://hanaomni.cloud
+          - https://api.hanaomni.cloud/actuator/health
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

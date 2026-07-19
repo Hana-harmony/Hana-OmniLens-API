@@ -13,6 +13,7 @@ docker compose -f compose.local.yml up -d
 ```
 
 ## 운영
+- OmniLens FE 운영 주소는 `https://hanaomni.cloud`, API 운영 주소는 `https://api.hanaomni.cloud`이다.
 - `main` push 시 GitHub Actions의 `deploy-prod` job이 실행된다.
 - CI는 ARM64 API 이미지를 빌드해 GHCR에 push한다.
 - OCI `VM.Standard.A1.Flex` 한 대에서 PostgreSQL, Redis, OmniLens API를 컨테이너로 운영한다.

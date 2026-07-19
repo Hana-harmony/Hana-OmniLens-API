@@ -11,7 +11,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 sudo certbot certonly --webroot \
   --webroot-path /var/www/certbot \
-  --domain api.hanaomilens.cloud \
+  --domain api.hanaomni.cloud \
   --email "${LETSENCRYPT_EMAIL}" \
   --agree-tos \
   --non-interactive
