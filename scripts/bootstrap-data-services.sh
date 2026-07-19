@@ -11,7 +11,14 @@ for file in "${COMPOSE_FILE}" "${APP_DIR}/postgres-password" "${APP_DIR}/redis-u
   fi
 done
 
-chmod 600 "${APP_DIR}/postgres-password" "${APP_DIR}/redis-users.acl"
+chmod 600 "${APP_DIR}/postgres-password"
+# Compose 파일 secret은 호스트 권한을 유지하므로 Redis 그룹에만 읽기 권한을 준다.
+sudo chgrp 999 "${APP_DIR}/redis-users.acl"
+chmod 640 "${APP_DIR}/redis-users.acl"
+if [[ "$(stat -c '%g:%a' "${APP_DIR}/redis-users.acl")" != "999:640" ]]; then
+  echo "Redis ACL file permissions are invalid" >&2
+  exit 1
+fi
 docker network inspect hana-omni-connect-internal >/dev/null 2>&1 \
   || docker network create hana-omni-connect-internal >/dev/null
 docker compose -f "${COMPOSE_FILE}" pull
