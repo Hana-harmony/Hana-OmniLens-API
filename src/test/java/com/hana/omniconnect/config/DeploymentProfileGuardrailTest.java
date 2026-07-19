@@ -148,6 +148,13 @@ class DeploymentProfileGuardrailTest {
         assertThat(compose).doesNotContain("ports:");
         assertThat(bootstrap).contains("docker compose");
         assertThat(bootstrap).contains("State.Health.Status");
+        assertThat(bootstrap).contains("chmod 600 \"${APP_DIR}/postgres-password\"");
+        assertThat(bootstrap).contains("sudo chgrp 999 \"${APP_DIR}/redis-users.acl\"");
+        assertThat(bootstrap).contains("chmod 640 \"${APP_DIR}/redis-users.acl\"");
+        assertThat(bootstrap).contains("stat -c '%g:%a'");
+        assertThat(bootstrap)
+                .doesNotContain(
+                        "chmod 600 \"${APP_DIR}/postgres-password\" \"${APP_DIR}/redis-users.acl\"");
 
         String prodConfig = read("src/main/resources/application-prod.yml");
         assertThat(prodConfig).contains("username: omni_connect_app");
