@@ -1,0 +1,15 @@
+package com.hana.omniconnect.market.application;
+
+import java.util.List;
+import java.util.Optional;
+
+import com.hana.omniconnect.market.domain.StockSummary;
+
+public interface StockMasterRepository {
+
+    Optional<StockSummary> findByCode(String stockCode);
+
+    List<StockSummary> findAll(int limit);
+
+    List<StockSummary> search(String query);
+}

@@ -1,4 +1,4 @@
-# Hana OmniLens API
+# Hana Omni-Connect API
 
 해외 거래소·브로커에 한국 주식 시장 데이터, 뉴스·공시 인텔리전스, 주문 제한 신호, 세무 문서 검증을 제공하는 B2B API 서버다. 실제 주문·체결·정산·환전과 최종투자자 계정·원장은 협력사 시스템이 관리한다.
 
@@ -8,7 +8,7 @@
 
 | 저장소 | 책임 |
 | --- | --- |
-| `Hana-OmniLens-API` | KIS·KRX·환율·뉴스·공시 수집, 데이터 정규화, Hana Montana AI 호출, 협력사 REST/WebSocket 제공 |
+| `Hana-Omni-Connect-API` | KIS·KRX·환율·뉴스·공시 수집, 데이터 정규화, Hana Montana AI 호출, 협력사 REST/WebSocket 제공 |
 | `Hannah-Montana-AI` | `Hana Montana AI(KF-DeBERTa + K-FNSPID)` 뉴스·공시 NLP, 번역, 금융 용어 해설, 글로벌 피어, 외국인 보유 예측, 세무 OCR·규칙 추론 |
 | `Stock-exchange-BE` | 사용자·계좌·관심종목·모의 원장·알림·세무 신청 상태와 FE용 API |
 | `Stock-exchange-FE` | Flutter iOS/Android 영어 MTS 화면 |
@@ -40,12 +40,12 @@
 - 배당소득 제한세율 적용에 필요한 `거주자 증명서`, `아포스티유`, `제한세율 적용신청서`를 OCR 기반으로 검증한다.
 - 최종투자자가 세 문서를 Stock-exchange-FE에서 선택해 Stock-exchange-BE에 순차 업로드한다.
 - Stock-exchange-BE는 파일을 계정별로 격리 저장하고 문서 메타데이터와 검증 진행 상태를 관리한다.
-- Hana OmniLens는 `POST /api/v1/tax/documents/verify`에서 문서 유형, 파일 내용, MIME과 검증 문맥을 Hannah AI에 전달한다.
+- Hana Omni-Connect는 `POST /api/v1/tax/documents/verify`에서 문서 유형, 파일 내용, MIME과 검증 문맥을 Hannah AI에 전달한다.
 - Hannah AI는 이미지/PDF magic byte, 크기, 문서 유형을 검사한 뒤 OCR, 문서별 parser/reviewer, 필수 필드, 국가·문서 간 일관성, 위변조 위험을 검증한다.
 - 검증 결과는 `VERIFIED`, `REVIEW_REQUIRED`, `REJECTED` 상태, OCR confidence, 위험도, 누락 필드, 거절 사유, model version으로 반환한다.
 - 세 문서가 검증된 경우에만 Stock-exchange-BE가 원본 파일·MIME·SHA-256와 신청 상태를 동기화한다. 수익 추정값은 포털 계약으로 전달하지 않는다.
 - 관리자는 원본 세 문서를 열람하고 OCR 필드를 자동 적용한 뒤, API가 실제 공식 PDF에서 렌더링한 화면의 해당 칸을 직접 수정해 저장·PDF 다운로드·승인 및 국세청 제출 처리를 수행한다. 화면 필드와 다운로드 PDF는 서버의 동일 좌표 계약을 사용한다.
-- 거래소와 OmniLens의 세무 신청 ID는 암호학적 난수 기반 `TAX-` + 영숫자 12자리로 통일하며, 경로 변수 검증 실패는 500이 아닌 표준 400 응답으로 반환한다.
+- 거래소와 OmniConnect의 세무 신청 ID는 암호학적 난수 기반 `TAX-` + 영숫자 12자리로 통일하며, 경로 변수 검증 실패는 500이 아닌 표준 400 응답으로 반환한다.
 - 환급액 선지급·환수는 컴플라이언스 샌드박스 상태와 위험 고지를 제공하는 범위다. 실제 세무 신고, 정부 승인, 지급·환수 실행은 운영·법무 승인과 외부 시스템 책임이다.
 
 세무 흐름은 `Flutter 파일 선택 → Stock-exchange-BE 격리 저장 → Hana 검증 orchestration → Hannah OCR·규칙 검증 → BE 상태 관리 → Flutter 진행 표시`다.
@@ -74,7 +74,7 @@
 - 외부 자격증명과 DB·Redis 비밀번호는 GitHub Secrets가 생성하는 서버 환경 파일로만 주입한다.
 - 세무 파일은 허용 형식·크기·magic byte를 검증하고 계정별 경로 격리, 무작위 저장명, 접근 로그를 적용한다.
 - 웹 포털은 Bearer 토큰과 Spring Security RBAC를 사용하며, 비밀번호 변경 시 세션 버전을 올려 기존 토큰을 즉시 폐기한다.
-- 초기 관리자 비밀번호는 `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로만 주입한다. 신규 DB 또는 레거시 초기 계정은 기동 시 Argon2id 해시로 교체되며 초기 로그인 직후 비밀번호 변경을 강제한다.
+- 초기 관리자 비밀번호는 `OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로만 주입한다. 신규 DB 또는 레거시 초기 계정은 기동 시 Argon2id 해시로 교체되며 초기 로그인 직후 비밀번호 변경을 강제한다.
 - 포털 비밀번호는 12~128자이며 API 키 원문은 암호화 보관하고 활성 키의 소유 회원에게만 표시한다. 취소·승인·반려·재발급·폐기는 상태 전이와 RBAC로 통제한다.
 
 ## 로컬 실행과 검증
@@ -86,7 +86,7 @@ curl http://localhost:8080/actuator/health
 ./gradlew bootJar --no-daemon
 ```
 
-로컬 시크릿은 gitignore된 `src/main/resources/application-local.yml`에만 둔다. 신규 DB를 처음 기동할 때는 16~128자의 `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`를 환경 변수로 주입한다. 이미 초기 비밀번호를 변경한 DB에는 이 값이 없어도 된다.
+로컬 시크릿은 gitignore된 `src/main/resources/application-local.yml`에만 둔다. 신규 DB를 처음 기동할 때는 16~128자의 `OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`를 환경 변수로 주입한다. 이미 초기 비밀번호를 변경한 DB에는 이 값이 없어도 된다.
 
 ## 문서
 

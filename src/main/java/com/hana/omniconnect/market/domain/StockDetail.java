@@ -1,0 +1,106 @@
+package com.hana.omniconnect.market.domain;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+
+public record StockDetail(
+        String stockCode,
+        String stockName,
+        String stockNameEn,
+        String logoUrl,
+        String market,
+        String sector,
+        BigDecimal currentPriceKrw,
+        BigDecimal changeRate,
+        long volume,
+        String localCurrency,
+        BigDecimal localCurrencyPrice,
+        Instant marketDataTime,
+        long foreignOwnedQuantity,
+        BigDecimal foreignOwnershipRate,
+        BigDecimal foreignLimitExhaustionRate,
+        BigDecimal predictedForeignOwnershipRateMin,
+        BigDecimal predictedForeignOwnershipRateMax,
+        BigDecimal predictedForeignLimitExhaustionRateMin,
+        BigDecimal predictedForeignLimitExhaustionRateMax,
+        String foreignOwnershipPredictionConfidenceLevel,
+        BigDecimal foreignOwnershipPredictionConfidenceScore,
+        String foreignOwnershipPredictionModelVersion,
+        LocalDate foreignOwnershipBaseDate,
+        boolean foreignLimitBuyWarning,
+        boolean viActive,
+        boolean singlePriceTrading,
+        String priceLimitState,
+        boolean tradingHalted,
+        boolean orderable,
+        String source
+) {
+    public StockDetail(
+            String stockCode,
+            String stockName,
+            String stockNameEn,
+            String market,
+            String sector,
+            BigDecimal currentPriceKrw,
+            BigDecimal changeRate,
+            long volume,
+            String localCurrency,
+            BigDecimal localCurrencyPrice,
+            Instant marketDataTime,
+            long foreignOwnedQuantity,
+            BigDecimal foreignOwnershipRate,
+            BigDecimal foreignLimitExhaustionRate,
+            BigDecimal predictedForeignOwnershipRateMin,
+            BigDecimal predictedForeignOwnershipRateMax,
+            BigDecimal predictedForeignLimitExhaustionRateMin,
+            BigDecimal predictedForeignLimitExhaustionRateMax,
+            String foreignOwnershipPredictionConfidenceLevel,
+            BigDecimal foreignOwnershipPredictionConfidenceScore,
+            String foreignOwnershipPredictionModelVersion,
+            LocalDate foreignOwnershipBaseDate,
+            boolean foreignLimitBuyWarning,
+            boolean viActive,
+            boolean singlePriceTrading,
+            String priceLimitState,
+            boolean tradingHalted,
+            boolean orderable,
+            String source
+    ) {
+        this(
+                stockCode,
+                stockName,
+                stockNameEn,
+                StockLogoUrlResolver.koreanStockLogoUrl(stockCode),
+                market,
+                sector,
+                currentPriceKrw,
+                changeRate,
+                volume,
+                localCurrency,
+                localCurrencyPrice,
+                marketDataTime,
+                foreignOwnedQuantity,
+                foreignOwnershipRate,
+                foreignLimitExhaustionRate,
+                predictedForeignOwnershipRateMin,
+                predictedForeignOwnershipRateMax,
+                predictedForeignLimitExhaustionRateMin,
+                predictedForeignLimitExhaustionRateMax,
+                foreignOwnershipPredictionConfidenceLevel,
+                foreignOwnershipPredictionConfidenceScore,
+                foreignOwnershipPredictionModelVersion,
+                foreignOwnershipBaseDate,
+                foreignLimitBuyWarning,
+                viActive,
+                singlePriceTrading,
+                priceLimitState,
+                tradingHalted,
+                orderable,
+                source);
+    }
+
+    public StockDetail {
+        logoUrl = logoUrl == null ? "" : logoUrl;
+    }
+}

@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:omnilens-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:mem:omni-connect-test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -16,7 +16,7 @@ management:
     redis:
       enabled: false
 
-omnilens:
+omni-connect:
   portal:
     bootstrap-admin-password: Local-Test-Only-Initial-Secret-2026!
   security:

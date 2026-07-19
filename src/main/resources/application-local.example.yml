@@ -1,7 +1,7 @@
 server:
   port: 8080
 
-omnilens:
+omni-connect:
   security:
     cors-allowed-origins:
       - http://localhost:3000
@@ -16,9 +16,9 @@ omnilens:
       nonce-store-mode: redis
       max-nonces: 10000
   portal:
-    session-signing-key: ${OMNILENS_PORTAL_SESSION_SIGNING_KEY}
-    api-key-encryption-key: ${OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY}
-    bootstrap-admin-password: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
+    session-signing-key: ${OMNI_CONNECT_PORTAL_SESSION_SIGNING_KEY}
+    api-key-encryption-key: ${OMNI_CONNECT_PORTAL_API_KEY_ENCRYPTION_KEY}
+    bootstrap-admin-password: ${OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
   providers:
     public-data:
       stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService
@@ -165,7 +165,7 @@ omnilens:
       news-display: 5
       disclosure-lookback-days: 365
       default-universe-enabled: true
-      default-universe-partner-id: omnilens-default-universe
+      default-universe-partner-id: omni-connect-default-universe
       priority-stock-limit: 10
       include-foreign-ownership-restricted-stocks: true
       collection-batch-size: 20
@@ -185,9 +185,9 @@ providers:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/omnilens
-    username: omnilens
-    password: omnilens-local-password
+    url: jdbc:postgresql://localhost:5432/omni-connect
+    username: omni-connect
+    password: omni-connect-local-password
   data:
     redis:
       host: localhost

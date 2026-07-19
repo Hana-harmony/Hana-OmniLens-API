@@ -7,7 +7,7 @@ discovery.relabel "logs" {
 
   rule {
     source_labels = ["__meta_docker_container_name"]
-    regex         = "/(hana-omnilens-api|hannah-montana-ai|hana-omnilens-postgres|hana-omnilens-redis|hannah-qwen)"
+    regex         = "/(hana-omni-connect-api|hannah-montana-ai|hana-omni-connect-postgres|hana-omni-connect-redis|hannah-qwen)"
     action        = "keep"
   }
 
@@ -19,7 +19,7 @@ discovery.relabel "logs" {
 
   rule {
     target_label = "host"
-    replacement  = "oci-omnilens"
+    replacement  = "oci-omni-connect"
   }
 }
 

@@ -3,10 +3,10 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: hana-omnilens-api
+  - job_name: hana-omni-connect-api
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: [hana-omnilens-api:8080]
+      - targets: [hana-omni-connect-api:8080]
 
   - job_name: hannah-montana-ai
     metrics_path: /metrics

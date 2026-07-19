@@ -1,12 +1,12 @@
 server:
   port: ${SERVER_PORT:8080}
 
-omnilens:
+omni-connect:
   observability:
     discord:
-      webhook-url: ${OMNILENS_DISCORD_WEBHOOK_URL}
+      webhook-url: ${OMNI_CONNECT_DISCORD_WEBHOOK_URL}
   security:
-    cors-allowed-origins: ${OMNILENS_CORS_ALLOWED_ORIGINS}
+    cors-allowed-origins: ${OMNI_CONNECT_CORS_ALLOWED_ORIGINS}
     rate-limit:
       enabled: true
       max-requests: 120
@@ -17,9 +17,9 @@ omnilens:
       nonce-store-mode: redis
       max-nonces: 10000
   portal:
-    session-signing-key: ${OMNILENS_PORTAL_SESSION_SIGNING_KEY}
-    api-key-encryption-key: ${OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY}
-    bootstrap-admin-password: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
+    session-signing-key: ${OMNI_CONNECT_PORTAL_SESSION_SIGNING_KEY}
+    api-key-encryption-key: ${OMNI_CONNECT_PORTAL_API_KEY_ENCRYPTION_KEY}
+    bootstrap-admin-password: ${OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
   providers:
     public-data:
       stock-securities-base-url: ${PUBLIC_DATA_STOCK_SECURITIES_BASE_URL:https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService}
@@ -73,7 +73,7 @@ omnilens:
       read-timeout: ${HANNAH_AI_READ_TIMEOUT:30m}
   term:
     analytics:
-      hash-salt: ${OMNILENS_TERM_ANALYTICS_HASH_SALT}
+      hash-salt: ${OMNI_CONNECT_TERM_ANALYTICS_HASH_SALT}
   market:
     stock-master:
       seed:
@@ -147,7 +147,7 @@ omnilens:
       news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:5}
       disclosure-lookback-days: ${ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS:365}
       default-universe-enabled: true
-      default-universe-partner-id: ${ALERT_SCHEDULER_DEFAULT_UNIVERSE_PARTNER_ID:omnilens-default-universe}
+      default-universe-partner-id: ${ALERT_SCHEDULER_DEFAULT_UNIVERSE_PARTNER_ID:omni-connect-default-universe}
       priority-stock-limit: ${ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT:10}
       include-foreign-ownership-restricted-stocks: ${ALERT_SCHEDULER_INCLUDE_FOREIGN_OWNERSHIP_RESTRICTED_STOCKS:true}
       collection-batch-size: ${ALERT_SCHEDULER_COLLECTION_BATCH_SIZE:20}
@@ -162,5 +162,5 @@ spring:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
-      username: omnilens_app
+      username: omni_connect_app
       password: ${REDIS_PASSWORD:}

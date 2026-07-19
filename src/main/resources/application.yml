@@ -6,12 +6,12 @@ spring:
     scheduling:
       pool:
         size: 4
-      thread-name-prefix: omnilens-scheduler-
+      thread-name-prefix: omni-connect-scheduler-
       shutdown:
         await-termination: true
         await-termination-period: 30s
   application:
-    name: hana-omnilens-api
+    name: hana-omni-connect-api
   profiles:
     default: local
 
@@ -32,10 +32,10 @@ management:
     tags:
       application: ${spring.application.name}
 
-omnilens:
+omni-connect:
   observability:
     discord:
-      webhook-url: ${OMNILENS_DISCORD_WEBHOOK_URL:}
+      webhook-url: ${OMNI_CONNECT_DISCORD_WEBHOOK_URL:}
   security:
     cors-allowed-origins: []
     rate-limit:
@@ -48,9 +48,9 @@ omnilens:
       nonce-store-mode: redis
       max-nonces: 10000
   portal:
-    session-signing-key: ${OMNILENS_PORTAL_SESSION_SIGNING_KEY:}
-    api-key-encryption-key: ${OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY:}
-    bootstrap-admin-password: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
+    session-signing-key: ${OMNI_CONNECT_PORTAL_SESSION_SIGNING_KEY:}
+    api-key-encryption-key: ${OMNI_CONNECT_PORTAL_API_KEY_ENCRYPTION_KEY:}
+    bootstrap-admin-password: ${OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
   providers:
     public-data:
       stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService
@@ -108,7 +108,7 @@ omnilens:
       read-timeout: 30m
   term:
     analytics:
-      hash-salt: ${OMNILENS_TERM_ANALYTICS_HASH_SALT:local-term-analytics-salt}
+      hash-salt: ${OMNI_CONNECT_TERM_ANALYTICS_HASH_SALT:local-term-analytics-salt}
   market:
     stock-master:
       seed:
@@ -214,7 +214,7 @@ omnilens:
       news-display: 5
       disclosure-lookback-days: 365
       default-universe-enabled: true
-      default-universe-partner-id: omnilens-default-universe
+      default-universe-partner-id: omni-connect-default-universe
       priority-stock-limit: 10
       include-foreign-ownership-restricted-stocks: true
       collection-batch-size: 20

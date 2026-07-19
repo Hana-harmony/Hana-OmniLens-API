@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR=/opt/hana-omnilens-api
-COMPOSE_FILE="${APP_DIR}/hana-omnilens-data.yml"
+APP_DIR=/opt/hana-omni-connect-api
+COMPOSE_FILE="${APP_DIR}/hana-omni-connect-data.yml"
 
 for file in "${COMPOSE_FILE}" "${APP_DIR}/postgres-password" "${APP_DIR}/redis-users.acl"; do
   if [[ ! -s "${file}" ]]; then
@@ -12,12 +12,12 @@ for file in "${COMPOSE_FILE}" "${APP_DIR}/postgres-password" "${APP_DIR}/redis-u
 done
 
 chmod 600 "${APP_DIR}/postgres-password" "${APP_DIR}/redis-users.acl"
-docker network inspect hana-omnilens-internal >/dev/null 2>&1 \
-  || docker network create hana-omnilens-internal >/dev/null
+docker network inspect hana-omni-connect-internal >/dev/null 2>&1 \
+  || docker network create hana-omni-connect-internal >/dev/null
 docker compose -f "${COMPOSE_FILE}" pull
 docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
 
-for container in hana-omnilens-postgres hana-omnilens-redis; do
+for container in hana-omni-connect-postgres hana-omni-connect-redis; do
   ready=false
   for _ in $(seq 1 60); do
     if [[ "$(docker inspect --format '{{.State.Health.Status}}' "${container}" 2>/dev/null || true)" == healthy ]]; then
