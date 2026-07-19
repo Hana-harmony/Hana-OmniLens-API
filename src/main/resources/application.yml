@@ -37,8 +37,6 @@ omnilens:
     discord:
       webhook-url: ${OMNILENS_DISCORD_WEBHOOK_URL:}
   security:
-    api-key-sha256: ${OMNILENS_API_KEY_SHA256:}
-    api-key-partner-ids: ${OMNILENS_API_KEY_PARTNER_IDS:stock-exchange}
     cors-allowed-origins: []
     rate-limit:
       enabled: true

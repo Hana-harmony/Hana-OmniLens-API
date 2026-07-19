@@ -6,8 +6,6 @@ omnilens:
     discord:
       webhook-url: ${OMNILENS_DISCORD_WEBHOOK_URL}
   security:
-    api-key-sha256: ${OMNILENS_API_KEY_SHA256}
-    api-key-partner-ids: ${OMNILENS_API_KEY_PARTNER_IDS}
     cors-allowed-origins: ${OMNILENS_CORS_ALLOWED_ORIGINS}
     rate-limit:
       enabled: true
@@ -21,7 +19,7 @@ omnilens:
   portal:
     session-signing-key: ${OMNILENS_PORTAL_SESSION_SIGNING_KEY}
     api-key-encryption-key: ${OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY}
-    bootstrap-admin-password: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD}
+    bootstrap-admin-password: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
   providers:
     public-data:
       stock-securities-base-url: ${PUBLIC_DATA_STOCK_SECURITIES_BASE_URL:https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService}

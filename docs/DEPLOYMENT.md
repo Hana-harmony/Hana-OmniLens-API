@@ -31,8 +31,6 @@ docker compose -f compose.local.yml up -d
 - `PROD_SSH_KEY`: 운영 서버 접근용 private key
 - `PROD_HOST_KEY`: 운영 서버 SSH host key
 - `GHCR_TOKEN`: 운영 서버에서 GHCR 이미지 pull에 사용할 token. 배포 workflow가 GitHub API로 token 소유자를 검증해 GHCR 사용자명을 자동 결정하므로 `GHCR_USERNAME` Secret은 등록하지 않는다.
-- `OMNILENS_API_KEY_SHA256`: 협력사 API key SHA-256 해시
-- `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`: 신규 DB의 초기 관리자 임시 비밀번호, 16~128자이며 앞뒤 공백을 허용하지 않음
 - `DB_PASSWORD`: 운영 DB 비밀번호
 - `REDIS_PASSWORD`: 운영 Redis 비밀번호
 - `PUBLIC_DATA_SERVICE_KEY`: 공공데이터포털 API 인증키
@@ -42,6 +40,10 @@ docker compose -f compose.local.yml up -d
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART API 인증키
+
+## 최초 기동 전용 GitHub Secret
+
+- `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`: 신규 DB 최초 기동에만 사용하는 관리자 임시 비밀번호. 16~128자이며 앞뒤 공백을 허용하지 않는다. 최초 로그인에서 비밀번호를 변경한 후 GitHub Secret에서 삭제한다.
 
 ## 호스트 자동 생성 운영키
 

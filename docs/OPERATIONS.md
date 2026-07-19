@@ -133,7 +133,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - 문서는 협력사 API key 보호 대상이다.
 - REST endpoint, STOMP alert WebSocket topic, raw market quote WebSocket 계약을 함께 확인할 수 있다.
 - DB credential을 사용하는 협력사는 `/topic/partners/{partnerId}/alerts` 또는 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`를 구독한다.
-- `/topic/stocks/{stockCode}/alerts`는 bootstrap 전역 키 호환용 topic으로 유지한다.
+- 협력사는 `/topic/partners/{partnerId}/alerts`와 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`에서 자기 `partnerId` topic만 구독한다.
 
 ## 실시간 시세 수요 구독
 - 인기 10종목은 `OMNILENS_MARKET_KIS_REALTIME_STOCK_CODES`로, KOSPI·KOSDAQ·KOSPI200 지수는 `OMNILENS_MARKET_KIS_REALTIME_INDEX_CODES=0001,1001,2001`로 API 기동 시 KIS WebSocket에 고정 선구독한다.
@@ -292,21 +292,10 @@ HANNAH_AI_MAINTENANCE_TOKEN=<호스트 루트키에서 자동 파생>
 - 협력사별 API key는 원문을 저장하지 않고 SHA-256 해시만 저장한다.
 - `active=false` credential은 인증에 사용할 수 없다.
 - DB credential로 인증된 요청은 알림 API의 `partnerId`와 인증된 `partner_id`가 일치해야 한다.
-- `OMNILENS_API_KEY_SHA256` bootstrap 키는 초기 운영과 비상 복구용 fallback으로 유지한다.
-- 협력사별 key rotation은 bootstrap 운영 키로 `POST /api/v1/security/partners/{partnerId}/credentials/rotate`를 호출한다.
-- rotation API는 서버가 새 256-bit API key를 생성해 응답에서 한 번만 반환하고, DB에는 SHA-256 hash만 저장한다.
+- 회원은 포털에서 API 이용을 신청하고 관리자는 관리자 화면에서 승인·반려한다.
+- 승인·재발급 시 서버가 새 256-bit API key를 생성해 한 번만 공개하고 DB에는 SHA-256 hash만 저장한다.
 - 같은 partner의 기존 활성 credential은 같은 트랜잭션에서 `active=false`로 전환되므로 기존 키는 즉시 폐기된다.
-- DB credential로 인증된 협력사 요청은 rotation API를 호출할 수 없다.
-
-```sql
-INSERT INTO partner_api_credential (api_key_sha256, partner_id, active)
-VALUES ('{sha256_hex_of_raw_api_key}', 'partner-a', TRUE);
-```
-
-```bash
-curl -X POST http://localhost:8080/api/v1/security/partners/partner-a/credentials/rotate \
-  -H "X-HANA-OMNILENS-API-KEY: ${BOOTSTRAP_API_KEY}"
-```
+- 협력사 key 발급·재발급·폐기는 포털 관리자 API만 사용하며 DB 직접 입력과 전역 bootstrap key를 사용하지 않는다.
 
 ## Audit Log & Correlation ID
 - 모든 요청은 `X-HANA-OMNILENS-CORRELATION-ID` 응답 헤더를 받는다.

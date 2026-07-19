@@ -3,8 +3,6 @@ server:
 
 omnilens:
   security:
-    api-key-sha256: ${OMNILENS_API_KEY_SHA256:}
-    api-key-partner-ids: ${OMNILENS_API_KEY_PARTNER_IDS:stock-exchange}
     cors-allowed-origins:
       - http://localhost:3000
       - http://localhost:5173

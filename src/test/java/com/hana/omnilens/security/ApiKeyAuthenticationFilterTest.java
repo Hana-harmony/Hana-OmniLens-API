@@ -18,7 +18,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-sha256=",
         "omnilens.alert.dedupe.mode=in-memory",
         "management.health.redis.enabled=false"
 })
@@ -37,7 +36,7 @@ class ApiKeyAuthenticationFilterTest {
     }
 
     @Test
-    void apiFailsClosedWhenHashIsMissing() throws Exception {
+    void apiFailsClosedWhenNoActivePartnerCredentialExists() throws Exception {
         mockMvc.perform(get("/api/v1/market/stocks/005930/quote")
                         .header("X-HANA-OMNILENS-API-KEY", "test-api-key"))
                 .andExpect(status().isServiceUnavailable())
@@ -46,7 +45,7 @@ class ApiKeyAuthenticationFilterTest {
     }
 
     @Test
-    void apiAcceptsActivePartnerCredentialWhenGlobalHashIsMissing() throws Exception {
+    void apiAcceptsActivePartnerCredential() throws Exception {
         jdbcTemplate.update(
                 """
                 INSERT INTO partner_api_credential (api_key_sha256, partner_id, active)

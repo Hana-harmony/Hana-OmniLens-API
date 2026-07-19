@@ -41,7 +41,6 @@ import com.hana.omnilens.provider.market.KisRealtimeTransaction;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
-                "omnilens.security.api-key-sha256=4c806362b613f7496abf284146efd31da90e4b16169fe001841ca17290f427c4",
                 "omnilens.security.rate-limit.enabled=false",
                 "omnilens.alert.dedupe.mode=in-memory",
                 "management.health.redis.enabled=false"
@@ -66,11 +65,16 @@ class MarketQuoteWebSocketContractTest {
     @Autowired
     private StockMasterRepository stockMasterRepository;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @MockitoBean
     private KisCurrentPriceClient kisCurrentPriceClient;
 
     @BeforeEach
     void setUpProviderCaches() {
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-market-stream", "test-api-key");
         marketDataService.updateExchangeRate("USD", new BigDecimal("0.00072"));
         when(kisCurrentPriceClient.findCurrentPrice(anyString()))
                 .thenAnswer(invocation -> Optional.of(kisSnapshot(invocation.getArgument(0))));

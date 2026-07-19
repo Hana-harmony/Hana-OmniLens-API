@@ -19,20 +19,6 @@ public class PartnerAuthorizationService {
         }
     }
 
-    public void assertBootstrapAccess() {
-        if (!bootstrapAuthenticated()) {
-            String authenticatedPartnerId = authenticatedPartnerId();
-            throw new PartnerAccessDeniedException(authenticatedPartnerId, "bootstrap");
-        }
-    }
-
-    private boolean bootstrapAuthenticated() {
-        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
-            return Boolean.TRUE.equals(attributes.getRequest().getAttribute(PartnerAuthentication.BOOTSTRAP_ATTRIBUTE));
-        }
-        return false;
-    }
-
     private String authenticatedPartnerId() {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
             HttpServletRequest request = attributes.getRequest();

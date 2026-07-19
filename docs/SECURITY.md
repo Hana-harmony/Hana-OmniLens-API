@@ -5,9 +5,8 @@
 ## 현재 기준
 - 모든 운영 API 요청은 `X-HANA-OMNILENS-API-KEY`를 사용한다.
 - 서버는 API key 원문을 저장하지 않고 SHA-256 해시만 비교한다.
-- 단일 운영 bootstrap 키는 `application-prod.yml`의 `${OMNILENS_API_KEY_SHA256}` placeholder로 주입한다.
 - 협력사별 운영 키는 `partner_api_credential` 테이블에 SHA-256 해시와 `partner_id`로 저장한다.
-- API key 해시가 설정 파일과 DB 어디에도 없으면 운영 API는 실패 닫힘 방식으로 `503`을 반환한다.
+- DB에 활성 API key 해시가 없으면 운영 API는 실패 닫힘 방식으로 `503`을 반환한다.
 - DB credential로 인증된 요청은 알림 API의 요청 `partnerId`가 인증 `partnerId`와 다르면 `403`으로 거부한다.
 - 인증된 요청은 API key SHA-256 fingerprint 단위로 rate limit을 적용한다.
 - rate limit 초과 요청은 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
@@ -30,7 +29,7 @@
 - Spring Boot 기본 메모리 사용자 자동설정을 비활성화하고 DB 포털 계정과 파트너 API key 인증만 사용한다.
 - WebSocket `/ws/alerts`, `/ws/market/quotes` handshake도 API key 검증 대상이다.
 - DB credential로 인증된 WebSocket 세션은 `/topic/partners/{partnerId}/alerts`와 `/topic/partners/{partnerId}/stocks/{stockCode}/alerts`에서 자기 `partnerId`만 구독할 수 있다.
-- DB credential 세션은 전역 `/topic/stocks/{stockCode}/alerts` 구독을 사용할 수 없다.
+- WebSocket 세션은 자기 협력사의 topic만 구독할 수 있다.
 - 세션은 stateless로 유지한다.
 - KIS/KRX/Naver/OpenDART 등 외부 API credential은 환경 변수 또는 Secret Manager에서만 주입한다.
 
@@ -38,10 +37,10 @@
 - 원문 API key는 발급 직후 협력사에게 한 번만 전달한다.
 - 서버 DB에는 `SHA-256(apiKey)` 결과만 `partner_api_credential.api_key_sha256`에 저장한다.
 - 키 폐기는 row 삭제보다 `active=false` 전환을 우선 사용해 감사 추적을 남긴다.
-- bootstrap 전역 키는 운영 초기 credential 등록과 비상 복구용으로만 사용하고 상시 협력사 호출은 DB credential을 사용한다.
-- 협력사별 key rotation은 bootstrap 운영 키로 `POST /api/v1/security/partners/{partnerId}/credentials/rotate`를 호출한다.
-- rotation 응답의 `apiKey`는 새 원문 키가 노출되는 유일한 시점이다. 운영자는 즉시 협력사 Secret Manager에 저장하고 로그나 티켓 본문에 남기지 않는다.
-- rotation 시 기존 활성 credential은 같은 트랜잭션에서 비활성화된다.
+- 회원은 포털에서 API 이용을 신청하고 관리자가 승인한다.
+- 승인·재발급 시 서버가 새 256-bit API key를 생성하고 원문은 포털에서 한 번만 공개한다.
+- 재발급 시 기존 활성 credential은 같은 트랜잭션에서 비활성화된다.
+- 전역 bootstrap API key와 포털 외부 강제 발급 endpoint는 운영하지 않는다.
 
 ## 시크릿 관리
 - `application-local.yml`은 커밋하지 않는다.
@@ -50,7 +49,7 @@
 - 외부 데이터 수집 credential인 `NAVER_NEWS_CLIENT_ID`, `NAVER_NEWS_CLIENT_SECRET`, `OPEN_DART_API_KEY`는 Hana-OmniLens-API에서만 사용한다.
 - Hannah-Montana-AI와 Stock-exchange-* 레포에는 Naver/OpenDART/KRX credential을 두지 않는다.
 - 외부 provider credential, DB·Redis 비밀번호와 초기 관리자 비밀번호는 GitHub Secrets로 주입한다. 포털 세션·API 키 암호화·클릭 분석·AI 유지보수 내부키는 OCI 호스트의 영속 루트키에서 용도별로 자동 파생한다.
-- 초기 관리자 비밀번호는 GitHub Secret `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로 주입하며 저장소, 로그, 배포 문서에 원문을 남기지 않는다.
+- 초기 관리자 비밀번호는 최초 기동에만 GitHub Secret `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`로 주입한다. 최초 로그인에서 비밀번호를 변경한 뒤 Secret을 삭제하며 저장소, 로그, 배포 문서에 원문을 남기지 않는다.
 - `application-prod.env`는 커밋하지 않는다.
 - GHCR pull token은 원격 서버의 `deploy-prod.env`에만 생성하고 앱 컨테이너에는 주입하지 않는다.
 - `deploy-prod.env`는 커밋하지 않는다.
