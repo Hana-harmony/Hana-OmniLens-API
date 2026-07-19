@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -19,7 +20,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.hana.omnilens.security.ApiKeyRateLimiter.RateLimitDecision;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-sha256=4c806362b613f7496abf284146efd31da90e4b16169fe001841ca17290f427c4",
         "omnilens.alert.dedupe.mode=in-memory",
         "management.health.redis.enabled=false"
 })
@@ -29,6 +29,15 @@ class ApiKeyRateLimitFilterTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void setUpPartnerCredential() {
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-rate-limit", "test-api-key");
+    }
 
     @MockitoBean
     private ApiKeyRateLimiter rateLimiter;

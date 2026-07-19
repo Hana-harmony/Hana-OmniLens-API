@@ -7,13 +7,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-sha256=4c806362b613f7496abf284146efd31da90e4b16169fe001841ca17290f427c4",
         "omnilens.alert.dedupe.mode=in-memory",
         "management.health.redis.enabled=false"
 })
@@ -22,6 +22,15 @@ class OpenApiDocumentTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void setUpPartnerCredential() {
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-docs", "test-api-key");
+    }
 
     @Test
     void servesOpenApiDocumentBehindPartnerApiKey() throws Exception {
@@ -46,9 +55,7 @@ class OpenApiDocumentTest {
                 .andExpect(content().string(containsString("PartnerWatchlistApiResponse")))
                 .andExpect(content().string(containsString("/api/v1/partner/readiness")))
                 .andExpect(content().string(containsString("hmac-sha256-v1")))
-                .andExpect(content().string(containsString("/api/v1/security/partners/{partnerId}/credentials/rotate")))
-                .andExpect(content().string(containsString("PartnerCredentialRotationApiResponse")))
-                .andExpect(content().string(containsString("raw key exactly once")))
+                .andExpect(content().string(not(containsString("/api/v1/security/partners/{partnerId}/credentials/rotate"))))
                 .andExpect(content().string(containsString("AlertEventApiResponse")))
                 .andExpect(content().string(containsString("AlertCollectPublishApiResponse")))
                 .andExpect(content().string(containsString("Hana Montana AI(KF-DeBERTa + K-FNSPID)")))

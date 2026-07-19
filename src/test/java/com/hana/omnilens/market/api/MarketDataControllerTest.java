@@ -44,7 +44,6 @@ import com.hana.omnilens.provider.market.KisCurrentPriceSnapshot;
 import com.hana.omnilens.provider.market.KisRealtimeTradeTick;
 
 @SpringBootTest(properties = {
-        "omnilens.security.api-key-sha256=4c806362b613f7496abf284146efd31da90e4b16169fe001841ca17290f427c4",
         "omnilens.providers.public-data.service-key=",
         "omnilens.alert.dedupe.mode=in-memory",
         "management.health.redis.enabled=false"
@@ -67,6 +66,9 @@ class MarketDataControllerTest {
     @Autowired
     private RealtimeMarketDataCache realtimeMarketDataCache;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @MockitoBean
     private ForeignOwnershipRefreshService foreignOwnershipRefreshService;
 
@@ -78,6 +80,8 @@ class MarketDataControllerTest {
 
     @BeforeEach
     void setUpKisMarketData() {
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-market", "test-api-key");
         realtimeMarketDataCache.clear();
         when(kisCurrentPriceClient.findCurrentPrice(anyString()))
                 .thenAnswer(invocation -> Optional.of(kisSnapshot(invocation.getArgument(0))));

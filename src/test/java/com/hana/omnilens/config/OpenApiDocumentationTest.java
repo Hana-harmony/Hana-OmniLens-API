@@ -12,9 +12,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = {
-        "omnilens.security.api-key-sha256="
-})
+@SpringBootTest
 @AutoConfigureMockMvc
 class OpenApiDocumentationTest {
 
@@ -34,8 +32,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/portal/auth/sign-up']", notNullValue()))
                 .andExpect(jsonPath("$.paths['/api/v1/portal/me/password']", notNullValue()))
                 .andExpect(jsonPath("$.paths['/api/v1/portal/admin/tax/refund-cases/{caseId}/approve']", notNullValue()))
-                .andExpect(jsonPath("$.paths['/api/v1/security/partners/{partnerId}/credentials/rotate']",
-                        notNullValue()))
+                .andExpect(jsonPath("$.paths['/api/v1/security/partners/{partnerId}/credentials/rotate']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/partner/readiness']", notNullValue()))
                 .andExpect(jsonPath("$.components.securitySchemes.hanaApiKey", notNullValue()));
     }

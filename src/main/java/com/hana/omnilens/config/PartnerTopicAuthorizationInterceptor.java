@@ -22,9 +22,6 @@ public class PartnerTopicAuthorizationInterceptor implements ChannelInterceptor 
             Pattern.compile("^/topic/partners/([A-Za-z0-9._:-]+)/alerts$");
     private static final Pattern PARTNER_STOCK_TOPIC_PATTERN =
             Pattern.compile("^/topic/partners/([A-Za-z0-9._:-]+)/stocks/\\d{6}/alerts$");
-    private static final Pattern GLOBAL_STOCK_TOPIC_PATTERN =
-            Pattern.compile("^/topic/stocks/\\d{6}/alerts$");
-
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
@@ -55,9 +52,7 @@ public class PartnerTopicAuthorizationInterceptor implements ChannelInterceptor 
             return;
         }
 
-        if (GLOBAL_STOCK_TOPIC_PATTERN.matcher(destination).matches()) {
-            throw new AccessDeniedException("Partner credential cannot subscribe to global stock topic");
-        }
+        throw new AccessDeniedException("Partner credential can subscribe only to its own partner topics");
     }
 
 	private void assertPartnerId(java.util.List<String> authenticatedPartnerIds, String requestedPartnerId) {

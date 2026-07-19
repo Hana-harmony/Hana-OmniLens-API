@@ -37,7 +37,6 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String HEADER_NAME = "X-HANA-OMNILENS-API-KEY";
 
-    private final OmniLensSecurityProperties properties;
     private final ApiKeyRateLimiter apiKeyRateLimiter;
     private final ApiRequestSignatureVerifier apiRequestSignatureVerifier;
     private final SecurityAuditLogger securityAuditLogger;
@@ -45,13 +44,11 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
 
     public ApiKeyAuthenticationFilter(
-            OmniLensSecurityProperties properties,
             ApiKeyRateLimiter apiKeyRateLimiter,
             ApiRequestSignatureVerifier apiRequestSignatureVerifier,
             SecurityAuditLogger securityAuditLogger,
             PartnerCredentialRepository partnerCredentialRepository,
             ObjectMapper objectMapper) {
-        this.properties = properties;
         this.apiKeyRateLimiter = apiKeyRateLimiter;
         this.apiRequestSignatureVerifier = apiRequestSignatureVerifier;
         this.securityAuditLogger = securityAuditLogger;
@@ -130,7 +127,6 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                         PartnerAuthentication.PARTNER_ID_ATTRIBUTE,
                         partnerId));
         cachedRequest.setAttribute(PartnerAuthentication.PARTNER_IDS_ATTRIBUTE, authentication.partnerIds());
-        cachedRequest.setAttribute(PartnerAuthentication.BOOTSTRAP_ATTRIBUTE, authentication.bootstrap());
         filterChain.doFilter(cachedRequest, response);
     }
 
@@ -156,12 +152,6 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private ApiKeyAuthentication authenticate(String providedKeyHash) {
-        if (matchesConfiguredHash(providedKeyHash)) {
-			if (properties.apiKeyPartnerIds().isEmpty()) {
-                return ApiKeyAuthentication.notConfigured();
-            }
-			return ApiKeyAuthentication.bootstrap(properties.apiKeyPartnerIds());
-        }
         Optional<PartnerCredential> partnerCredential;
         boolean hasActiveCredential;
         try {
@@ -174,19 +164,10 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         if (partnerCredential.isPresent()) {
             return ApiKeyAuthentication.partner(partnerCredential.get().partnerId());
         }
-        if (!StringUtils.hasText(properties.apiKeySha256()) && !hasActiveCredential) {
+        if (!hasActiveCredential) {
             return ApiKeyAuthentication.notConfigured();
         }
         return ApiKeyAuthentication.invalid();
-    }
-
-    private boolean matchesConfiguredHash(String providedKeyHash) {
-        if (!StringUtils.hasText(properties.apiKeySha256())) {
-            return false;
-        }
-        byte[] expected = properties.apiKeySha256().trim().getBytes(StandardCharsets.UTF_8);
-        byte[] actual = providedKeyHash.getBytes(StandardCharsets.UTF_8);
-        return MessageDigest.isEqual(actual, expected);
     }
 
     private String sha256Hex(String rawValue) {
@@ -203,25 +184,19 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             boolean configured,
             boolean authenticated,
             Optional<String> partnerId,
-			java.util.List<String> partnerIds,
-            boolean bootstrap
+            java.util.List<String> partnerIds
     ) {
 
-		private static ApiKeyAuthentication bootstrap(java.util.List<String> partnerIds) {
-			Optional<String> primary = partnerIds.size() == 1 ? Optional.of(partnerIds.get(0)) : Optional.empty();
-			return new ApiKeyAuthentication(true, true, primary, partnerIds, true);
-        }
-
         private static ApiKeyAuthentication partner(String partnerId) {
-			return new ApiKeyAuthentication(true, true, Optional.of(partnerId), java.util.List.of(partnerId), false);
+            return new ApiKeyAuthentication(true, true, Optional.of(partnerId), java.util.List.of(partnerId));
         }
 
         private static ApiKeyAuthentication invalid() {
-			return new ApiKeyAuthentication(true, false, Optional.empty(), java.util.List.of(), false);
+            return new ApiKeyAuthentication(true, false, Optional.empty(), java.util.List.of());
         }
 
         private static ApiKeyAuthentication notConfigured() {
-			return new ApiKeyAuthentication(false, false, Optional.empty(), java.util.List.of(), false);
+            return new ApiKeyAuthentication(false, false, Optional.empty(), java.util.List.of());
         }
 
     }

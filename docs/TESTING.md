@@ -15,11 +15,11 @@ docker compose -f compose.local.yml up -d
   - GitHub Actions main push GHCR 배포 흐름
 - API key 인증 성공
 - API key 누락 시 `401`
-- API key 해시 미설정 시 `503`
+- 활성 협력사 API key가 없을 때 `503`
 - DB active partner credential 인증 성공
 - inactive partner credential 거부
-- bootstrap 운영 키 기반 협력사 API key rotation, 기존 키 비활성화, 새 키 1회 반환
-- DB credential 기반 rotation API 호출 거부
+- 포털 관리자 승인·재발급 시 기존 키 비활성화와 새 키 1회 반환
+- 전역 bootstrap key와 포털 외부 강제 rotation API 부재
 - 인증 partner와 요청 partner 불일치 시 알림 API `403`
 - API key rate limit 초과 시 `429`와 `Retry-After`
 - HMAC 요청 서명 성공
@@ -95,7 +95,7 @@ docker compose -f compose.local.yml up -d
 - AI 분석 `glossaryTerms`, `translationQualityFlags` 번역 품질 메타데이터 전파
 - AI 분석 confidence 메타데이터 전파
 - API key handshake 기반 WebSocket subscription 계약
-- DB credential WebSocket 세션의 partner-scoped topic 수신과 global stock topic 차단
+- DB credential WebSocket 세션의 partner-scoped topic 수신과 다른 topic 차단
 - 시장/알림 API 입력 validation 실패와 ProblemDetail 응답 계약
 - provider 수집 결과의 중복 URL 재발행 방지
 - AI `duplicateKey` 기반 수집 알림 재발행 방지

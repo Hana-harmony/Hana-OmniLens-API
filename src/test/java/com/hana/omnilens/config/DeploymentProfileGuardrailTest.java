@@ -12,9 +12,7 @@ class DeploymentProfileGuardrailTest {
 
     private static final List<String> REQUIRED_PROD_PLACEHOLDERS =
             List.of(
-                    "OMNILENS_API_KEY_SHA256",
                     "OMNILENS_CORS_ALLOWED_ORIGINS",
-                    "OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD",
                     "DB_URL",
                     "DB_USERNAME",
                     "DB_PASSWORD",
@@ -58,6 +56,8 @@ class DeploymentProfileGuardrailTest {
         }
         assertThat(prodProfile).doesNotContain("replace-with-");
         assertThat(prodProfile).contains("base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}");
+        assertThat(prodProfile).contains(
+                "bootstrap-admin-password: ${OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}");
     }
 
     @Test
@@ -98,6 +98,8 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).contains("environment: production");
         assertThat(workflow).contains("registry: ghcr.io");
         assertThat(workflow).contains("docker/build-push-action");
+        assertThat(workflow).doesNotContain("secrets.OMNILENS_API_KEY_SHA256");
+        assertThat(workflow).contains("if [[ -n \"${PORTAL_BOOTSTRAP_PASSWORD}\" ]]");
         assertThat(workflow).contains("push: true");
         assertThat(workflow).contains("application.env");
         assertThat(workflow).contains("deploy.env");

@@ -43,7 +43,7 @@
 | `COMMON_003` | 404 | Resource not found |
 | `COMMON_999` | 500 | Internal server error |
 | `AUTH_001` | 401 | Invalid API key |
-| `AUTH_002` | 503 | API key hash is not configured |
+| `AUTH_002` | 503 | 활성 협력사 API key가 없음 |
 
 ## Swagger
 

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -67,5 +68,29 @@ class PortalAdminBootstrapTest {
         assertThatThrownBy(() -> bootstrap.run(null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD");
+    }
+
+    @Test
+    void existingChangedAdminDoesNotRequireBootstrapSecret() {
+        PortalUserRepository repository = mock(PortalUserRepository.class);
+        PortalUser admin = new PortalUser(
+                "PUSR-ADMIN000000000000000",
+                "admin",
+                passwordEncoder.encode("Changed-Admin-Password-2026!"),
+                "Hana OmniLens Admin",
+                "",
+                PortalRole.ADMIN,
+                Instant.EPOCH,
+                Instant.EPOCH,
+                false,
+                1,
+                Instant.EPOCH);
+        when(repository.findByUsername("admin")).thenReturn(Optional.of(admin));
+
+        new PortalAdminBootstrap(
+                repository, new PortalProperties("", "", ""), passwordEncoder).run(null);
+
+        verify(repository).findByUsername("admin");
+        verifyNoMoreInteractions(repository);
     }
 }

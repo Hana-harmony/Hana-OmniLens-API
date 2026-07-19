@@ -44,7 +44,6 @@ import com.hana.omnilens.alert.domain.AlertEvent;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
-                "omnilens.security.api-key-sha256=4c806362b613f7496abf284146efd31da90e4b16169fe001841ca17290f427c4",
                 "omnilens.security.rate-limit.enabled=false",
                 "omnilens.alert.dedupe.mode=in-memory",
                 "management.health.redis.enabled=false"
@@ -66,6 +65,8 @@ class AlertWebSocketContractTest {
     @BeforeEach
     void deletePersistedContractState() {
         jdbcTemplate.update("DELETE FROM partner_api_credential");
+        com.hana.omnilens.support.PartnerCredentialTestData.replace(
+                jdbcTemplate, "partner-a", "test-api-key");
         jdbcTemplate.update("DELETE FROM alert_event");
     }
 
