@@ -112,5 +112,5 @@ run_container "${IMAGE}" >/dev/null || rollback
 wait_until_ready || rollback
 
 sudo systemctl reload nginx || rollback
-curl --fail --silent --show-error https://api.hanaomilens.cloud/actuator/health >/dev/null || rollback
+curl --fail --silent --show-error https://api.hanaomni.cloud/actuator/health >/dev/null || rollback
 docker image prune -f >/dev/null

@@ -131,7 +131,7 @@ jobs:
             'SERVER_FORWARD_HEADERS_STRATEGY=native' \
             "OMNILENS_API_KEY_SHA256=${API_KEY_SHA256}" \
             'OMNILENS_API_KEY_PARTNER_IDS=stock-exchange' \
-            'OMNILENS_CORS_ALLOWED_ORIGINS=https://hanaomilens.cloud' \
+            'OMNILENS_CORS_ALLOWED_ORIGINS=https://hanaomni.cloud' \
             "OMNILENS_PORTAL_SESSION_SIGNING_KEY=${PORTAL_SESSION_KEY}" \
             "OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY=${PORTAL_ENCRYPTION_KEY}" \
             "OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD=${PORTAL_BOOTSTRAP_PASSWORD}" \
@@ -180,6 +180,6 @@ jobs:
           scp -i ~/.ssh/prod_key deploy/systemd/hana-omnilens-monitoring.service '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/opt/hana-omnilens-api/deploy/systemd/'
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/bootstrap-host.sh && /opt/hana-omnilens-api/bootstrap-host.sh'
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/bootstrap-data-services.sh && /opt/hana-omnilens-api/bootstrap-data-services.sh'
-          ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' "if [ ! -f /etc/letsencrypt/live/api.hanaomilens.cloud/fullchain.pem ]; then chmod 700 /opt/hana-omnilens-api/bootstrap-https.sh && LETSENCRYPT_EMAIL='${{ secrets.LETSENCRYPT_EMAIL }}' /opt/hana-omnilens-api/bootstrap-https.sh; fi"
+          ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' "if [ ! -f /etc/letsencrypt/live/api.hanaomni.cloud/fullchain.pem ]; then chmod 700 /opt/hana-omnilens-api/bootstrap-https.sh && LETSENCRYPT_EMAIL='${{ secrets.LETSENCRYPT_EMAIL }}' /opt/hana-omnilens-api/bootstrap-https.sh; fi"
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/deploy-prod.sh && /opt/hana-omnilens-api/deploy-prod.sh'
           ssh -i ~/.ssh/prod_key '${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}' 'chmod 700 /opt/hana-omnilens-api/bootstrap-monitoring.sh && /opt/hana-omnilens-api/bootstrap-monitoring.sh'

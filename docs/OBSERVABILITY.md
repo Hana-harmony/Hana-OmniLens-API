@@ -4,7 +4,7 @@
 
 현재 운영 환경은 OCI 단일 VM과 AWS 단일 EC2로 분리되어 있다. 이 구조에서 Kubernetes를 추가해도 노드 장애를 견디는 고가용성이 생기지 않으며 제어 평면, 네트워크, 영속 볼륨 장애 지점만 늘어난다. 따라서 각 호스트는 Docker Compose와 systemd로 운영한다. 두 개 이상의 장애 도메인에 노드를 확보하고 관리형 Kubernetes 비용을 감당할 시점에 다시 검토한다.
 
-OCI에는 Prometheus, Grafana, Loki, Alloy, node-exporter, blackbox-exporter를 컨테이너로 실행한다. Prometheus는 OmniLens API와 Hannah AI 메트릭을 수집하고 Alloy는 Docker 로그를 Loki로 전달한다. Blackbox exporter는 `hanaomilens.cloud`와 API HTTPS 상태를 실제 외부 경로로 검사한다.
+OCI에는 Prometheus, Grafana, Loki, Alloy, node-exporter, blackbox-exporter를 컨테이너로 실행한다. Prometheus는 OmniLens API와 Hannah AI 메트릭을 수집하고 Alloy는 Docker 로그를 Loki로 전달한다. Blackbox exporter는 `hanaomni.cloud`와 `api.hanaomni.cloud`의 HTTPS 상태를 실제 외부 경로로 검사한다.
 
 `/actuator/prometheus`는 내부 Docker 네트워크의 Prometheus 수집을 위해 애플리케이션 인증에서 제외하지만, Nginx가 외부 요청에는 `404`를 반환한다.
 

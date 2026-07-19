@@ -157,8 +157,25 @@ class DeploymentProfileGuardrailTest {
         assertThat(deployScript).contains("--network \"${NETWORK}\"");
         assertThat(deployScript).contains("sudo nginx -t");
         assertThat(deployScript).contains("sudo systemctl reload nginx");
-        assertThat(deployScript).contains("https://api.hanaomilens.cloud/actuator/health");
+        assertThat(deployScript).contains("https://api.hanaomni.cloud/actuator/health");
         assertThat(deployScript).doesNotContain("application-local.yml");
+    }
+
+    @Test
+    void productionDomainsStayAlignedAcrossDeploymentSurfaces() throws IOException {
+        String deployment = String.join(
+                "\n",
+                read(".github/workflows/ci.yml"),
+                read("scripts/bootstrap-https.sh"),
+                read("scripts/deploy-prod.sh"),
+                read("deploy/nginx/bootstrap-http.conf"),
+                read("deploy/nginx/hana-omnilens-api.conf"),
+                read("deploy/monitoring/prometheus.yml"));
+
+        assertThat(deployment).contains("https://hanaomni.cloud");
+        assertThat(deployment).contains("api.hanaomni.cloud");
+        assertThat(deployment).doesNotContain("hanaomilens.cloud");
+        assertThat(deployment).doesNotContain("hanaomnilens.cloud");
     }
 
     private static String read(String path) throws IOException {
