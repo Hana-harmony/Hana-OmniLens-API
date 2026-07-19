@@ -103,7 +103,8 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).contains("deploy.env");
         assertThat(workflow).contains("platforms: linux/arm64");
         assertThat(workflow).contains("PROD_HOST_KEY");
-        assertThat(workflow).contains("GHCR_USERNAME");
+        assertThat(workflow).contains("GHCR_USERNAME", "https://api.github.com/user", "secrets.GHCR_TOKEN");
+        assertThat(workflow).doesNotContain("secrets.GHCR_USERNAME");
         assertThat(workflow).contains("scripts/bootstrap-https.sh");
         assertThat(workflow).doesNotContain("secrets.DB_URL");
         assertThat(workflow).doesNotContain("secrets.DB_USERNAME");
