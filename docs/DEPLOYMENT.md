@@ -33,8 +33,6 @@ docker compose -f compose.local.yml up -d
 - `GHCR_USERNAME`: GHCR pull token을 발급한 GitHub 사용자
 - `GHCR_TOKEN`: 운영 서버에서 GHCR 이미지 pull에 사용할 token
 - `OMNILENS_API_KEY_SHA256`: 협력사 API key SHA-256 해시
-- `OMNILENS_PORTAL_SESSION_SIGNING_KEY`: 포털 세션 HMAC-SHA256 키, 최소 32 byte
-- `OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY`: 포털 API 키 암호화용 32 byte 값을 Base64로 인코딩한 키
 - `OMNILENS_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`: 신규 DB의 초기 관리자 임시 비밀번호, 16~128자이며 앞뒤 공백을 허용하지 않음
 - `DB_PASSWORD`: 운영 DB 비밀번호
 - `REDIS_PASSWORD`: 운영 Redis 비밀번호
@@ -45,6 +43,17 @@ docker compose -f compose.local.yml up -d
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART API 인증키
+
+## 호스트 자동 생성 운영키
+
+다음 값은 GitHub Secrets로 등록하지 않는다.
+
+- `OMNILENS_PORTAL_SESSION_SIGNING_KEY`
+- `OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY`
+- `OMNILENS_TERM_ANALYTICS_HASH_SALT`
+- `HANNAH_AI_MAINTENANCE_TOKEN`
+
+OCI 최초 배포에서 `/opt/hana-runtime/root-secret`을 256-bit로 생성하고 용도별 HMAC 라벨로 서로 다른 값을 파생한다. Hana-OmniLens-API와 Hannah-Montana-AI는 같은 OCI 호스트 루트와 `hana/ai/maintenance-auth/v1` 라벨을 사용하므로 별도 공유 Secret 없이 동일한 유지보수 토큰을 얻는다. 루트 파일은 재배포 때 덮어쓰지 않고 `600` 권한으로 유지한다. 루트키가 유실되면 기존 포털 API 키 암호문을 복호화할 수 없으므로 OCI 암호화 볼륨 백업에 반드시 포함한다.
 
 DB와 Redis 연결 정보는 배포 계약으로 고정한다.
 
@@ -71,7 +80,7 @@ REDIS_USERNAME=omnilens_app
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 서비스 주소. 기본값은 `http://hannah-montana-ai:8000`이다.
 - `HANNAH_AI_CONNECT_TIMEOUT`: Hannah-Montana-AI 내부 호출 connect timeout. 기본값은 `2s`이다.
 - `HANNAH_AI_READ_TIMEOUT`: Hannah-Montana-AI 분석·번역·글로벌 피어·금융용어 호출 read timeout. 기본값은 `90s`이며 로컬/sidecar Qwen3 생성 시간이 외부 provider 공통 timeout보다 길 수 있어 별도로 관리한다.
-- `OMNILENS_TERM_ANALYTICS_HASH_SALT`: 한국 금융 용어 클릭 로그의 사용자/세션 식별자 salted hash에 사용하는 salt다. 운영에서는 GitHub Secrets 또는 서버 env로만 주입한다.
+- `OMNILENS_TERM_ANALYTICS_HASH_SALT`: 한국 금융 용어 클릭 로그의 사용자/세션 식별자 salted hash에 사용하며 운영에서는 호스트 루트키에서 자동 파생한다.
 - `KRX_OPEN_API_BASE_URL`: KRX Open API 실제 호출 endpoint 주소. 기본값은 `https://data-dbg.krx.co.kr`이다.
 - `KRX_OPEN_API_AUTH_KEY`: KRX Open API `AUTH_KEY` 헤더로 전달하는 인증키다.
 - `KRX_SCRAPING_ENABLED`: KRX Data Marketplace 로그인 기반 외국인 보유량 백필 활성화 여부. 기본값은 `true`이다.
@@ -91,7 +100,7 @@ REDIS_USERNAME=omnilens_app
 - `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_ENABLED`: 제한 종목 금일 외국인 보유 예측 선계산 활성화 여부. 기본값은 `true`이다.
 - `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_TRIGGER_AFTER_REFRESH`: KRX 수집과 재학습 이후 예측 cache를 자동 갱신할지 여부. 기본값은 `true`이다.
 - `FOREIGN_OWNERSHIP_PREDICTION_PRECOMPUTE_STOCK_LIMIT`: 예측 선계산 대상 최대 종목 수. 기본값은 `5000`이며 실제 대상은 외국인 취득한도 제한 allowlist로 제한된다.
-- `HANNAH_AI_MAINTENANCE_TOKEN`: Hannah 재학습 endpoint 보호용 내부 토큰. GitHub Secrets 또는 서버 env로만 주입한다.
+- `HANNAH_AI_MAINTENANCE_TOKEN`: Hannah 재학습 endpoint 보호용 내부 토큰이며 OmniLens API와 AI가 같은 OCI 호스트 루트키에서 자동 파생한다.
 - `KIS_BASE_URL`: KIS 모의투자 REST endpoint 주소. 기본값은 `https://openapivts.koreainvestment.com:29443`이다.
 - `KIS_WEBSOCKET_URL`: KIS 모의투자 WebSocket endpoint 주소. 기본값은 `ws://ops.koreainvestment.com:31000`이다.
 - `KIS_REALTIME_STOCK_CODES`: 기동 시 해제하지 않는 인기 10종목 코드. 기본값은 로컬·운영 설정의 10종목이다.

@@ -5,12 +5,35 @@ APP_DIR=/opt/hana-omnilens-api
 APP_NAME=hana-omnilens-api
 APP_PORT=18080
 NETWORK=hana-omnilens-internal
+RUNTIME_APP_ENV="${APP_DIR}/runtime-application.env"
 
 source "${APP_DIR}/deploy.env"
+source "${APP_DIR}/runtime-secrets.sh"
 
 : "${IMAGE:?IMAGE is required}"
 : "${GHCR_USERNAME:?GHCR_USERNAME is required}"
 : "${GHCR_TOKEN:?GHCR_TOKEN is required}"
+
+write_runtime_secret_env() {
+  local portal_session_key portal_encryption_key term_salt ai_token temp_file
+  portal_session_key="$(derive_runtime_secret_hex 'hana/omnilens/portal-session-signing/v1')"
+  portal_encryption_key="$(derive_runtime_secret_base64 'hana/omnilens/portal-api-key-encryption/v1')"
+  term_salt="$(derive_runtime_secret_hex 'hana/omnilens/term-analytics-hash/v1')"
+  ai_token="$(derive_runtime_secret_hex 'hana/ai/maintenance-auth/v1')"
+  temp_file="$(mktemp "${APP_DIR}/.runtime-application.XXXXXX")"
+
+  umask 077
+  printf '%s\n' \
+    "OMNILENS_PORTAL_SESSION_SIGNING_KEY=${portal_session_key}" \
+    "OMNILENS_PORTAL_API_KEY_ENCRYPTION_KEY=${portal_encryption_key}" \
+    "OMNILENS_TERM_ANALYTICS_HASH_SALT=${term_salt}" \
+    "HANNAH_AI_MAINTENANCE_TOKEN=${ai_token}" \
+    > "${temp_file}"
+  chmod 600 "${temp_file}"
+  mv "${temp_file}" "${RUNTIME_APP_ENV}"
+}
+
+write_runtime_secret_env
 
 run_container() {
   local image="$1"
@@ -24,6 +47,7 @@ run_container() {
     --memory 3g \
     --cpus 1.25 \
     --env-file "${APP_DIR}/application.env" \
+    --env-file "${RUNTIME_APP_ENV}" \
     --network "${NETWORK}" \
     --tmpfs /tmp:rw,noexec,nosuid,size=512m \
     -p "127.0.0.1:${APP_PORT}:8080" \
