@@ -117,9 +117,6 @@ jobs:
             '  ConnectTimeout 15' \
             '  ServerAliveInterval 15' \
             '  ServerAliveCountMax 3' \
-            '  ControlMaster auto' \
-            '  ControlPath ~/.ssh/control-%C' \
-            '  ControlPersist 10m' \
             > ~/.ssh/config
           chmod 600 ~/.ssh/prod_key ~/.ssh/known_hosts
           chmod 600 ~/.ssh/config
