@@ -179,6 +179,11 @@ public class MarketNewsCollectionService {
                 .map(this::ensureDisplayableFullArticle);
     }
 
+    public Optional<MarketNewsEvent> ensureDisplayableNewsByNewsId(String newsId) {
+        return marketNewsEventRepository.findByNewsId(newsId)
+                .map(this::refreshMissingImages);
+    }
+
     public boolean isDisplayableFullArticle(MarketNewsEvent event) {
         return event != null
                 && hasCompleteArticleBody(event.originalContent())
@@ -188,6 +193,14 @@ public class MarketNewsCollectionService {
                         event.summaryLines(),
                         event.translatedSummary(),
                         event.originalContent());
+    }
+
+    public boolean isDisplayableNews(MarketNewsEvent event) {
+        return event != null
+                && StringUtils.hasText(event.originalUrl())
+                && EnglishNewsQualityGate.hasUsableEnglishHeadlineText(event.translatedTitle())
+                && EnglishNewsQualityGate.hasUsableEnglishSummaryLines(
+                        EnglishNewsQualityGate.englishSummaryLinesOrEmpty(event.summaryLines()));
     }
 
     private MarketNewsEvent ensureDisplayableFullArticle(MarketNewsEvent event) {
@@ -239,6 +252,26 @@ public class MarketNewsCollectionService {
                 .map(this::repairQualityIssueIfPossible)
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    public Optional<MarketNewsEvent> enrichNextPendingFullTranslation() {
+        return marketNewsEventRepository.findSummaryQualityIssues(20).stream()
+                .filter(event -> StringUtils.hasText(event.originalContent()))
+                .filter(event -> !StringUtils.hasText(event.translatedContent()))
+                .findFirst()
+                .flatMap(this::reprocessIfPossible);
+    }
+
+    private Optional<MarketNewsEvent> reprocessIfPossible(MarketNewsEvent event) {
+        try {
+            return Optional.of(reprocess(event));
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Keeping market news full translation pending after enrichment failure: newsId={}",
+                    event.newsId(),
+                    exception);
+            return Optional.empty();
+        }
     }
 
     private Optional<MarketNewsEvent> repairQualityIssueIfPossible(MarketNewsEvent event) {
@@ -557,9 +590,9 @@ public class MarketNewsCollectionService {
             }
             try {
                 MarketNewsEvent event = toEvent(query, article, duplicateKey);
-                if (!isDisplayableFullArticle(event)) {
+                if (!isDisplayableNews(event)) {
                     log.info(
-                            "Skipping market news article without full translated body: query={}, url={}, availability={}, originalLength={}, translatedLength={}",
+                            "Skipping market news article without displayable English analysis: query={}, url={}, availability={}, originalLength={}, translatedLength={}",
                             query,
                             article.originalUrl(),
                             event.contentAvailability(),
@@ -839,7 +872,8 @@ public class MarketNewsCollectionService {
                 article,
                 originalContent,
                 fullContent,
-                sourceContentAvailability);
+                sourceContentAvailability,
+                true);
         String contentAvailability = contentAvailability(originalContent, analysis.translatedContent(), sourceContentAvailability);
         return new MarketNewsEvent(
                 "mkt-news-" + duplicateKey.substring(0, 24),
@@ -887,7 +921,8 @@ public class MarketNewsCollectionService {
                         event.publishedAt()),
                 originalContent,
                 fullContent,
-                sourceContentAvailability);
+                sourceContentAvailability,
+                false);
         String contentAvailability = contentAvailability(
                 originalContent,
                 analysis.translatedContent(),
@@ -1048,7 +1083,8 @@ public class MarketNewsCollectionService {
             NaverNewsArticle article,
             String originalContent,
             Optional<OriginalArticleContent> fullContent,
-            String contentAvailability) {
+            String contentAvailability,
+            boolean deferFullTranslation) {
         HannahAiAnalysisResponse ai = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
                 "NEWS",
                 article.title(),
@@ -1059,28 +1095,40 @@ public class MarketNewsCollectionService {
                 fullContent.map(OriginalArticleContent::contentHash).orElse(""),
                 fullContent.map(OriginalArticleContent::sourceLicensePolicy).orElse(contentAvailability),
                 article.originalUrl(),
-                List.of()));
+                List.of(),
+                deferFullTranslation
+                        ? HannahAiAnalysisRequest.TRANSLATION_MODE_DEFERRED
+                        : HannahAiAnalysisRequest.TRANSLATION_MODE_FULL));
         List<AlertGlossaryTerm> glossaryTerms = withMatchedStockGlossary(
                 toAlertGlossaryTerms(ai.glossaryTerms()),
                 ai);
         String sourceTitle = sourceArticleTitle(article, fullContent, ai);
-        TranslationResult translatedTitle = translationService.translateTitleWithResult(
-                sourceTitle,
-                glossaryTerms);
-        String translatedTitleText = requireEnglishText(translatedTitle, "market news title");
         AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
                 ai.summary(),
                 ai.summaryLines(),
                 sourceTitle);
         String summary = joinSummaryLines(sourceSummaryLines);
+        TranslationResult translatedTitle = deferFullTranslation
+                ? deferredHeadlineResult(sourceSummaryLines, ai)
+                : translatedTitleFromAnalysis(ai)
+                        .orElseGet(() -> translationService.translateTitleWithResult(
+                                sourceTitle,
+                                glossaryTerms));
+        String translatedTitleText = requireEnglishText(translatedTitle, "market news title");
         AlertSummaryLines alreadyEnglishSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
                 sourceSummaryLines);
         boolean alreadyEnglishSummary = EnglishNewsQualityGate.hasUsableEnglishSummaryLines(
                 alreadyEnglishSummaryLines);
         TranslationResult translatedSummary = alreadyEnglishSummary
                 ? alreadyEnglishSummaryResult(alreadyEnglishSummaryLines, translatedTitle)
-                : translationService.translateTextWithResult(summary, glossaryTerms);
-        TranslationResult translatedContent = translateContent(originalContent, glossaryTerms);
+                : deferFullTranslation
+                        ? deferredTranslationResult(ai)
+                        : translatedSummaryFromAnalysis(ai)
+                                .orElseGet(() -> translationService.translateTextWithResult(summary, glossaryTerms));
+        TranslationResult translatedContent = deferFullTranslation
+                ? deferredTranslationResult(ai)
+                : translatedContentFromAnalysis(ai, originalContent)
+                        .orElseGet(() -> translateContent(originalContent, glossaryTerms));
         AlertSummaryLines translatedSummaryLines = alreadyEnglishSummary
                 ? alreadyEnglishSummaryLines
                 : requireEnglishSummaryLines(
@@ -1088,10 +1136,12 @@ public class MarketNewsCollectionService {
                         translatedSummary,
                         "market news summary");
         String translatedSummaryText = joinSummaryLines(translatedSummaryLines);
-        String translatedContentText = requireOptionalEnglishContent(
-                translatedContent,
-                originalContent,
-                "market news content");
+        String translatedContentText = deferFullTranslation
+                ? ""
+                : requireOptionalEnglishContent(
+                        translatedContent,
+                        originalContent,
+                        "market news content");
         TranslationResult effectiveTranslatedSummary = translatedSummaryResult(
                 translatedSummaryText,
                 translatedSummary,
@@ -1120,6 +1170,79 @@ public class MarketNewsCollectionService {
                 translationProvider(translatedTitle, effectiveTranslatedSummary, translatedContent),
                 translationModelVersion(translatedTitle, effectiveTranslatedSummary, translatedContent),
                 translationStatus(translatedTitle, effectiveTranslatedSummary, translatedContent));
+    }
+
+    private Optional<TranslationResult> translatedTitleFromAnalysis(HannahAiAnalysisResponse analysis) {
+        if (analysis == null || !AlertTitleTranslationService.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
+            return Optional.empty();
+        }
+        String englishTitle = EnglishNewsQualityGate.englishTextOrEmpty(analysis.translatedTitle());
+        if (!EnglishNewsQualityGate.hasUsableEnglishHeadlineText(englishTitle)) {
+            return Optional.empty();
+        }
+        return Optional.of(analysisTranslationResult(englishTitle, analysis));
+    }
+
+    private Optional<TranslationResult> translatedSummaryFromAnalysis(HannahAiAnalysisResponse analysis) {
+        if (analysis == null || !AlertTitleTranslationService.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
+            return Optional.empty();
+        }
+        String englishSummary = EnglishNewsQualityGate.englishTextOrEmpty(analysis.translatedSummary());
+        return StringUtils.hasText(englishSummary)
+                ? Optional.of(analysisTranslationResult(englishSummary, analysis))
+                : Optional.empty();
+    }
+
+    private Optional<TranslationResult> translatedContentFromAnalysis(
+            HannahAiAnalysisResponse analysis,
+            String originalContent) {
+        if (analysis == null
+                || !StringUtils.hasText(originalContent)
+                || !AlertTitleTranslationService.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
+            return Optional.empty();
+        }
+        String englishContent = EnglishNewsQualityGate.englishTextOrEmpty(analysis.translatedContent());
+        if (!StringUtils.hasText(englishContent)
+                || isLikelyIncompleteTranslation(originalContent, englishContent)
+                || EnglishNewsQualityGate.looksLikeStructuredSummaryContent(englishContent)) {
+            return Optional.empty();
+        }
+        return Optional.of(analysisTranslationResult(englishContent, analysis));
+    }
+
+    private TranslationResult analysisTranslationResult(
+            String translatedText,
+            HannahAiAnalysisResponse analysis) {
+        return new TranslationResult(
+                translatedText,
+                firstText(analysis.translationProvider(), "hannah-ai-analysis"),
+                firstText(analysis.translationModelVersion(), analysis.modelVersion()),
+                AlertTitleTranslationService.STATUS_TRANSLATED,
+                analysis.translationQualityFlags());
+    }
+
+    private TranslationResult deferredHeadlineResult(
+            AlertSummaryLines summaryLines,
+            HannahAiAnalysisResponse analysis) {
+        String headline = summaryLines == null
+                ? ""
+                : EnglishNewsQualityGate.englishSummaryLineOrEmpty(summaryLines.what());
+        if (!EnglishNewsQualityGate.hasUsableEnglishHeadlineText(headline)) {
+            throw new IllegalStateException("AI analysis did not return an English collection headline");
+        }
+        return new TranslationResult(
+                headline,
+                "hannah-ai-analysis-summary",
+                analysis == null ? "" : analysis.modelVersion(),
+                AlertTitleTranslationService.STATUS_TRANSLATED);
+    }
+
+    private TranslationResult deferredTranslationResult(HannahAiAnalysisResponse analysis) {
+        return new TranslationResult(
+                "",
+                "deferred-full-text-translation",
+                analysis == null ? "" : analysis.modelVersion(),
+                AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK);
     }
 
     private String sourceArticleTitle(

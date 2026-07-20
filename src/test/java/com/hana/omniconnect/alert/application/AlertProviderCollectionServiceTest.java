@@ -92,7 +92,7 @@ class AlertProviderCollectionServiceTest {
         when(originalArticleClient.fetch(article.originalUrl()))
                 .thenReturn(Optional.of(stockArticleContent(article)));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenReturn(publishRequestForStock("005930", "삼성전자", article));
 
         var response = collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
@@ -127,7 +127,7 @@ class AlertProviderCollectionServiceTest {
         when(originalArticleClient.fetch(fresh.originalUrl()))
                 .thenReturn(Optional.of(stockArticleContent(fresh)));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenReturn(publishRequestForStock("005930", "삼성전자", fresh));
 
         var response = collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
@@ -190,7 +190,7 @@ class AlertProviderCollectionServiceTest {
         when(originalArticleClient.fetch(second.originalUrl()))
                 .thenReturn(Optional.of(stockArticleContent(second)));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenReturn(
                         publishRequestForStock("005930", "삼성전자", first),
                         publishRequestForStock("005930", "삼성전자", second));
@@ -222,7 +222,7 @@ class AlertProviderCollectionServiceTest {
                 "local-dev", List.of("005930"), 1, 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -254,7 +254,7 @@ class AlertProviderCollectionServiceTest {
         assertThat(response.publishedCount()).isZero();
         assertThat(response.skippedDuplicateCount()).isEqualTo(1);
         verify(originalArticleClient, never()).fetch(article.originalUrl());
-        verify(publishingService, never()).analyze(any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -288,7 +288,7 @@ class AlertProviderCollectionServiceTest {
         assertThat(response.publishedCount()).isZero();
         assertThat(response.skippedDuplicateCount()).isEqualTo(1);
         verify(openDartDisclosureClient, never()).fetchDocumentContent(disclosure.receiptNumber());
-        verify(publishingService, never()).analyze(any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -317,7 +317,7 @@ class AlertProviderCollectionServiceTest {
                         OpenDartDisclosureClient.OPENDART_PUBLIC_DISCLOSURE_TEXT)));
         Set<String> dedupeKeys = new HashSet<>();
         when(dedupeStore.markIfFirst(any())).thenAnswer(invocation -> dedupeKeys.add(invocation.getArgument(0)));
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenAnswer(invocation -> publishRequestForDisclosure(
                         stock,
                         invocation.getArgument(0, AlertAnalysisPublishRequest.class)));
@@ -355,7 +355,7 @@ class AlertProviderCollectionServiceTest {
                         "document-hash",
                         OpenDartDisclosureClient.OPENDART_PUBLIC_DISCLOSURE_TEXT)));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenReturn(publishRequestForStock("000660", "SK하이닉스", new NaverNewsArticle(
                         disclosure.reportName(),
                         disclosure.reportName(),
@@ -372,7 +372,7 @@ class AlertProviderCollectionServiceTest {
 
         ArgumentCaptor<AlertAnalysisPublishRequest> captor =
                 ArgumentCaptor.forClass(AlertAnalysisPublishRequest.class);
-        verify(publishingService).analyze(captor.capture());
+        verify(publishingService).analyzeForCollection(captor.capture());
         assertThat(captor.getValue().content()).hasSizeLessThanOrEqualTo(1_200);
         assertThat(captor.getValue().sourceLicensePolicy()).endsWith(":feed-excerpt-v1");
     }
@@ -414,7 +414,7 @@ class AlertProviderCollectionServiceTest {
         assertThat(response.collectedNewsCount()).isEqualTo(1);
         assertThat(response.publishedCount()).isZero();
         assertThat(response.failedAnalysisCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -452,7 +452,7 @@ class AlertProviderCollectionServiceTest {
                 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -493,7 +493,7 @@ class AlertProviderCollectionServiceTest {
 
         assertThat(response.collectedNewsCount()).isEqualTo(1);
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -532,7 +532,7 @@ class AlertProviderCollectionServiceTest {
                 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -570,7 +570,7 @@ class AlertProviderCollectionServiceTest {
                 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -611,7 +611,7 @@ class AlertProviderCollectionServiceTest {
 
         assertThat(response.collectedNewsCount()).isEqualTo(1);
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -650,7 +650,7 @@ class AlertProviderCollectionServiceTest {
 
         assertThat(response.collectedNewsCount()).isEqualTo(1);
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -688,7 +688,7 @@ class AlertProviderCollectionServiceTest {
                 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -726,7 +726,7 @@ class AlertProviderCollectionServiceTest {
                 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -772,7 +772,7 @@ class AlertProviderCollectionServiceTest {
                 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -811,7 +811,7 @@ class AlertProviderCollectionServiceTest {
                 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -850,7 +850,7 @@ class AlertProviderCollectionServiceTest {
                 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -883,7 +883,7 @@ class AlertProviderCollectionServiceTest {
         when(naverNewsClient.search(eq("삼성전자 주가"), anyInt())).thenReturn(List.of(article));
         when(originalArticleClient.fetch(article.originalUrl())).thenReturn(Optional.of(fullContent));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenReturn(publishRequestForStock("005930", "삼성전자", article));
 
         var response = collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
@@ -910,7 +910,7 @@ class AlertProviderCollectionServiceTest {
         when(naverNewsClient.search(eq("삼성전자 주가"), anyInt())).thenReturn(List.of(article));
         when(originalArticleClient.fetch(article.originalUrl())).thenReturn(Optional.of(fullContent));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenReturn(publishRequestForStock("005930", "삼성전자", article));
         when(alertEventRepository.findByDuplicateIdentity(
                 "local-dev", "005930", "NEWS", "duplicate-key"))
@@ -937,7 +937,7 @@ class AlertProviderCollectionServiceTest {
         when(naverNewsClient.search(eq("삼성전자 주가"), anyInt())).thenReturn(List.of(article));
         when(originalArticleClient.fetch(article.originalUrl())).thenReturn(Optional.of(fullContent));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenReturn(publishRequestForStock("005930", "삼성전자", article));
         when(publishingService.publishAnalyzed(any(AlertPublishRequest.class)))
                 .thenThrow(new IllegalStateException("database unavailable"));
@@ -994,7 +994,7 @@ class AlertProviderCollectionServiceTest {
 
         assertThat(response.collectedNewsCount()).isEqualTo(1);
         assertThat(response.publishedCount()).isZero();
-        verify(publishingService, never()).analyze(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
+        verify(publishingService, never()).analyzeForCollection(org.mockito.ArgumentMatchers.any(AlertAnalysisPublishRequest.class));
     }
 
     @Test
@@ -1027,7 +1027,7 @@ class AlertProviderCollectionServiceTest {
         when(naverNewsClient.search(eq("삼성전자 주가"), anyInt())).thenReturn(List.of(article));
         when(originalArticleClient.fetch(article.originalUrl())).thenReturn(Optional.of(fullContent));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyze(any(AlertAnalysisPublishRequest.class)))
+        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
                 .thenReturn(publishRequestForStock("000660", "SK하이닉스", article));
 
         var response = collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(

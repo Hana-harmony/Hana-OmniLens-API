@@ -54,10 +54,17 @@ public class AlertAnalysisPublishingService {
     }
 
     public AlertPublishRequest analyze(AlertAnalysisPublishRequest request) {
-        return analyze(request, false);
+        return analyze(request, false, false);
     }
 
-    private AlertPublishRequest analyze(AlertAnalysisPublishRequest request, boolean allowSingleStockFallback) {
+    public AlertPublishRequest analyzeForCollection(AlertAnalysisPublishRequest request) {
+        return analyze(request, false, true);
+    }
+
+    private AlertPublishRequest analyze(
+            AlertAnalysisPublishRequest request,
+            boolean allowSingleStockFallback,
+            boolean deferFullTranslation) {
         HannahAiAnalysisResponse analysis = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
                 request.sourceType(),
                 request.title(),
@@ -68,7 +75,10 @@ public class AlertAnalysisPublishingService {
                 textOrEmpty(request.contentHash()),
                 textOrEmpty(request.sourceLicensePolicy()),
                 request.originalUrl(),
-                toStockUniverse(request.stockUniverse())));
+                toStockUniverse(request.stockUniverse()),
+                deferFullTranslation
+                        ? HannahAiAnalysisRequest.TRANSLATION_MODE_DEFERRED
+                        : HannahAiAnalysisRequest.TRANSLATION_MODE_FULL));
 
         ResolvedStock resolvedStock = resolveStock(analysis, request, allowSingleStockFallback);
         if (!StringUtils.hasText(resolvedStock.stockCode()) || !StringUtils.hasText(resolvedStock.stockName())) {
@@ -80,38 +90,46 @@ public class AlertAnalysisPublishingService {
                 request);
         String originalContent = originalContent(analysis, request);
         String sourceTitle = firstText(request.title(), analysis.originalTitle());
-        TranslationResult translatedTitle = translatedTitleFromAnalysis(analysis)
-                .orElseGet(() -> translateTitleWithSourceType(
-                        sourceTitle,
-                        glossaryTerms,
-                        request.sourceType()));
-        String translatedTitleText = requireEnglishText(translatedTitle, "alert title");
         AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
                 analysis.summary(),
                 analysis.summaryLines(),
                 sourceTitle);
         String sourceSummary = joinSummaryLines(sourceSummaryLines);
+        TranslationResult translatedTitle = deferFullTranslation
+                ? deferredHeadlineResult(sourceSummaryLines, analysis)
+                : translatedTitleFromAnalysis(analysis)
+                        .orElseGet(() -> translateTitleWithSourceType(
+                                sourceTitle,
+                                glossaryTerms,
+                                request.sourceType()));
+        String translatedTitleText = requireEnglishText(translatedTitle, "alert title");
         AlertSummaryLines alreadyEnglishSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
                 sourceSummaryLines);
         boolean alreadyEnglishSummary = EnglishNewsQualityGate.hasUsableEnglishSummaryLines(
                 alreadyEnglishSummaryLines);
         TranslationResult translatedSummary = alreadyEnglishSummary
                 ? alreadyEnglishSummaryResult(alreadyEnglishSummaryLines, translatedTitle)
-                : translatedSummaryFromAnalysis(analysis)
+                : deferFullTranslation
+                        ? deferredTranslationResult(analysis)
+                        : translatedSummaryFromAnalysis(analysis)
                         .orElseGet(() -> translateTextWithSourceType(
                                 sourceSummary,
                                 glossaryTerms,
                                 request.sourceType()));
-        TranslationResult translatedContent = translatedContentFromAnalysis(analysis, originalContent)
-                .orElseGet(() -> translateContent(
-                        sourceTitle,
+        TranslationResult translatedContent = deferFullTranslation
+                ? deferredTranslationResult(analysis)
+                : translatedContentFromAnalysis(analysis, originalContent)
+                        .orElseGet(() -> translateContent(
+                                sourceTitle,
+                                originalContent,
+                                glossaryTerms,
+                                request.sourceType()));
+        String translatedContentText = deferFullTranslation
+                ? ""
+                : requireOptionalEnglishContent(
+                        translatedContent,
                         originalContent,
-                        glossaryTerms,
-                        request.sourceType()));
-        String translatedContentText = requireOptionalEnglishContent(
-                translatedContent,
-                originalContent,
-                "alert content");
+                        "alert content");
         AlertSummaryLines translatedSummaryLines = alreadyEnglishSummary
                 ? alreadyEnglishSummaryLines
                 : translatedSummaryLinesFromAnalysis(translatedSummary, translatedContentText)
@@ -211,7 +229,8 @@ public class AlertAnalysisPublishingService {
                         event.stockName(),
                         event.stockName(),
                         List.of(event.stockName())))),
-                true);
+                true,
+                false);
         AlertEvent updated = toExistingEvent(event.alertId(), event.createdAt(), analyzed);
         return alertEventRepository.save(updated);
     }
@@ -257,6 +276,14 @@ public class AlertAnalysisPublishingService {
                 .map(this::repairQualityIssueIfPossible)
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    public Optional<AlertEvent> enrichNextPendingFullTranslation() {
+        return alertEventRepository.findSummaryQualityIssues(20).stream()
+                .filter(event -> StringUtils.hasText(event.originalContent()))
+                .filter(event -> !StringUtils.hasText(event.translatedContent()))
+                .findFirst()
+                .flatMap(this::reprocessIfPossible);
     }
 
     private AlertEvent repairQualityIssue(AlertEvent event) {
@@ -685,6 +712,30 @@ public class AlertAnalysisPublishingService {
                 firstText(analysis.translationModelVersion(), analysis.modelVersion()),
                 AlertTitleTranslationService.STATUS_TRANSLATED,
                 analysis.translationQualityFlags());
+    }
+
+    private TranslationResult deferredHeadlineResult(
+            AlertSummaryLines summaryLines,
+            HannahAiAnalysisResponse analysis) {
+        String headline = summaryLines == null
+                ? ""
+                : EnglishNewsQualityGate.englishSummaryLineOrEmpty(summaryLines.what());
+        if (!EnglishNewsQualityGate.hasUsableEnglishHeadlineText(headline)) {
+            throw new IllegalStateException("AI analysis did not return an English collection headline");
+        }
+        return new TranslationResult(
+                headline,
+                "hannah-ai-analysis-summary",
+                analysis == null ? "" : analysis.modelVersion(),
+                AlertTitleTranslationService.STATUS_TRANSLATED);
+    }
+
+    private TranslationResult deferredTranslationResult(HannahAiAnalysisResponse analysis) {
+        return new TranslationResult(
+                "",
+                "deferred-full-text-translation",
+                analysis == null ? "" : analysis.modelVersion(),
+                AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK);
     }
 
     private TranslationResult translateTextWithSourceType(
