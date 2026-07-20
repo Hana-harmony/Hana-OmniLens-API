@@ -76,7 +76,7 @@ public class MarketNewsController {
     @Operation(summary = "Get Korean market-wide news detail")
     public ApiResponse<MarketNewsEvent> getMarketNews(
             @PathVariable @Size(min = 1, max = 80) String newsId) {
-        var event = marketNewsCollectionService.ensureDisplayableNewsByNewsId(newsId)
+        var event = marketNewsCollectionService.ensureDisplayableFullArticleByNewsId(newsId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "market news not found"));
         if (!marketNewsCollectionService.isDisplayableNews(event)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "market news analysis not available");

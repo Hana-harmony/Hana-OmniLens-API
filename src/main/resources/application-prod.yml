@@ -9,7 +9,7 @@ omni-connect:
     cors-allowed-origins: ${OMNI_CONNECT_CORS_ALLOWED_ORIGINS}
     rate-limit:
       enabled: true
-      max-requests: 600
+      max-requests: 120
       window: 1m
     signature:
       enabled: true

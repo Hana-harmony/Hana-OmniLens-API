@@ -39,8 +39,8 @@ class JdbcPartnerCredentialRepositoryTest {
         assertThat(repository.findActiveByApiKeySha256("hash-a"))
                 .isPresent()
                 .get()
-                .extracting("partnerId", "apiKeySha256")
-                .containsExactly("partner-a", "hash-a");
+                .extracting("partnerId", "apiKeySha256", "rateLimitExempt")
+                .containsExactly("partner-a", "hash-a", false);
     }
 
     @Test
@@ -74,8 +74,13 @@ class JdbcPartnerCredentialRepositoryTest {
     void rotateDeactivatesExistingPartnerKeysAndStoresNewActiveHash() {
         jdbcTemplate.update(
                 """
-                INSERT INTO partner_api_credential (api_key_sha256, partner_id, active)
-                VALUES (?, ?, TRUE)
+                INSERT INTO partner_api_credential (
+                    api_key_sha256,
+                    partner_id,
+                    active,
+                    rate_limit_exempt
+                )
+                VALUES (?, ?, TRUE, TRUE)
                 """,
                 "old-hash",
                 "partner-a");
@@ -87,7 +92,7 @@ class JdbcPartnerCredentialRepositoryTest {
         assertThat(repository.findActiveByApiKeySha256("new-hash"))
                 .isPresent()
                 .get()
-                .extracting("partnerId", "apiKeySha256")
-                .containsExactly("partner-a", "new-hash");
+                .extracting("partnerId", "apiKeySha256", "rateLimitExempt")
+                .containsExactly("partner-a", "new-hash", true);
     }
 }

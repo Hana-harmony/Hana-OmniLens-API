@@ -86,8 +86,9 @@ public class AlertController {
     @GetMapping("/events/{alertId}")
     @Operation(summary = "Get stored news or disclosure event detail")
     public ApiResponse<AlertEvent> getEvent(@PathVariable @Size(min = 1, max = 80) String alertId) {
-        return ApiResponse.success(alertEventRepository.findByAlertId(alertId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "alert event not found")));
+        AlertEvent event = alertEventRepository.findByAlertId(alertId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "alert event not found"));
+        return ApiResponse.success(alertAnalysisPublishingService.ensureDisplayableFullArticle(event));
     }
 
     @PostMapping("/events/{alertId}/reprocess")

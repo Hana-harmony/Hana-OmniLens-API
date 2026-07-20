@@ -239,6 +239,33 @@ public class AlertAnalysisPublishingService {
         return alertEventRepository.save(updated);
     }
 
+    public AlertEvent ensureDisplayableFullArticle(AlertEvent event) {
+        if (isDisplayableFullArticle(event)) {
+            return event;
+        }
+        try {
+            return reprocess(event);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Failed to restore displayable full alert article: alertId={}, stockCode={}",
+                    event.alertId(),
+                    event.stockCode(),
+                    exception);
+            return event;
+        }
+    }
+
+    public boolean isDisplayableFullArticle(AlertEvent event) {
+        return event != null
+                && StringUtils.hasText(event.originalContent())
+                && EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())
+                && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                        event.translatedContent(),
+                        event.summaryLines(),
+                        event.translatedSummary(),
+                        event.originalContent());
+    }
+
     public Optional<AlertEvent> reprocessIfPossible(AlertEvent event) {
         try {
             return Optional.of(reprocess(event));

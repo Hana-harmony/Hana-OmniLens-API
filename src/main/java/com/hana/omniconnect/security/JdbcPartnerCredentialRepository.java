@@ -18,14 +18,15 @@ public class JdbcPartnerCredentialRepository implements PartnerCredentialReposit
     public Optional<PartnerCredential> findActiveByApiKeySha256(String apiKeySha256) {
         return jdbcTemplate.query(
                         """
-                        SELECT partner_id, api_key_sha256
+                        SELECT partner_id, api_key_sha256, rate_limit_exempt
                         FROM partner_api_credential
                         WHERE api_key_sha256 = ?
                           AND active = TRUE
                         """,
                         (resultSet, rowNum) -> new PartnerCredential(
                                 resultSet.getString("partner_id"),
-                                resultSet.getString("api_key_sha256")),
+                                resultSet.getString("api_key_sha256"),
+                                resultSet.getBoolean("rate_limit_exempt")),
                         apiKeySha256)
                 .stream()
                 .findFirst();
@@ -47,6 +48,19 @@ public class JdbcPartnerCredentialRepository implements PartnerCredentialReposit
 
     @Override
     public int rotate(String partnerId, String apiKeySha256) {
+        Boolean rateLimitExempt = jdbcTemplate.query(
+                        """
+                        SELECT rate_limit_exempt
+                        FROM partner_api_credential
+                        WHERE partner_id = ?
+                        ORDER BY active DESC, updated_at DESC
+                        LIMIT 1
+                        """,
+                        (resultSet, rowNum) -> resultSet.getBoolean("rate_limit_exempt"),
+                        partnerId)
+                .stream()
+                .findFirst()
+                .orElse(false);
         int deactivatedCount = jdbcTemplate.update(
                 """
                 UPDATE partner_api_credential
@@ -58,11 +72,17 @@ public class JdbcPartnerCredentialRepository implements PartnerCredentialReposit
                 partnerId);
         jdbcTemplate.update(
                 """
-                INSERT INTO partner_api_credential (api_key_sha256, partner_id, active)
-                VALUES (?, ?, TRUE)
+                INSERT INTO partner_api_credential (
+                    api_key_sha256,
+                    partner_id,
+                    active,
+                    rate_limit_exempt
+                )
+                VALUES (?, ?, TRUE, ?)
                 """,
                 apiKeySha256,
-                partnerId);
+                partnerId,
+                rateLimitExempt);
         return deactivatedCount;
     }
 
