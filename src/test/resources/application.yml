@@ -17,8 +17,6 @@ management:
       enabled: false
 
 omni-connect:
-  portal:
-    bootstrap-admin-password: Local-Test-Only-Initial-Secret-2026!
   security:
     rate-limit:
       enabled: false

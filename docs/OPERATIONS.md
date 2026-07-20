@@ -22,7 +22,7 @@ docker compose -f compose.local.yml down
 ## 운영 설정
 - `src/main/resources/application-prod.yml`은 커밋되는 실제 운영 profile 설정 파일이다.
 - 민감값은 `${...}` 환경변수 placeholder로만 작성한다.
-- 신규 DB의 최초 기동에는 `OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`가 필요하다. 관리자가 최초 로그인 후 비밀번호를 변경하면 이후 기동에는 해당 값이 없어도 된다.
+- 관리자 계정은 OCI에 SSH로 접속한 운영자만 DB에서 생성·초기화한다. 임시 비밀번호는 셸 기록·프로세스 인자·환경 파일에 남기지 않고, 초기화와 함께 `password_change_required=true`, `password_changed_at=NULL`, `session_version=session_version+1`을 적용한다.
 - KIS 현재가 provider는 실전 REST domain `https://openapi.koreainvestment.com:9443`을 기본으로 사용한다.
 - KIS 현재가 provider를 사용하려면 `KIS_APP_KEY`, `KIS_APP_SECRET`을 GitHub Secrets에 등록한다. `KIS_ACCESS_TOKEN`은 비워두면 앱이 자동 발급한다.
 - 로컬 Compose는 gitignored `.env.local`에서 일반 종목용 `OMNI_CONNECT_PROVIDERS_KIS_*`에 모의 계정과 모의 endpoint를, 지수 전용 `OMNI_CONNECT_PROVIDERS_REAL_KIS_*`에 실전 계정과 실전 endpoint를 각각 주입한다. 승인키와 access token은 저장하지 않고 기동 시 계정별로 발급한다.

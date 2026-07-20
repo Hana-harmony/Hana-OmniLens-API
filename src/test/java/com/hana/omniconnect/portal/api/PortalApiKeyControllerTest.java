@@ -52,8 +52,18 @@ class PortalApiKeyControllerTest {
 
     @BeforeEach
     void resetAdminPassword() {
-        jdbcTemplate.update("UPDATE portal_users SET password_hash = ?, password_change_required = TRUE, session_version = 0 WHERE username = 'admin'",
-                "{bcrypt}$2y$12$QYdm5Z2QBMF/9XgtNMvA5umnErMvlTRskDzg4U5wcIN5PH.X9Sf/K");
+        String passwordHash = "{bcrypt}$2y$12$QYdm5Z2QBMF/9XgtNMvA5umnErMvlTRskDzg4U5wcIN5PH.X9Sf/K";
+        int updated = jdbcTemplate.update(
+                "UPDATE portal_users SET password_hash = ?, role = 'ADMIN', password_change_required = TRUE, session_version = 0, password_changed_at = NULL WHERE username = 'admin'",
+                passwordHash);
+        if (updated == 0) {
+            jdbcTemplate.update("""
+                    INSERT INTO portal_users (
+                        user_id, username, password_hash, display_name, phone_number, role,
+                        created_at, updated_at, password_change_required, session_version, password_changed_at
+                    ) VALUES (?, 'admin', ?, 'Test Admin', '', 'ADMIN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, TRUE, 0, NULL)
+                    """, "PUSR-ADMIN000000000000000", passwordHash);
+        }
         jdbcTemplate.update("DELETE FROM tax_refund_backoffice_cases WHERE case_id = 'TAX-ABCDEFGHIJKL'");
     }
 
