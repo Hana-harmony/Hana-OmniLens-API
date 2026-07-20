@@ -56,8 +56,7 @@ class DeploymentProfileGuardrailTest {
         }
         assertThat(prodProfile).doesNotContain("replace-with-");
         assertThat(prodProfile).contains("base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}");
-        assertThat(prodProfile).contains(
-                "bootstrap-admin-password: ${OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}");
+        assertThat(prodProfile).doesNotContain("bootstrap-admin-password", "PORTAL_BOOTSTRAP_ADMIN_PASSWORD");
     }
 
     @Test
@@ -99,7 +98,7 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).contains("registry: ghcr.io");
         assertThat(workflow).contains("docker/build-push-action");
         assertThat(workflow).doesNotContain("secrets.OMNI_CONNECT_API_KEY_SHA256");
-        assertThat(workflow).contains("if [[ -n \"${PORTAL_BOOTSTRAP_PASSWORD}\" ]]");
+        assertThat(workflow).doesNotContain("PORTAL_BOOTSTRAP_PASSWORD", "PORTAL_BOOTSTRAP_ADMIN_PASSWORD");
         assertThat(workflow).contains("push: true");
         assertThat(workflow).contains("application.env");
         assertThat(workflow).contains("deploy.env");

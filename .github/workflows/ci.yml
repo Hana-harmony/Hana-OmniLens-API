@@ -43,7 +43,6 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          PORTAL_BOOTSTRAP_PASSWORD: ${{ secrets.OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD }}
           PUBLIC_DATA_KEY: ${{ secrets.PUBLIC_DATA_SERVICE_KEY }}
           NAVER_ID: ${{ secrets.NAVER_NEWS_CLIENT_ID }}
           NAVER_SECRET: ${{ secrets.NAVER_NEWS_CLIENT_SECRET }}
@@ -65,11 +64,6 @@ jobs:
           for name in PROD_HOST PROD_USER PROD_SSH_KEY PROD_SSH_PASSWORD PROD_HOST_KEY GHCR_TOKEN DB_PASSWORD REDIS_PASSWORD PUBLIC_DATA_KEY NAVER_ID NAVER_SECRET OPEN_DART_KEY KRX_ID KRX_PASSWORD KRX_OPEN_API_KEY KIS_ACCOUNT KIS_APP_KEY KIS_APP_SECRET KIS_REAL_ACCOUNT KIS_REAL_APP_KEY KIS_REAL_APP_SECRET LETSENCRYPT_EMAIL OMNI_CONNECT_DISCORD_WEBHOOK HANNAH_DISCORD_WEBHOOK GRAFANA_ADMIN_PASSWORD; do
             : "${!name:?${name} is required}"
           done
-          if [[ -n "${PORTAL_BOOTSTRAP_PASSWORD}" ]]; then
-            [[ "${#PORTAL_BOOTSTRAP_PASSWORD}" -ge 16 && "${#PORTAL_BOOTSTRAP_PASSWORD}" -le 128 ]]
-            [[ "${PORTAL_BOOTSTRAP_PASSWORD}" == "${PORTAL_BOOTSTRAP_PASSWORD#${PORTAL_BOOTSTRAP_PASSWORD%%[![:space:]]*}}" ]]
-            [[ "${PORTAL_BOOTSTRAP_PASSWORD}" == "${PORTAL_BOOTSTRAP_PASSWORD%${PORTAL_BOOTSTRAP_PASSWORD##*[![:space:]]}}" ]]
-          fi
           [[ "${#DB_PASSWORD}" -ge 32 && "${DB_PASSWORD}" != *[[:space:]]* ]]
           [[ "${#REDIS_PASSWORD}" -ge 32 && "${REDIS_PASSWORD}" != *[[:space:]]* ]]
           [[ "${#GRAFANA_ADMIN_PASSWORD}" -ge 32 ]]
@@ -125,7 +119,6 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-          PORTAL_BOOTSTRAP_PASSWORD: ${{ secrets.OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD }}
           PUBLIC_DATA_KEY: ${{ secrets.PUBLIC_DATA_SERVICE_KEY }}
           NAVER_ID: ${{ secrets.NAVER_NEWS_CLIENT_ID }}
           NAVER_SECRET: ${{ secrets.NAVER_NEWS_CLIENT_SECRET }}
@@ -159,7 +152,6 @@ jobs:
             'SERVER_PORT=8080' \
             'SERVER_FORWARD_HEADERS_STRATEGY=native' \
             'OMNI_CONNECT_CORS_ALLOWED_ORIGINS=https://hanaomni.cloud' \
-            "OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD=${PORTAL_BOOTSTRAP_PASSWORD}" \
             'HANNAH_AI_BASE_URL=http://hannah-montana-ai:8000' \
             'DB_URL=jdbc:postgresql://hana-omni-connect-postgres:5432/omni-connect' \
             'DB_USERNAME=omni_connect_app' \

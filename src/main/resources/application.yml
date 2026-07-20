@@ -50,7 +50,6 @@ omni-connect:
   portal:
     session-signing-key: ${OMNI_CONNECT_PORTAL_SESSION_SIGNING_KEY:}
     api-key-encryption-key: ${OMNI_CONNECT_PORTAL_API_KEY_ENCRYPTION_KEY:}
-    bootstrap-admin-password: ${OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD:}
   providers:
     public-data:
       stock-securities-base-url: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService
