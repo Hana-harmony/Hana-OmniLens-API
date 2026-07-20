@@ -162,6 +162,8 @@ class DeploymentProfileGuardrailTest {
         assertThat(prodConfig).contains("username: omni_connect_app");
         assertThat(workflow()).contains("user default off");
         assertThat(workflow()).contains("~omni-connect:*");
+        assertThat(workflow()).contains("-@dangerous +info");
+        assertThat(workflow()).doesNotContain("+@dangerous");
     }
 
     private String workflow() throws IOException {

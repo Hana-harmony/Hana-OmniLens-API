@@ -188,7 +188,7 @@ jobs:
             "GHCR_TOKEN=${GHCR_TOKEN}" \
             > deploy.env
           printf '%s' "${DB_PASSWORD}" > postgres-password
-          printf 'user default off\nuser omni_connect_app reset on >%s ~omni-connect:* &* +@connection +@read +@write +@scripting -@dangerous\n' "${REDIS_PASSWORD}" > redis-users.acl
+          printf 'user default off\nuser omni_connect_app reset on >%s ~omni-connect:* &* +@connection +@read +@write +@scripting -@dangerous +info\n' "${REDIS_PASSWORD}" > redis-users.acl
           printf '%s\n' \
             "GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}" \
             "OMNI_CONNECT_DISCORD_WEBHOOK_URL=${OMNI_CONNECT_DISCORD_WEBHOOK}" \
