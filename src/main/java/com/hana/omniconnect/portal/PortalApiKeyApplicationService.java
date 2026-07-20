@@ -18,16 +18,19 @@ import com.hana.omniconnect.security.PartnerCredentialRotationService;
 public class PortalApiKeyApplicationService {
 
     private final PortalApiKeyApplicationRepository applicationRepository;
+    private final PortalUserRepository userRepository;
     private final PartnerCredentialRotationService credentialRotationService;
     private final PortalSecretCipher secretCipher;
     private final BusinessEventPublisher businessEventPublisher;
 
     public PortalApiKeyApplicationService(
             PortalApiKeyApplicationRepository applicationRepository,
+            PortalUserRepository userRepository,
             PartnerCredentialRotationService credentialRotationService,
             PortalSecretCipher secretCipher,
             BusinessEventPublisher businessEventPublisher) {
         this.applicationRepository = applicationRepository;
+        this.userRepository = userRepository;
         this.credentialRotationService = credentialRotationService;
         this.secretCipher = secretCipher;
         this.businessEventPublisher = businessEventPublisher;
@@ -169,19 +172,22 @@ public class PortalApiKeyApplicationService {
         return revoked;
     }
 
-    public List<PortalApiKeyApplication> listForUser(PortalUser user) {
-        return applicationRepository.findByUserId(user.userId());
+    public List<PortalApiKeyApplicationView> listForUser(PortalUser user) {
+        return applicationRepository.findByUserId(user.userId()).stream()
+                .map(application -> view(application, user))
+                .toList();
     }
 
-    public List<PortalApiKeyApplication> listAll() {
-        return applicationRepository.findAll();
+    public List<PortalApiKeyApplicationView> listAll() {
+        return applicationRepository.findAll().stream()
+                .map(this::view)
+                .toList();
     }
 
-    @Transactional
-    public String revealKeyOnce(String applicationId, PortalUser user) {
-        PortalApiKeyApplication application = applicationRepository.findByIdForUpdate(applicationId)
+    public String revealKey(String applicationId, PortalUser user) {
+        PortalApiKeyApplication application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.API_KEY_APPLICATION_NOT_FOUND));
-        if (!application.userId().equals(user.userId()) && user.role() != PortalRole.ADMIN) {
+        if (!application.userId().equals(user.userId())) {
             throw new BusinessException(ErrorCode.PORTAL_ACCESS_DENIED);
         }
         if (application.encryptedApiKey() == null
@@ -190,9 +196,17 @@ public class PortalApiKeyApplicationService {
                 && application.status() != ApiKeyApplicationStatus.REVOCATION_REQUESTED) {
             throw new BusinessException(ErrorCode.API_KEY_APPLICATION_INVALID_STATE);
         }
-        String apiKey = secretCipher.decrypt(application.encryptedApiKey());
-        applicationRepository.clearEncryptedApiKey(application.applicationId(), Instant.now());
-        return apiKey;
+        return secretCipher.decrypt(application.encryptedApiKey());
+    }
+
+    public PortalApiKeyApplicationView view(PortalApiKeyApplication application) {
+        PortalUser user = userRepository.findByUserId(application.userId())
+                .orElseThrow(() -> new IllegalStateException("API key application owner is missing"));
+        return view(application, user);
+    }
+
+    private PortalApiKeyApplicationView view(PortalApiKeyApplication application, PortalUser user) {
+        return new PortalApiKeyApplicationView(application, user.username(), user.displayName());
     }
 
     public PortalApiKeyApplication find(String applicationId) {

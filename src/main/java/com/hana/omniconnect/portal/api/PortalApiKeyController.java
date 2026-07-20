@@ -26,6 +26,8 @@ import com.hana.omniconnect.portal.PortalAccessService;
 import com.hana.omniconnect.portal.PortalAccountService;
 import com.hana.omniconnect.portal.PortalApiKeyApplication;
 import com.hana.omniconnect.portal.PortalApiKeyApplicationService;
+import com.hana.omniconnect.portal.PortalApiKeyApplicationView;
+import com.hana.omniconnect.portal.PortalAuthenticationRateLimiter;
 import com.hana.omniconnect.portal.PortalUser;
 import com.hana.omniconnect.term.application.KoreanFinancialTermExplanationService;
 import com.hana.omniconnect.term.domain.KoreanFinancialTermClickStat;
@@ -47,6 +49,7 @@ public class PortalApiKeyController {
     private final PortalAccessService accessService;
     private final PortalAccountService accountService;
     private final PortalApiKeyApplicationService applicationService;
+    private final PortalAuthenticationRateLimiter authenticationRateLimiter;
     private final KoreanFinancialTermExplanationService termExplanationService;
     private final TaxRefundBackofficeService taxRefundBackofficeService;
     private final TaxCorrectionRequestPdfService correctionRequestPdfService;
@@ -55,12 +58,14 @@ public class PortalApiKeyController {
             PortalAccessService accessService,
             PortalAccountService accountService,
             PortalApiKeyApplicationService applicationService,
+            PortalAuthenticationRateLimiter authenticationRateLimiter,
             KoreanFinancialTermExplanationService termExplanationService,
             TaxRefundBackofficeService taxRefundBackofficeService,
             TaxCorrectionRequestPdfService correctionRequestPdfService) {
         this.accessService = accessService;
         this.accountService = accountService;
         this.applicationService = applicationService;
+        this.authenticationRateLimiter = authenticationRateLimiter;
         this.termExplanationService = termExplanationService;
         this.taxRefundBackofficeService = taxRefundBackofficeService;
         this.correctionRequestPdfService = correctionRequestPdfService;
@@ -91,7 +96,9 @@ public class PortalApiKeyController {
     @PostMapping("/api-key-applications")
     @Operation(summary = "Request a permanent Hana Omni-Connect partner API key")
     public ApiResponse<ApiKeyApplicationResponse> requestApiKey(HttpServletRequest request) {
-        return ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.request(accessService.requireUser(request)), null));
+        PortalUser user = accessService.requireUser(request);
+        return ApiResponse.success(ApiKeyApplicationResponse.from(
+                applicationService.view(applicationService.request(user)), null));
     }
 
     @GetMapping("/api-key-applications")
@@ -104,17 +111,21 @@ public class PortalApiKeyController {
     }
 
     @PostMapping("/api-key-applications/{applicationId}/reveal")
-    @Operation(summary = "Reveal an approved API key once")
+    @Operation(summary = "Reveal an approved API key after password reauthentication")
     public ResponseEntity<ApiResponse<ApiKeyApplicationResponse>> revealApiKey(
             HttpServletRequest request,
-            @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
+            @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId,
+            @Valid @RequestBody ApiKeyRevealRequest body) {
         PortalUser user = accessService.requireUser(request);
+        PortalAuthenticationRateLimiter.Attempt attempt = authenticationRateLimiter.checkSensitiveAction(user.username(), request);
+        accountService.verifyCurrentPassword(user, body.currentPassword());
         PortalApiKeyApplication application = applicationService.find(applicationId);
-        String apiKey = applicationService.revealKeyOnce(applicationId, user);
+        String apiKey = applicationService.revealKey(applicationId, user);
+        authenticationRateLimiter.clear(attempt);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .header("Pragma", "no-cache")
-                .body(ApiResponse.success(ApiKeyApplicationResponse.from(application, apiKey)));
+                .body(ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.view(application), apiKey)));
     }
 
     @PostMapping("/api-key-applications/{applicationId}/cancel")
@@ -123,7 +134,7 @@ public class PortalApiKeyController {
             HttpServletRequest request,
             @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
         PortalApiKeyApplication application = applicationService.cancel(applicationId, accessService.requireUser(request));
-        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.view(application), null));
     }
 
     @PostMapping("/api-key-applications/{applicationId}/reissue")
@@ -132,7 +143,7 @@ public class PortalApiKeyController {
             HttpServletRequest request,
             @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
         PortalApiKeyApplication application = applicationService.requestReissue(applicationId, accessService.requireUser(request));
-        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.view(application), null));
     }
 
     @PostMapping("/api-key-applications/{applicationId}/revoke")
@@ -141,7 +152,7 @@ public class PortalApiKeyController {
             HttpServletRequest request,
             @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
         PortalApiKeyApplication application = applicationService.requestRevocation(applicationId, accessService.requireUser(request));
-        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.view(application), null));
     }
 
     @GetMapping("/admin/api-key-applications")
@@ -160,7 +171,7 @@ public class PortalApiKeyController {
             @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
         PortalUser administrator = accessService.requireAdmin(request);
         PortalApiKeyApplication application = applicationService.approve(applicationId, administrator);
-        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.view(application), null));
     }
 
     @PostMapping("/admin/api-key-applications/{applicationId}/reject")
@@ -170,7 +181,7 @@ public class PortalApiKeyController {
             @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId,
             @Valid @RequestBody RejectionRequest rejection) {
         PortalApiKeyApplication application = applicationService.reject(applicationId, accessService.requireAdmin(request), rejection.reason());
-        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.view(application), null));
     }
 
     @PostMapping("/admin/api-key-applications/{applicationId}/reissue")
@@ -179,7 +190,7 @@ public class PortalApiKeyController {
             HttpServletRequest request,
             @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
         PortalApiKeyApplication application = applicationService.reissueNow(applicationId, accessService.requireAdmin(request));
-        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.view(application), null));
     }
 
     @PostMapping("/admin/api-key-applications/{applicationId}/revoke")
@@ -188,7 +199,7 @@ public class PortalApiKeyController {
             HttpServletRequest request,
             @PathVariable @Pattern(regexp = "PAPP-[A-Z0-9]{20}") String applicationId) {
         PortalApiKeyApplication application = applicationService.revokeNow(applicationId, accessService.requireAdmin(request));
-        return ApiResponse.success(ApiKeyApplicationResponse.from(application, null));
+        return ApiResponse.success(ApiKeyApplicationResponse.from(applicationService.view(application), null));
     }
 
     @GetMapping("/admin/term-analytics")
@@ -334,6 +345,8 @@ public class PortalApiKeyController {
     public record ApiKeyApplicationResponse(
             String applicationId,
             String partnerId,
+            String applicantUsername,
+            String applicantName,
             String status,
             java.time.Instant requestedAt,
             java.time.Instant reviewedAt,
@@ -341,11 +354,16 @@ public class PortalApiKeyController {
             String apiKey,
             String rejectionReason
     ) {
-        static ApiKeyApplicationResponse from(PortalApiKeyApplication application, String apiKey) {
-            return new ApiKeyApplicationResponse(application.applicationId(), application.partnerId(), application.status().name(),
+        static ApiKeyApplicationResponse from(PortalApiKeyApplicationView view, String apiKey) {
+            PortalApiKeyApplication application = view.application();
+            return new ApiKeyApplicationResponse(application.applicationId(), application.partnerId(),
+                    view.applicantUsername(), view.applicantName(), application.status().name(),
                     application.requestedAt(), application.reviewedAt(), application.apiKeySha256Prefix(), apiKey,
                     application.rejectionReason());
         }
+    }
+
+    public record ApiKeyRevealRequest(@NotBlank @Size(max = 128) String currentPassword) {
     }
 
 }

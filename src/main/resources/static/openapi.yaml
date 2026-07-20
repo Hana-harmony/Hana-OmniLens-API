@@ -99,6 +99,46 @@ paths:
       summary: Request a partner API key.
       responses:
         "200": { description: Pending API key application. }
+  /api/v1/portal/api-key-applications/{applicationId}/reveal:
+    post:
+      tags: [Portal]
+      security: [{ portalBearer: [] }]
+      summary: Reveal an active API key after current-password reauthentication.
+      description: >
+        The owning member can repeat this operation whenever the active key is
+        needed. Administrators cannot retrieve the plaintext key. Responses are
+        returned with no-store cache headers.
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^PAPP-[A-Z0-9]{20}$" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword]
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                  maxLength: 128
+      responses:
+        "200": { description: Plaintext API key for the owning member. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: The application does not belong to the signed-in member. }
+        "409": { description: The API key is not active or cannot be revealed. }
+  /api/v1/portal/admin/api-key-applications:
+    get:
+      tags: [Portal]
+      security: [{ portalBearer: [] }]
+      summary: List API key applications with applicant name, username, and partner ID.
+      description: Plaintext API keys are never included in administrator responses.
+      responses:
+        "200": { description: Administrator application list. }
+        "403": { description: ADMIN role required. }
   /api/v1/portal/admin/tax/refund-cases/{caseId}/correction-fields:
     get:
       tags: [Portal]

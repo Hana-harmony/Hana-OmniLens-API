@@ -33,21 +33,6 @@ public class PortalApiKeyApplicationRepository {
                 .findFirst();
     }
 
-    public Optional<PortalApiKeyApplication> findByIdForUpdate(String applicationId) {
-        return jdbcTemplate.query(
-                        select() + " WHERE application_id = ? FOR UPDATE",
-                        (resultSet, rowNumber) -> application(resultSet),
-                        applicationId)
-                .stream()
-                .findFirst();
-    }
-
-    public void clearEncryptedApiKey(String applicationId, Instant updatedAt) {
-        jdbcTemplate.update(
-                "UPDATE partner_api_key_applications SET encrypted_api_key = NULL, updated_at = ? WHERE application_id = ?",
-                Timestamp.from(updatedAt), applicationId);
-    }
-
     public List<PortalApiKeyApplication> findByUserId(String userId) {
         return jdbcTemplate.query(select() + " WHERE user_id = ? ORDER BY requested_at DESC", (resultSet, rowNumber) -> application(resultSet), userId);
     }

@@ -77,6 +77,8 @@ class PortalApiKeyControllerTest {
                         .header("Authorization", "Bearer " + memberToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.applicantUsername").value("localbroker"))
+                .andExpect(jsonPath("$.data.applicantName").value("Local Broker"))
                 .andReturn().getResponse().getContentAsString());
 
         String initialAdminToken = token(postJson("/api/v1/portal/auth/login", """
@@ -95,17 +97,45 @@ class PortalApiKeyControllerTest {
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.apiKey").doesNotExist());
 
+        mockMvc.perform(get("/api/v1/portal/admin/api-key-applications")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].applicantUsername").value("localbroker"))
+                .andExpect(jsonPath("$.data[0].applicantName").value("Local Broker"));
+
+        mockMvc.perform(post("/api/v1/portal/api-key-applications/{id}/reveal", applicationId)
+                        .header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"wrong-password\"}"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/portal/api-key-applications/{id}/reveal", applicationId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"PortalAdminPassword1!\"}"))
+                .andExpect(status().isForbidden());
+
         String revealedApplication = mockMvc.perform(post(
                         "/api/v1/portal/api-key-applications/{id}/reveal", applicationId)
-                        .header("Authorization", "Bearer " + memberToken))
+                        .header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"LocalBrokerPassword1!\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.apiKey").isNotEmpty())
                 .andReturn().getResponse().getContentAsString();
         String apiKey = objectMapper.readTree(revealedApplication).path("data").path("apiKey").asText();
 
         mockMvc.perform(post("/api/v1/portal/api-key-applications/{id}/reveal", applicationId)
-                        .header("Authorization", "Bearer " + memberToken))
-                .andExpect(status().isConflict());
+                        .header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"LocalBrokerPassword1!\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.apiKey").value(apiKey));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT encrypted_api_key IS NOT NULL FROM partner_api_key_applications WHERE application_id = ?",
+                Boolean.class,
+                applicationId)).isTrue();
 
         mockMvc.perform(get("/api/v1/unknown").header("X-HANA-OMNI-CONNECT-API-KEY", apiKey))
                 .andExpect(status().isNotFound());

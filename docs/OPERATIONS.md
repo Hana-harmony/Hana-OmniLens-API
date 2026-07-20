@@ -293,7 +293,7 @@ HANNAH_AI_MAINTENANCE_TOKEN=<호스트 루트키에서 자동 파생>
 - `active=false` credential은 인증에 사용할 수 없다.
 - DB credential로 인증된 요청은 알림 API의 `partnerId`와 인증된 `partner_id`가 일치해야 한다.
 - 회원은 포털에서 API 이용을 신청하고 관리자는 관리자 화면에서 승인·반려한다.
-- 승인·재발급 시 서버가 새 256-bit API key를 생성해 한 번만 공개하고 DB에는 SHA-256 hash만 저장한다.
+- 승인·재발급 시 서버가 새 256-bit API key를 생성한다. 인증용 테이블에는 SHA-256 hash만 저장하고, 포털 재조회용 원문은 별도 암호문으로 보관해 소유 회원의 현재 비밀번호 재확인 후 횟수 제한 없이 제공한다.
 - 같은 partner의 기존 활성 credential은 같은 트랜잭션에서 `active=false`로 전환되므로 기존 키는 즉시 폐기된다.
 - 협력사 key 발급·재발급·폐기는 포털 관리자 API만 사용하며 DB 직접 입력과 전역 bootstrap key를 사용하지 않는다.
 

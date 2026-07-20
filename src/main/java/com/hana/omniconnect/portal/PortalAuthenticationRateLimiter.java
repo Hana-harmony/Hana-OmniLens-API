@@ -28,9 +28,17 @@ public class PortalAuthenticationRateLimiter {
     }
 
     public Attempt check(String username, HttpServletRequest request) {
+        return check("portal:auth", username, request);
+    }
+
+    public Attempt checkSensitiveAction(String username, HttpServletRequest request) {
+        return check("portal:sensitive", username, request);
+    }
+
+    private Attempt check(String scope, String username, HttpServletRequest request) {
         Attempt attempt = new Attempt(
-                "portal:ip:" + sha256(clientIp(request)),
-                "portal:user:" + sha256(username.trim().toLowerCase(Locale.ROOT)));
+                scope + ":ip:" + sha256(clientIp(request)),
+                scope + ":user:" + sha256(username.trim().toLowerCase(Locale.ROOT)));
         boolean ipAllowed;
         boolean userAllowed;
         try {

@@ -98,6 +98,12 @@ public class PortalAccountService {
         return session(updated);
     }
 
+    public void verifyCurrentPassword(PortalUser user, String currentPassword) {
+        if (!passwordEncoder.matches(currentPassword, user.passwordHash())) {
+            throw new BusinessException(ErrorCode.PORTAL_INVALID_CREDENTIALS);
+        }
+    }
+
     public void logout(PortalUser user) {
         userRepository.revokeSessions(user.userId(), Instant.now());
     }

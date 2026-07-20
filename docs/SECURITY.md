@@ -4,7 +4,7 @@
 
 ## 현재 기준
 - 모든 운영 API 요청은 `X-HANA-OMNI-CONNECT-API-KEY`를 사용한다.
-- 서버는 API key 원문을 저장하지 않고 SHA-256 해시만 비교한다.
+- 파트너 API 인증 경로는 API key 원문을 저장하지 않고 SHA-256 해시만 비교한다. 포털 재조회용 원문은 별도 컬럼에 암호화해 보관한다.
 - 협력사별 운영 키는 `partner_api_credential` 테이블에 SHA-256 해시와 `partner_id`로 저장한다.
 - DB에 활성 API key 해시가 없으면 운영 API는 실패 닫힘 방식으로 `503`을 반환한다.
 - DB credential로 인증된 요청은 알림 API의 요청 `partnerId`가 인증 `partnerId`와 다르면 `403`으로 거부한다.
@@ -34,11 +34,14 @@
 - KIS/KRX/Naver/OpenDART 등 외부 API credential은 환경 변수 또는 Secret Manager에서만 주입한다.
 
 ## 협력사 API key 운영
-- 원문 API key는 발급 직후 협력사에게 한 번만 전달한다.
+- 활성 API key의 소유 회원은 현재 비밀번호 재확인 후 포털에서 횟수 제한 없이 원문을 다시 조회할 수 있다.
+- 비밀번호 재확인 실패는 로그인과 분리된 사용자·IP 단위 제한을 적용해 반복 대입을 차단한다.
 - 서버 DB에는 `SHA-256(apiKey)` 결과만 `partner_api_credential.api_key_sha256`에 저장한다.
+- 포털 재조회용 원문은 운영 호스트의 영속 루트키에서 파생한 키로 암호화해 신청 레코드에 저장하며, API 응답에는 `Cache-Control: no-store`를 적용한다.
+- 관리자와 다른 회원은 API key 원문을 조회할 수 없다. 관리자 목록에는 신청자 이름·아이디·기술용 파트너 ID만 제공한다.
 - 키 폐기는 row 삭제보다 `active=false` 전환을 우선 사용해 감사 추적을 남긴다.
 - 회원은 포털에서 API 이용을 신청하고 관리자가 승인한다.
-- 승인·재발급 시 서버가 새 256-bit API key를 생성하고 원문은 포털에서 한 번만 공개한다.
+- 승인·재발급 시 서버가 새 256-bit API key를 생성하고, 활성 상태 동안 소유 회원의 비밀번호 재확인 요청에만 복호화한다.
 - 재발급 시 기존 활성 credential은 같은 트랜잭션에서 비활성화된다.
 - 전역 bootstrap API key와 포털 외부 강제 발급 endpoint는 운영하지 않는다.
 
@@ -64,7 +67,7 @@
 - `NAVER_NEWS_CLIENT_ID`: Naver News Search API Client ID
 - `NAVER_NEWS_CLIENT_SECRET`: Naver News Search API Client Secret
 - `OPEN_DART_API_KEY`: OpenDART 공시검색 API 인증키
-- HMAC secret은 요청의 협력사 API key 원문이며 별도의 중복 서명 secret을 두지 않는다. 서버에는 API key SHA-256 해시만 저장한다.
+- HMAC secret은 요청의 협력사 API key 원문이며 별도의 중복 서명 secret을 두지 않는다. 인증 경로에는 API key SHA-256 해시만 저장하고, 포털 재조회용 암호문은 분리 보관한다.
 - `SERVER_SSL_KEY_STORE_PASSWORD`: 서버 TLS keystore 비밀번호
 - `SERVER_SSL_TRUST_STORE_PASSWORD`: 협력사 client certificate CA truststore 비밀번호
 - 외부 API 키는 로그, 예외 메시지, 테스트 fixture, 커밋 파일에 남기지 않는다.
