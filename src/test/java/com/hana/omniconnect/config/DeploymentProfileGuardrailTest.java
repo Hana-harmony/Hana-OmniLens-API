@@ -241,6 +241,14 @@ class DeploymentProfileGuardrailTest {
         assertThat(deployment).doesNotContain("hanaomniconnect.cloud");
     }
 
+    @Test
+    void productionNginxUsesUbuntu2404CompatibleHttp2Syntax() throws IOException {
+        String nginx = read("deploy/nginx/hana-omni-connect-api.conf");
+
+        assertThat(nginx).contains("listen 443 ssl http2;");
+        assertThat(nginx).doesNotContain("http2 on;");
+    }
+
     private static String read(String path) throws IOException {
         return Files.readString(Path.of(path));
     }
