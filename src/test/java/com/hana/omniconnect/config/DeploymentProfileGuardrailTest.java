@@ -143,12 +143,15 @@ class DeploymentProfileGuardrailTest {
         assertThat(compose).contains("--appendonly");
         assertThat(compose).contains("noeviction");
         assertThat(compose).contains("--user omni_connect_app");
+        assertThat(compose).contains("info server");
         assertThat(compose).contains("name: hana-omni-connect-postgres-data");
         assertThat(compose).contains("name: hana-omni-connect-redis-data");
         assertThat(compose).contains("name: hana-omni-connect-internal");
         assertThat(compose).contains("external: true");
         assertThat(compose).doesNotContain("ports:");
         assertThat(bootstrap).contains("docker compose");
+        assertThat(bootstrap).contains("--no-deps --force-recreate redis");
+        assertThat(bootstrap).doesNotContain("--force-recreate postgres");
         assertThat(bootstrap).contains("State.Health.Status");
         assertThat(bootstrap).contains("chmod 600 \"${APP_DIR}/postgres-password\"");
         assertThat(bootstrap).contains("sudo chgrp 999 \"${APP_DIR}/redis-users.acl\"");

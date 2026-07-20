@@ -23,6 +23,8 @@ docker network inspect hana-omni-connect-internal >/dev/null 2>&1 \
   || docker network create hana-omni-connect-internal >/dev/null
 docker compose -f "${COMPOSE_FILE}" pull
 docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
+# Redis는 기동 시에만 ACL 파일을 읽으므로 새 ACL을 반영하도록 재생성한다.
+docker compose -f "${COMPOSE_FILE}" up -d --no-deps --force-recreate redis
 
 for container in hana-omni-connect-postgres hana-omni-connect-redis; do
   ready=false

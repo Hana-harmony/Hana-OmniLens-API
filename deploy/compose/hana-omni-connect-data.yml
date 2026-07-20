@@ -105,7 +105,9 @@ services:
         - CMD-SHELL
         - >-
           password=$$(sed -n 's/^user omni_connect_app .* >\([^ ]*\).*/\1/p' /run/secrets/redis-users.acl);
-          REDISCLI_AUTH="$$password" redis-cli --user omni_connect_app ping | grep -qx PONG
+          export REDISCLI_AUTH="$$password";
+          redis-cli --user omni_connect_app info server >/dev/null &&
+          redis-cli --user omni_connect_app ping | grep -qx PONG
       interval: 10s
       timeout: 5s
       retries: 12
