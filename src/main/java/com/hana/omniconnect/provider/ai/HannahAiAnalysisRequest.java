@@ -14,14 +14,54 @@ public record HannahAiAnalysisRequest(
         @JsonProperty("content_hash") String contentHash,
         @JsonProperty("source_license_policy") String sourceLicensePolicy,
         @JsonProperty("original_url") String originalUrl,
-        @JsonProperty("stock_universe") List<HannahAiStockCandidate> stockUniverse
+        @JsonProperty("stock_universe") List<HannahAiStockCandidate> stockUniverse,
+        @JsonProperty("translation_mode") String translationMode
 ) {
+    public static final String TRANSLATION_MODE_FULL = "FULL";
+    public static final String TRANSLATION_MODE_DEFERRED = "DEFERRED";
+
+    public HannahAiAnalysisRequest(
+            String sourceType,
+            String title,
+            String snippet,
+            String content,
+            List<String> imageUrls,
+            String canonicalUrl,
+            String contentHash,
+            String sourceLicensePolicy,
+            String originalUrl,
+            List<HannahAiStockCandidate> stockUniverse) {
+        this(
+                sourceType,
+                title,
+                snippet,
+                content,
+                imageUrls,
+                canonicalUrl,
+                contentHash,
+                sourceLicensePolicy,
+                originalUrl,
+                stockUniverse,
+                TRANSLATION_MODE_FULL);
+    }
+
     public HannahAiAnalysisRequest(
             String sourceType,
             String title,
             String snippet,
             String originalUrl,
             List<HannahAiStockCandidate> stockUniverse) {
-        this(sourceType, title, snippet, "", List.of(), originalUrl, "", "DISCOVERY_ONLY", originalUrl, stockUniverse);
+        this(
+                sourceType,
+                title,
+                snippet,
+                "",
+                List.of(),
+                originalUrl,
+                "",
+                "DISCOVERY_ONLY",
+                originalUrl,
+                stockUniverse,
+                TRANSLATION_MODE_FULL);
     }
 }

@@ -76,10 +76,10 @@ public class MarketNewsController {
     @Operation(summary = "Get Korean market-wide news detail")
     public ApiResponse<MarketNewsEvent> getMarketNews(
             @PathVariable @Size(min = 1, max = 80) String newsId) {
-        var event = marketNewsCollectionService.ensureDisplayableFullArticleByNewsId(newsId)
+        var event = marketNewsCollectionService.ensureDisplayableNewsByNewsId(newsId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "market news not found"));
-        if (!marketNewsCollectionService.isDisplayableFullArticle(event)) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "market news full article not available");
+        if (!marketNewsCollectionService.isDisplayableNews(event)) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "market news analysis not available");
         }
         marketNewsEventRepository.recordView(newsId, Instant.now());
         return ApiResponse.success(sanitizeAvailability(event));
@@ -123,7 +123,7 @@ public class MarketNewsController {
 
     private List<MarketNewsEvent> displayableNews(List<MarketNewsEvent> events, int limit) {
         return sanitizeAvailability(events).stream()
-                .filter(marketNewsCollectionService::isDisplayableFullArticle)
+                .filter(marketNewsCollectionService::isDisplayableNews)
                 .limit(limit)
                 .toList();
     }

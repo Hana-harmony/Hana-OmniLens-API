@@ -796,7 +796,8 @@ public class AlertProviderCollectionService {
 
         String markedAiDuplicateKey = null;
         try {
-            AlertPublishRequest analyzedAlert = alertAnalysisPublishingService.analyze(new AlertAnalysisPublishRequest(
+            AlertPublishRequest analyzedAlert = alertAnalysisPublishingService.analyzeForCollection(
+                    new AlertAnalysisPublishRequest(
                     partnerId,
                     sourceType,
                     title,

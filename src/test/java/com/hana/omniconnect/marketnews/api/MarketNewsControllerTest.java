@@ -94,41 +94,16 @@ class MarketNewsControllerTest {
                         "licensed_naver_original_full_text_v1")));
         when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
-            return new HannahAiAnalysisResponse(
-                    "005930",
-                    "삼성전자",
-                    request.sourceType(),
-                    "the Korean market source item. The original Korean text is retained because machine translation was unavailable.",
-                    "한국 증시 전문에 근거한 요약입니다.",
-                    List.of("MACRO"),
-                    "POSITIVE",
-                    "MEDIUM",
-                    List.of("005930"),
-                    false,
-                    true,
-                    List.of(),
-                    List.of(),
-                    "market-news-duplicate",
-                    "financial-ml-tfidf-logreg-test",
-                    0.88,
-                    0.77,
-                    0.76,
-                    0.74);
+            return deferredMarketAnalysis(request, "market-news-duplicate");
         });
         when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String expectedSummary = String.join("\n",
-                "한국 증시 전문에 근거한 요약입니다.",
-                "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.",
-                "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
-        String expectedEnglishWhat = englishTextFor("한국 증시 전문에 근거한 요약입니다.");
-        String expectedEnglishWhy = englishTextFor(
-                "코스피 상승 마감의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
-        String expectedEnglishImpact = englishTextFor(
-                "투자자는 코스피 상승 마감 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
-        String expectedTranslatedContent = englishTextFor(originalBody);
+        String expectedEnglishWhat = "KOSPI closed higher as foreign investors bought large-cap semiconductor shares.";
+        String expectedEnglishWhy = "Foreign net buying and technology earnings expectations drove the index rebound.";
+        String expectedEnglishImpact = "Investors should monitor foreign flows and the earnings outlook for major chipmakers.";
+        String expectedSummary = String.join("\n", expectedEnglishWhat, expectedEnglishWhy, expectedEnglishImpact);
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -145,26 +120,25 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.events[0].query", equalTo("한국 증시")))
                 .andExpect(jsonPath("$.data.events[0].title", equalTo("코스피 상승 마감")))
                 .andExpect(jsonPath("$.data.events[0].summary", equalTo(expectedSummary)))
-                .andExpect(jsonPath("$.data.events[0].translatedTitle", equalTo("KOSPI closes higher")))
+                .andExpect(jsonPath("$.data.events[0].translatedTitle", equalTo(expectedEnglishWhat)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(expectedEnglishWhat)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(expectedEnglishWhy)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(expectedEnglishImpact)))
-                .andExpect(jsonPath("$.data.events[0].translatedContent", equalTo(expectedTranslatedContent)))
+                .andExpect(jsonPath("$.data.events[0].translatedContent", equalTo("")))
                 .andExpect(jsonPath("$.data.events[0].sentiment", equalTo("POSITIVE")))
                 .andExpect(jsonPath("$.data.events[0].importance", equalTo("MEDIUM")))
-                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
+                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("ORIGINAL_TEXT_ONLY")))
                 .andExpect(jsonPath("$.data.events[0].translationProvider",
-                        equalTo("local-open-source-qwen3-translation")))
-                .andExpect(jsonPath("$.data.events[0].translationStatus", equalTo("TRANSLATED")));
+                        equalTo("hannah-ai-analysis-summary")))
+                .andExpect(jsonPath("$.data.events[0].translationStatus",
+                        equalTo("PARTIAL_SOURCE_LANGUAGE_FALLBACK")));
 
         ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
                 ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
         verify(hannahAiAnalysisClient).analyze(requestCaptor.capture());
         org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().content())
                 .isEqualTo(originalBody);
-        ArgumentCaptor<String> titleCaptor = ArgumentCaptor.forClass(String.class);
-        verify(alertTitleTranslationService).translateTitleWithResult(titleCaptor.capture(), any());
-        assertThat(titleCaptor.getValue()).isEqualTo("코스피 상승 마감");
+        assertThat(requestCaptor.getValue().translationMode()).isEqualTo("DEFERRED");
 
         String newsId = jdbcTemplate.queryForObject(
                 "SELECT news_id FROM market_news_event LIMIT 1",
@@ -308,26 +282,7 @@ class MarketNewsControllerTest {
                         "코스피 상승 마감")));
         when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
-            return new HannahAiAnalysisResponse(
-                    "",
-                    "",
-                    request.sourceType(),
-                    request.title(),
-                    "한국 증시 전문에 근거한 요약입니다.",
-                    List.of("MACRO"),
-                    "POSITIVE",
-                    "MEDIUM",
-                    List.of(),
-                    false,
-                    true,
-                    List.of(),
-                    List.of(),
-                    "extra-candidate-duplicate",
-                    "financial-ml-tfidf-logreg-test",
-                    0.88,
-                    0.77,
-                    0.76,
-                    0.74);
+            return deferredMarketAnalysis(request, "extra-candidate-duplicate");
         });
         when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
@@ -915,6 +870,50 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.glossaryTerms[0].sourceTerm", equalTo("Samjeon Nix")))
                 .andExpect(jsonPath("$.data.glossaryTerms[0].description").value(
                         org.hamcrest.Matchers.containsString("Samsung Electronics and SK Hynix")));
+    }
+
+    private HannahAiAnalysisResponse deferredMarketAnalysis(
+            HannahAiAnalysisRequest request,
+            String duplicateKey) {
+        AlertSummaryLines summaryLines = new AlertSummaryLines(
+                "KOSPI closed higher as foreign investors bought large-cap semiconductor shares.",
+                "Foreign net buying and technology earnings expectations drove the index rebound.",
+                "Investors should monitor foreign flows and the earnings outlook for major chipmakers.");
+        String summary = String.join("\n", summaryLines.what(), summaryLines.why(), summaryLines.impact());
+        return new HannahAiAnalysisResponse(
+                "",
+                "",
+                request.sourceType(),
+                request.title(),
+                "",
+                summary,
+                summaryLines,
+                "",
+                "FULL_TEXT",
+                request.content(),
+                "",
+                request.imageUrls(),
+                List.of("MACRO"),
+                "POSITIVE",
+                "MEDIUM",
+                null,
+                null,
+                null,
+                List.of(),
+                false,
+                true,
+                List.of(),
+                List.of(),
+                "deferred-full-text-translation",
+                "financial-ml-tfidf-logreg-test",
+                "SOURCE_LANGUAGE_FALLBACK",
+                duplicateKey,
+                duplicateKey,
+                "financial-ml-tfidf-logreg-test",
+                0.88,
+                0.77,
+                0.76,
+                0.74);
     }
 
     private TranslationResult translated(String text) {
