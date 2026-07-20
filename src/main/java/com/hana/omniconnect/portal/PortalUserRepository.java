@@ -43,12 +43,6 @@ public class PortalUserRepository {
                 passwordHash, Timestamp.from(changedAt), Timestamp.from(changedAt), userId);
     }
 
-    public void replaceBootstrapPassword(String userId, String passwordHash, Instant updatedAt) {
-        jdbcTemplate.update(
-                "UPDATE portal_users SET password_hash = ?, password_change_required = TRUE, session_version = session_version + 1, password_changed_at = NULL, updated_at = ? WHERE user_id = ?",
-                passwordHash, Timestamp.from(updatedAt), userId);
-    }
-
     public void upgradePasswordHash(String userId, String passwordHash, Instant updatedAt) {
         jdbcTemplate.update(
                 "UPDATE portal_users SET password_hash = ?, session_version = session_version + 1, updated_at = ? WHERE user_id = ?",

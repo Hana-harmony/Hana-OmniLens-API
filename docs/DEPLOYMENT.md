@@ -46,10 +46,6 @@ docker compose -f compose.local.yml up -d
 
 CI는 `PROD_SSH_PASSWORD`를 파일이나 명령 인자에 쓰지 않고 배포 단계의 마스킹된 환경변수로만 전달한다. OpenSSH `SSH_ASKPASS`가 `publickey,password` 순서의 두 번째 인증에 사용하며, 고정한 `PROD_HOST_KEY`와 `PROD_SSH_KEY`가 모두 일치해야 접속한다.
 
-## 최초 기동 전용 GitHub Secret
-
-- `OMNI_CONNECT_PORTAL_BOOTSTRAP_ADMIN_PASSWORD`: 신규 DB 최초 기동에만 사용하는 관리자 임시 비밀번호. 16~128자이며 앞뒤 공백을 허용하지 않는다. 최초 로그인에서 비밀번호를 변경한 후 GitHub Secret에서 삭제한다.
-
 ## 호스트 자동 생성 운영키
 
 다음 값은 GitHub Secrets로 등록하지 않는다.
