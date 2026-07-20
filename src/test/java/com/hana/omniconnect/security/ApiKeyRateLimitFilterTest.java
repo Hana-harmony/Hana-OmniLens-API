@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -54,7 +55,10 @@ class ApiKeyRateLimitFilterTest {
         mockMvc.perform(get("/openapi.yaml")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(header().string("Retry-After", equalTo("3600")));
+                .andExpect(header().string("Retry-After", equalTo("3600")))
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.code").value("COMMON_004"))
+                .andExpect(jsonPath("$.message").value("Rate limit exceeded"));
     }
 
     @Test

@@ -9,7 +9,7 @@
 - DB에 활성 API key 해시가 없으면 운영 API는 실패 닫힘 방식으로 `503`을 반환한다.
 - DB credential로 인증된 요청은 알림 API의 요청 `partnerId`가 인증 `partnerId`와 다르면 `403`으로 거부한다.
 - 인증된 요청은 API key SHA-256 fingerprint 단위로 rate limit을 적용한다.
-- rate limit 초과 요청은 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
+- rate limit 초과 요청은 `429 Too Many Requests`, `COMMON_004`, `Retry-After` 헤더를 반환한다. 인증 실패 코드와 요청 제한 코드를 혼용하지 않는다.
 - 모든 실행 profile은 `omni-connect.security.signature.enabled=true`를 기본값으로 사용하며 운영 보호 API 요청은 HMAC-SHA256 요청 서명을 함께 검증한다. Spring 환경 변수 이름은 `OMNI_CONNECT_SECURITY_SIGNATURE_ENABLED`이다.
 - 요청 서명 canonical string은 `METHOD`, `URI_WITH_QUERY`, `TIMESTAMP`, `NONCE`, `SHA256_BODY_HEX`를 줄바꿈으로 연결한 값이다.
 - 서명 헤더는 `X-HANA-OMNI-CONNECT-TIMESTAMP`, `X-HANA-OMNI-CONNECT-NONCE`, `X-HANA-OMNI-CONNECT-SIGNATURE`를 사용한다.

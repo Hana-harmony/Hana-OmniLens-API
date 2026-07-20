@@ -283,10 +283,10 @@ HANNAH_AI_MAINTENANCE_TOKEN=<호스트 루트키에서 자동 파생>
 ```
 
 ## Rate Limit
-- 기본값은 API key fingerprint당 1분에 120개 요청이다.
-- 초과 시 `429 Too Many Requests`와 `Retry-After` 헤더를 반환한다.
-- 운영 임계값은 `OMNI_CONNECT_RATE_LIMIT_CAPACITY`, `OMNI_CONNECT_RATE_LIMIT_REFILL_TOKENS`, `OMNI_CONNECT_RATE_LIMIT_REFILL_PERIOD`로 조정한다.
-- 임시 비활성화는 `OMNI_CONNECT_RATE_LIMIT_ENABLED=false`로 한다.
+- 운영은 API key fingerprint당 1분에 600개 요청을 허용한다. 거래소 BE가 여러 최종 사용자의 요청을 하나의 협력사 키로 집계하는 구조와 Nginx의 IP별 초당 10개 제한을 함께 반영한 값이다.
+- 초과 시 `429 Too Many Requests`, `COMMON_004`, `Retry-After` 헤더를 반환한다.
+- Redis 고정 구간 카운터에 TTL이 없으면 다음 요청에서 1분 TTL을 원자적으로 복구한다.
+- 제한을 비활성화하지 않으며 운영값은 `application-prod.yml`을 단일 기준으로 유지한다.
 
 ## 협력사 API key registry
 - Flyway가 `partner_api_credential` 테이블을 생성한다.

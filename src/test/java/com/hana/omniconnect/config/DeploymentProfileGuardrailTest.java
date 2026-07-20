@@ -161,7 +161,11 @@ class DeploymentProfileGuardrailTest {
                         "chmod 600 \"${APP_DIR}/postgres-password\" \"${APP_DIR}/redis-users.acl\"");
 
         String prodConfig = read("src/main/resources/application-prod.yml");
-        assertThat(prodConfig).contains("username: omni_connect_app");
+        assertThat(prodConfig).contains(
+                "username: omni_connect_app",
+                "rate-limit:",
+                "max-requests: 600",
+                "window: 1m");
         assertThat(workflow()).contains("user default off");
         assertThat(workflow()).contains("~omni-connect:*");
         assertThat(workflow()).contains("-@dangerous +info");

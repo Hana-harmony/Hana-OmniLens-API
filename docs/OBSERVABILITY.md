@@ -8,13 +8,7 @@ OCI에는 Prometheus, Grafana, Loki, Alloy, node-exporter, blackbox-exporter를 
 
 `/actuator/prometheus`는 내부 Docker 네트워크의 Prometheus 수집을 위해 애플리케이션 인증에서 제외하지만, Nginx가 외부 요청에는 `404`를 반환한다.
 
-Grafana는 `127.0.0.1:3300`에만 바인딩한다. 로컬에서 다음 터널로 접속한다.
-
-```bash
-ssh -L 3300:127.0.0.1:3300 ubuntu@OCI_HOST
-```
-
-브라우저에서 `http://127.0.0.1:3300`을 열고 `admin`과 `GRAFANA_ADMIN_PASSWORD`를 사용한다. Prometheus와 Loki는 호스트 포트를 공개하지 않는다.
+Grafana 컨테이너는 `127.0.0.1:3300`에만 바인딩하고 Nginx HTTPS 프록시를 통해 `https://api.hanaomni.cloud/grafana/`로 제공한다. `admin`과 `GRAFANA_ADMIN_PASSWORD`로 로그인하며 익명 접근은 허용하지 않는다. Grafana 공식 외부 URL도 같은 주소로 고정해 Omni-Connect와 Hannah Discord 오류 알림의 링크가 `localhost`를 가리키지 않게 한다. Prometheus와 Loki는 호스트 포트를 공개하지 않는다.
 
 ## 알림 경로
 

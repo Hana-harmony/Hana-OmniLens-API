@@ -118,11 +118,7 @@ REDIS_USERNAME=omni_connect_app
 - `FRANKFURTER_BASE_URL`: Frankfurter 환율 endpoint 주소. 기본값은 `https://api.frankfurter.dev`이다.
 - `HANNAH_AI_BASE_URL`: Hannah-Montana-AI 내부 endpoint 주소. 번역, 분석, 글로벌 피어, 금융용어 해설을 같은 내부망에서 호출한다.
 - `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`: Hannah-Montana-AI 내부 endpoint 전용 timeout이다. `PROVIDER_READ_TIMEOUT`은 KIS, Naver, KRX 같은 외부 provider에만 적용한다.
-- `OMNI_CONNECT_RATE_LIMIT_ENABLED`: API key fingerprint 단위 rate limit 활성화 여부. 기본값은 `true`이다.
-- `OMNI_CONNECT_RATE_LIMIT_CAPACITY`: bucket 최대 요청 수. 기본값은 `120`이다.
-- `OMNI_CONNECT_RATE_LIMIT_REFILL_TOKENS`: refill마다 복구되는 요청 수. 기본값은 `120`이다.
-- `OMNI_CONNECT_RATE_LIMIT_REFILL_PERIOD`: refill 주기. 기본값은 `1m`이다.
-- `OMNI_CONNECT_RATE_LIMIT_MAX_BUCKETS`: 메모리에 보관할 최대 API key bucket 수. 기본값은 `10000`이다.
+- API key fingerprint 단위 요청 제한은 필수로 활성화하며 운영값은 `application-prod.yml`의 분당 600개 고정 구간을 단일 기준으로 사용한다. 별도 선택 환경변수로 우회하지 않는다.
 - `OMNI_CONNECT_SECURITY_SIGNATURE_ENABLED`: HMAC 요청 서명 검증 활성화 여부. 애플리케이션과 운영 기본값은 `true`이며 자동 테스트 외에는 끄지 않는다.
 - HMAC secret은 협력사 API key 원문을 사용한다. 별도의 `OMNI_CONNECT_SIGNATURE_SECRET`은 사용하지 않는다.
 - `OMNI_CONNECT_SECURITY_SIGNATURE_ALLOWED_CLOCK_SKEW`: 서명 timestamp 허용 오차. 기본값은 `2m`이다.

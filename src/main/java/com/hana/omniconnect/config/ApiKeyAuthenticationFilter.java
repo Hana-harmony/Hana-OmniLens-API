@@ -105,7 +105,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         if (!decision.allowed()) {
             securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_exceeded");
             response.setHeader("Retry-After", String.valueOf(decision.retryAfterSeconds()));
-            writeError(response, HttpStatus.TOO_MANY_REQUESTS, "AUTH_003", "Rate limit exceeded");
+            writeError(response, ErrorCode.RATE_LIMIT_EXCEEDED);
             return;
         }
 
