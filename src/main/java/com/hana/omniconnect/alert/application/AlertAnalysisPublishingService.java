@@ -31,22 +31,26 @@ import com.hana.omniconnect.provider.ai.HannahAiStockCandidate;
 public class AlertAnalysisPublishingService {
 
     private static final Logger log = LoggerFactory.getLogger(AlertAnalysisPublishingService.class);
+    private static final int ENRICHMENT_CANDIDATE_SCAN_LIMIT = 1_000;
 
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertStreamingService alertStreamingService;
     private final AlertTitleTranslationService alertTitleTranslationService;
     private final AlertEventRepository alertEventRepository;
+    private final NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore;
     private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
 
     public AlertAnalysisPublishingService(
             HannahAiAnalysisClient hannahAiAnalysisClient,
             AlertStreamingService alertStreamingService,
             AlertTitleTranslationService alertTitleTranslationService,
-            AlertEventRepository alertEventRepository) {
+            AlertEventRepository alertEventRepository,
+            NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore) {
         this.hannahAiAnalysisClient = hannahAiAnalysisClient;
         this.alertStreamingService = alertStreamingService;
         this.alertTitleTranslationService = alertTitleTranslationService;
         this.alertEventRepository = alertEventRepository;
+        this.enrichmentAttemptStore = enrichmentAttemptStore;
     }
 
     public AlertEvent analyzeAndPublish(AlertAnalysisPublishRequest request) {
@@ -279,9 +283,11 @@ public class AlertAnalysisPublishingService {
     }
 
     public Optional<AlertEvent> enrichNextPendingFullTranslation() {
-        return alertEventRepository.findSummaryQualityIssues(20).stream()
+        return alertEventRepository.findSummaryQualityIssues(ENRICHMENT_CANDIDATE_SCAN_LIMIT).stream()
                 .filter(event -> StringUtils.hasText(event.originalContent()))
                 .filter(event -> !StringUtils.hasText(event.translatedContent()))
+                // 실패 기사는 유예하고 다음 기사를 처리해 대기열 고착을 막는다.
+                .filter(event -> enrichmentAttemptStore.claim("alert", event.alertId()))
                 .findFirst()
                 .flatMap(this::enrichFullTranslationIfPossible);
     }

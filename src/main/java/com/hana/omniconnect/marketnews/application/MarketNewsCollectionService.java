@@ -30,6 +30,7 @@ import com.hana.omniconnect.alert.application.AlertTitleTranslationService;
 import com.hana.omniconnect.alert.application.AlertTitleTranslationService.TranslationResult;
 import com.hana.omniconnect.alert.application.EnglishNewsQualityGate;
 import com.hana.omniconnect.alert.application.KoreanMarketGlossaryTermExtractor;
+import com.hana.omniconnect.alert.application.NewsTranslationEnrichmentAttemptStore;
 import com.hana.omniconnect.config.MarketNewsCollectionProperties;
 import com.hana.omniconnect.market.application.StockMasterRepository;
 import com.hana.omniconnect.market.domain.StockSummary;
@@ -51,6 +52,7 @@ public class MarketNewsCollectionService {
     private static final int NAVER_MARKET_NEWS_FETCH_MULTIPLIER = 5;
     private static final int NAVER_MARKET_NEWS_MAX_DISPLAY = 100;
     private static final int MAX_NEW_MARKET_NEWS_PER_RUN = 100;
+    private static final int ENRICHMENT_CANDIDATE_SCAN_LIMIT = 1_000;
     private static final Duration INCREMENTAL_COLLECTION_OVERLAP = Duration.ofHours(24);
 
     private final NaverNewsClient naverNewsClient;
@@ -60,6 +62,7 @@ public class MarketNewsCollectionService {
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertTitleTranslationService translationService;
     private final StockMasterRepository stockMasterRepository;
+    private final NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore;
     private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
     private final Clock clock;
     private volatile List<String> listedIssuerNameCache;
@@ -72,7 +75,8 @@ public class MarketNewsCollectionService {
             MarketNewsCollectionProperties properties,
             HannahAiAnalysisClient hannahAiAnalysisClient,
             AlertTitleTranslationService translationService,
-            StockMasterRepository stockMasterRepository) {
+            StockMasterRepository stockMasterRepository,
+            NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore) {
         this(
                 naverNewsClient,
                 originalArticleClient,
@@ -81,6 +85,7 @@ public class MarketNewsCollectionService {
                 hannahAiAnalysisClient,
                 translationService,
                 stockMasterRepository,
+                enrichmentAttemptStore,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -92,6 +97,7 @@ public class MarketNewsCollectionService {
             HannahAiAnalysisClient hannahAiAnalysisClient,
             AlertTitleTranslationService translationService,
             StockMasterRepository stockMasterRepository,
+            NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore,
             Clock clock) {
         this.naverNewsClient = naverNewsClient;
         this.originalArticleClient = originalArticleClient;
@@ -100,6 +106,7 @@ public class MarketNewsCollectionService {
         this.hannahAiAnalysisClient = hannahAiAnalysisClient;
         this.translationService = translationService;
         this.stockMasterRepository = stockMasterRepository;
+        this.enrichmentAttemptStore = enrichmentAttemptStore;
         this.clock = clock;
     }
 
@@ -255,9 +262,10 @@ public class MarketNewsCollectionService {
     }
 
     public Optional<MarketNewsEvent> enrichNextPendingFullTranslation() {
-        return marketNewsEventRepository.findSummaryQualityIssues(20).stream()
+        return marketNewsEventRepository.findSummaryQualityIssues(ENRICHMENT_CANDIDATE_SCAN_LIMIT).stream()
                 .filter(event -> StringUtils.hasText(event.originalContent()))
                 .filter(event -> !StringUtils.hasText(event.translatedContent()))
+                .filter(event -> enrichmentAttemptStore.claim("market", event.newsId()))
                 .findFirst()
                 .flatMap(this::enrichFullTranslationIfPossible);
     }
