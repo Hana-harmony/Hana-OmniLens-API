@@ -74,4 +74,21 @@ class ApiKeyRateLimitFilterTest {
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void exemptPartnerKeepsAuthenticationButDoesNotConsumeRateLimit() throws Exception {
+        jdbcTemplate.update(
+                """
+                UPDATE partner_api_credential
+                SET rate_limit_exempt = TRUE
+                WHERE partner_id = ?
+                """,
+                "partner-rate-limit");
+
+        mockMvc.perform(get("/openapi.yaml")
+                        .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
+                .andExpect(status().isOk());
+
+        verifyNoInteractions(rateLimiter);
+    }
 }

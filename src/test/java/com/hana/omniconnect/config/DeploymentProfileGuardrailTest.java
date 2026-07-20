@@ -164,7 +164,7 @@ class DeploymentProfileGuardrailTest {
         assertThat(prodConfig).contains(
                 "username: omni_connect_app",
                 "rate-limit:",
-                "max-requests: 600",
+                "max-requests: 120",
                 "window: 1m");
         assertThat(workflow()).contains("user default off");
         assertThat(workflow()).contains("~omni-connect:*");

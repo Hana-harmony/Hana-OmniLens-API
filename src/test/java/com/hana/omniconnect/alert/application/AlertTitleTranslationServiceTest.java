@@ -167,7 +167,7 @@ class AlertTitleTranslationServiceTest {
     }
 
     @Test
-    void translateTextSplitsFullArticleIntoQwenSizedChunks() {
+    void translateTextDelegatesFullArticleChunkingToHannahOnce() {
         String longText = "삼성전자는 AI 서버 투자 확대로 실적 개선 기대가 커졌다. ".repeat(300);
         when(hannahTranslationClient.translate(any()))
                 .thenAnswer(invocation -> {
@@ -177,12 +177,11 @@ class AlertTitleTranslationServiceTest {
 
         String translatedText = translationService.translateText(longText);
 
-        assertThat(translatedText).contains("EN:");
+        assertThat(translatedText).isEqualTo("EN:" + longText.strip().length());
         ArgumentCaptor<HannahAiKoreanTranslationRequest> captor =
                 ArgumentCaptor.forClass(HannahAiKoreanTranslationRequest.class);
-        verify(hannahTranslationClient, atLeast(2)).translate(captor.capture());
-        assertThat(captor.getAllValues())
-                .allSatisfy(request -> assertThat(request.text()).hasSizeLessThanOrEqualTo(1_500));
+        verify(hannahTranslationClient).translate(captor.capture());
+        assertThat(captor.getValue().text()).isEqualTo(longText.strip());
     }
 
     @Test

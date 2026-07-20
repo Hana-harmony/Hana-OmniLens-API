@@ -27,7 +27,6 @@ import com.hana.omniconnect.provider.ai.HannahAiKoreanTranslationResponse;
 public class AlertTitleTranslationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AlertTitleTranslationService.class);
-    private static final int MAX_CHUNK_CHARS = 1_500;
     private static final Pattern HANGUL_PATTERN = Pattern.compile("[가-힣]");
     private static final Pattern TRAILING_ELLIPSIS_PATTERN = Pattern.compile("(?:\\.\\.\\.|…)[\\s\"')\\]]*$");
     public static final String STATUS_TRANSLATED = "TRANSLATED";
@@ -86,18 +85,7 @@ public class AlertTitleTranslationService {
         if (!StringUtils.hasText(originalText)) {
             return TranslationResult.sourceFallback("", MODEL_HANNAH_TRANSLATION_UNAVAILABLE);
         }
-        List<TranslationResult> results = chunks(originalText).stream()
-                .map(chunk -> translateOrFallback(chunk, glossaryTerms, false, sourceType))
-                .toList();
-        String translatedText = String.join("\n", results.stream()
-                .map(TranslationResult::translatedText)
-                .toList());
-        return new TranslationResult(
-                translatedText,
-                aggregateProvider(results),
-                aggregateModelVersion(results),
-                aggregateStatus(results),
-                aggregateQualityFlags(results));
+        return translateOrFallback(originalText.strip(), glossaryTerms, false, sourceType);
     }
 
     private TranslationResult translateOrFallback(
@@ -428,50 +416,6 @@ public class AlertTitleTranslationService {
 
     private String firstText(String value, String fallback) {
         return StringUtils.hasText(value) ? value : fallback;
-    }
-
-    private List<String> chunks(String text) {
-        String normalized = text.strip();
-        if (normalized.length() <= MAX_CHUNK_CHARS) {
-            return List.of(normalized);
-        }
-        List<String> chunks = new ArrayList<>();
-        int start = 0;
-        while (start < normalized.length()) {
-            int end = Math.min(start + MAX_CHUNK_CHARS, normalized.length());
-            int split = splitPoint(normalized, start, end);
-            chunks.add(normalized.substring(start, split).strip());
-            start = split;
-            while (start < normalized.length() && Character.isWhitespace(normalized.charAt(start))) {
-                start++;
-            }
-        }
-        return chunks;
-    }
-
-    private int splitPoint(String text, int start, int end) {
-        if (end >= text.length()) {
-            return text.length();
-        }
-        for (int index = end; index > start + MAX_CHUNK_CHARS / 2; index--) {
-            char current = text.charAt(index - 1);
-            if (current == '.' || current == '\n' || isKoreanSentenceBoundary(text, index)) {
-                return index;
-            }
-        }
-        return end;
-    }
-
-    private boolean isKoreanSentenceBoundary(String text, int index) {
-        char current = text.charAt(index - 1);
-        if (current != '다' && current != '요') {
-            return false;
-        }
-        if (index >= text.length()) {
-            return true;
-        }
-        char next = text.charAt(index);
-        return Character.isWhitespace(next) || next == '"' || next == '\'' || next == '”' || next == ')';
     }
 
     private String normalizeWhitespace(String value) {

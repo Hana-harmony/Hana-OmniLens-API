@@ -94,19 +94,21 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        RateLimitDecision decision;
-        try {
-            decision = apiKeyRateLimiter.consume(providedKeyHash);
-        } catch (RuntimeException exception) {
-            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_store_unavailable");
-            writeError(response, ErrorCode.SECURITY_SERVICE_UNAVAILABLE);
-            return;
-        }
-        if (!decision.allowed()) {
-            securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_exceeded");
-            response.setHeader("Retry-After", String.valueOf(decision.retryAfterSeconds()));
-            writeError(response, ErrorCode.RATE_LIMIT_EXCEEDED);
-            return;
+        if (!authentication.rateLimitExempt()) {
+            RateLimitDecision decision;
+            try {
+                decision = apiKeyRateLimiter.consume(providedKeyHash);
+            } catch (RuntimeException exception) {
+                securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_store_unavailable");
+                writeError(response, ErrorCode.SECURITY_SERVICE_UNAVAILABLE);
+                return;
+            }
+            if (!decision.allowed()) {
+                securityAuditLogger.record(cachedRequest, "failure", providedKeyHash, "rate_limit_exceeded");
+                response.setHeader("Retry-After", String.valueOf(decision.retryAfterSeconds()));
+                writeError(response, ErrorCode.RATE_LIMIT_EXCEEDED);
+                return;
+            }
         }
 
         SignatureVerificationResult signature = apiRequestSignatureVerifier.verify(
@@ -162,7 +164,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (partnerCredential.isPresent()) {
-            return ApiKeyAuthentication.partner(partnerCredential.get().partnerId());
+            PartnerCredential credential = partnerCredential.get();
+            return ApiKeyAuthentication.partner(credential.partnerId(), credential.rateLimitExempt());
         }
         if (!hasActiveCredential) {
             return ApiKeyAuthentication.notConfigured();
@@ -184,19 +187,25 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             boolean configured,
             boolean authenticated,
             Optional<String> partnerId,
-            java.util.List<String> partnerIds
+            java.util.List<String> partnerIds,
+            boolean rateLimitExempt
     ) {
 
-        private static ApiKeyAuthentication partner(String partnerId) {
-            return new ApiKeyAuthentication(true, true, Optional.of(partnerId), java.util.List.of(partnerId));
+        private static ApiKeyAuthentication partner(String partnerId, boolean rateLimitExempt) {
+            return new ApiKeyAuthentication(
+                    true,
+                    true,
+                    Optional.of(partnerId),
+                    java.util.List.of(partnerId),
+                    rateLimitExempt);
         }
 
         private static ApiKeyAuthentication invalid() {
-            return new ApiKeyAuthentication(true, false, Optional.empty(), java.util.List.of());
+            return new ApiKeyAuthentication(true, false, Optional.empty(), java.util.List.of(), false);
         }
 
         private static ApiKeyAuthentication notConfigured() {
-            return new ApiKeyAuthentication(false, false, Optional.empty(), java.util.List.of());
+            return new ApiKeyAuthentication(false, false, Optional.empty(), java.util.List.of(), false);
         }
 
     }

@@ -41,7 +41,7 @@ docker compose -f compose.local.yml down
 - Naver News Search는 제목, snippet, 링크 발견용으로 사용하고, 사용 허가된 원문 URL에서 기사 전문과 대표 이미지 URL을 추가 수집한다. 저장 허가가 없는 provider를 추가할 때는 원문 저장을 비활성화하고 hash/요약만 남기는 별도 정책을 적용한다.
 - OpenDART는 공시 목록 검색 뒤 `rcept_no` document 원문을 내려받아 본문을 정제한다. 수 MB가 될 수 있는 투자설명서·증권신고서는 동기 피드에 1,200자 분석 excerpt와 공식 DART 전문 URL을 저장해 API payload와 번역 지연을 제한한다.
 - 신규 여부는 URL TTL만으로 판단하지 않는다. `(partner_id, stock_code, source_type, original_url)` DB unique identity와 Redis 실행 중 lock을 함께 사용하고, canonical URL, normalized title, content hash, Hannah duplicate key, 시간창 기반 cluster key를 추가 중복 판정에 사용한다.
-- 주기 수집은 Hannah `DEFERRED` 분석으로 전체 본문 Qwen 번역을 호출하지 않는다. 종목 연결·감성·중요도·시장영향·영문 What/Why/Impact를 먼저 저장하며, 전문은 보강 완료 전까지 `ORIGINAL_TEXT_ONLY`와 원문 링크로 제공한다. 전용 2-worker 큐가 미번역 종목 알림과 시장뉴스를 각각 하나씩 `FULL` 모드로 자동 보강하고, 성공 시 같은 레코드를 `FULL_TEXT`로 갱신한다. Hannah가 만든 제목·요약·본문 번역을 재사용하므로 OmniConnect에서 같은 필드를 다시 번역하지 않는다.
+- 주기 수집은 Hannah `DEFERRED` 분석으로 전체 본문 Qwen 번역을 호출하지 않는다. 종목 연결·감성·중요도·시장영향·영문 What/Why/Impact를 먼저 저장하며, 전문은 보강 완료 전까지 `ORIGINAL_TEXT_ONLY`와 원문 링크로 제공한다. 전용 2-worker 큐가 미번역 종목 알림과 시장뉴스를 각각 최대 10건씩 연속 보강하고, 성공 시 같은 레코드를 `FULL_TEXT`로 갱신한다. 상세 조회는 아직 미번역인 본문을 즉시 보강한다. 전문 분할은 Hannah만 담당하며 OmniConnect에서 중복 분할하지 않는다.
 - 전체 번역은 `HANNAH_AI_BASE_URL`의 Hannah `/api/v1/translation/ko-en`만 호출한다. Hannah는 로컬 Qwen 4B GGUF를 사용하며 OmniConnect에는 provider 선택값이 없다. 내부 AI 호출은 `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`으로 제한한다. provider 장애, 빈 응답, 한글 잔존 시 원문과 `SOURCE_LANGUAGE_FALLBACK` 또는 `PARTIAL_SOURCE_LANGUAGE_FALLBACK` 상태를 반환한다.
 - watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
 - Hannah-Montana-AI 분석 결과의 `eventConfidence`, `sentimentConfidence`, `importanceConfidence`, `stockMatchConfidence`는 alert REST/WebSocket payload에 그대로 전파한다.
@@ -283,15 +283,17 @@ HANNAH_AI_MAINTENANCE_TOKEN=<호스트 루트키에서 자동 파생>
 ```
 
 ## Rate Limit
-- 운영은 API key fingerprint당 1분에 600개 요청을 허용한다. 거래소 BE가 여러 최종 사용자의 요청을 하나의 협력사 키로 집계하는 구조와 Nginx의 IP별 초당 10개 제한을 함께 반영한 값이다.
+- 운영은 일반 협력사 API key fingerprint당 1분에 120개 요청을 허용한다.
 - 초과 시 `429 Too Many Requests`, `COMMON_004`, `Retry-After` 헤더를 반환한다.
 - Redis 고정 구간 카운터에 TTL이 없으면 다음 요청에서 1분 TTL을 원자적으로 복구한다.
-- 제한을 비활성화하지 않으며 운영값은 `application-prod.yml`을 단일 기준으로 유지한다.
+- 다수 최종 사용자의 요청을 단일 키로 중계하는 신뢰된 거래소 파트너만 `partner_api_credential.rate_limit_exempt=true`로 지정한다. API key와 HMAC 서명 검증은 그대로 적용한다.
+- 예외 정책은 키가 아니라 파트너에 귀속되며 재발급 시 새 credential에 승계된다.
 
 ## 협력사 API key registry
 - Flyway가 `partner_api_credential` 테이블을 생성한다.
 - 협력사별 API key는 원문을 저장하지 않고 SHA-256 해시만 저장한다.
 - `active=false` credential은 인증에 사용할 수 없다.
+- `rate_limit_exempt=true`인 활성 credential만 요청 제한을 건너뛰며 인증·서명·nonce 재사용 방지는 건너뛰지 않는다.
 - DB credential로 인증된 요청은 알림 API의 `partnerId`와 인증된 `partner_id`가 일치해야 한다.
 - 회원은 포털에서 API 이용을 신청하고 관리자는 관리자 화면에서 승인·반려한다.
 - 승인·재발급 시 서버가 새 256-bit API key를 생성한다. 인증용 테이블에는 SHA-256 hash만 저장하고, 포털 재조회용 원문은 별도 암호문으로 보관해 소유 회원의 현재 비밀번호 재확인 후 횟수 제한 없이 제공한다.

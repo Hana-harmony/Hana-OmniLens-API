@@ -1,6 +1,9 @@
 package com.hana.omniconnect.alert.application;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,7 +23,14 @@ class NewsTranslationEnrichmentSchedulerTest {
     private MarketNewsCollectionService marketNewsService;
 
     @Test
-    void enrichesOneAlertAndOneMarketNewsItemOutsideTheSchedulerThread() {
+    void drainsAlertAndMarketNewsTranslationQueuesOutsideTheSchedulerThread() {
+        when(alertService.enrichNextPendingFullTranslation())
+                .thenReturn(Optional.of(org.mockito.Mockito.mock(com.hana.omniconnect.alert.domain.AlertEvent.class)))
+                .thenReturn(Optional.empty());
+        when(marketNewsService.enrichNextPendingFullTranslation())
+                .thenReturn(Optional.of(org.mockito.Mockito.mock(
+                        com.hana.omniconnect.marketnews.domain.MarketNewsEvent.class)))
+                .thenReturn(Optional.empty());
         NewsTranslationEnrichmentScheduler scheduler = new NewsTranslationEnrichmentScheduler(
                 alertService,
                 marketNewsService,
@@ -28,7 +38,7 @@ class NewsTranslationEnrichmentSchedulerTest {
 
         scheduler.enrichPendingTranslations();
 
-        verify(alertService).enrichNextPendingFullTranslation();
-        verify(marketNewsService).enrichNextPendingFullTranslation();
+        verify(alertService, org.mockito.Mockito.times(2)).enrichNextPendingFullTranslation();
+        verify(marketNewsService, org.mockito.Mockito.times(2)).enrichNextPendingFullTranslation();
     }
 }

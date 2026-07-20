@@ -1,6 +1,8 @@
 package com.hana.omniconnect.alert.application;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +18,7 @@ import com.hana.omniconnect.marketnews.application.MarketNewsCollectionService;
 public class NewsTranslationEnrichmentScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(NewsTranslationEnrichmentScheduler.class);
+    private static final int MAX_DRAIN_BATCH = 10;
 
     private final AlertAnalysisPublishingService alertService;
     private final MarketNewsCollectionService marketNewsService;
@@ -34,8 +37,23 @@ public class NewsTranslationEnrichmentScheduler {
 
     @Scheduled(fixedDelay = 60_000, initialDelay = 120_000)
     public void enrichPendingTranslations() {
-        dispatch(alertRunning, "stock alert", alertService::enrichNextPendingFullTranslation);
-        dispatch(marketNewsRunning, "market news", marketNewsService::enrichNextPendingFullTranslation);
+        dispatch(
+                alertRunning,
+                "stock alert",
+                () -> drainPending(alertService::enrichNextPendingFullTranslation));
+        dispatch(
+                marketNewsRunning,
+                "market news",
+                () -> drainPending(marketNewsService::enrichNextPendingFullTranslation));
+    }
+
+    private void drainPending(Supplier<Optional<?>> enrichment) {
+        for (int index = 0; index < MAX_DRAIN_BATCH; index++) {
+            Optional<?> result = enrichment.get();
+            if (result == null || result.isEmpty()) {
+                return;
+            }
+        }
     }
 
     private void dispatch(AtomicBoolean running, String source, Runnable enrichment) {
