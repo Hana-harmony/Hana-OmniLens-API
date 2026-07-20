@@ -203,7 +203,7 @@ jobs:
           DISPLAY: github-actions:0
         run: |
           ssh production 'sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 700 /opt/hana-omni-connect-api /opt/hana-omni-connect-api/deploy /opt/hana-omni-connect-api/deploy/systemd'
-          scp application.env deploy.env monitoring.env postgres-password redis-users.acl scripts/deploy-prod.sh scripts/bootstrap-host.sh scripts/runtime-secrets.sh scripts/bootstrap-data-services.sh scripts/bootstrap-https.sh scripts/bootstrap-monitoring.sh scripts/backup-postgres.sh deploy/compose/hana-omni-connect-data.yml deploy/nginx/hana-omni-connect-api.conf deploy/nginx/bootstrap-http.conf deploy/systemd/hana-omni-connect-postgres-backup.service deploy/systemd/hana-omni-connect-postgres-backup.timer 'production:/opt/hana-omni-connect-api/'
+          scp application.env deploy.env monitoring.env postgres-password redis-users.acl scripts/deploy-prod.sh scripts/bootstrap-host.sh scripts/ensure-web-ingress.sh scripts/runtime-secrets.sh scripts/bootstrap-data-services.sh scripts/bootstrap-https.sh scripts/bootstrap-monitoring.sh scripts/backup-postgres.sh deploy/compose/hana-omni-connect-data.yml deploy/nginx/hana-omni-connect-api.conf deploy/nginx/bootstrap-http.conf deploy/systemd/hana-omni-connect-postgres-backup.service deploy/systemd/hana-omni-connect-postgres-backup.timer deploy/systemd/hana-omni-connect-web-ingress.service 'production:/opt/hana-omni-connect-api/'
           scp -r deploy/monitoring 'production:/opt/hana-omni-connect-api/deploy/'
           scp deploy/systemd/hana-omni-connect-monitoring.service 'production:/opt/hana-omni-connect-api/deploy/systemd/'
           ssh production 'chmod 700 /opt/hana-omni-connect-api/bootstrap-host.sh && /opt/hana-omni-connect-api/bootstrap-host.sh'

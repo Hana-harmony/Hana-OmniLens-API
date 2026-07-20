@@ -1,0 +1,12 @@
+[Unit]
+Description=Hana OmniConnect public web ingress rules
+Wants=network-online.target
+After=network-online.target cloud-final.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/hana-omni-connect-web-ingress
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

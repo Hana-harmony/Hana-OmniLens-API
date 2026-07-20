@@ -10,9 +10,10 @@ if ! command -v curl >/dev/null 2>&1 \
   || ! command -v nginx >/dev/null 2>&1 \
   || ! command -v certbot >/dev/null 2>&1 \
   || ! command -v openssl >/dev/null 2>&1 \
-  || ! command -v flock >/dev/null 2>&1; then
+  || ! command -v flock >/dev/null 2>&1 \
+  || ! command -v iptables >/dev/null 2>&1; then
   sudo apt-get update
-  sudo apt-get install -y ca-certificates curl nginx certbot openssl util-linux
+  sudo apt-get install -y ca-certificates curl nginx certbot openssl util-linux iptables
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -29,6 +30,15 @@ fi
 
 sudo usermod -aG docker "$(id -un)"
 sudo systemctl enable --now docker nginx certbot.timer
+
+sudo install -o root -g root -m 0750 \
+  /opt/hana-omni-connect-api/ensure-web-ingress.sh \
+  /usr/local/sbin/hana-omni-connect-web-ingress
+sudo install -o root -g root -m 0644 \
+  /opt/hana-omni-connect-api/hana-omni-connect-web-ingress.service \
+  /etc/systemd/system/hana-omni-connect-web-ingress.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now hana-omni-connect-web-ingress.service
 
 source /opt/hana-omni-connect-api/runtime-secrets.sh
 ensure_runtime_root_secret

@@ -22,6 +22,7 @@ docker compose -f compose.local.yml up -d
 - PostgreSQL은 SCRAM-SHA-256과 data checksum을 사용하고 Redis는 ACL, AOF, `noeviction` 정책을 사용한다.
 - 데이터 서비스가 healthy 상태가 된 뒤 API 단일 컨테이너를 교체한다. 새 이미지가 준비되지 않으면 직전 이미지를 자동 복구한다.
 - Nginx와 Certbot은 Ubuntu 호스트의 systemd 서비스로 운영하고 애플리케이션 컨테이너와 수명주기를 분리한다.
+- OCI 보안 목록은 TCP 80, 443을 `0.0.0.0/0`에서 허용한다. 호스트 초기화는 OCI 기본 `iptables`의 최종 거부 규칙보다 먼저 TCP 80, 443을 허용하는 systemd 서비스를 적용하므로 재부팅 후에도 Let’s Encrypt HTTP-01과 HTTPS가 유지된다. PostgreSQL(5432), Redis(6379), 애플리케이션 직접 포트는 외부에 열지 않는다.
 - 필수 secret이 없으면 운영 secret 확인 단계에서 실패 닫힘 처리한다.
 - PostgreSQL 논리 백업은 systemd timer로 매일 실행하고 14일간 로컬 보존한다. OCI 볼륨 백업 정책은 별도로 적용한다.
 
