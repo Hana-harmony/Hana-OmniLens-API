@@ -259,7 +259,27 @@ public class MarketNewsCollectionService {
                 .filter(event -> StringUtils.hasText(event.originalContent()))
                 .filter(event -> !StringUtils.hasText(event.translatedContent()))
                 .findFirst()
-                .flatMap(this::reprocessIfPossible);
+                .flatMap(this::enrichFullTranslationIfPossible);
+    }
+
+    private Optional<MarketNewsEvent> enrichFullTranslationIfPossible(MarketNewsEvent event) {
+        try {
+            // 이미 저장된 분류·3줄 요약은 재호출하지 않고 전문만 번역한다.
+            MarketNewsEvent enriched = repairQualityIssue(event);
+            if (!StringUtils.hasText(enriched.translatedContent())) {
+                log.warn(
+                        "Keeping market news full translation pending after enrichment returned no content: newsId={}",
+                        event.newsId());
+                return Optional.empty();
+            }
+            return Optional.of(enriched);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Keeping market news full translation pending after enrichment failure: newsId={}",
+                    event.newsId(),
+                    exception);
+            return Optional.empty();
+        }
     }
 
     private Optional<MarketNewsEvent> reprocessIfPossible(MarketNewsEvent event) {

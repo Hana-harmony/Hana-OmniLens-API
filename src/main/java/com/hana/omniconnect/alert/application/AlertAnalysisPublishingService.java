@@ -283,7 +283,29 @@ public class AlertAnalysisPublishingService {
                 .filter(event -> StringUtils.hasText(event.originalContent()))
                 .filter(event -> !StringUtils.hasText(event.translatedContent()))
                 .findFirst()
-                .flatMap(this::reprocessIfPossible);
+                .flatMap(this::enrichFullTranslationIfPossible);
+    }
+
+    private Optional<AlertEvent> enrichFullTranslationIfPossible(AlertEvent event) {
+        try {
+            // 초기 분석과 3줄 요약은 보존하고 비어 있는 전문만 번역한다.
+            AlertEvent enriched = repairQualityIssue(event);
+            if (!StringUtils.hasText(enriched.translatedContent())) {
+                log.warn(
+                        "Keeping alert full translation pending after enrichment returned no content: alertId={}, stockCode={}",
+                        event.alertId(),
+                        event.stockCode());
+                return Optional.empty();
+            }
+            return Optional.of(enriched);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "Keeping alert full translation pending after enrichment failure: alertId={}, stockCode={}",
+                    event.alertId(),
+                    event.stockCode(),
+                    exception);
+            return Optional.empty();
+        }
     }
 
     private AlertEvent repairQualityIssue(AlertEvent event) {
