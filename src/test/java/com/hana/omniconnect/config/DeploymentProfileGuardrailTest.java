@@ -115,6 +115,8 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).contains("GHCR_USERNAME", "https://api.github.com/user", "secrets.GHCR_TOKEN");
         assertThat(workflow).doesNotContain("secrets.GHCR_USERNAME");
         assertThat(workflow).contains("scripts/bootstrap-https.sh");
+        assertThat(workflow).contains("scripts/ensure-web-ingress.sh");
+        assertThat(workflow).contains("hana-omni-connect-web-ingress.service");
         assertThat(workflow).doesNotContain("secrets.DB_URL");
         assertThat(workflow).doesNotContain("secrets.DB_USERNAME");
         assertThat(workflow).doesNotContain("secrets.REDIS_HOST");
@@ -206,6 +208,20 @@ class DeploymentProfileGuardrailTest {
                 "hana/omni-connect/term-analytics-hash/v1",
                 "hana/ai/maintenance-auth/v1",
                 "runtime-application.env");
+    }
+
+    @Test
+    void hostBootstrapKeepsPublicWebIngressAcrossReboots() throws IOException {
+        String bootstrap = read("scripts/bootstrap-host.sh");
+        String ingressScript = read("scripts/ensure-web-ingress.sh");
+        String ingressService = read("deploy/systemd/hana-omni-connect-web-ingress.service");
+
+        assertThat(bootstrap).contains("hana-omni-connect-web-ingress.service");
+        assertThat(bootstrap).contains("enable --now hana-omni-connect-web-ingress.service");
+        assertThat(ingressScript).contains("--dport \"${port}\"");
+        assertThat(ingressScript).contains("for port in 80 443");
+        assertThat(ingressService).contains("After=network-online.target cloud-final.service");
+        assertThat(ingressService).contains("WantedBy=multi-user.target");
     }
 
     @Test
