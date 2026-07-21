@@ -44,6 +44,7 @@
 - 협력사 watchlist는 Flyway가 생성한 `partner_watchlist_subscription` 테이블과 JDBC 저장소를 사용한다.
 - watchlist 종목은 `stock_master` FK로 제한하며, REST API 저장 시 미지원 종목은 404로 거부한다.
 - 협력사 API key는 Flyway가 생성한 `partner_api_credential` 테이블에 SHA-256 해시, `partner_id`, 파트너별 요청 제한 정책으로 저장한다.
+- 전문 번역이 비어 있는 상세 GET은 저장된 이벤트를 즉시 반환하고 별도 우선순위 executor에 번역을 요청한다. 백그라운드 적체 처리는 단일 worker로 제한해 Qwen의 다른 슬롯을 상세 조회용으로 남긴다.
 - `MarketDataService`는 KIS 실시간 체결 cache, KIS 현재가 REST, PostgreSQL 최신 정규장 분봉, 공공데이터 전일 snapshot 순서로 실제 provider 가격을 조회한다. 재기동·휴장일에는 저장 분봉의 체결 시각과 출처를 그대로 노출하며, 가격, KRX 외국인 보유량 snapshot, 또는 FX cache가 없으면 가짜 시장 데이터로 성공 응답을 만들지 않고 `MARKET_002`로 실패한다.
 - `MarketDataService`는 KIS 실시간 호가 cache를 우선 사용하고, 장외 또는 초기 구동처럼 cache가 비어 있으면 KIS REST 호가 snapshot으로 orderbook 응답을 보강한다.
 - `MarketQuoteWebSocketHandler`는 raw WebSocket `/ws/market/quotes`에서 인증된 협력사 연결을 관리하고, `RealtimeMarketDataIngestionService`가 KIS 체결 tick을 수신하면 KRW/현지통화/FX metadata가 포함된 `MarketQuote` JSON을 송신한다.

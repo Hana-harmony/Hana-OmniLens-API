@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.hana.omniconnect.alert.domain.AlertSummaryLines;
 import com.hana.omniconnect.alert.application.AlertTitleTranslationService;
+import com.hana.omniconnect.alert.application.OnDemandNewsTranslationService;
 import com.hana.omniconnect.alert.application.AlertTitleTranslationService.TranslationResult;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisClient;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisRequest;
@@ -65,6 +66,9 @@ class MarketNewsControllerTest {
 
     @MockitoBean
     private AlertTitleTranslationService alertTitleTranslationService;
+
+    @MockitoBean
+    private OnDemandNewsTranslationService onDemandNewsTranslationService;
 
     @BeforeEach
     void deleteMarketNews() {
