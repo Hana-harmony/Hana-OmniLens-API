@@ -154,6 +154,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - KIS 연결이 정상 close code로 종료된 경우도 지수 백오프와 jitter로 재연결하고 고정·동적 구독을 복원한다.
 - API 기동 시 승인키 발급이 실패해 WebSocket 연결 전 단계에서 중단된 경우에도 최대 30초의 지수 백오프와 jitter로 승인키 발급부터 다시 시도한다.
 - 모의투자 app key는 실전 지수 endpoint 인증에 재사용하지 않는다. 지수 3개 실시간 구독에는 `real-kis` app key·app secret을 별도로 설정해야 하며, 누락 시 잘못된 승인키로 재시도하지 않고 지수 연결을 비활성화한다.
+- 실전 KIS 자격증명 장애 시 지수 REST fallback은 Yahoo 최근 5거래일 정규장 데이터에서 최근 종가와 직전 종가를 구해 등락값·등락률을 계산한다. 직전 종가를 검증하지 못하면 0%로 위장하지 않고 지수 묶음을 unavailable로 처리한다.
 - KIS가 `OPSP0011`로 승인키를 거부하면 같은 자격증명으로 재연결을 반복하지 않는다. 일반 원격 종료는 성공 제어 메시지 이후 attempt를 초기화하고, 연속 실패는 누적 attempt의 지수 백오프와 jitter를 적용한다.
 
 ## 한국 증시 시장뉴스

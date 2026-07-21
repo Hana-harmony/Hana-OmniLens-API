@@ -36,7 +36,7 @@ class YahooIndexMinuteChartPriceClientTest {
 
         server.expect(requestTo(containsString("/v8/finance/chart/%5EKS11")))
                 .andExpect(requestTo(containsString("interval=1m")))
-                .andExpect(requestTo(containsString("range=1d")))
+                .andExpect(requestTo(containsString("range=5d")))
                 .andExpect(header("User-Agent", "Mozilla/5.0"))
                 .andRespond(withSuccess("""
                         {
@@ -112,6 +112,44 @@ class YahooIndexMinuteChartPriceClientTest {
         assertThat(prices).hasSize(3);
         assertThat(prices.get(0).bucketStart().toString()).isEqualTo("2026-07-07T09:00");
         assertThat(prices.get(2).bucketStart().toString()).isEqualTo("2026-07-07T15:30");
+        server.verify();
+    }
+
+    @Test
+    void findMinutePricesUsesPreviousSessionForWeekendDate() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        YahooIndexMinuteChartPriceClient client = new YahooIndexMinuteChartPriceClient(
+                builder,
+                ProviderTestResilience.disabled(),
+                FIXED_CLOCK);
+
+        server.expect(requestTo(containsString("range=5d")))
+                .andRespond(withSuccess("""
+                        {
+                          "chart": {
+                            "result": [{
+                              "timestamp": [1783123200, 1783146600, 1783382400],
+                              "indicators": {"quote": [{
+                                "open": [7700.00, 7720.00, 7919.20],
+                                "high": [7710.00, 7730.00, 7920.00],
+                                "low": [7690.00, 7710.00, 7910.00],
+                                "close": [7705.00, 7725.00, 7915.50],
+                                "volume": [10, 20, 30]
+                              }]}
+                            }],
+                            "error": null
+                          }
+                        }
+                        """, APPLICATION_JSON));
+
+        List<KisIndexMinuteChartPrice> prices =
+                client.findMinutePrices("0001", LocalDate.of(2026, 7, 5), 390);
+
+        assertThat(prices).isNotEmpty();
+        assertThat(prices.get(prices.size() - 1).bucketStart().toLocalDate())
+                .isEqualTo(LocalDate.of(2026, 7, 4));
+        assertThat(prices.get(prices.size() - 1).closeValue()).isEqualByComparingTo("7725.00");
         server.verify();
     }
 }

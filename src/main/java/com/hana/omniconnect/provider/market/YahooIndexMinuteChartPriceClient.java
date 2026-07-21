@@ -58,17 +58,17 @@ public class YahooIndexMinuteChartPriceClient {
                 .uri(uriBuilder -> uriBuilder
                         .path("/v8/finance/chart/{symbol}")
                         .queryParam("interval", "1m")
-                        .queryParam("range", "1d")
+                        .queryParam("range", "5d")
                         .build(symbol))
                 .header("User-Agent", "Mozilla/5.0")
                 .retrieve()
                 .body(JsonNode.class));
         int resolvedLimit = Math.max(1, limit);
         List<KisIndexMinuteChartPrice> prices = parsePrices(root, tradingDate, resolvedLimit);
-        if (!prices.isEmpty() || !tradingDate.equals(today)) {
+        if (!prices.isEmpty()) {
             return prices;
         }
-        return latestRegularSessionDate(root, today)
+        return latestRegularSessionDate(root, tradingDate)
                 .filter(latestTradingDate -> !latestTradingDate.equals(tradingDate))
                 .map(latestTradingDate -> parsePrices(root, latestTradingDate, resolvedLimit))
                 .orElse(prices);
