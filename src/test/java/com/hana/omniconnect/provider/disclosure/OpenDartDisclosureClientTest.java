@@ -2,6 +2,7 @@ package com.hana.omniconnect.provider.disclosure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.MediaType.APPLICATION_OCTET_STREAM;
+import static org.springframework.http.MediaType.APPLICATION_XML;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -20,6 +21,28 @@ import com.hana.omniconnect.config.ExternalProviderProperties;
 import com.hana.omniconnect.provider.ProviderTestResilience;
 
 class OpenDartDisclosureClientTest {
+
+    @Test
+    void fetchDocumentContentRejectsOpenDartNotReadyEnvelope() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        OpenDartDisclosureClient client = new OpenDartDisclosureClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled());
+
+        server.expect(requestTo("https://opendart.fss.or.kr/api/document.xml?crtfc_key=dart-secret&rcept_no=20260721001369"))
+                .andRespond(withSuccess("""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <result>
+                          <status>014</status>
+                          <message>파일이 존재하지 않습니다.</message>
+                        </result>
+                        """, APPLICATION_XML));
+
+        assertThat(client.fetchDocumentContent("20260721001369")).isEmpty();
+        server.verify();
+    }
 
     @Test
     void fetchDocumentContentExtractsZipXmlText() throws Exception {
