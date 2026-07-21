@@ -202,6 +202,10 @@ class MarketDataControllerTest {
                         "196170",
                         "알테오젠",
                         "Alteogen",
+                        "Health Care",
+                        "Biotechnology",
+                        "Biotech platform licensing",
+                        List.of("biotech platform", "drug delivery"),
                         "Alteogen Is The 'Halozyme Therapeutics' of South Korea — "
                                 + "A Global Biotech Platform Leader",
                         "Alteogen is a high-margin Biotech Platform provider.",

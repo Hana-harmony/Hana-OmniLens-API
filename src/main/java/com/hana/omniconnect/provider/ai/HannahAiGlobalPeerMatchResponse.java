@@ -10,6 +10,10 @@ public record HannahAiGlobalPeerMatchResponse(
         @JsonProperty("stock_code") String stockCode,
         @JsonProperty("stock_name") String stockName,
         @JsonProperty("stock_name_en") String stockNameEn,
+        @JsonProperty("source_sector") String sourceSector,
+        @JsonProperty("source_industry") String sourceIndustry,
+        @JsonProperty("source_business_model") String sourceBusinessModel,
+        @JsonProperty("source_business_tags") List<String> sourceBusinessTags,
         String headline,
         String summary,
         @JsonProperty("primary_peer") HannahAiGlobalPeerMatch primaryPeer,
@@ -22,9 +26,40 @@ public record HannahAiGlobalPeerMatchResponse(
         String source
 ) {
     public HannahAiGlobalPeerMatchResponse {
+        sourceSector = GlobalPeerContractPolicy.requireText("sourceSector", sourceSector);
+        sourceIndustry = GlobalPeerContractPolicy.requireText("sourceIndustry", sourceIndustry);
+        sourceBusinessModel = GlobalPeerContractPolicy.requireText(
+                "sourceBusinessModel", sourceBusinessModel);
+        sourceBusinessTags = GlobalPeerContractPolicy.copyRequiredList(
+                "sourceBusinessTags", sourceBusinessTags);
         peers = GlobalPeerContractPolicy.copyRequiredList("peers", peers);
         comparisons = GlobalPeerContractPolicy.copyRequiredList("comparisons", comparisons);
         keyStrengths = GlobalPeerContractPolicy.copyRequiredList("keyStrengths", keyStrengths);
         GlobalPeerContractPolicy.validateStrictCardinality(comparisons, keyStrengths);
+        GlobalPeerContractPolicy.validatePeerDomain(
+                sourceSector,
+                sourceIndustry,
+                sourceBusinessTags,
+                primaryPeer.sector(),
+                primaryPeer.industry(),
+                primaryPeer.businessTags());
+        for (HannahAiGlobalPeerMatch peer : peers) {
+            GlobalPeerContractPolicy.validatePeerDomain(
+                    sourceSector,
+                    sourceIndustry,
+                    sourceBusinessTags,
+                    peer.sector(),
+                    peer.industry(),
+                    peer.businessTags());
+        }
+        for (HannahAiGlobalPeerComparison comparison : comparisons) {
+            GlobalPeerContractPolicy.validatePeerDomain(
+                    sourceSector,
+                    sourceIndustry,
+                    sourceBusinessTags,
+                    comparison.peer().sector(),
+                    comparison.peer().industry(),
+                    comparison.peer().businessTags());
+        }
     }
 }

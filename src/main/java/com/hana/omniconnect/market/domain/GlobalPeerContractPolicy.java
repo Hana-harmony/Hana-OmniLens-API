@@ -97,6 +97,42 @@ public final class GlobalPeerContractPolicy {
         }
     }
 
+    public static void validatePeerDomain(
+            String sourceSector,
+            String sourceIndustry,
+            List<String> sourceBusinessTags,
+            String peerSector,
+            String peerIndustry,
+            List<String> peerBusinessTags) {
+        String normalizedSourceSector = requireText("sourceSector", sourceSector);
+        String normalizedSourceIndustry = requireText("sourceIndustry", sourceIndustry);
+        String normalizedPeerSector = requireText("peerSector", peerSector);
+        String normalizedPeerIndustry = requireText("peerIndustry", peerIndustry);
+        List<String> normalizedSourceTags = copyRequiredList(
+                "sourceBusinessTags", sourceBusinessTags);
+        List<String> normalizedPeerTags = copyRequiredList("peerBusinessTags", peerBusinessTags);
+        boolean sourceSectorIsSpecific = !Set.of("Unclassified", "General Listed Equity")
+                .contains(normalizedSourceSector);
+        if (sourceSectorIsSpecific && !normalizedSourceSector.equals(normalizedPeerSector)) {
+            throw new IllegalArgumentException("peer sector does not match source sector");
+        }
+        boolean sourceIndustryIsSpecific = !Set.of("Unclassified", "Listed Operating Company")
+                .contains(normalizedSourceIndustry);
+        if (!sourceIndustryIsSpecific || normalizedSourceIndustry.equals(normalizedPeerIndustry)) {
+            return;
+        }
+        String primarySourceTag = normalizedSourceTags.stream()
+                .filter(tag -> tag != null && !tag.isBlank())
+                .findFirst()
+                .orElse("");
+        boolean primaryTagMatches = normalizedPeerTags.stream()
+                .filter(tag -> tag != null)
+                .anyMatch(tag -> tag.equalsIgnoreCase(primarySourceTag));
+        if (!primaryTagMatches) {
+            throw new IllegalArgumentException("peer industry does not match source domain");
+        }
+    }
+
     private static String requireAllowed(String field, String value, Set<String> allowedValues) {
         String normalized = requireText(field, value);
         if (!allowedValues.contains(normalized)) {

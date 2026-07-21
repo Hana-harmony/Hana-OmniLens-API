@@ -8,6 +8,10 @@ public record GlobalPeerMatchResponse(
         String stockName,
         String stockNameEn,
         String logoUrl,
+        String sourceSector,
+        String sourceIndustry,
+        String sourceBusinessModel,
+        List<String> sourceBusinessTags,
         String headline,
         String summary,
         GlobalPeerMatch primaryPeer,
@@ -23,6 +27,10 @@ public record GlobalPeerMatchResponse(
             String stockCode,
             String stockName,
             String stockNameEn,
+            String sourceSector,
+            String sourceIndustry,
+            String sourceBusinessModel,
+            List<String> sourceBusinessTags,
             String headline,
             String summary,
             GlobalPeerMatch primaryPeer,
@@ -39,6 +47,10 @@ public record GlobalPeerMatchResponse(
                 stockName,
                 stockNameEn,
                 StockLogoUrlResolver.koreanStockLogoUrl(stockCode),
+                sourceSector,
+                sourceIndustry,
+                sourceBusinessModel,
+                sourceBusinessTags,
                 headline,
                 summary,
                 primaryPeer,
@@ -53,6 +65,9 @@ public record GlobalPeerMatchResponse(
 
     public GlobalPeerMatchResponse {
         logoUrl = logoUrl == null ? "" : logoUrl;
+        sourceBusinessTags = sourceBusinessTags == null
+                ? List.of()
+                : List.copyOf(sourceBusinessTags);
         peers = peers == null ? List.of() : List.copyOf(peers);
         comparisons = GlobalPeerContractPolicy.copyRequiredList("comparisons", comparisons);
         keyStrengths = GlobalPeerContractPolicy.copyRequiredList("keyStrengths", keyStrengths);

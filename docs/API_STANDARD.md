@@ -72,11 +72,12 @@
 
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`
 - 종목 상세 화면에서 피어 종목 보기 버튼을 눌렀을 때 호출하는 API다.
-- 응답은 headline, summary, primary peer, 기존 peers, comparisons, keyStrengths, confidence, model version, source를 포함한다.
+- 응답은 기준 종목의 `sourceSector`, `sourceIndustry`, `sourceBusinessModel`, `sourceBusinessTags`와 headline, summary, primary peer, 기존 peers, comparisons, keyStrengths, confidence, model version, source를 포함한다.
 - 각 peer는 `sector`, `industry`, `businessModel`, `scaleBucket`, `marketCapUsd`, `revenueUsd`, `operatingIncomeUsd`, `netIncomeUsd`, `financialDataSource`, `financialSimilarityScore`, `matchedFactors`, `rationale`을 포함한다.
 - 정상 AI 응답의 `comparisons`는 1~3개이며 `dimension`, 비교 설명, 기존 peer와 같은 구조의 `peer`를 포함한다. `dimension`은 서버 allowlist 값만 허용한다.
 - 정상 AI 응답의 `keyStrengths`는 정확히 4개이며 해당 국내 종목 자체의 강점을 설명하는 `title`, `description`, `iconKey`를 포함한다. `iconKey`는 앱 자산과 합의한 allowlist 값만 허용한다.
 - Hannah의 `key_strengths[].icon_key` snake_case 계약은 OmniConnect가 검증한 뒤 `keyStrengths[].iconKey` camelCase로 변환한다.
+- OmniConnect는 모든 primary·candidate·comparison peer가 기준 종목과 같은 섹터이고, 같은 산업 또는 기준 종목의 주 사업 태그를 공유하는지 provider 경계에서 검증한다.
 - 정상 경로는 Hannah-Montana-AI 글로벌 피어 모델이다. AI 장애나 계약 위반은 `MARKET_DATA_UNAVAILABLE`로 반환하며 임의 peer fallback을 만들지 않는다.
 
 ## Tax Document OCR

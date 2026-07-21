@@ -218,9 +218,9 @@ STOCK_MASTER_SEED_LOCATION=classpath:data/stock-master-seed.csv
 ## 글로벌 피어 매칭
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`는 종목 상세 화면의 피어 종목 보기 요청에 사용한다.
 - OmniConnect는 `stock_master`의 종목코드, 한글명, 영문명, 시장구분을 Hannah `POST /api/v1/market/global-peers/match`로 전달한다.
-- Hannah 응답은 headline, summary, primary peer, 기존 후보 peer 목록, 속성별 comparisons, 국내 종목 자체의 key strengths, confidence, model version을 전달한다.
+- Hannah 응답은 국내 종목의 검증된 sector·industry·business model·business tags와 headline, summary, primary peer, 기존 후보 peer 목록, 속성별 comparisons, 국내 종목 자체의 key strengths, confidence, model version을 전달한다.
 - 각 peer의 섹터, 산업, 사업모델, 규모 버킷, 시가총액, 매출, 영업이익, 순이익, 재무 데이터 출처, 재무 유사도, 매칭 근거 배열은 프론트 피어 설명 팝업에서 바로 사용할 수 있도록 응답에 보존한다.
-- 정상 응답은 comparisons 1~3개와 key strengths 4개를 요구한다. dimension과 icon key allowlist 위반, 빈 필수 문구, 카드 개수 위반은 정상 결과로 전달하지 않는다.
+- 정상 응답은 comparisons 1~3개와 key strengths 4개를 요구한다. dimension과 icon key allowlist 위반, 빈 필수 문구, 카드 개수 위반, 기준 종목과 peer의 섹터 불일치, 산업 또는 주 사업 태그 불일치는 정상 결과로 전달하지 않는다.
 - Hannah 장애, circuit open 또는 응답 계약 위반은 `MARKET_DATA_UNAVAILABLE`로 종료한다. 임의 peer와 빈 비교 카드를 반환하지 않는다.
 
 ## 한국 금융 고유어·전문용어 해설
