@@ -23,7 +23,6 @@ import com.hana.omniconnect.common.api.ApiResponse;
 import com.hana.omniconnect.common.api.KeysetCursor;
 import com.hana.omniconnect.common.exception.BusinessException;
 import com.hana.omniconnect.common.exception.ErrorCode;
-import com.hana.omniconnect.alert.application.OnDemandNewsTranslationService;
 import com.hana.omniconnect.marketnews.application.MarketNewsCollectionResult;
 import com.hana.omniconnect.marketnews.application.MarketNewsCollectionService;
 import com.hana.omniconnect.marketnews.application.MarketNewsEventRepository;
@@ -40,15 +39,12 @@ public class MarketNewsController {
 
     private final MarketNewsEventRepository marketNewsEventRepository;
     private final MarketNewsCollectionService marketNewsCollectionService;
-    private final OnDemandNewsTranslationService onDemandNewsTranslationService;
 
     public MarketNewsController(
             MarketNewsEventRepository marketNewsEventRepository,
-            MarketNewsCollectionService marketNewsCollectionService,
-            OnDemandNewsTranslationService onDemandNewsTranslationService) {
+            MarketNewsCollectionService marketNewsCollectionService) {
         this.marketNewsEventRepository = marketNewsEventRepository;
         this.marketNewsCollectionService = marketNewsCollectionService;
-        this.onDemandNewsTranslationService = onDemandNewsTranslationService;
     }
 
     @GetMapping
@@ -80,13 +76,12 @@ public class MarketNewsController {
     @Operation(summary = "Get Korean market-wide news detail")
     public ApiResponse<MarketNewsEvent> getMarketNews(
             @PathVariable @Size(min = 1, max = 80) String newsId) {
-        var event = marketNewsCollectionService.ensureDisplayableNewsByNewsId(newsId)
+        var event = marketNewsEventRepository.findByNewsId(newsId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "market news not found"));
         if (!marketNewsCollectionService.isDisplayableNews(event)) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "market news analysis not available");
         }
         marketNewsEventRepository.recordView(newsId, Instant.now());
-        onDemandNewsTranslationService.requestMarketNewsTranslation(event);
         return ApiResponse.success(sanitizeAvailability(event));
     }
 

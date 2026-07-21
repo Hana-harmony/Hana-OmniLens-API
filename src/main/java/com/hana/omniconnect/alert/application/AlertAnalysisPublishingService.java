@@ -62,7 +62,18 @@ public class AlertAnalysisPublishingService {
     }
 
     public AlertPublishRequest analyzeForCollection(AlertAnalysisPublishRequest request) {
-        return analyze(request, false, true);
+        return analyze(request, false, false);
+    }
+
+    public boolean isPublishReady(AlertPublishRequest request) {
+        return request != null
+                && StringUtils.hasText(request.originalContent())
+                && EnglishNewsQualityGate.hasUsableEnglishText(request.translatedContent())
+                && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                        request.translatedContent(),
+                        request.summaryLines(),
+                        request.translatedSummary(),
+                        request.originalContent());
     }
 
     private AlertPublishRequest analyze(

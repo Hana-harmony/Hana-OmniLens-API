@@ -203,8 +203,14 @@ public class MarketNewsCollectionService {
     }
 
     public boolean isDisplayableNews(MarketNewsEvent event) {
+        return isReadyForFullTranslation(event)
+                && isDisplayableFullArticle(event);
+    }
+
+    private boolean isReadyForFullTranslation(MarketNewsEvent event) {
         return event != null
                 && StringUtils.hasText(event.originalUrl())
+                && hasCompleteArticleBody(event.originalContent())
                 && EnglishNewsQualityGate.hasUsableEnglishHeadlineText(event.translatedTitle())
                 && EnglishNewsQualityGate.hasUsableEnglishSummaryLines(
                         EnglishNewsQualityGate.englishSummaryLinesOrEmpty(event.summaryLines()));
@@ -618,9 +624,9 @@ public class MarketNewsCollectionService {
             }
             try {
                 MarketNewsEvent event = toEvent(query, article, duplicateKey);
-                if (!isDisplayableNews(event)) {
+                if (!isReadyForFullTranslation(event)) {
                     log.info(
-                            "Skipping market news article without displayable English analysis: query={}, url={}, availability={}, originalLength={}, translatedLength={}",
+                            "Skipping market news article without complete source and English analysis: query={}, url={}, availability={}, originalLength={}, translatedLength={}",
                             query,
                             article.originalUrl(),
                             event.contentAvailability(),
