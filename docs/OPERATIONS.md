@@ -294,6 +294,8 @@ HANNAH_AI_MAINTENANCE_TOKEN=<호스트 루트키에서 자동 파생>
 - 협력사별 API key는 원문을 저장하지 않고 SHA-256 해시만 저장한다.
 - `active=false` credential은 인증에 사용할 수 없다.
 - `rate_limit_exempt=true`인 활성 credential만 요청 제한을 건너뛰며 인증·서명·nonce 재사용 방지는 건너뛰지 않는다.
+- 전문이 아직 번역되지 않은 뉴스·공시 상세 조회는 현재 저장값을 즉시 반환하고 15분 중복 방지 키와 우선순위 queue로 전문 번역을 요청한다. 클라이언트는 `translatedContent`가 채워질 때까지 상세 GET을 재조회한다.
+- 일반 적체 worker는 한 번에 한 작업만 AI로 보내 Qwen 병렬 슬롯 하나를 상세 조회용으로 확보한다.
 - DB credential로 인증된 요청은 알림 API의 `partnerId`와 인증된 `partner_id`가 일치해야 한다.
 - 회원은 포털에서 API 이용을 신청하고 관리자는 관리자 화면에서 승인·반려한다.
 - 승인·재발급 시 서버가 새 256-bit API key를 생성한다. 인증용 테이블에는 SHA-256 hash만 저장하고, 포털 재조회용 원문은 별도 암호문으로 보관해 소유 회원의 현재 비밀번호 재확인 후 횟수 제한 없이 제공한다.

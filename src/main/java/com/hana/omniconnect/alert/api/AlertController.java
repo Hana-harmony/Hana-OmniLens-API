@@ -24,6 +24,7 @@ import com.hana.omniconnect.alert.application.AlertAnalysisPublishingService;
 import com.hana.omniconnect.alert.application.AlertProviderCollectionService;
 import com.hana.omniconnect.alert.application.AlertStreamingService;
 import com.hana.omniconnect.alert.application.PartnerWatchlistService;
+import com.hana.omniconnect.alert.application.OnDemandNewsTranslationService;
 import com.hana.omniconnect.alert.domain.AlertEvent;
 import com.hana.omniconnect.common.api.ApiResponse;
 import com.hana.omniconnect.common.api.KeysetCursor;
@@ -45,6 +46,7 @@ public class AlertController {
     private final PartnerWatchlistService partnerWatchlistService;
     private final PartnerAuthorizationService partnerAuthorizationService;
     private final AlertEventRepository alertEventRepository;
+    private final OnDemandNewsTranslationService onDemandNewsTranslationService;
 
     public AlertController(
             AlertStreamingService alertStreamingService,
@@ -52,13 +54,15 @@ public class AlertController {
             AlertProviderCollectionService alertProviderCollectionService,
             PartnerWatchlistService partnerWatchlistService,
             PartnerAuthorizationService partnerAuthorizationService,
-            AlertEventRepository alertEventRepository) {
+            AlertEventRepository alertEventRepository,
+            OnDemandNewsTranslationService onDemandNewsTranslationService) {
         this.alertStreamingService = alertStreamingService;
         this.alertAnalysisPublishingService = alertAnalysisPublishingService;
         this.alertProviderCollectionService = alertProviderCollectionService;
         this.partnerWatchlistService = partnerWatchlistService;
         this.partnerAuthorizationService = partnerAuthorizationService;
         this.alertEventRepository = alertEventRepository;
+        this.onDemandNewsTranslationService = onDemandNewsTranslationService;
     }
 
     @GetMapping("/watchlists/{partnerId}")
@@ -88,7 +92,8 @@ public class AlertController {
     public ApiResponse<AlertEvent> getEvent(@PathVariable @Size(min = 1, max = 80) String alertId) {
         AlertEvent event = alertEventRepository.findByAlertId(alertId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "alert event not found"));
-        return ApiResponse.success(alertAnalysisPublishingService.ensureDisplayableFullArticle(event));
+        onDemandNewsTranslationService.requestAlertTranslation(event);
+        return ApiResponse.success(event);
     }
 
     @PostMapping("/events/{alertId}/reprocess")
