@@ -17,8 +17,12 @@ class ExternalProviderPropertiesTest {
         assertThat(properties.naverNews().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
         assertThat(properties.openDart().baseUrl().toString()).isEqualTo("https://opendart.fss.or.kr");
         assertThat(properties.kis().baseUrl().toString())
-                .isEqualTo("https://openapi.koreainvestment.com:9443");
+                .isEqualTo("https://openapivts.koreainvestment.com:29443");
         assertThat(properties.kis().websocketUrl().toString())
+                .isEqualTo("ws://ops.koreainvestment.com:31000");
+        assertThat(properties.realKis().baseUrl().toString())
+                .isEqualTo("https://openapi.koreainvestment.com:9443");
+        assertThat(properties.realKis().websocketUrl().toString())
                 .isEqualTo("ws://ops.koreainvestment.com:21000");
         assertThat(properties.kis().accountNumber()).isEmpty();
 

@@ -22,8 +22,8 @@ public record ExternalProviderProperties(
         naverNews = naverNews == null ? NaverNews.defaults() : naverNews.withDefaults();
         openDart = openDart == null ? OpenDart.defaults() : openDart.withDefaults();
         krx = krx == null ? Krx.defaults() : krx.withDefaults();
-        kis = kis == null ? Kis.defaults() : kis.withDefaults();
-        realKis = realKis == null ? Kis.defaults() : realKis.withDefaults();
+        kis = kis == null ? Kis.virtualDefaults() : kis.withDefaults(Kis.virtualDefaults());
+        realKis = realKis == null ? Kis.realDefaults() : realKis.withDefaults(Kis.realDefaults());
     }
 
     public record PublicData(URI stockSecuritiesBaseUrl, String serviceKey) {
@@ -133,7 +133,18 @@ public record ExternalProviderProperties(
             String accessToken,
             String approvalKey) {
 
-        private static Kis defaults() {
+        private static Kis virtualDefaults() {
+            return new Kis(
+                    URI.create("https://openapivts.koreainvestment.com:29443"),
+                    URI.create("ws://ops.koreainvestment.com:31000"),
+                    "",
+                    "",
+                    "",
+                    "",
+                    "");
+        }
+
+        private static Kis realDefaults() {
             return new Kis(
                     URI.create("https://openapi.koreainvestment.com:9443"),
                     URI.create("ws://ops.koreainvestment.com:21000"),
@@ -144,8 +155,7 @@ public record ExternalProviderProperties(
                     "");
         }
 
-        private Kis withDefaults() {
-            Kis defaults = defaults();
+        private Kis withDefaults(Kis defaults) {
             return new Kis(
                     baseUrl == null ? defaults.baseUrl() : baseUrl,
                     websocketUrl == null ? defaults.websocketUrl() : websocketUrl,
