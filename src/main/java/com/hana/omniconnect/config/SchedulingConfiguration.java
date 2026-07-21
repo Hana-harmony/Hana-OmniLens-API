@@ -33,16 +33,4 @@ public class SchedulingConfiguration {
         return executor;
     }
 
-    @Bean(name = "onDemandNewsTranslationExecutor")
-    public ThreadPoolTaskExecutor onDemandNewsTranslationExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
-        executor.setQueueCapacity(20);
-        executor.setThreadNamePrefix("on-demand-news-translation-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(30);
-        executor.initialize();
-        return executor;
-    }
 }

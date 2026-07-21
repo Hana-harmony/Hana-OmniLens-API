@@ -1,6 +1,7 @@
 package com.hana.omniconnect.marketnews.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -30,8 +31,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.hana.omniconnect.alert.domain.AlertSummaryLines;
 import com.hana.omniconnect.alert.application.AlertTitleTranslationService;
-import com.hana.omniconnect.alert.application.OnDemandNewsTranslationService;
 import com.hana.omniconnect.alert.application.AlertTitleTranslationService.TranslationResult;
+import com.hana.omniconnect.alert.application.NewsTranslationEnrichmentAttemptStore;
+import com.hana.omniconnect.marketnews.application.MarketNewsCollectionService;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisClient;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisResponse;
@@ -55,6 +57,9 @@ class MarketNewsControllerTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private MarketNewsCollectionService marketNewsCollectionService;
+
     @MockitoBean
     private NaverNewsClient naverNewsClient;
 
@@ -68,13 +73,14 @@ class MarketNewsControllerTest {
     private AlertTitleTranslationService alertTitleTranslationService;
 
     @MockitoBean
-    private OnDemandNewsTranslationService onDemandNewsTranslationService;
+    private NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore;
 
     @BeforeEach
     void deleteMarketNews() {
         com.hana.omniconnect.support.PartnerCredentialTestData.replace(
                 jdbcTemplate, "partner-market-news", "test-api-key");
         jdbcTemplate.update("DELETE FROM market_news_event");
+        when(enrichmentAttemptStore.claim(anyString(), anyString())).thenReturn(true);
     }
 
     @Test
@@ -98,7 +104,7 @@ class MarketNewsControllerTest {
                         "licensed_naver_original_full_text_v1")));
         when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
-            return deferredMarketAnalysis(request, "market-news-duplicate");
+            return fullMarketAnalysis(request, "market-news-duplicate");
         });
         when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
@@ -156,6 +162,17 @@ class MarketNewsControllerTest {
         mockMvc.perform(get("/api/v1/market/news")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.newsCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.news").isEmpty());
+        mockMvc.perform(get("/api/v1/market/news/{newsId}", newsId)
+                        .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
+                .andExpect(status().isNotFound());
+
+        assertThat(marketNewsCollectionService.enrichNextPendingFullTranslation()).isPresent();
+
+        mockMvc.perform(get("/api/v1/market/news")
+                        .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.news[0].newsId", equalTo(newsId)));
 
@@ -163,6 +180,8 @@ class MarketNewsControllerTest {
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsId", equalTo(newsId)))
+                .andExpect(jsonPath("$.data.contentAvailability", equalTo("FULL_TEXT")))
+                .andExpect(jsonPath("$.data.translatedContent", containsString("Korean stocks closed higher")))
                 .andExpect(jsonPath("$.data.originalContent", equalTo(originalBody)))
                 .andExpect(jsonPath("$.data.imageUrls[0]", equalTo("https://news.example.com/image.jpg")));
     }
@@ -286,7 +305,7 @@ class MarketNewsControllerTest {
                         "코스피 상승 마감")));
         when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
-            return deferredMarketAnalysis(request, "extra-candidate-duplicate");
+            return fullMarketAnalysis(request, "extra-candidate-duplicate");
         });
         when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
@@ -876,7 +895,7 @@ class MarketNewsControllerTest {
                         org.hamcrest.Matchers.containsString("Samsung Electronics and SK Hynix")));
     }
 
-    private HannahAiAnalysisResponse deferredMarketAnalysis(
+    private HannahAiAnalysisResponse fullMarketAnalysis(
             HannahAiAnalysisRequest request,
             String duplicateKey) {
         AlertSummaryLines summaryLines = new AlertSummaryLines(
@@ -889,13 +908,16 @@ class MarketNewsControllerTest {
                 "",
                 request.sourceType(),
                 request.title(),
-                "",
+                summaryLines.what(),
                 summary,
                 summaryLines,
-                "",
+                summary,
                 "FULL_TEXT",
                 request.content(),
-                "",
+                "The Korean stock market closed higher as foreign investors bought large-cap semiconductor shares. "
+                        + "Technology earnings expectations and a stable exchange rate improved investor sentiment. "
+                        + "Institutional buying strengthened late in the session as trading value increased. "
+                        + "Investors should monitor foreign flows and the earnings outlook for major chipmakers.",
                 request.imageUrls(),
                 List.of("MACRO"),
                 "POSITIVE",
@@ -908,9 +930,9 @@ class MarketNewsControllerTest {
                 true,
                 List.of(),
                 List.of(),
-                "deferred-full-text-translation",
-                "financial-ml-tfidf-logreg-test",
-                "SOURCE_LANGUAGE_FALLBACK",
+                "local-open-source-qwen3-translation",
+                "local-llm:Qwen3-4B-GGUF-Q4",
+                "TRANSLATED",
                 duplicateKey,
                 duplicateKey,
                 "financial-ml-tfidf-logreg-test",

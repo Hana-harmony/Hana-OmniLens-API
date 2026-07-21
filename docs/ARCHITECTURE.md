@@ -44,7 +44,7 @@
 - 협력사 watchlist는 Flyway가 생성한 `partner_watchlist_subscription` 테이블과 JDBC 저장소를 사용한다.
 - watchlist 종목은 `stock_master` FK로 제한하며, REST API 저장 시 미지원 종목은 404로 거부한다.
 - 협력사 API key는 Flyway가 생성한 `partner_api_credential` 테이블에 SHA-256 해시, `partner_id`, 파트너별 요청 제한 정책으로 저장한다.
-- 전문 번역이 비어 있는 상세 GET은 저장된 이벤트를 즉시 반환하고 별도 우선순위 executor에 번역을 요청한다. 백그라운드 적체 처리는 단일 worker로 제한해 Qwen의 다른 슬롯을 상세 조회용으로 남긴다.
+- 뉴스·공시 리스트와 상세는 완전한 원문과 검증된 영문 전문이 모두 저장된 이벤트만 공개한다. 상세 GET은 번역을 시작하거나 대기하지 않는다.
 - `MarketDataService`는 KIS 실시간 체결 cache, KIS 현재가 REST, PostgreSQL 최신 정규장 분봉, 공공데이터 전일 snapshot 순서로 실제 provider 가격을 조회한다. 재기동·휴장일에는 저장 분봉의 체결 시각과 출처를 그대로 노출하며, 가격, KRX 외국인 보유량 snapshot, 또는 FX cache가 없으면 가짜 시장 데이터로 성공 응답을 만들지 않고 `MARKET_002`로 실패한다.
 - `MarketDataService`는 KIS 실시간 호가 cache를 우선 사용하고, 장외 또는 초기 구동처럼 cache가 비어 있으면 KIS REST 호가 snapshot으로 orderbook 응답을 보강한다.
 - `MarketQuoteWebSocketHandler`는 raw WebSocket `/ws/market/quotes`에서 인증된 협력사 연결을 관리하고, `RealtimeMarketDataIngestionService`가 KIS 체결 tick을 수신하면 KRW/현지통화/FX metadata가 포함된 `MarketQuote` JSON을 송신한다.
@@ -68,7 +68,7 @@
 - 뉴스·공시 중복 재발행 방지는 Redis TTL 기반 dedupe를 기본으로 사용하고, Redis 장애 시 프로세스 단위 in-memory fallback을 사용한다.
 - v2에서는 watchlist 수집 경로와 별도로 전체 종목 shard 스케줄러를 둔다. 처리된 뉴스·공시는 DB 이벤트 저장소에 먼저 저장하고, canonical URL/content hash/AI duplicate key/cluster key로 중복을 줄인 뒤 REST 목록·상세와 WebSocket 이벤트를 같은 저장 레코드에서 만든다.
 - 전문과 이미지 URL은 Naver Search row에서 직접 얻는 값이 아니다. 사용 허가된 원문 URL 또는 공시 원문에서 수집하고, block element 단위 문단과 줄바꿈을 보존해 전문을 저장한 뒤 동일 레코드에서 REST 목록·상세와 WebSocket payload를 만든다. 이미지 후보는 DOM 정제 전에 Open Graph, JSON-LD, article/header의 lazy-loading 속성에서 수집하며 후보가 없으면 빈 `imageUrls`를 반환한다.
-- 한국 증시 시장뉴스는 종목별 alert와 별도 테이블 `market_news_event`에 저장하고 `/api/v1/market/news`, `/api/v1/market/news/{newsId}`, `/api/v1/market/news/collect`로 제공한다. 상세 API는 저장된 영문 전문이 없거나 요약 형태이면 전체 번역을 보강한 뒤 반환한다. 기본 검색어는 `한국 증시`, `코스피 코스닥`, `국내 증시`이며 원문 보강 가능 시 전문·이미지 URL을 함께 보관한다.
-- 스케줄러 수집은 Hannah 분석의 `DEFERRED` 번역 모드를 사용한다. 종목 연결·감성·중요도·시장영향·영문 What/Why/Impact를 먼저 저장하고 전체 본문 번역을 적재 성공 조건에서 제외한다. 원문, 이미지, 원문 링크와 `ORIGINAL_TEXT_ONLY` 상태를 보존하며, 별도 2-worker 보강 큐가 `FULL` 모드로 전체 영문 본문을 자동 완성해 `FULL_TEXT`로 전환한다.
-- 시장뉴스 목록·상세는 검증된 영문 헤드라인과 What/Why/Impact가 있으면 노출한다. 상세 조회는 전체 본문 번역을 동기 호출하지 않으며 누락된 이미지 metadata만 원문에서 다시 확인한다.
+- 한국 증시 시장뉴스는 종목별 alert와 별도 테이블 `market_news_event`에 저장하고 `/api/v1/market/news`, `/api/v1/market/news/{newsId}`, `/api/v1/market/news/collect`로 제공한다. 기본 검색어는 `한국 증시`, `코스피 코스닥`, `국내 증시`이며 원문·이미지 URL을 함께 보관한다.
+- 시장뉴스 수집은 Hannah `DEFERRED` 모드로 완전한 원문과 영문 What/Why/Impact를 먼저 내부 대기 레코드로 적재한다. 백그라운드 보강이 전체 영문 본문을 검증해 `FULL_TEXT`로 전환한 뒤에만 목록·상세·트렌딩에 노출한다.
+- 종목 뉴스·공시 수집은 Hannah `FULL` 모드를 사용하고 전체 영문 본문 품질 gate를 통과한 이벤트만 DB·REST·WebSocket에 발행한다. 기존 미완료 레코드는 보강 대상으로 유지하되 완료 전에는 외부에 노출하지 않는다.
 - WebSocket subscription 계약 테스트가 실제 STOMP client로 topic 수신과 협력사 topic 권한을 검증한다.

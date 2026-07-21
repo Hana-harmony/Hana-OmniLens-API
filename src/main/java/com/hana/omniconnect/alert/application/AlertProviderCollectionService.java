@@ -825,6 +825,16 @@ public class AlertProviderCollectionService {
                 counters.failedAnalysisCount++;
                 return PublicationResult.SKIPPED;
             }
+            if (!alertAnalysisPublishingService.isPublishReady(analyzedAlert)) {
+                log.info(
+                        "Skipping alert article until the complete English article is ready: stockCode={}, sourceType={}, url={}",
+                        stock.stockCode(),
+                        sourceType,
+                        originalUrl);
+                alertDedupeStore.remove(sourceKey);
+                counters.failedAnalysisCount++;
+                return PublicationResult.SKIPPED;
+            }
             String aiDuplicateKey = aiDuplicateKey(partnerId, analyzedAlert);
             if ("NEWS".equalsIgnoreCase(analyzedAlert.sourceType())
                     && StringUtils.hasText(analyzedAlert.duplicateKey())

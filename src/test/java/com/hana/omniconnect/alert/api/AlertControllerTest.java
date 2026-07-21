@@ -33,7 +33,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.hana.omniconnect.alert.application.AlertTitleTranslationService;
-import com.hana.omniconnect.alert.application.OnDemandNewsTranslationService;
 import com.hana.omniconnect.alert.application.AlertTitleTranslationService.TranslationResult;
 import com.hana.omniconnect.alert.domain.AlertSummaryLines;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisClient;
@@ -75,9 +74,6 @@ class AlertControllerTest {
 
     @MockitoBean
     private AlertTitleTranslationService alertTitleTranslationService;
-
-    @MockitoBean
-    private OnDemandNewsTranslationService onDemandNewsTranslationService;
 
     @BeforeEach
     void deletePartnerCredentials() {
@@ -213,6 +209,34 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.events.length()", equalTo(20)))
                 .andExpect(jsonPath("$.data.events[0].alertId", equalTo("news-backfill-0")))
                 .andExpect(jsonPath("$.data.nextCursor").isNotEmpty());
+    }
+
+    @Test
+    void listAndDetailHideAlertUntilFullEnglishArticleIsReady() throws Exception {
+        jdbcTemplate.update("DELETE FROM alert_event");
+        insertBrokenAlertEvent(
+                "news-pending-translation",
+                "005930",
+                "삼성전자",
+                "https://news.example.com/pending",
+                "2026-07-09T09:01:00Z");
+        insertAlertEvent(
+                "news-complete-translation",
+                "NEWS",
+                "005930",
+                Instant.parse("2026-07-09T09:00:00Z"),
+                "삼성전자 전문 번역 완료");
+
+        mockMvc.perform(get("/api/v1/alerts/stocks/005930/events")
+                        .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
+                        .param("limit", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.events.length()", equalTo(1)))
+                .andExpect(jsonPath("$.data.events[0].alertId", equalTo("news-complete-translation")));
+
+        mockMvc.perform(get("/api/v1/alerts/events/news-pending-translation")
+                        .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1039,7 +1063,7 @@ class AlertControllerTest {
                         "opendart_public_disclosure_text_v1")));
         when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
-            return deferredCollectionAnalysis(request, "provider-collection-duplicate-key");
+            return fullCollectionAnalysis(request, "provider-collection-duplicate-key");
         });
         when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
                 .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
@@ -1075,14 +1099,14 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.events[0].glossaryTerms[*].sourceTerm", hasItem("KOSPI")))
                 .andExpect(jsonPath("$.data.events[0].translationQualityFlags", hasItem("FINANCIAL_GLOSSARY_APPLIED")))
                 .andExpect(jsonPath("$.data.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
-                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("ORIGINAL_TEXT_ONLY")))
+                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
                 .andExpect(jsonPath("$.data.events[0].originalContent",
                         containsString("주가가 강세를 보였다")))
-                .andExpect(jsonPath("$.data.events[0].translatedContent", equalTo("")))
+                .andExpect(jsonPath("$.data.events[0].translatedContent", containsString("Samsung Electronics")))
                 .andExpect(jsonPath("$.data.events[0].imageUrls[0]",
                         equalTo("https://news.example.com/images/1.jpg")))
                 .andExpect(jsonPath("$.data.events[1].sourceType", equalTo("DISCLOSURE")))
-                .andExpect(jsonPath("$.data.events[1].contentAvailability", equalTo("ORIGINAL_TEXT_ONLY")))
+                .andExpect(jsonPath("$.data.events[1].contentAvailability", equalTo("FULL_TEXT")))
                 .andExpect(jsonPath("$.data.events[1].originalContent",
                         equalTo("삼성전자 주요사항보고서 전문이다. 자기주식 취득과 소각 결정으로 주주환원 영향이 있다.")));
     }
@@ -1193,7 +1217,7 @@ class AlertControllerTest {
     }
 
     @Test
-    void collectAndPublishDoesNotBlockOnFullTextTranslation() throws Exception {
+    void collectAndPublishRequiresCompleteFullTextTranslation() throws Exception {
         when(naverNewsClient.search(eq("삼성전자 주가"), anyInt())).thenReturn(List.of(
                 new NaverNewsArticle(
                         "삼성전자 주가 번역 실패 기사",
@@ -1220,7 +1244,12 @@ class AlertControllerTest {
                 "licensed_naver_original_full_text_v1")));
         when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
-            return deferredCollectionAnalysis(
+            if (request.title().contains("번역 실패")) {
+                return incompleteCollectionAnalysis(
+                        request,
+                        "duplicate-" + Math.abs(request.title().hashCode()));
+            }
+            return fullCollectionAnalysis(
                     request,
                     "duplicate-" + Math.abs(request.title().hashCode()));
         });
@@ -1252,9 +1281,9 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.collectedDisclosureCount", equalTo(0)))
                 .andExpect(jsonPath("$.data.publishedCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.skippedDuplicateCount", equalTo(0)))
-                .andExpect(jsonPath("$.data.failedAnalysisCount", equalTo(0)))
-                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("ORIGINAL_TEXT_ONLY")))
-                .andExpect(jsonPath("$.data.events[0].originalTitle", equalTo("삼성전자 주가 번역 실패 기사")));
+                .andExpect(jsonPath("$.data.failedAnalysisCount", equalTo(1)))
+                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
+                .andExpect(jsonPath("$.data.events[0].originalTitle", equalTo("삼성전자 주가 실적 개선")));
     }
 
     private void insertBrokenAlertEvent(
@@ -1487,7 +1516,7 @@ class AlertControllerTest {
                 """.formatted(alertId, stockCode, stockName, title, title, stockCode, alertId, alertId));
     }
 
-    private HannahAiAnalysisResponse deferredCollectionAnalysis(
+    private HannahAiAnalysisResponse fullCollectionAnalysis(
             HannahAiAnalysisRequest request,
             String duplicateKey) {
         String subject = "NEWS".equals(request.sourceType())
@@ -1503,13 +1532,16 @@ class AlertControllerTest {
                 "삼성전자",
                 request.sourceType(),
                 request.title(),
-                "",
+                summaryLines.what(),
                 summary,
                 summaryLines,
-                "",
+                summary,
                 "FULL_TEXT",
                 request.content(),
-                "",
+                "Samsung Electronics reported a market-moving update in the source article. "
+                        + "Semiconductor demand and corporate decisions were identified as the main drivers. "
+                        + "Foreign and institutional flows supported the market reaction. "
+                        + "Investors should monitor earnings, liquidity, and the next official filing.",
                 request.imageUrls(),
                 List.of("NEWS".equals(request.sourceType()) ? "EARNINGS" : "DISCLOSURE"),
                 "POSITIVE",
@@ -1522,8 +1554,52 @@ class AlertControllerTest {
                 true,
                 List.of(new HannahAiGlossaryTerm("실적", "실적", "earnings", "event")),
                 List.of("FINANCIAL_GLOSSARY_APPLIED"),
-                "deferred-full-text-translation",
+                "local-open-source-qwen3-translation",
+                "local-llm:Qwen3-4B-GGUF-Q4",
+                "TRANSLATED",
+                duplicateKey,
+                duplicateKey,
                 "financial-ml-tfidf-logreg-test",
+                0.91,
+                0.89,
+                0.93,
+                1.0);
+    }
+
+    private HannahAiAnalysisResponse incompleteCollectionAnalysis(
+            HannahAiAnalysisRequest request,
+            String duplicateKey) {
+        AlertSummaryLines summaryLines = new AlertSummaryLines(
+                "Samsung Electronics reported a stock-market update.",
+                "The source links the event to semiconductor demand.",
+                "Investors should monitor the next earnings release.");
+        String summary = String.join("\n", summaryLines.what(), summaryLines.why(), summaryLines.impact());
+        return new HannahAiAnalysisResponse(
+                "005930",
+                "삼성전자",
+                request.sourceType(),
+                request.title(),
+                "",
+                summary,
+                summaryLines,
+                "",
+                "FULL_TEXT",
+                request.content(),
+                "",
+                request.imageUrls(),
+                List.of("EARNINGS"),
+                "POSITIVE",
+                "HIGH",
+                null,
+                null,
+                null,
+                List.of("005930"),
+                true,
+                true,
+                List.of(),
+                List.of("LOCAL_TRANSLATION_PROVIDER_ERROR"),
+                "source-language-fallback",
+                "local-llm:Qwen3-4B-GGUF-Q4",
                 "SOURCE_LANGUAGE_FALLBACK",
                 duplicateKey,
                 duplicateKey,

@@ -57,6 +57,7 @@ class AlertProviderCollectionServiceTest {
 
     AlertProviderCollectionServiceTest() {
         when(dedupeStore.acquireLease(any(), any())).thenReturn(Optional.of("test-lease-token"));
+        when(publishingService.isPublishReady(any(AlertPublishRequest.class))).thenReturn(true);
     }
 
     @Test
