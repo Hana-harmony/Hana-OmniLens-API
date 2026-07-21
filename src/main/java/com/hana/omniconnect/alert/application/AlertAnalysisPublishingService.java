@@ -30,23 +30,18 @@ import com.hana.omniconnect.provider.ai.HannahAiStockCandidate;
 public class AlertAnalysisPublishingService {
 
     private static final Logger log = LoggerFactory.getLogger(AlertAnalysisPublishingService.class);
-    private static final int ENRICHMENT_CANDIDATE_SCAN_LIMIT = 1_000;
-
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertStreamingService alertStreamingService;
     private final AlertEventRepository alertEventRepository;
-    private final NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore;
     private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
 
     public AlertAnalysisPublishingService(
             HannahAiAnalysisClient hannahAiAnalysisClient,
             AlertStreamingService alertStreamingService,
-            AlertEventRepository alertEventRepository,
-            NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore) {
+            AlertEventRepository alertEventRepository) {
         this.hannahAiAnalysisClient = hannahAiAnalysisClient;
         this.alertStreamingService = alertStreamingService;
         this.alertEventRepository = alertEventRepository;
-        this.enrichmentAttemptStore = enrichmentAttemptStore;
     }
 
     public AlertEvent analyzeAndPublish(AlertAnalysisPublishRequest request) {
@@ -257,38 +252,6 @@ public class AlertAnalysisPublishingService {
                 .map(this::reprocessIfPossible)
                 .flatMap(Optional::stream)
                 .toList();
-    }
-
-    public Optional<AlertEvent> enrichNextPendingFullTranslation() {
-        return alertEventRepository.findSummaryQualityIssues(ENRICHMENT_CANDIDATE_SCAN_LIMIT).stream()
-                .filter(event -> StringUtils.hasText(event.originalContent()))
-                .filter(event -> !StringUtils.hasText(event.translatedContent()))
-                // 실패 기사는 유예하고 다음 기사를 처리해 대기열 고착을 막는다.
-                .filter(event -> enrichmentAttemptStore.claim("alert", event.alertId()))
-                .findFirst()
-                .flatMap(this::enrichFullTranslationIfPossible);
-    }
-
-    private Optional<AlertEvent> enrichFullTranslationIfPossible(AlertEvent event) {
-        try {
-            // 제목·What/Why/Impact·전문을 같은 Qwen 분석 결과로 교체한다.
-            AlertEvent enriched = reprocess(event);
-            if (!isDisplayableFullArticle(enriched)) {
-                log.warn(
-                        "Keeping alert full translation pending after Qwen reprocess returned incomplete content: alertId={}, stockCode={}",
-                        event.alertId(),
-                        event.stockCode());
-                return Optional.empty();
-            }
-            return Optional.of(enriched);
-        } catch (RuntimeException exception) {
-            log.warn(
-                    "Keeping alert full translation pending after enrichment failure: alertId={}, stockCode={}",
-                    event.alertId(),
-                    event.stockCode(),
-                    exception);
-            return Optional.empty();
-        }
     }
 
     private AlertEvent toExistingEvent(String alertId, Instant createdAt, AlertPublishRequest request) {

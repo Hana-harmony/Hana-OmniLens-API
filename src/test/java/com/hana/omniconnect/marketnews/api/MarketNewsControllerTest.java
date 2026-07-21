@@ -31,7 +31,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.hana.omniconnect.alert.domain.AlertSummaryLines;
 import com.hana.omniconnect.alert.application.ArticleTranslationResult;
-import com.hana.omniconnect.alert.application.NewsTranslationEnrichmentAttemptStore;
 import com.hana.omniconnect.marketnews.application.MarketNewsCollectionService;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisClient;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisRequest;
@@ -68,15 +67,11 @@ class MarketNewsControllerTest {
     @MockitoBean
     private HannahAiAnalysisClient hannahAiAnalysisClient;
 
-    @MockitoBean
-    private NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore;
-
     @BeforeEach
     void deleteMarketNews() {
         com.hana.omniconnect.support.PartnerCredentialTestData.replace(
                 jdbcTemplate, "partner-market-news", "test-api-key");
         jdbcTemplate.update("DELETE FROM market_news_event");
-        when(enrichmentAttemptStore.claim(anyString(), anyString())).thenReturn(true);
     }
 
     @Test
@@ -126,41 +121,25 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.events[0].summaryLines.what", equalTo(expectedEnglishWhat)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.why", equalTo(expectedEnglishWhy)))
                 .andExpect(jsonPath("$.data.events[0].summaryLines.impact", equalTo(expectedEnglishImpact)))
-                .andExpect(jsonPath("$.data.events[0].translatedContent", equalTo("")))
+                .andExpect(jsonPath("$.data.events[0].translatedContent",
+                        containsString("The Korean stock market closed higher")))
                 .andExpect(jsonPath("$.data.events[0].sentiment", equalTo("POSITIVE")))
                 .andExpect(jsonPath("$.data.events[0].importance", equalTo("MEDIUM")))
-                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("ORIGINAL_TEXT_ONLY")))
+                .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
                 .andExpect(jsonPath("$.data.events[0].translationProvider",
                         equalTo("local-open-source-qwen3-translation")))
-                .andExpect(jsonPath("$.data.events[0].translationStatus",
-                        equalTo("PARTIAL_SOURCE_LANGUAGE_FALLBACK")));
+                .andExpect(jsonPath("$.data.events[0].translationStatus", equalTo("TRANSLATED")));
 
         ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
                 ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
         verify(hannahAiAnalysisClient).analyze(requestCaptor.capture());
         org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().content())
                 .isEqualTo(originalBody);
-        assertThat(requestCaptor.getValue().translationMode()).isEqualTo("DEFERRED");
+        assertThat(requestCaptor.getValue().translationMode()).isEqualTo("FULL");
 
         String newsId = jdbcTemplate.queryForObject(
                 "SELECT news_id FROM market_news_event LIMIT 1",
                 String.class);
-        jdbcTemplate.update(
-                "UPDATE market_news_event SET event_json = REPLACE(event_json, ?, ?) WHERE news_id = ?",
-                "\"imageUrls\":[\"https://news.example.com/image.jpg\"]",
-                "\"imageUrls\":[]",
-                newsId);
-
-        mockMvc.perform(get("/api/v1/market/news")
-                        .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.newsCount", equalTo(0)))
-                .andExpect(jsonPath("$.data.news").isEmpty());
-        mockMvc.perform(get("/api/v1/market/news/{newsId}", newsId)
-                        .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
-                .andExpect(status().isNotFound());
-
-        assertThat(marketNewsCollectionService.enrichNextPendingFullTranslation()).isPresent();
 
         mockMvc.perform(get("/api/v1/market/news")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))

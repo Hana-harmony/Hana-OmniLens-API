@@ -29,7 +29,6 @@ import com.hana.omniconnect.alert.domain.AlertSummaryLines;
 import com.hana.omniconnect.alert.application.ArticleTranslationResult;
 import com.hana.omniconnect.alert.application.EnglishNewsQualityGate;
 import com.hana.omniconnect.alert.application.KoreanMarketGlossaryTermExtractor;
-import com.hana.omniconnect.alert.application.NewsTranslationEnrichmentAttemptStore;
 import com.hana.omniconnect.config.MarketNewsCollectionProperties;
 import com.hana.omniconnect.market.application.StockMasterRepository;
 import com.hana.omniconnect.market.domain.StockSummary;
@@ -51,7 +50,6 @@ public class MarketNewsCollectionService {
     private static final int NAVER_MARKET_NEWS_FETCH_MULTIPLIER = 5;
     private static final int NAVER_MARKET_NEWS_MAX_DISPLAY = 100;
     private static final int MAX_NEW_MARKET_NEWS_PER_RUN = 100;
-    private static final int ENRICHMENT_CANDIDATE_SCAN_LIMIT = 1_000;
     private static final Duration INCREMENTAL_COLLECTION_OVERLAP = Duration.ofHours(24);
 
     private final NaverNewsClient naverNewsClient;
@@ -60,7 +58,6 @@ public class MarketNewsCollectionService {
     private final MarketNewsCollectionProperties properties;
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final StockMasterRepository stockMasterRepository;
-    private final NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore;
     private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
     private final Clock clock;
     private volatile List<String> listedIssuerNameCache;
@@ -72,8 +69,7 @@ public class MarketNewsCollectionService {
             MarketNewsEventRepository marketNewsEventRepository,
             MarketNewsCollectionProperties properties,
             HannahAiAnalysisClient hannahAiAnalysisClient,
-            StockMasterRepository stockMasterRepository,
-            NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore) {
+            StockMasterRepository stockMasterRepository) {
         this(
                 naverNewsClient,
                 originalArticleClient,
@@ -81,7 +77,6 @@ public class MarketNewsCollectionService {
                 properties,
                 hannahAiAnalysisClient,
                 stockMasterRepository,
-                enrichmentAttemptStore,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -92,7 +87,6 @@ public class MarketNewsCollectionService {
             MarketNewsCollectionProperties properties,
             HannahAiAnalysisClient hannahAiAnalysisClient,
             StockMasterRepository stockMasterRepository,
-            NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore,
             Clock clock) {
         this.naverNewsClient = naverNewsClient;
         this.originalArticleClient = originalArticleClient;
@@ -100,7 +94,6 @@ public class MarketNewsCollectionService {
         this.properties = properties;
         this.hannahAiAnalysisClient = hannahAiAnalysisClient;
         this.stockMasterRepository = stockMasterRepository;
-        this.enrichmentAttemptStore = enrichmentAttemptStore;
         this.clock = clock;
     }
 
@@ -157,11 +150,6 @@ public class MarketNewsCollectionService {
                 .flatMap(this::reprocessIfPossible);
     }
 
-    public Optional<MarketNewsEvent> ensureDisplayableFullArticleByNewsId(String newsId) {
-        return marketNewsEventRepository.findByNewsId(newsId)
-                .map(this::ensureDisplayableFullArticle);
-    }
-
     public Optional<MarketNewsEvent> ensureDisplayableNewsByNewsId(String newsId) {
         return marketNewsEventRepository.findByNewsId(newsId)
                 .map(this::refreshMissingImages);
@@ -190,26 +178,6 @@ public class MarketNewsCollectionService {
                 && EnglishNewsQualityGate.hasUsableEnglishHeadlineText(event.translatedTitle())
                 && EnglishNewsQualityGate.hasUsableEnglishSummaryLines(
                         EnglishNewsQualityGate.englishSummaryLinesOrEmpty(event.summaryLines()));
-    }
-
-    private MarketNewsEvent ensureDisplayableFullArticle(MarketNewsEvent event) {
-        event = refreshMissingImages(event);
-        if (isDisplayableFullArticle(event)) {
-            return event;
-        }
-        try {
-            MarketNewsEvent reprocessed = reprocess(event);
-            if (isDisplayableFullArticle(reprocessed)) {
-                return reprocessed;
-            }
-            return reprocessed;
-        } catch (RuntimeException reprocessException) {
-            log.warn(
-                    "Failed to restore displayable full market news article: newsId={}",
-                    event.newsId(),
-                    reprocessException);
-            return event;
-        }
     }
 
     private MarketNewsEvent refreshMissingImages(MarketNewsEvent event) {
@@ -243,41 +211,12 @@ public class MarketNewsCollectionService {
                 .toList();
     }
 
-    public Optional<MarketNewsEvent> enrichNextPendingFullTranslation() {
-        return marketNewsEventRepository.findSummaryQualityIssues(ENRICHMENT_CANDIDATE_SCAN_LIMIT).stream()
-                .filter(event -> StringUtils.hasText(event.originalContent()))
-                .filter(event -> !StringUtils.hasText(event.translatedContent()))
-                .filter(event -> enrichmentAttemptStore.claim("market", event.newsId()))
-                .findFirst()
-                .flatMap(this::enrichFullTranslationIfPossible);
-    }
-
-    private Optional<MarketNewsEvent> enrichFullTranslationIfPossible(MarketNewsEvent event) {
-        try {
-            // 제목·What/Why/Impact·전문을 같은 Qwen 분석 결과로 교체한다.
-            MarketNewsEvent enriched = reprocess(event);
-            if (!isDisplayableNews(enriched)) {
-                log.warn(
-                        "Keeping market news full translation pending after Qwen reprocess returned incomplete content: newsId={}",
-                        event.newsId());
-                return Optional.empty();
-            }
-            return Optional.of(enriched);
-        } catch (RuntimeException exception) {
-            log.warn(
-                    "Keeping market news full translation pending after enrichment failure: newsId={}",
-                    event.newsId(),
-                    exception);
-            return Optional.empty();
-        }
-    }
-
     private Optional<MarketNewsEvent> reprocessIfPossible(MarketNewsEvent event) {
         try {
             return Optional.of(reprocess(event));
         } catch (RuntimeException exception) {
             log.warn(
-                    "Keeping market news full translation pending after enrichment failure: newsId={}",
+                    "Skipping market news reprocess after Qwen failure: newsId={}",
                     event.newsId(),
                     exception);
             return Optional.empty();
@@ -323,7 +262,7 @@ public class MarketNewsCollectionService {
             }
             try {
                 MarketNewsEvent event = toEvent(query, article, duplicateKey);
-                if (!isReadyForFullTranslation(event)) {
+                if (!isDisplayableNews(event)) {
                     log.info(
                             "Skipping market news article without complete source and English analysis: query={}, url={}, availability={}, originalLength={}, translatedLength={}",
                             query,
@@ -605,8 +544,7 @@ public class MarketNewsCollectionService {
                 article,
                 originalContent,
                 fullContent,
-                sourceContentAvailability,
-                true);
+                sourceContentAvailability);
         String contentAvailability = contentAvailability(originalContent, analysis.translatedContent(), sourceContentAvailability);
         return new MarketNewsEvent(
                 "mkt-news-" + duplicateKey.substring(0, 24),
@@ -654,8 +592,7 @@ public class MarketNewsCollectionService {
                         event.publishedAt()),
                 originalContent,
                 fullContent,
-                sourceContentAvailability,
-                false);
+                sourceContentAvailability);
         String contentAvailability = contentAvailability(
                 originalContent,
                 analysis.translatedContent(),
@@ -816,8 +753,7 @@ public class MarketNewsCollectionService {
             NaverNewsArticle article,
             String originalContent,
             Optional<OriginalArticleContent> fullContent,
-            String contentAvailability,
-            boolean deferFullTranslation) {
+            String contentAvailability) {
         HannahAiAnalysisResponse ai = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
                 "NEWS",
                 article.title(),
@@ -829,9 +765,7 @@ public class MarketNewsCollectionService {
                 fullContent.map(OriginalArticleContent::sourceLicensePolicy).orElse(contentAvailability),
                 article.originalUrl(),
                 List.of(),
-                deferFullTranslation
-                        ? HannahAiAnalysisRequest.TRANSLATION_MODE_DEFERRED
-                        : HannahAiAnalysisRequest.TRANSLATION_MODE_FULL));
+                HannahAiAnalysisRequest.TRANSLATION_MODE_FULL));
         List<AlertGlossaryTerm> glossaryTerms = withMatchedStockGlossary(
                 toAlertGlossaryTerms(ai.glossaryTerms()),
                 ai);
@@ -849,17 +783,13 @@ public class MarketNewsCollectionService {
                 translatedSummaryText,
                 ai,
                 "market news What/Why/Impact");
-        ArticleTranslationResult translatedContent = deferFullTranslation
-                ? deferredTranslationResult(ai)
-                : translatedContentFromAnalysis(ai, originalContent)
-                        .orElseThrow(() -> new IllegalStateException(
-                                "Qwen analysis did not return a complete English market news article"));
-        String translatedContentText = deferFullTranslation
-                ? ""
-                : requireOptionalEnglishContent(
-                        translatedContent,
-                        originalContent,
-                        "market news content");
+        ArticleTranslationResult translatedContent = translatedContentFromAnalysis(ai, originalContent)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Qwen analysis did not return a complete English market news article"));
+        String translatedContentText = requireOptionalEnglishContent(
+                translatedContent,
+                originalContent,
+                "market news content");
         ArticleTranslationResult effectiveTranslatedSummary = translatedSummaryResult(
                 translatedSummaryText,
                 translatedSummary,
@@ -927,14 +857,6 @@ public class MarketNewsCollectionService {
                 firstText(analysis.translationModelVersion(), analysis.modelVersion()),
                 ArticleTranslationResult.STATUS_TRANSLATED,
                 analysis.translationQualityFlags());
-    }
-
-    private ArticleTranslationResult deferredTranslationResult(HannahAiAnalysisResponse analysis) {
-        return new ArticleTranslationResult(
-                "",
-                "deferred-full-text-translation",
-                analysis == null ? "" : analysis.modelVersion(),
-                ArticleTranslationResult.STATUS_SOURCE_LANGUAGE_FALLBACK);
     }
 
     private String sourceArticleTitle(

@@ -18,7 +18,6 @@ public record HannahAiAnalysisRequest(
         @JsonProperty("translation_mode") String translationMode
 ) {
     public static final String TRANSLATION_MODE_FULL = "FULL";
-    public static final String TRANSLATION_MODE_DEFERRED = "DEFERRED";
 
     public HannahAiAnalysisRequest(
             String sourceType,

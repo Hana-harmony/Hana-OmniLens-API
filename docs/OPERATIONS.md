@@ -42,7 +42,7 @@ docker compose -f compose.local.yml down
 - Naver News Search는 제목, snippet, 링크 발견용으로 사용하고, 사용 허가된 원문 URL에서 기사 전문과 대표 이미지 URL을 추가 수집한다. 저장 허가가 없는 provider를 추가할 때는 원문 저장을 비활성화하고 hash/요약만 남기는 별도 정책을 적용한다.
 - OpenDART는 공시 목록 검색 뒤 `rcept_no` document 원문을 내려받아 본문을 정제한다. 수 MB가 될 수 있는 투자설명서·증권신고서는 동기 피드에 1,200자 분석 excerpt와 공식 DART 전문 URL을 저장해 API payload와 번역 지연을 제한한다.
 - 신규 여부는 URL TTL만으로 판단하지 않는다. `(partner_id, stock_code, source_type, original_url)` DB unique identity와 Redis 실행 중 lock을 함께 사용하고, canonical URL, normalized title, content hash, Hannah duplicate key, 시간창 기반 cluster key를 추가 중복 판정에 사용한다.
-- 종목 뉴스·공시 주기 수집은 Hannah `FULL` 분석으로 전문 번역과 품질 검증을 완료한 이벤트만 저장·발행한다. 시장뉴스는 Hannah `DEFERRED` 분석으로 완전한 원문과 영문 What/Why/Impact를 내부 대기 레코드로 저장한 뒤, 보강 worker가 전문을 `FULL_TEXT`로 완성한 시점에만 목록·상세에 공개한다. 상세 GET은 번역을 시작하거나 대기하지 않는다. 전문 분할은 Hannah만 담당하며 OmniConnect에서 중복 분할하지 않는다.
+- 종목 뉴스·공시와 시장뉴스 주기 수집은 Hannah `FULL` 분석으로 영문 제목, What/Why/Impact, 전문 번역과 품질 검증을 완료한 이벤트만 저장·발행한다. 미완료 결과를 재처리하는 상시 백필 worker는 운영하지 않으며, 상세 GET도 번역을 시작하거나 대기하지 않는다. 전문 분할은 Hannah만 담당하며 OmniConnect에서 중복 분할하지 않는다.
 - 종목별 수집은 OpenDART 공시를 먼저 처리한다. OpenDART `document.xml`이 ZIP 대신 `status/message` 오류 envelope를 반환하면 저장하지 않고 다음 스케줄에서 재시도한다. 한 종목의 원문 확인은 실행당 최대 20건으로 제한한다. V25는 알려진 `014` 오염 행을 제거하고 V26은 영문 전문이 없는 과거 공시를 제거한 뒤 `v2` Redis dedupe namespace로 즉시 다시 수집한다.
 - 제목, What/Why/Impact, 전체 번역은 `HANNAH_AI_BASE_URL`의 Hannah `/api/v1/alerts/analyze` Qwen 단일 응답만 사용한다. 내부 AI 호출은 `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`으로 제한한다. 장애, 빈 응답, 한글 잔존, 요약형 전문은 게시하지 않으며 개별 번역 API나 규칙 기반 문장으로 보정하지 않는다.
 - watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
