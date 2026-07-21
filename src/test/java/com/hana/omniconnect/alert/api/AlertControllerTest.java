@@ -32,8 +32,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.hana.omniconnect.alert.application.AlertTitleTranslationService;
-import com.hana.omniconnect.alert.application.AlertTitleTranslationService.TranslationResult;
+import com.hana.omniconnect.alert.application.ArticleTranslationResult;
 import com.hana.omniconnect.alert.domain.AlertSummaryLines;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisClient;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisRequest;
@@ -71,9 +70,6 @@ class AlertControllerTest {
 
     @MockitoBean
     private OpenDartDisclosureClient openDartDisclosureClient;
-
-    @MockitoBean
-    private AlertTitleTranslationService alertTitleTranslationService;
 
     @BeforeEach
     void deletePartnerCredentials() {
@@ -241,58 +237,12 @@ class AlertControllerTest {
 
     @Test
     void analyzeAndPublishReturnsAnalyzedAlertEvent() throws Exception {
-        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
-                "005930",
-                "삼성전자",
-                "NEWS",
-                "삼성전자 실적 개선",
-                "",
-                "반도체 회복으로 실적 개선 기대가 커졌습니다.",
-                AlertSummaryLines.fromSummary("반도체 회복으로 실적 개선 기대가 커졌습니다."),
-                "",
-                "SUMMARY_ONLY",
-                "",
-                "",
-                List.of(),
-                List.of("EARNINGS"),
-                "POSITIVE",
-                "HIGH",
-                "MEDIUM",
-                0.42,
-                0.81,
-                List.of("005930"),
-                true,
-                true,
-                List.of(new HannahAiGlossaryTerm("실적", "실적", "earnings", "event")),
-                List.of("FINANCIAL_GLOSSARY_APPLIED"),
-                "",
-                "",
-                "",
-                "duplicate-key",
-                "cluster-key",
-                "financial-keyword-baseline-2026-06-04",
-                0.91,
-                0.89,
-                0.93,
-                1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 실적 개선"), any()))
-                .thenReturn(translated("Samsung Electronics earnings improve"));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> {
-                    String text = invocation.getArgument(0, String.class);
-                    if ("반도체 회복으로 실적 개선 기대가 커졌습니다.".equals(text)) {
-                        return translated("Chip recovery raised earnings hopes.");
-                    }
-                    return translated(text);
-                });
-        String expectedSummary = String.join("\n",
-                "반도체 회복으로 실적 개선 기대가 커졌습니다.",
-                "삼성전자 실적 개선의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.",
-                "투자자는 삼성전자 실적 개선 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
-        String expectedEnglishWhy = englishTextFor(
-                "삼성전자 실적 개선의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.");
-        String expectedEnglishImpact = englishTextFor(
-                "투자자는 삼성전자 실적 개선 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation ->
+                fullCollectionAnalysis(invocation.getArgument(0), "duplicate-key"));
+        String expectedWhat = "KOSPI-listed Samsung Electronics reported an earnings-related stock market update.";
+        String expectedEnglishWhy = "The source links the event to semiconductor demand and corporate decisions.";
+        String expectedEnglishImpact = "Investors should monitor earnings, liquidity, and the next official filing.";
+        String expectedSummary = String.join("\n", expectedWhat, expectedEnglishWhy, expectedEnglishImpact);
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -303,6 +253,7 @@ class AlertControllerTest {
                                   "sourceType": "NEWS",
                                   "title": "삼성전자 실적 개선",
                                   "snippet": "반도체 회복으로 실적 개선 기대",
+                                  "content": "삼성전자는 반도체 수요 회복으로 실적 개선을 기대한다. 데이터센터 투자가 수요를 뒷받침했다. 투자자는 다음 실적 발표와 수급을 확인해야 한다.",
                                   "originalUrl": "https://example.com/news/1",
                                   "publishedAt": "2026-06-04T00:00:00Z",
                                   "stockUniverse": [
@@ -321,21 +272,18 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.code", equalTo("COMMON_000")))
                 .andExpect(jsonPath("$.data.partnerId", equalTo("partner-a")))
                 .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
-                .andExpect(jsonPath("$.data.translatedTitle", equalTo("Samsung Electronics earnings improve")))
+                .andExpect(jsonPath("$.data.translatedTitle", equalTo(expectedWhat)))
                 .andExpect(jsonPath("$.data.summary", equalTo(expectedSummary)))
-                .andExpect(jsonPath("$.data.summaryLines.what", equalTo("Chip recovery raised earnings hopes.")))
+                .andExpect(jsonPath("$.data.summaryLines.what", equalTo(expectedWhat)))
                 .andExpect(jsonPath("$.data.summaryLines.why", equalTo(expectedEnglishWhy)))
                 .andExpect(jsonPath("$.data.summaryLines.impact", equalTo(expectedEnglishImpact)))
                 .andExpect(jsonPath("$.data.importance", equalTo("HIGH")))
-                .andExpect(jsonPath("$.data.marketImpactImportance", equalTo("MEDIUM")))
-                .andExpect(jsonPath("$.data.marketImpactScore", equalTo(0.42)))
-                .andExpect(jsonPath("$.data.marketImpactConfidence", equalTo(0.81)))
                 .andExpect(jsonPath("$.data.holderTarget", equalTo(true)))
                 .andExpect(jsonPath("$.data.watchlistTarget", equalTo(true)))
-                .andExpect(jsonPath("$.data.glossaryTerms").isEmpty())
-                .andExpect(jsonPath("$.data.translationQualityFlags").isEmpty())
+                .andExpect(jsonPath("$.data.glossaryTerms[*].sourceTerm", hasItem("KOSPI")))
+                .andExpect(jsonPath("$.data.translationQualityFlags", hasItem("FINANCIAL_GLOSSARY_APPLIED")))
                 .andExpect(jsonPath("$.data.duplicateKey", equalTo("duplicate-key")))
-                .andExpect(jsonPath("$.data.modelVersion", equalTo("financial-keyword-baseline-2026-06-04")))
+                .andExpect(jsonPath("$.data.modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
                 .andExpect(jsonPath("$.data.eventConfidence", equalTo(0.91)))
                 .andExpect(jsonPath("$.data.stockMatchConfidence", equalTo(1.0)));
 
@@ -348,7 +296,7 @@ class AlertControllerTest {
     }
 
     @Test
-    void analyzeAndPublishDoesNotPersistStaleAnalysisFatalTranslationFlagsWhenRetranslationPasses() throws Exception {
+    void analyzeAndPublishRejectsStaleFatalQualityFlagsWithoutLegacyRetranslation() throws Exception {
         when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
                 "005930",
                 "삼성전자",
@@ -369,10 +317,6 @@ class AlertControllerTest {
                 0.89,
                 0.93,
                 1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -394,12 +338,11 @@ class AlertControllerTest {
                                   ]
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.translationQualityFlags").isEmpty());
+                .andExpect(status().is5xxServerError());
     }
 
     @Test
-    void analyzeAndPublishRejectsFatalTranslationResultQualityFlags() throws Exception {
+    void analyzeAndPublishRejectsFatalTranslationQualityFlags() throws Exception {
         when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
                 "005930",
                 "삼성전자",
@@ -420,10 +363,6 @@ class AlertControllerTest {
                 0.89,
                 0.93,
                 1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenReturn(fatalTranslated("English text still failed quality gate."));
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -478,20 +417,6 @@ class AlertControllerTest {
                 0.55,
                 0.55,
                 1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-
-        String fallbackSummary = "원문은 삼성전자 실적 개선 HBM 수요 확대 관련 최신 시장·기업 이벤트를 다룹니다.";
-        String fallbackWhy = "삼성전자 실적 개선 HBM 수요 확대의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
-        String fallbackImpact = "투자자는 삼성전자 실적 개선 HBM 수요 확대 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.";
-        String fallbackThreeLineSummary = String.join("\n", fallbackSummary, fallbackWhy, fallbackImpact);
-        String englishFallbackWhat = englishTextFor(fallbackSummary);
-        String englishFallbackWhy = englishTextFor(fallbackWhy);
-        String englishFallbackImpact = englishTextFor(fallbackImpact);
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -512,12 +437,8 @@ class AlertControllerTest {
                                     }
                                   ]
                                 }
-	                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.summary", equalTo(fallbackThreeLineSummary)))
-                .andExpect(jsonPath("$.data.summaryLines.what", equalTo(englishFallbackWhat)))
-                .andExpect(jsonPath("$.data.summaryLines.why", equalTo(englishFallbackWhy)))
-                .andExpect(jsonPath("$.data.summaryLines.impact", equalTo(englishFallbackImpact)));
+		                                """))
+                .andExpect(status().is5xxServerError());
     }
 
     @Test
@@ -584,50 +505,14 @@ class AlertControllerTest {
                   "createdAt": "2026-06-18T07:01:00Z"
                 }
                 """);
-        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
-                "005930",
-                "삼성전자",
-                "NEWS",
-                "삼성전자 실적 개선...HBM 수요 확대",
-                "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
-                new AlertSummaryLines(
-                        "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
-                        "데이터센터 투자가 주요 배경입니다.",
-                        "투자자는 영업이익 회복 속도를 확인해야 합니다."),
-                "FULL_TEXT",
-                "",
-                List.of(),
-                List.of("EARNINGS"),
-                "POSITIVE",
-                "HIGH",
-                List.of("005930"),
-                true,
-                true,
-                List.of(),
-                List.of(),
-                "quality-alert-duplicate",
-                "quality-alert-cluster",
-                "financial-keyword-baseline-2026-06-04",
-                0.75,
-                0.75,
-                0.75,
-                1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation ->
+                fullCollectionAnalysis(invocation.getArgument(0), "quality-alert-duplicate"));
         String repairedTranslatedContent = "Samsung Electronics expects earnings to improve as HBM demand expands. "
                 + "Data center investment is the main driver. "
                 + "Investors should monitor the pace of operating-profit recovery.";
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> {
-                    String text = invocation.getArgument(0, String.class);
-                    if (text.equals("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다. 데이터센터 투자가 주요 배경이다. 투자자는 영업이익 회복 속도를 확인해야 한다.")) {
-                        return translated(repairedTranslatedContent);
-                    }
-                    return translated(text);
-                });
-        String repairedWhat = "Samsung Electronics expects earnings to improve as HBM demand expands.";
-        String repairedWhy = "Data center investment is the main driver.";
-        String repairedImpact = "Investors should monitor the pace of operating-profit recovery.";
+        String repairedWhat = "KOSPI-listed Samsung Electronics reported an earnings-related stock market update.";
+        String repairedWhy = "The source links the event to semiconductor demand and corporate decisions.";
+        String repairedImpact = "Investors should monitor earnings, liquidity, and the next official filing.";
 
         mockMvc.perform(post("/api/v1/alerts/events/reprocess/quality-issues")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -648,7 +533,7 @@ class AlertControllerTest {
                 .contains(repairedWhat)
                 .contains(repairedWhy)
                 .contains(repairedImpact)
-                .contains(repairedTranslatedContent)
+                .contains("Samsung Electronics reported a market-moving update")
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
                 .doesNotContain("감성");
@@ -718,40 +603,10 @@ class AlertControllerTest {
                   "createdAt": "2026-06-18T07:01:00Z"
                 }
                 """);
-        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
-                "005930",
-                "삼성전자",
-                "NEWS",
-                "삼성전자 실적 개선 HBM 수요 확대",
-                "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
-                new AlertSummaryLines(
-                        "삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌습니다.",
-                        "데이터센터 투자가 주요 배경입니다.",
-                        "투자자는 영업이익 회복 속도를 확인해야 합니다."),
-                "FULL_TEXT",
-                "",
-                List.of(),
-                List.of("EARNINGS"),
-                "POSITIVE",
-                "HIGH",
-                List.of("005930"),
-                true,
-                true,
-                List.of(),
-                List.of(),
-                "blank-alert-duplicate",
-                "blank-alert-cluster",
-                "financial-keyword-baseline-2026-06-04",
-                0.75,
-                0.75,
-                0.75,
-                1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String repairedWhy = "Data center investment is the main background.";
-        String repairedImpact = "Investors should monitor the pace of operating-profit recovery.";
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation ->
+                fullCollectionAnalysis(invocation.getArgument(0), "blank-alert-duplicate"));
+        String repairedWhy = "The source links the event to semiconductor demand and corporate decisions.";
+        String repairedImpact = "Investors should monitor earnings, liquidity, and the next official filing.";
 
         mockMvc.perform(post("/api/v1/alerts/events/reprocess/quality-issues")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -765,7 +620,7 @@ class AlertControllerTest {
     }
 
     @Test
-    void reprocessQualityIssuesRepairsStoredAlertsWithoutExternalAnalysis() throws Exception {
+    void reprocessQualityIssuesKeepsStoredAlertsPendingWhenQwenFails() throws Exception {
         jdbcTemplate.update("DELETE FROM alert_event");
         insertBrokenAlertEvent(
                 "alert-quality-failed",
@@ -779,26 +634,12 @@ class AlertControllerTest {
                 "삼성전자",
                 "https://news.example.com/alert/match",
                 "2026-06-18T07:00:00Z");
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String failedEnglishWhat = englishTextFor(
-                "원문은 미매칭종목 실적 개선 HBM 수요 확대 관련 최신 시장·기업 이벤트를 다룹니다.");
-        String failedEnglishImpact = englishTextFor(
-                "투자자는 미매칭종목 실적 개선 HBM 수요 확대 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.");
-        String matchedEnglishWhat = englishTextFor(
-                "원문은 삼성전자 실적 개선 HBM 수요 확대 관련 최신 시장·기업 이벤트를 다룹니다.");
-
         mockMvc.perform(post("/api/v1/alerts/events/reprocess/quality-issues")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
                         .param("limit", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.eventCount", equalTo(2)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.what",
-                        equalTo(failedEnglishWhat)))
-                .andExpect(jsonPath("$.data.events[0].summaryLines.impact",
-                        equalTo(failedEnglishImpact)));
+                .andExpect(jsonPath("$.data.eventCount", equalTo(0)))
+                .andExpect(jsonPath("$.data.events").isEmpty());
 
         String matchedPayload = jdbcTemplate.queryForObject(
                 "SELECT event_json FROM alert_event WHERE alert_id = 'alert-quality-match'",
@@ -806,12 +647,8 @@ class AlertControllerTest {
         String failedPayload = jdbcTemplate.queryForObject(
                 "SELECT event_json FROM alert_event WHERE alert_id = 'alert-quality-failed'",
                 String.class);
-        org.assertj.core.api.Assertions.assertThat(matchedPayload)
-                .contains(matchedEnglishWhat)
-                .doesNotContain("The impact is classified");
-        org.assertj.core.api.Assertions.assertThat(failedPayload)
-                .contains(failedEnglishWhat)
-                .doesNotContain("The impact is classified");
+        org.assertj.core.api.Assertions.assertThat(matchedPayload).contains("The impact is classified");
+        org.assertj.core.api.Assertions.assertThat(failedPayload).contains("The impact is classified");
     }
 
     @Test
@@ -850,23 +687,12 @@ class AlertControllerTest {
                 0.55,
                 0.55,
                 0.0));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         String englishFallbackWhat = englishTextFor("북미 최대 교육 기술 전시회서 삼성 교육용 전자칠판 공개.");
         String englishFallbackImpact = englishTextFor("투자자는 B2B 디스플레이 매출 기여도를 확인해야 합니다.");
 
         mockMvc.perform(post("/api/v1/alerts/events/alert-title-only/reprocess")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.stockCode", equalTo("005930")))
-                .andExpect(jsonPath("$.data.stockName", equalTo("삼성전자")))
-                .andExpect(jsonPath("$.data.stockMatchConfidence", equalTo(0.5)))
-                .andExpect(jsonPath("$.data.summaryLines.what",
-                        equalTo(englishFallbackWhat)))
-                .andExpect(jsonPath("$.data.summaryLines.impact",
-                        equalTo(englishFallbackImpact)));
+                .andExpect(status().is5xxServerError());
 
         ArgumentCaptor<HannahAiAnalysisRequest> requestCaptor =
                 ArgumentCaptor.forClass(HannahAiAnalysisRequest.class);
@@ -883,38 +709,24 @@ class AlertControllerTest {
                         + "투자자는 공시 원문과 수급 영향을 확인해야 한다. ")
                 .repeat(420)
                 + "장문 공시의 마지막 원문 문장이다.";
-        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
-                "005930",
-                "삼성전자",
-                "DISCLOSURE",
-                "삼성전자 주요사항보고서",
-                "자기주식 처분 결정으로 주주환원 영향이 있다.",
-                new AlertSummaryLines(
-                        "자기주식 처분 결정으로 주주환원 영향이 있다.",
-                        "공시 원문은 처분 목적과 일정을 제시했다.",
-                        "투자자는 수급과 주가 반응을 확인해야 한다."),
-                "FULL_TEXT",
-                "분석 응답의 짧은 본문",
-                List.of(),
-                List.of("DISCLOSURE"),
-                "NEUTRAL",
-                "HIGH",
-                List.of("005930"),
-                true,
-                true,
-                List.of(),
-                List.of(),
-                "long-disclosure",
-                "long-disclosure",
-                "financial-keyword-baseline-2026-06-04",
-                0.91,
-                0.89,
-                0.93,
-                1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        String longTranslatedContent = (
+                "Samsung Electronics disclosed a treasury-share disposal and an earnings outlook. "
+                        + "The filing explains the purpose, schedule, and expected market impact. ")
+                .repeat(180);
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> {
+            HannahAiAnalysisRequest request = invocation.getArgument(0);
+            return fullQwenAnalysis(
+                    request,
+                    "Samsung Electronics disclosed a treasury-share disposal plan.",
+                    new AlertSummaryLines(
+                            "Samsung Electronics decided to dispose of treasury shares.",
+                            "The filing specifies the disposal purpose and schedule.",
+                            "Investors should monitor supply-demand and the share-price reaction."),
+                    longTranslatedContent,
+                    List.of(),
+                    List.of(),
+                    "long-disclosure");
+        });
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -952,37 +764,21 @@ class AlertControllerTest {
 
     @Test
     void analyzeAndPublishUsesTranslatedSurfaceTermForGlossaryClickTarget() throws Exception {
-        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
-                "005930",
-                "삼성전자",
-                "NEWS",
-                "삼성전자 개미 순매수와 대장주 강세",
-                "개미가 삼성전자를 순매수했고 대장주 흐름이 이어졌다",
-                List.of("MARKET"),
-                "POSITIVE",
-                "HIGH",
-                List.of("005930"),
-                true,
-                true,
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation -> fullQwenAnalysis(
+                invocation.getArgument(0),
+                "Samsung Electronics Ants net bought while Daejangju rallied.",
+                new AlertSummaryLines(
+                        "Ants net bought Samsung Electronics while Daejangju momentum continued.",
+                        "Retail demand and semiconductor expectations supported the move.",
+                        "Investors should monitor flows and earnings expectations."),
+                "Ants net bought Samsung Electronics while Daejangju momentum continued. "
+                        + "Retail demand supported the market leader during the session. "
+                        + "Investors should monitor flows and earnings expectations.",
                 List.of(
-                        new HannahAiGlossaryTerm("개미", "개미", "retail investors", "market_slang"),
-                        new HannahAiGlossaryTerm("대장주", "대장주", "bellwether stock", "market_slang")),
+                        new HannahAiGlossaryTerm("개미", "개미", "Ant", "market_slang"),
+                        new HannahAiGlossaryTerm("대장주", "대장주", "Market Leader", "market_slang")),
                 List.of("FINANCIAL_GLOSSARY_APPLIED"),
-                "duplicate-key-ant-surface",
-                "financial-keyword-baseline-2026-06-04",
-                0.91,
-                0.89,
-                0.93,
-                1.0));
-        when(alertTitleTranslationService.translateTitleWithResult(eq("삼성전자 개미 순매수와 대장주 강세"), any()))
-                .thenReturn(translated("Samsung Electronics Ants net bought while Daejangju rallied"));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> {
-                    String text = invocation.getArgument(0, String.class);
-                    return translated(text.replace(
-                            "개미가 삼성전자를 순매수했고 대장주 흐름이 이어졌다",
-                            "Ants net bought Samsung Electronics and Daejangju momentum continued."));
-                });
+                "duplicate-key-ant-surface"));
 
         mockMvc.perform(post("/api/v1/alerts/analyze-and-publish")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -993,6 +789,7 @@ class AlertControllerTest {
                                   "sourceType": "NEWS",
                                   "title": "삼성전자 개미 순매수와 대장주 강세",
                                   "snippet": "개미가 삼성전자를 순매수했고 대장주 흐름이 이어졌다",
+                                  "content": "개미가 삼성전자를 순매수했고 대장주 흐름이 이어졌다. 반도체 기대가 수급을 뒷받침했다. 투자자는 실적과 수급을 확인해야 한다.",
                                   "originalUrl": "https://example.com/news/ant-surface",
                                   "publishedAt": "2026-06-04T00:00:00Z",
                                   "stockUniverse": [
@@ -1065,14 +862,6 @@ class AlertControllerTest {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
             return fullCollectionAnalysis(request, "provider-collection-duplicate-key");
         });
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(any(), any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "partner-provider-collection-test-key")
                         .contentType(APPLICATION_JSON)
@@ -1253,16 +1042,6 @@ class AlertControllerTest {
                     request,
                     "duplicate-" + Math.abs(request.title().hashCode()));
         });
-        when(alertTitleTranslationService.translateTitleWithResult(any(), any()))
-                .thenAnswer(invocation -> {
-                    String title = invocation.getArgument(0, String.class);
-                    if (title.contains("번역 실패")) {
-                        return sourceLanguageFallback();
-                    }
-                    return translated(title);
-                });
-        when(alertTitleTranslationService.translateTextWithResult(any(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
 
         mockMvc.perform(post("/api/v1/alerts/collect-and-publish")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -1566,6 +1345,51 @@ class AlertControllerTest {
                 1.0);
     }
 
+    private HannahAiAnalysisResponse fullQwenAnalysis(
+            HannahAiAnalysisRequest request,
+            String translatedTitle,
+            AlertSummaryLines summaryLines,
+            String translatedContent,
+            List<HannahAiGlossaryTerm> glossaryTerms,
+            List<String> qualityFlags,
+            String duplicateKey) {
+        String summary = String.join("\n", summaryLines.what(), summaryLines.why(), summaryLines.impact());
+        return new HannahAiAnalysisResponse(
+                "005930",
+                "삼성전자",
+                request.sourceType(),
+                request.title(),
+                translatedTitle,
+                summary,
+                summaryLines,
+                summary,
+                "FULL_TEXT",
+                request.content(),
+                translatedContent,
+                request.imageUrls(),
+                List.of("DISCLOSURE".equals(request.sourceType()) ? "DISCLOSURE" : "EARNINGS"),
+                "POSITIVE",
+                "HIGH",
+                null,
+                null,
+                null,
+                List.of("005930"),
+                true,
+                true,
+                glossaryTerms,
+                qualityFlags,
+                "local-open-source-qwen3-translation",
+                "local-llm:Qwen3-4B-GGUF-Q4",
+                "TRANSLATED",
+                duplicateKey,
+                duplicateKey,
+                "financial-ml-tfidf-logreg-test",
+                0.91,
+                0.89,
+                0.93,
+                1.0);
+    }
+
     private HannahAiAnalysisResponse incompleteCollectionAnalysis(
             HannahAiAnalysisRequest request,
             String duplicateKey) {
@@ -1610,16 +1434,16 @@ class AlertControllerTest {
                 1.0);
     }
 
-    private TranslationResult translated(String text) {
-        return new TranslationResult(
+    private ArticleTranslationResult translated(String text) {
+        return new ArticleTranslationResult(
                 englishTextFor(text),
                 "local-open-source-qwen3-translation",
                 "local-llm:Qwen3-4B-GGUF-Q4",
                 "TRANSLATED");
     }
 
-    private TranslationResult fatalTranslated(String text) {
-        return new TranslationResult(
+    private ArticleTranslationResult fatalTranslated(String text) {
+        return new ArticleTranslationResult(
                 text,
                 "local-open-source-qwen3-translation",
                 "local-llm:Qwen3-4B-GGUF-Q4",
@@ -1627,8 +1451,8 @@ class AlertControllerTest {
                 List.of("HANGUL_REMAINS"));
     }
 
-    private TranslationResult sourceLanguageFallback() {
-        return new TranslationResult(
+    private ArticleTranslationResult sourceLanguageFallback() {
+        return new ArticleTranslationResult(
                 "",
                 "source-language-fallback",
                 "local-llm:Qwen3-4B-GGUF-Q4",

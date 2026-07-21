@@ -23,7 +23,7 @@ class NewsTranslationEnrichmentSchedulerTest {
     private MarketNewsCollectionService marketNewsService;
 
     @Test
-    void drainsAlertAndMarketNewsTranslationQueuesOutsideTheSchedulerThread() {
+    void processesOneAlertAndOneMarketNewsItemInParallelLanes() {
         when(alertService.enrichNextPendingFullTranslation())
                 .thenReturn(Optional.of(org.mockito.Mockito.mock(com.hana.omniconnect.alert.domain.AlertEvent.class)))
                 .thenReturn(Optional.empty());
@@ -38,7 +38,7 @@ class NewsTranslationEnrichmentSchedulerTest {
 
         scheduler.enrichPendingTranslations();
 
-        verify(alertService, org.mockito.Mockito.times(2)).enrichNextPendingFullTranslation();
-        verify(marketNewsService, org.mockito.Mockito.times(2)).enrichNextPendingFullTranslation();
+        verify(alertService).enrichNextPendingFullTranslation();
+        verify(marketNewsService).enrichNextPendingFullTranslation();
     }
 }

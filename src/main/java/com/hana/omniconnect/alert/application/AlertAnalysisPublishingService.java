@@ -17,7 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.hana.omniconnect.alert.api.AlertAnalysisPublishRequest;
 import com.hana.omniconnect.alert.api.AlertPublishRequest;
-import com.hana.omniconnect.alert.application.AlertTitleTranslationService.TranslationResult;
 import com.hana.omniconnect.alert.domain.AlertGlossaryTerm;
 import com.hana.omniconnect.alert.domain.AlertEvent;
 import com.hana.omniconnect.alert.domain.AlertSummaryLines;
@@ -35,7 +34,6 @@ public class AlertAnalysisPublishingService {
 
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertStreamingService alertStreamingService;
-    private final AlertTitleTranslationService alertTitleTranslationService;
     private final AlertEventRepository alertEventRepository;
     private final NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore;
     private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
@@ -43,12 +41,10 @@ public class AlertAnalysisPublishingService {
     public AlertAnalysisPublishingService(
             HannahAiAnalysisClient hannahAiAnalysisClient,
             AlertStreamingService alertStreamingService,
-            AlertTitleTranslationService alertTitleTranslationService,
             AlertEventRepository alertEventRepository,
             NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore) {
         this.hannahAiAnalysisClient = hannahAiAnalysisClient;
         this.alertStreamingService = alertStreamingService;
-        this.alertTitleTranslationService = alertTitleTranslationService;
         this.alertEventRepository = alertEventRepository;
         this.enrichmentAttemptStore = enrichmentAttemptStore;
     }
@@ -58,11 +54,11 @@ public class AlertAnalysisPublishingService {
     }
 
     public AlertPublishRequest analyze(AlertAnalysisPublishRequest request) {
-        return analyze(request, false, false);
+        return analyze(request, false);
     }
 
     public AlertPublishRequest analyzeForCollection(AlertAnalysisPublishRequest request) {
-        return analyze(request, false, false);
+        return analyze(request, false);
     }
 
     public boolean isPublishReady(AlertPublishRequest request) {
@@ -79,8 +75,7 @@ public class AlertAnalysisPublishingService {
 
     private AlertPublishRequest analyze(
             AlertAnalysisPublishRequest request,
-            boolean allowSingleStockFallback,
-            boolean deferFullTranslation) {
+            boolean allowSingleStockFallback) {
         HannahAiAnalysisResponse analysis = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
                 request.sourceType(),
                 request.title(),
@@ -92,9 +87,7 @@ public class AlertAnalysisPublishingService {
                 textOrEmpty(request.sourceLicensePolicy()),
                 request.originalUrl(),
                 toStockUniverse(request.stockUniverse()),
-                deferFullTranslation
-                        ? HannahAiAnalysisRequest.TRANSLATION_MODE_DEFERRED
-                        : HannahAiAnalysisRequest.TRANSLATION_MODE_FULL));
+                HannahAiAnalysisRequest.TRANSLATION_MODE_FULL));
 
         ResolvedStock resolvedStock = resolveStock(analysis, request, allowSingleStockFallback);
         if (!StringUtils.hasText(resolvedStock.stockCode()) || !StringUtils.hasText(resolvedStock.stockName())) {
@@ -106,59 +99,27 @@ public class AlertAnalysisPublishingService {
                 request);
         String originalContent = originalContent(analysis, request);
         String sourceTitle = firstText(request.title(), analysis.originalTitle());
-        AlertSummaryLines sourceSummaryLines = sourceSummaryLines(
-                analysis.summary(),
-                analysis.summaryLines(),
-                sourceTitle);
-        String sourceSummary = joinSummaryLines(sourceSummaryLines);
-        TranslationResult translatedTitle = deferFullTranslation
-                ? deferredHeadlineResult(sourceSummaryLines, analysis)
-                : translatedTitleFromAnalysis(analysis)
-                        .orElseGet(() -> translateTitleWithSourceType(
-                                sourceTitle,
-                                glossaryTerms,
-                                request.sourceType()));
-        String translatedTitleText = requireEnglishText(translatedTitle, "alert title");
-        AlertSummaryLines alreadyEnglishSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
-                sourceSummaryLines);
-        boolean alreadyEnglishSummary = EnglishNewsQualityGate.hasUsableEnglishSummaryLines(
-                alreadyEnglishSummaryLines);
-        TranslationResult translatedSummary = alreadyEnglishSummary
-                ? alreadyEnglishSummaryResult(alreadyEnglishSummaryLines, translatedTitle)
-                : deferFullTranslation
-                        ? deferredTranslationResult(analysis)
-                        : translatedSummaryFromAnalysis(analysis)
-                        .orElseGet(() -> translateTextWithSourceType(
-                                sourceSummary,
-                                glossaryTerms,
-                                request.sourceType()));
-        TranslationResult translatedContent = deferFullTranslation
-                ? deferredTranslationResult(analysis)
-                : translatedContentFromAnalysis(analysis, originalContent)
-                        .orElseGet(() -> translateContent(
-                                sourceTitle,
-                                originalContent,
-                                glossaryTerms,
-                                request.sourceType()));
-        String translatedContentText = deferFullTranslation
-                ? ""
-                : requireOptionalEnglishContent(
-                        translatedContent,
-                        originalContent,
-                        "alert content");
-        AlertSummaryLines translatedSummaryLines = alreadyEnglishSummary
-                ? alreadyEnglishSummaryLines
-                : translatedSummaryLinesFromAnalysis(translatedSummary, translatedContentText)
-                        .orElseGet(() -> requireEnglishSummaryLines(
-                                translateSummaryLines(
-                                        sourceSummaryLines,
-                                        glossaryTerms,
-                                        request.sourceType()),
-                                translatedSummary,
-                                "alert summary",
-                                translatedContentText));
+        AlertSummaryLines translatedSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
+                analysis.summaryLines());
+        if (!EnglishNewsQualityGate.hasUsableEnglishSummaryLines(translatedSummaryLines)) {
+            throw new IllegalStateException("Qwen analysis did not return usable English What/Why/Impact");
+        }
         String translatedSummaryText = joinSummaryLines(translatedSummaryLines);
-        TranslationResult effectiveTranslatedSummary = translatedSummaryResult(
+        String sourceSummary = StringUtils.hasText(analysis.summary())
+                ? analysis.summary().strip()
+                : translatedSummaryText;
+        ArticleTranslationResult translatedTitle = translatedTitleFromAnalysis(analysis)
+                .orElseThrow(() -> new IllegalStateException("Qwen analysis did not return an English title"));
+        String translatedTitleText = requireEnglishText(translatedTitle, "alert title");
+        ArticleTranslationResult translatedSummary = translatedSummaryFromAnalysis(analysis)
+                .orElseThrow(() -> new IllegalStateException("Qwen analysis did not return English What/Why/Impact"));
+        ArticleTranslationResult translatedContent = translatedContentFromAnalysis(analysis, originalContent)
+                .orElseThrow(() -> new IllegalStateException("Qwen analysis did not return a complete English article"));
+        String translatedContentText = requireOptionalEnglishContent(
+                translatedContent,
+                originalContent,
+                "alert content");
+        ArticleTranslationResult effectiveTranslatedSummary = translatedSummaryResult(
                 translatedSummaryText,
                 translatedSummary,
                 translatedTitle,
@@ -245,8 +206,7 @@ public class AlertAnalysisPublishingService {
                         event.stockName(),
                         event.stockName(),
                         List.of(event.stockName())))),
-                true,
-                false);
+                true);
         AlertEvent updated = toExistingEvent(event.alertId(), event.createdAt(), analyzed);
         return alertEventRepository.save(updated);
     }
@@ -291,32 +251,10 @@ public class AlertAnalysisPublishingService {
         }
     }
 
-    public Optional<AlertEvent> repairQualityIssueIfPossible(AlertEvent event) {
-        try {
-            return Optional.of(reprocess(event));
-        } catch (RuntimeException reprocessException) {
-            log.warn(
-                    "Falling back to alert summary quality repair after reprocess failed: alertId={}, stockCode={}",
-                    event.alertId(),
-                    event.stockCode(),
-                    reprocessException);
-        }
-        try {
-            return Optional.of(repairQualityIssue(event));
-        } catch (RuntimeException exception) {
-            log.warn(
-                    "Skipping alert summary quality repair: alertId={}, stockCode={}",
-                    event.alertId(),
-                    event.stockCode(),
-                    exception);
-            return Optional.empty();
-        }
-    }
-
     public List<AlertEvent> reprocessSummaryQualityIssues(int limit) {
         int effectiveLimit = Math.max(1, Math.min(limit, 100));
         return alertEventRepository.findSummaryQualityIssues(effectiveLimit).stream()
-                .map(this::repairQualityIssueIfPossible)
+                .map(this::reprocessIfPossible)
                 .flatMap(Optional::stream)
                 .toList();
     }
@@ -333,11 +271,11 @@ public class AlertAnalysisPublishingService {
 
     private Optional<AlertEvent> enrichFullTranslationIfPossible(AlertEvent event) {
         try {
-            // 초기 분석과 3줄 요약은 보존하고 비어 있는 전문만 번역한다.
-            AlertEvent enriched = repairQualityIssue(event);
-            if (!StringUtils.hasText(enriched.translatedContent())) {
+            // 제목·What/Why/Impact·전문을 같은 Qwen 분석 결과로 교체한다.
+            AlertEvent enriched = reprocess(event);
+            if (!isDisplayableFullArticle(enriched)) {
                 log.warn(
-                        "Keeping alert full translation pending after enrichment returned no content: alertId={}, stockCode={}",
+                        "Keeping alert full translation pending after Qwen reprocess returned incomplete content: alertId={}, stockCode={}",
                         event.alertId(),
                         event.stockCode());
                 return Optional.empty();
@@ -350,124 +288,6 @@ public class AlertAnalysisPublishingService {
                     event.stockCode(),
                     exception);
             return Optional.empty();
-        }
-    }
-
-    private AlertEvent repairQualityIssue(AlertEvent event) {
-        String translatedTitle = repairedTranslatedTitle(event);
-        AlertSummaryLines summaryLines = repairedSummaryLines(event);
-        String translatedSummary = joinSummaryLines(summaryLines);
-        String translatedContent = repairedTranslatedContent(event);
-        String contentAvailability = repairedContentAvailability(event, translatedContent);
-        boolean repaired = !safeEquals(translatedTitle, event.translatedTitle())
-                || !safeEquals(translatedSummary, event.translatedSummary())
-                || !safeEquals(translatedContent, event.translatedContent())
-                || !safeEquals(contentAvailability, event.contentAvailability())
-                || !safeEquals(joinSummaryLines(summaryLines), joinSummaryLines(event.summaryLines()));
-        AlertEvent repairedEvent = new AlertEvent(
-                event.alertId(),
-                event.partnerId(),
-                event.stockCode(),
-                event.stockName(),
-                event.sourceType(),
-                event.originalTitle(),
-                translatedTitle,
-                event.summary(),
-                summaryLines,
-                translatedSummary,
-                event.originalContent(),
-                translatedContent,
-                event.imageUrls(),
-                contentAvailability,
-                event.originalUrl(),
-                event.publishedAt(),
-                event.eventTags(),
-                event.sentiment(),
-                event.importance(),
-                event.marketImpactImportance(),
-                event.marketImpactScore(),
-                event.marketImpactConfidence(),
-                event.relatedStocks(),
-                event.holderTarget(),
-                event.watchlistTarget(),
-                event.glossaryTerms(),
-                event.translationQualityFlags(),
-                repaired ? AlertTitleTranslationService.PROVIDER_LOCAL_OPEN_SOURCE_QWEN : event.translationProvider(),
-                event.translationModelVersion(),
-                repaired ? AlertTitleTranslationService.STATUS_TRANSLATED : event.translationStatus(),
-                event.duplicateKey(),
-                event.clusterKey(),
-                event.modelVersion(),
-                event.eventConfidence(),
-                event.sentimentConfidence(),
-                event.importanceConfidence(),
-                event.stockMatchConfidence(),
-                event.createdAt());
-        return alertEventRepository.save(repairedEvent);
-    }
-
-    private String repairedTranslatedTitle(AlertEvent event) {
-        String currentTitle = EnglishNewsQualityGate.englishTextOrEmpty(event.translatedTitle());
-        if (StringUtils.hasText(currentTitle)) {
-            return currentTitle;
-        }
-        return requireEnglishText(
-                translateTitleWithSourceType(
-                        event.originalTitle(),
-                        event.glossaryTerms(),
-                        event.sourceType()),
-                "alert title repair");
-    }
-
-    private AlertSummaryLines repairedSummaryLines(AlertEvent event) {
-        AlertSummaryLines currentLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(event.summaryLines());
-        if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(currentLines)) {
-            return currentLines;
-        }
-        AlertSummaryLines sourceSummaryLines = sourceSummaryLines(event.summary(), null, event.originalTitle());
-        TranslationResult translatedSummary = translateTextWithSourceType(
-                joinSummaryLines(sourceSummaryLines),
-                event.glossaryTerms(),
-                event.sourceType());
-        return requireEnglishSummaryLines(
-                translateSummaryLines(
-                        sourceSummaryLines,
-                        event.glossaryTerms(),
-                        event.sourceType()),
-                translatedSummary,
-                "alert summary repair",
-                event.translatedContent());
-    }
-
-    private String repairedTranslatedContent(AlertEvent event) {
-        String currentContent = EnglishNewsQualityGate.englishTextOrEmpty(event.translatedContent());
-        if (StringUtils.hasText(currentContent)
-                && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
-                        currentContent,
-                        event.summaryLines(),
-                        event.translatedSummary(),
-                        event.originalContent())) {
-            return currentContent;
-        }
-        if (!StringUtils.hasText(event.originalContent())) {
-            return "";
-        }
-        try {
-            TranslationResult translatedOriginalContent = translateContent(
-                    event.originalTitle(),
-                    event.originalContent(),
-                    event.glossaryTerms(),
-                    event.sourceType());
-            if (translatedOriginalContent == null) {
-                throw new IllegalStateException("English translation failed: alert content repair");
-            }
-            return requireOptionalEnglishContent(
-                    translatedOriginalContent,
-                    event.originalContent(),
-                    "alert content repair");
-        } catch (RuntimeException exception) {
-            log.warn("Failed to retranslate alert content during quality repair: alertId={}", event.alertId(), exception);
-            throw exception;
         }
     }
 
@@ -605,10 +425,10 @@ public class AlertAnalysisPublishingService {
     private List<String> displayTranslationQualityFlags(
             List<String> qualityFlags,
             List<AlertGlossaryTerm> displayGlossaryTerms,
-            TranslationResult... translationResults) {
+            ArticleTranslationResult... translationResults) {
         boolean hasDisplayGlossary = displayGlossaryTerms != null && !displayGlossaryTerms.isEmpty();
         LinkedHashSet<String> flags = new LinkedHashSet<>();
-        for (TranslationResult result : translationResults) {
+        for (ArticleTranslationResult result : translationResults) {
             if (result != null && result.qualityFlags() != null) {
                 flags.addAll(result.qualityFlags());
             }
@@ -690,28 +510,13 @@ public class AlertAnalysisPublishingService {
         return text.substring(index, index + candidate.length());
     }
 
-    private TranslationResult translateContent(
-            String originalTitle,
-            String originalContent,
-            List<AlertGlossaryTerm> glossaryTerms,
-            String sourceType) {
-        if (!StringUtils.hasText(originalContent)) {
-            return new TranslationResult("", "", "", "");
-        }
-        String sourceText = originalContent;
-        if ("DISCLOSURE".equalsIgnoreCase(sourceType) && StringUtils.hasText(originalTitle)) {
-            sourceText = originalTitle.strip() + "\n" + originalContent;
-        }
-        return translateTextWithSourceType(sourceText, glossaryTerms, sourceType);
-    }
-
-    private Optional<TranslationResult> translatedContentFromAnalysis(
+    private Optional<ArticleTranslationResult> translatedContentFromAnalysis(
             HannahAiAnalysisResponse analysis,
             String originalContent) {
         if (analysis == null || !StringUtils.hasText(originalContent)) {
             return Optional.empty();
         }
-        if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
+        if (!ArticleTranslationResult.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
             return Optional.empty();
         }
         String englishText = EnglishNewsQualityGate.englishTextOrEmpty(analysis.translatedContent());
@@ -724,16 +529,16 @@ public class AlertAnalysisPublishingService {
         if (EnglishNewsQualityGate.looksLikeStructuredSummaryContent(englishText)) {
             return Optional.empty();
         }
-        return Optional.of(new TranslationResult(
+        return Optional.of(new ArticleTranslationResult(
                 englishText,
                 firstText(analysis.translationProvider(), "hannah-ai-analysis"),
                 firstText(analysis.translationModelVersion(), analysis.modelVersion()),
-                AlertTitleTranslationService.STATUS_TRANSLATED,
+                ArticleTranslationResult.STATUS_TRANSLATED,
                 analysis.translationQualityFlags()));
     }
 
-    private Optional<TranslationResult> translatedTitleFromAnalysis(HannahAiAnalysisResponse analysis) {
-        if (analysis == null || !AlertTitleTranslationService.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
+    private Optional<ArticleTranslationResult> translatedTitleFromAnalysis(HannahAiAnalysisResponse analysis) {
+        if (analysis == null || !ArticleTranslationResult.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
             return Optional.empty();
         }
         String englishTitle = EnglishNewsQualityGate.englishTextOrEmpty(analysis.translatedTitle());
@@ -743,8 +548,8 @@ public class AlertAnalysisPublishingService {
         return Optional.of(analysisTranslationResult(englishTitle, analysis));
     }
 
-    private Optional<TranslationResult> translatedSummaryFromAnalysis(HannahAiAnalysisResponse analysis) {
-        if (analysis == null || !AlertTitleTranslationService.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
+    private Optional<ArticleTranslationResult> translatedSummaryFromAnalysis(HannahAiAnalysisResponse analysis) {
+        if (analysis == null || !ArticleTranslationResult.STATUS_TRANSLATED.equals(analysis.translationStatus())) {
             return Optional.empty();
         }
         String englishSummary = EnglishNewsQualityGate.englishTextOrEmpty(analysis.translatedSummary());
@@ -754,82 +559,22 @@ public class AlertAnalysisPublishingService {
         return Optional.of(analysisTranslationResult(englishSummary, analysis));
     }
 
-    private Optional<AlertSummaryLines> translatedSummaryLinesFromAnalysis(
-            TranslationResult translatedSummary,
-            String translatedContentText) {
-        AlertSummaryLines summaryTextLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
-                englishSummaryLinesFromText(translatedSummary == null ? "" : translatedSummary.translatedText()));
-        if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(summaryTextLines)) {
-            return Optional.of(summaryTextLines);
-        }
-        AlertSummaryLines contentLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
-                englishSummaryLinesFromText(translatedContentText));
-        if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(contentLines)) {
-            return Optional.of(contentLines);
-        }
-        return Optional.empty();
-    }
-
-    private TranslationResult analysisTranslationResult(
+    private ArticleTranslationResult analysisTranslationResult(
             String translatedText,
             HannahAiAnalysisResponse analysis) {
-        return new TranslationResult(
+        return new ArticleTranslationResult(
                 translatedText,
                 firstText(analysis.translationProvider(), "hannah-ai-analysis"),
                 firstText(analysis.translationModelVersion(), analysis.modelVersion()),
-                AlertTitleTranslationService.STATUS_TRANSLATED,
+                ArticleTranslationResult.STATUS_TRANSLATED,
                 analysis.translationQualityFlags());
-    }
-
-    private TranslationResult deferredHeadlineResult(
-            AlertSummaryLines summaryLines,
-            HannahAiAnalysisResponse analysis) {
-        String headline = summaryLines == null
-                ? ""
-                : EnglishNewsQualityGate.englishSummaryLineOrEmpty(summaryLines.what());
-        if (!EnglishNewsQualityGate.hasUsableEnglishHeadlineText(headline)) {
-            throw new IllegalStateException("AI analysis did not return an English collection headline");
-        }
-        return new TranslationResult(
-                headline,
-                "hannah-ai-analysis-summary",
-                analysis == null ? "" : analysis.modelVersion(),
-                AlertTitleTranslationService.STATUS_TRANSLATED);
-    }
-
-    private TranslationResult deferredTranslationResult(HannahAiAnalysisResponse analysis) {
-        return new TranslationResult(
-                "",
-                "deferred-full-text-translation",
-                analysis == null ? "" : analysis.modelVersion(),
-                AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK);
-    }
-
-    private TranslationResult translateTextWithSourceType(
-            String originalText,
-            List<AlertGlossaryTerm> glossaryTerms,
-            String sourceType) {
-        if ("DISCLOSURE".equalsIgnoreCase(sourceType)) {
-            return alertTitleTranslationService.translateTextWithResult(originalText, glossaryTerms, sourceType);
-        }
-        return alertTitleTranslationService.translateTextWithResult(originalText, glossaryTerms);
-    }
-
-    private TranslationResult translateTitleWithSourceType(
-            String originalTitle,
-            List<AlertGlossaryTerm> glossaryTerms,
-            String sourceType) {
-        if ("DISCLOSURE".equalsIgnoreCase(sourceType)) {
-            return alertTitleTranslationService.translateTitleWithResult(originalTitle, glossaryTerms, sourceType);
-        }
-        return alertTitleTranslationService.translateTitleWithResult(originalTitle, glossaryTerms);
     }
 
     private String textOrEmpty(String value) {
         return value == null ? "" : value;
     }
 
-    private String requireEnglishText(TranslationResult result, String context) {
+    private String requireEnglishText(ArticleTranslationResult result, String context) {
         if (result == null) {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
@@ -846,7 +591,7 @@ public class AlertAnalysisPublishingService {
         return englishText;
     }
 
-    private String translationFailureDetails(TranslationResult result) {
+    private String translationFailureDetails(ArticleTranslationResult result) {
         if (result == null) {
             return "result=null";
         }
@@ -864,18 +609,13 @@ public class AlertAnalysisPublishingService {
     }
 
     private String requireOptionalEnglishContent(
-            TranslationResult result,
+            ArticleTranslationResult result,
             String originalContent,
             String context) {
         if (!StringUtils.hasText(originalContent)) {
             return "";
         }
         if (result == null) {
-            throw new IllegalStateException("English translation failed: "
-                    + context + " (" + translationFailureDetails(result) + ")");
-        }
-        if (!isTranslatedOrPartial(result)
-                && EnglishNewsQualityGate.containsHangul(originalContent)) {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
         }
@@ -888,7 +628,7 @@ public class AlertAnalysisPublishingService {
             throw new IllegalStateException("English translation failed: "
                     + context + " (" + translationFailureDetails(result) + ")");
         }
-        if (!AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())) {
+        if (!ArticleTranslationResult.STATUS_TRANSLATED.equals(result.status())) {
             return englishText;
         }
         if (isLikelyIncompleteTranslation(originalContent, englishText)) {
@@ -902,12 +642,6 @@ public class AlertAnalysisPublishingService {
             throw new IllegalStateException("English translation is summary-only: " + context);
         }
         return englishText;
-    }
-
-    private boolean requiresCompleteContentTranslation(String originalContent) {
-        String normalized = originalContent.replaceAll("\\s+", " ").trim();
-        return normalized.length() >= 160
-                && !hasTruncationMarker(normalized);
     }
 
     private boolean hasTruncationMarker(String text) {
@@ -945,107 +679,14 @@ public class AlertAnalysisPublishingService {
         return count;
     }
 
-    private AlertSummaryLines requireEnglishSummaryLines(
-            AlertSummaryLines translatedLines,
-            TranslationResult translatedSummary,
-            String context,
-            String translatedContentText) {
-        AlertSummaryLines sanitizedLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(translatedLines);
-        if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(sanitizedLines)) {
-            return sanitizedLines;
-        }
-        if (translatedSummary != null && hasEnglishTranslationStatus(translatedSummary)) {
-            AlertSummaryLines summaryTextLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
-                    englishSummaryLinesFromText(translatedSummary.translatedText()));
-            if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(summaryTextLines)) {
-                return summaryTextLines;
-            }
-        }
-        AlertSummaryLines contentLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
-                englishSummaryLinesFromText(translatedContentText));
-        if (EnglishNewsQualityGate.hasUsableEnglishSummaryLines(contentLines)) {
-            return contentLines;
-        }
-        throw new IllegalStateException("English summary translation failed: " + context);
-    }
-
-    private AlertSummaryLines englishSummaryLinesFromText(String summary) {
-        if (!StringUtils.hasText(summary)) {
-            return new AlertSummaryLines("", "", "");
-        }
-        List<String> lines = summary.lines()
-                .map(EnglishNewsQualityGate::englishSummaryLineOrEmpty)
-                .filter(StringUtils::hasText)
-                .toList();
-        if (lines.size() < 3) {
-            lines = englishSentences(summary);
-        }
-        return new AlertSummaryLines(
-                lines.size() > 0 ? lines.get(0) : "",
-                lines.size() > 1 ? lines.get(1) : "",
-                lines.size() > 2 ? lines.get(2) : "");
-    }
-
-    private List<String> englishSentences(String summary) {
-        Matcher matcher = Pattern.compile("[^.!?]+[.!?][\"')\\]]*").matcher(summary.replaceAll("\\s+", " ").trim());
-        List<String> sentences = new java.util.ArrayList<>();
-        while (matcher.find()) {
-            String sentence = EnglishNewsQualityGate.englishSummaryLineOrEmpty(matcher.group());
-            if (StringUtils.hasText(sentence)) {
-                sentences.add(sentence);
-            }
-        }
-        return sentences;
-    }
-
-    private AlertSummaryLines translateSummaryLines(
-            AlertSummaryLines summaryLines,
-            List<AlertGlossaryTerm> glossaryTerms,
-            String sourceType) {
-        if (summaryLines == null) {
-            return new AlertSummaryLines("", "", "");
-        }
-        AlertSummaryLines completedSourceLines = completeSummaryLines(summaryLines, "");
-        String what = translateSummaryLine(completedSourceLines.what(), glossaryTerms, sourceType);
-        String why = translateSummaryLine(completedSourceLines.why(), glossaryTerms, sourceType);
-        String impact = translateSummaryLine(completedSourceLines.impact(), glossaryTerms, sourceType);
-        return new AlertSummaryLines(what, why, impact);
-    }
-
-    private String translateSummaryLine(
-            String value,
-            List<AlertGlossaryTerm> glossaryTerms,
-            String sourceType) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        TranslationResult result = translateTextWithSourceType(
-                value,
-                glossaryTerms,
-                sourceType);
-        if (!hasEnglishTranslationStatus(result)) {
-            return "";
-        }
-        return EnglishNewsQualityGate.englishSummaryLineOrEmpty(result.translatedText());
-    }
-
-    private boolean hasEnglishTranslationStatus(TranslationResult result) {
+    private boolean hasCompleteEnglishTranslationStatus(ArticleTranslationResult result) {
         return result != null
-                && (AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
-                || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
-                || (AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
-                && EnglishNewsQualityGate.hasUsableEnglishText(result.translatedText())))
-                && !hasFatalTranslationQualityFlag(result);
-    }
-
-    private boolean hasCompleteEnglishTranslationStatus(TranslationResult result) {
-        return result != null
-                && AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
+                && ArticleTranslationResult.STATUS_TRANSLATED.equals(result.status())
                 && EnglishNewsQualityGate.hasUsableEnglishText(result.translatedText())
                 && !hasFatalTranslationQualityFlag(result);
     }
 
-    private boolean hasFatalTranslationQualityFlag(TranslationResult result) {
+    private boolean hasFatalTranslationQualityFlag(ArticleTranslationResult result) {
         if (result == null || result.qualityFlags() == null || result.qualityFlags().isEmpty()) {
             return false;
         }
@@ -1061,76 +702,14 @@ public class AlertAnalysisPublishingService {
                         && !"FINANCIAL_GLOSSARY_APPLIED".equals(flag));
     }
 
-    private boolean isTranslatedOrPartial(TranslationResult result) {
-        return result != null
-                && (AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
-                || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status()));
-    }
-
-    private TranslationResult alreadyEnglishSummaryResult(
-            AlertSummaryLines summaryLines,
-            TranslationResult referenceResult) {
-        return new TranslationResult(
-                joinSummaryLines(summaryLines),
-                referenceResult == null ? "" : referenceResult.provider(),
-                referenceResult == null ? "" : referenceResult.modelVersion(),
-                AlertTitleTranslationService.STATUS_TRANSLATED);
-    }
-
-    private TranslationResult translatedSummaryResult(
+    private ArticleTranslationResult translatedSummaryResult(
             String translatedSummaryText,
-            TranslationResult... references) {
-        return new TranslationResult(
+            ArticleTranslationResult... references) {
+        return new ArticleTranslationResult(
                 translatedSummaryText,
                 translationProvider(references),
                 translationModelVersion(references),
-                AlertTitleTranslationService.STATUS_TRANSLATED);
-    }
-
-    private AlertSummaryLines sourceSummaryLines(String summary, AlertSummaryLines summaryLines, String fallback) {
-        String joinedLines = joinSummaryLines(summaryLines);
-        if (StringUtils.hasText(joinedLines)) {
-            return completeSummaryLines(summaryLines, fallback);
-        }
-        AlertSummaryLines parsedSummaryLines = summaryLinesFromText(summary);
-        if (parsedSummaryLines != null) {
-            return completeSummaryLines(parsedSummaryLines, fallback);
-        }
-        String sanitizedSummary = sanitizeSummary(summary);
-        if (StringUtils.hasText(sanitizedSummary)) {
-            return completeSummaryLines(AlertSummaryLines.fromSummary(sanitizedSummary), fallback);
-        }
-        return completeSummaryLines(null, fallback);
-    }
-
-    private AlertSummaryLines summaryLinesFromText(String summary) {
-        if (!StringUtils.hasText(summary)) {
-            return null;
-        }
-        List<String> lines = summary.lines()
-                .map(this::sanitizeSummary)
-                .filter(StringUtils::hasText)
-                .toList();
-        if (lines.size() >= 3) {
-            return new AlertSummaryLines(lines.get(0), lines.get(1), lines.get(2));
-        }
-        if (lines.size() == 2) {
-            return new AlertSummaryLines(lines.get(0), lines.get(1), "");
-        }
-        if (lines.size() == 1) {
-            if (isImpactOnlySummary(lines.get(0))) {
-                return null;
-            }
-            return AlertSummaryLines.fromSummary(lines.get(0));
-        }
-        return null;
-    }
-
-    private boolean isImpactOnlySummary(String value) {
-        String lower = value.toLowerCase(Locale.ROOT);
-        return value.startsWith("투자자는")
-                || lower.startsWith("investors should")
-                || lower.startsWith("investors need");
+                ArticleTranslationResult.STATUS_TRANSLATED);
     }
 
     private String joinSummaryLines(AlertSummaryLines summaryLines) {
@@ -1161,51 +740,6 @@ public class AlertAnalysisPublishingService {
         return normalized;
     }
 
-    private AlertSummaryLines completeSummaryLines(AlertSummaryLines summaryLines, String fallback) {
-        String what = summaryLines == null ? "" : sanitizeSummary(summaryLines.what());
-        String why = summaryLines == null ? "" : sanitizeSummary(summaryLines.why());
-        String impact = summaryLines == null ? "" : sanitizeSummary(summaryLines.impact());
-
-        if (!StringUtils.hasText(what)) {
-            what = fallbackSummary(fallback);
-        }
-        if (!StringUtils.hasText(why) || why.equals(what)) {
-            why = fallbackWhySummary(fallback);
-        }
-        if (!StringUtils.hasText(impact) || impact.equals(what) || impact.equals(why)) {
-            impact = fallbackImpactSummary(fallback);
-        }
-        return new AlertSummaryLines(what, why, impact);
-    }
-
-    private String fallbackSummary(String fallback) {
-        String subject = fallbackSubject(fallback);
-        if ("해당 이벤트".equals(subject)) {
-            return "원문은 최신 시장·기업 이벤트를 다룹니다.";
-        }
-        return "원문은 " + subject + " 관련 최신 시장·기업 이벤트를 다룹니다.";
-    }
-
-    private String fallbackWhySummary(String fallback) {
-        return fallbackSubject(fallback) + "의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
-    }
-
-    private String fallbackImpactSummary(String fallback) {
-        return "투자자는 " + fallbackSubject(fallback) + " 관련 보유·관심 종목의 가격, 실적, 수급 영향을 확인해야 합니다.";
-    }
-
-    private String fallbackSubject(String fallback) {
-        String subject = fallback == null ? "" : fallback
-                .replace("...", " ")
-                .replace("…", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
-        if (!StringUtils.hasText(subject)) {
-            return "해당 이벤트";
-        }
-        return subject;
-    }
-
     private boolean containsEllipsis(String value) {
         return value.contains("...") || value.contains("…");
     }
@@ -1229,10 +763,6 @@ public class AlertAnalysisPublishingService {
 
     private boolean endsAsCompleteSentence(String value) {
         return value.matches(".*((?:[.!?。])|(?:다|요|니다|습니다|한다|했다|됐다|된다|였다|이다|합니다|했습니다|됩니다|입니다))[\"')\\]]*$");
-    }
-
-    private boolean safeEquals(String left, String right) {
-        return (left == null ? "" : left).equals(right == null ? "" : right);
     }
 
     private String originalContent(HannahAiAnalysisResponse analysis, AlertAnalysisPublishRequest request) {
@@ -1269,28 +799,16 @@ public class AlertAnalysisPublishingService {
         return "SUMMARY_ONLY";
     }
 
-    private String repairedContentAvailability(AlertEvent event, String translatedContent) {
-        if (!StringUtils.hasText(event.originalContent())) {
-            return StringUtils.hasText(event.contentAvailability())
-                    ? event.contentAvailability()
-                    : "DISCOVERY_ONLY";
-        }
-        if (!StringUtils.hasText(translatedContent)) {
-            return hasTruncationMarker(event.originalContent()) ? "SUMMARY_ONLY" : "ORIGINAL_TEXT_ONLY";
-        }
-        return hasTruncationMarker(event.originalContent()) ? "SUMMARY_ONLY" : "FULL_TEXT";
-    }
-
-    private String translationProvider(TranslationResult... results) {
-        for (TranslationResult result : results) {
+    private String translationProvider(ArticleTranslationResult... results) {
+        for (ArticleTranslationResult result : results) {
             if (result != null
                     && StringUtils.hasText(result.provider())
-                    && !AlertTitleTranslationService.PROVIDER_ALREADY_ENGLISH.equals(result.provider())
+                    && !ArticleTranslationResult.PROVIDER_ALREADY_ENGLISH.equals(result.provider())
                     && !"source-language-fallback".equals(result.provider())) {
                 return result.provider();
             }
         }
-        for (TranslationResult result : results) {
+        for (ArticleTranslationResult result : results) {
             if (result != null && StringUtils.hasText(result.provider())) {
                 return result.provider();
             }
@@ -1298,16 +816,16 @@ public class AlertAnalysisPublishingService {
         return "source-language-fallback";
     }
 
-    private String translationModelVersion(TranslationResult... results) {
-        for (TranslationResult result : results) {
+    private String translationModelVersion(ArticleTranslationResult... results) {
+        for (ArticleTranslationResult result : results) {
             if (result != null
                     && StringUtils.hasText(result.modelVersion())
-                    && !AlertTitleTranslationService.MODEL_HANNAH_TRANSLATION_UNAVAILABLE.equals(
+                    && !ArticleTranslationResult.MODEL_TRANSLATION_UNAVAILABLE.equals(
                             result.modelVersion())) {
                 return result.modelVersion();
             }
         }
-        for (TranslationResult result : results) {
+        for (ArticleTranslationResult result : results) {
             if (result != null && StringUtils.hasText(result.modelVersion())) {
                 return result.modelVersion();
             }
@@ -1315,26 +833,26 @@ public class AlertAnalysisPublishingService {
         return "";
     }
 
-    private String translationStatus(TranslationResult... results) {
+    private String translationStatus(ArticleTranslationResult... results) {
         boolean translated = false;
         boolean fallback = false;
-        for (TranslationResult result : results) {
+        for (ArticleTranslationResult result : results) {
             if (!StringUtils.hasText(result.status())) {
                 continue;
             }
             translated = translated
-                    || AlertTitleTranslationService.STATUS_TRANSLATED.equals(result.status())
-                    || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
+                    || ArticleTranslationResult.STATUS_TRANSLATED.equals(result.status())
+                    || ArticleTranslationResult.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
             fallback = fallback
-                    || AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
-                    || AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
+                    || ArticleTranslationResult.STATUS_SOURCE_LANGUAGE_FALLBACK.equals(result.status())
+                    || ArticleTranslationResult.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK.equals(result.status());
         }
         if (translated && fallback) {
-            return AlertTitleTranslationService.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK;
+            return ArticleTranslationResult.STATUS_PARTIAL_SOURCE_LANGUAGE_FALLBACK;
         }
         return translated
-                ? AlertTitleTranslationService.STATUS_TRANSLATED
-                : AlertTitleTranslationService.STATUS_SOURCE_LANGUAGE_FALLBACK;
+                ? ArticleTranslationResult.STATUS_TRANSLATED
+                : ArticleTranslationResult.STATUS_SOURCE_LANGUAGE_FALLBACK;
     }
 
     private String firstText(String preferred, String fallback) {

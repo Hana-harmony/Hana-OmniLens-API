@@ -18,12 +18,11 @@ import com.hana.omniconnect.marketnews.application.MarketNewsCollectionService;
 public class NewsTranslationEnrichmentScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(NewsTranslationEnrichmentScheduler.class);
-    private static final int MAX_DRAIN_BATCH = 10;
-
     private final AlertAnalysisPublishingService alertService;
     private final MarketNewsCollectionService marketNewsService;
     private final TaskExecutor executor;
-    private final AtomicBoolean running = new AtomicBoolean();
+    private final AtomicBoolean alertRunning = new AtomicBoolean();
+    private final AtomicBoolean marketNewsRunning = new AtomicBoolean();
 
     public NewsTranslationEnrichmentScheduler(
             AlertAnalysisPublishingService alertService,
@@ -36,40 +35,19 @@ public class NewsTranslationEnrichmentScheduler {
 
     @Scheduled(fixedDelay = 60_000, initialDelay = 120_000)
     public void enrichPendingTranslations() {
-        dispatch(this::drainPendingAlternating);
+        // Qwen의 동시 추론 한도 2개에 맞춰 종목 뉴스와 시장 뉴스를 한 건씩 병렬 처리한다.
+        dispatch(alertRunning, alertService::enrichNextPendingFullTranslation);
+        dispatch(marketNewsRunning, marketNewsService::enrichNextPendingFullTranslation);
     }
 
-    private void drainPendingAlternating() {
-        int processed = 0;
-        while (processed < MAX_DRAIN_BATCH) {
-            boolean found = false;
-            if (processed < MAX_DRAIN_BATCH && drainOne(alertService::enrichNextPendingFullTranslation)) {
-                processed++;
-                found = true;
-            }
-            if (processed < MAX_DRAIN_BATCH && drainOne(marketNewsService::enrichNextPendingFullTranslation)) {
-                processed++;
-                found = true;
-            }
-            if (!found) {
-                return;
-            }
-        }
-    }
-
-    private boolean drainOne(Supplier<Optional<?>> enrichment) {
-        Optional<?> result = enrichment.get();
-        return result != null && result.isPresent();
-    }
-
-    private void dispatch(Runnable enrichment) {
+    private void dispatch(AtomicBoolean running, Supplier<Optional<?>> enrichment) {
         if (!running.compareAndSet(false, true)) {
             return;
         }
         try {
             executor.execute(() -> {
                 try {
-                    enrichment.run();
+                    enrichment.get();
                 } catch (RuntimeException exception) {
                     log.warn("News full translation enrichment failed", exception);
                 } finally {

@@ -793,7 +793,7 @@ public class AlertProviderCollectionService {
             Instant publishedAt,
             CollectionCounters counters,
             List<AlertEvent> events) {
-        String sourceKey = partnerId + ":" + stock.stockCode() + ":" + sourceType + ":" + originalUrl;
+        String sourceKey = partnerId + ":COLLECTION:v2:" + stock.stockCode() + ":" + sourceType + ":" + originalUrl;
         if (!alertDedupeStore.markIfFirst(sourceKey)) {
             counters.skippedDuplicateCount++;
             return PublicationResult.SKIPPED;
@@ -927,14 +927,27 @@ public class AlertProviderCollectionService {
                                 stockCode,
                                 sourceType,
                                 originalUrl)
+                        .filter(this::isPublishReadyEvent)
                         .isPresent();
+    }
+
+    private boolean isPublishReadyEvent(AlertEvent event) {
+        return event != null
+                && StringUtils.hasText(event.originalContent())
+                && EnglishNewsQualityGate.hasUsableEnglishSummaryLines(event.summaryLines())
+                && EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())
+                && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                        event.translatedContent(),
+                        event.summaryLines(),
+                        event.translatedSummary(),
+                        event.originalContent());
     }
 
     private static String aiDuplicateKey(String partnerId, AlertPublishRequest request) {
         if (!StringUtils.hasText(request.duplicateKey())) {
             return null;
         }
-        String key = partnerId + ":AI:" + request.stockCode() + ":" + request.sourceType()
+        String key = partnerId + ":AI:v2:" + request.stockCode() + ":" + request.sourceType()
                 + ":" + request.duplicateKey();
         if ("DISCLOSURE".equalsIgnoreCase(request.sourceType())) {
             // 반복형 공시 제목이 같아도 접수번호별 공식 문서는 서로 다른 이벤트다.

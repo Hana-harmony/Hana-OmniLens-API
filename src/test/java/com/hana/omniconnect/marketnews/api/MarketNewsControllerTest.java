@@ -30,8 +30,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.hana.omniconnect.alert.domain.AlertSummaryLines;
-import com.hana.omniconnect.alert.application.AlertTitleTranslationService;
-import com.hana.omniconnect.alert.application.AlertTitleTranslationService.TranslationResult;
+import com.hana.omniconnect.alert.application.ArticleTranslationResult;
 import com.hana.omniconnect.alert.application.NewsTranslationEnrichmentAttemptStore;
 import com.hana.omniconnect.marketnews.application.MarketNewsCollectionService;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisClient;
@@ -70,9 +69,6 @@ class MarketNewsControllerTest {
     private HannahAiAnalysisClient hannahAiAnalysisClient;
 
     @MockitoBean
-    private AlertTitleTranslationService alertTitleTranslationService;
-
-    @MockitoBean
     private NewsTranslationEnrichmentAttemptStore enrichmentAttemptStore;
 
     @BeforeEach
@@ -106,10 +102,6 @@ class MarketNewsControllerTest {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
             return fullMarketAnalysis(request, "market-news-duplicate");
         });
-        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
         String expectedEnglishWhat = "KOSPI closed higher as foreign investors bought large-cap semiconductor shares.";
         String expectedEnglishWhy = "Foreign net buying and technology earnings expectations drove the index rebound.";
         String expectedEnglishImpact = "Investors should monitor foreign flows and the earnings outlook for major chipmakers.";
@@ -139,7 +131,7 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.events[0].importance", equalTo("MEDIUM")))
                 .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("ORIGINAL_TEXT_ONLY")))
                 .andExpect(jsonPath("$.data.events[0].translationProvider",
-                        equalTo("hannah-ai-analysis-summary")))
+                        equalTo("local-open-source-qwen3-translation")))
                 .andExpect(jsonPath("$.data.events[0].translationStatus",
                         equalTo("PARTIAL_SOURCE_LANGUAGE_FALLBACK")));
 
@@ -181,7 +173,7 @@ class MarketNewsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.newsId", equalTo(newsId)))
                 .andExpect(jsonPath("$.data.contentAvailability", equalTo("FULL_TEXT")))
-                .andExpect(jsonPath("$.data.translatedContent", containsString("Korean stocks closed higher")))
+                .andExpect(jsonPath("$.data.translatedContent", containsString("The Korean stock market closed higher")))
                 .andExpect(jsonPath("$.data.originalContent", equalTo(originalBody)))
                 .andExpect(jsonPath("$.data.imageUrls[0]", equalTo("https://news.example.com/image.jpg")));
     }
@@ -223,10 +215,6 @@ class MarketNewsControllerTest {
                 0.55,
                 0.55,
                 0.55));
-        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
 
         String fallbackSummary = "원문은 NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입 관련 최신 시장·기업 이벤트를 다룹니다.";
         String fallbackWhy = "NH-Amundi운용, 반도체 ETF 리밸런싱 SK스퀘어 신규 편입의 핵심 배경은 원문에서 확인된 최신 시장·기업 이벤트입니다.";
@@ -274,7 +262,6 @@ class MarketNewsControllerTest {
 
         verify(originalArticleClient, never()).fetch(anyString());
         verify(hannahAiAnalysisClient, never()).analyze(any());
-        verify(alertTitleTranslationService, never()).translateTitleWithResult(anyString(), any());
     }
 
     @Test
@@ -307,10 +294,6 @@ class MarketNewsControllerTest {
             HannahAiAnalysisRequest request = invocation.getArgument(0);
             return fullMarketAnalysis(request, "extra-candidate-duplicate");
         });
-        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -364,7 +347,6 @@ class MarketNewsControllerTest {
                 .andExpect(jsonPath("$.data.events").isEmpty());
 
         verify(hannahAiAnalysisClient, never()).analyze(any());
-        verify(alertTitleTranslationService, never()).translateTitleWithResult(anyString(), any());
     }
 
     @Test
@@ -409,10 +391,6 @@ class MarketNewsControllerTest {
                 0.75,
                 0.75,
                 0.75));
-        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
 
         mockMvc.perform(post("/api/v1/market/news/collect")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -528,49 +506,13 @@ class MarketNewsControllerTest {
                   "createdAt": "2026-06-18T07:01:00Z"
                 }
                 """);
-        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
-                "402340",
-                "SK스퀘어",
-                "NEWS",
-                "반도체 ETF 리밸런싱...SK스퀘어 신규 편입",
-                "반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했습니다.",
-                new AlertSummaryLines(
-                        "반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했습니다.",
-                        "SK하이닉스와 삼성전자 비중 조정이 주요 배경입니다.",
-                        "투자자는 편입 종목의 수급과 변동성을 확인해야 합니다."),
-                "FULL_TEXT",
-                "",
-                List.of(),
-                List.of("GENERAL_MARKET"),
-                "NEUTRAL",
-                "MEDIUM",
-                List.of("402340"),
-                false,
-                true,
-                List.of(),
-                List.of(),
-                "quality-duplicate",
-                "quality-cluster",
-                "financial-ml-tfidf-logreg-test",
-                0.75,
-                0.75,
-                0.75,
-                0.75));
-        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation ->
+                fullMarketAnalysis(invocation.getArgument(0), "quality-duplicate"));
         String repairedTranslatedContent = "The semiconductor ETF completed its regular rebalance and added SK Square. "
                 + "Adjustments to SK Hynix and Samsung Electronics weights were the main background. "
                 + "Investors should monitor supply-demand and volatility for the added constituents.";
-        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> {
-                    String text = invocation.getArgument(0, String.class);
-                    if (text.equals("반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했다. SK하이닉스와 삼성전자 비중 조정이 주요 배경이다. 투자자는 편입 종목의 수급과 변동성을 확인해야 한다.")) {
-                        return translated(repairedTranslatedContent);
-                    }
-                    return translated(text);
-                });
-        String repairedWhat = "The semiconductor ETF completed its regular rebalance and added SK Square.";
-        String repairedImpact = "Investors should monitor supply-demand and volatility for the added constituents.";
+        String repairedWhat = "KOSPI closed higher as foreign investors bought large-cap semiconductor shares.";
+        String repairedImpact = "Investors should monitor foreign flows and the earnings outlook for major chipmakers.";
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -588,7 +530,7 @@ class MarketNewsControllerTest {
         org.assertj.core.api.Assertions.assertThat(storedPayload)
                 .contains(repairedWhat)
                 .contains(repairedImpact)
-                .contains(repairedTranslatedContent)
+                .contains("The Korean stock market closed higher")
                 .doesNotContain("The impact is classified")
                 .doesNotContain("중요도")
                 .doesNotContain("감성");
@@ -638,40 +580,10 @@ class MarketNewsControllerTest {
                   "createdAt": "2026-06-18T07:01:00Z"
                 }
                 """);
-        when(hannahAiAnalysisClient.analyze(any())).thenReturn(new HannahAiAnalysisResponse(
-                "402340",
-                "SK스퀘어",
-                "NEWS",
-                "반도체 ETF 리밸런싱 SK스퀘어 신규 편입",
-                "반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했습니다.",
-                new AlertSummaryLines(
-                        "반도체 ETF가 정기 리밸런싱을 마치고 SK스퀘어를 신규 편입했습니다.",
-                        "SK하이닉스와 삼성전자 비중 조정이 주요 배경입니다.",
-                        "투자자는 편입 종목의 수급과 변동성을 확인해야 합니다."),
-                "FULL_TEXT",
-                "",
-                List.of(),
-                List.of("GENERAL_MARKET"),
-                "NEUTRAL",
-                "MEDIUM",
-                List.of("402340"),
-                false,
-                true,
-                List.of(),
-                List.of(),
-                "blank-lines-duplicate",
-                "blank-lines-cluster",
-                "financial-ml-tfidf-logreg-test",
-                0.75,
-                0.75,
-                0.75,
-                0.75));
-        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        String repairedWhy = "Adjustments to SK Hynix and Samsung Electronics weights were the main background.";
-        String repairedImpact = "Investors should monitor supply-demand and volatility for the added constituents.";
+        when(hannahAiAnalysisClient.analyze(any())).thenAnswer(invocation ->
+                fullMarketAnalysis(invocation.getArgument(0), "blank-lines-duplicate"));
+        String repairedWhy = "Foreign net buying and technology earnings expectations drove the index rebound.";
+        String repairedImpact = "Investors should monitor foreign flows and the earnings outlook for major chipmakers.";
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -736,17 +648,6 @@ class MarketNewsControllerTest {
                   "createdAt": "2026-06-18T07:01:00Z"
                 }
                 """.formatted(originalJsonContent));
-        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
-                .thenAnswer(invocation -> translated(invocation.getArgument(0, String.class)));
-        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> {
-                    String text = invocation.getArgument(0, String.class);
-                    if (text.contains("삼성전자는 HBM 수요 확대로 실적 개선 기대가 커졌다")) {
-                        return sourceLanguageFallback(
-                                "the Korean market source item. The original Korean text is retained because machine translation was unavailable.");
-                    }
-                    return translated(text);
-                });
 
         mockMvc.perform(post("/api/v1/market/news/reprocess/quality-issues")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -822,22 +723,32 @@ class MarketNewsControllerTest {
             org.assertj.core.api.Assertions.assertThat(request.content()).contains("삼전닉스는");
             org.assertj.core.api.Assertions.assertThat(request.imageUrls())
                     .containsExactly("https://img.example.com/news/samjeon-nix.png");
+            AlertSummaryLines summaryLines = new AlertSummaryLines(
+                    "Samjeon Nix returns are drawing market attention.",
+                    "Foreign buying and semiconductor-cycle expectations are the main background.",
+                    "Investors should monitor supply-demand and earnings expectations for major semiconductor stocks.");
+            String summary = String.join("\n", summaryLines.what(), summaryLines.why(), summaryLines.impact());
             return new HannahAiAnalysisResponse(
                     "",
                     "",
                     "NEWS",
                     request.title(),
-                    "삼전닉스 수익률 강세가 시장 관심을 끌었습니다.",
-                    new AlertSummaryLines(
-                            "삼전닉스 수익률 강세가 시장 관심을 끌었습니다.",
-                            "외국인 순매수와 반도체 업황 기대가 주요 배경입니다.",
-                            "투자자는 반도체 대형주의 수급과 실적 기대를 확인해야 합니다."),
+                    summaryLines.what(),
+                    summary,
+                    summaryLines,
+                    summary,
                     "FULL_TEXT",
                     request.content(),
+                    "Samjeon Nix is Korean market slang for Samsung Electronics and SK Hynix. "
+                            + "Foreign buying led strength in major semiconductor stocks. "
+                            + "Investors should monitor supply-demand and earnings expectations.",
                     request.imageUrls(),
                     List.of("GENERAL_MARKET"),
                     "POSITIVE",
                     "MEDIUM",
+                    null,
+                    null,
+                    null,
                     List.of(),
                     false,
                     true,
@@ -847,6 +758,9 @@ class MarketNewsControllerTest {
                             "Samjeon Nix",
                             "market_slang")),
                     List.of("FINANCIAL_GLOSSARY_APPLIED"),
+                    "local-open-source-qwen3-translation",
+                    "local-llm:Qwen3-4B-GGUF-Q4",
+                    "TRANSLATED",
                     "samjeon-nix-duplicate",
                     "samjeon-nix-cluster",
                     "financial-ml-tfidf-logreg-test",
@@ -855,31 +769,6 @@ class MarketNewsControllerTest {
                     0.75,
                     0.0);
         });
-        when(alertTitleTranslationService.translateTitleWithResult(anyString(), any()))
-                .thenAnswer(invocation -> {
-                    String text = invocation.getArgument(0, String.class);
-                    if (text.contains("삼전닉스")) {
-                        return translated("Samjeon Nix returns are drawing market attention.");
-                    }
-                    return translated(text);
-                });
-        when(alertTitleTranslationService.translateTextWithResult(anyString(), any()))
-                .thenAnswer(invocation -> {
-                    String text = invocation.getArgument(0, String.class);
-                    if (text.contains("삼전닉스 수익률 강세")) {
-                        return translated("Samjeon Nix returns are drawing market attention.");
-                    }
-                    if (text.contains("외국인 순매수와 반도체 업황")) {
-                        return translated("Foreign buying and semiconductor-cycle expectations are the main background.");
-                    }
-                    if (text.contains("반도체 대형주의 수급과 실적")) {
-                        return translated("Investors should monitor supply-demand and earnings expectations for major semiconductor stocks.");
-                    }
-                    if (text.contains("삼전닉스는 삼성전자")) {
-                        return translated("Samjeon Nix is Korean market slang for Samsung Electronics and SK Hynix. Foreign buying led strength in major semiconductor stocks. Investors should monitor supply-demand and earnings expectations.");
-                    }
-                    return translated(text);
-                });
 
         mockMvc.perform(post("/api/v1/market/news/{newsId}/reprocess", "mkt-samjeon-nix")
                         .header("X-HANA-OMNI-CONNECT-API-KEY", "test-api-key")
@@ -942,16 +831,16 @@ class MarketNewsControllerTest {
                 0.74);
     }
 
-    private TranslationResult translated(String text) {
-        return new TranslationResult(
+    private ArticleTranslationResult translated(String text) {
+        return new ArticleTranslationResult(
                 englishTextFor(text),
                 "local-open-source-qwen3-translation",
                 "local-llm:Qwen3-4B-GGUF-Q4",
                 "TRANSLATED");
     }
 
-    private TranslationResult sourceLanguageFallback(String text) {
-        return new TranslationResult(
+    private ArticleTranslationResult sourceLanguageFallback(String text) {
+        return new ArticleTranslationResult(
                 text,
                 "source-language-fallback",
                 "local-llm:Qwen3-4B-GGUF-Q4",

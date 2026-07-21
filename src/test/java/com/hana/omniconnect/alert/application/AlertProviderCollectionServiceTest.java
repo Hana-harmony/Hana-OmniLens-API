@@ -141,9 +141,10 @@ class AlertProviderCollectionServiceTest {
                 .thenReturn(4);
         when(naverNewsClient.search(eq("삼성전자 주가"), anyInt()))
                 .thenReturn(List.of(persisted, fresh));
+        AlertEvent persistedEvent = publishReadyEvent();
         when(alertEventRepository.findBySourceIdentity(
                 "local-dev", "005930", "NEWS", persisted.originalUrl()))
-                .thenReturn(Optional.of(mock(AlertEvent.class)));
+                .thenReturn(Optional.of(persistedEvent));
         when(originalArticleClient.fetch(fresh.originalUrl()))
                 .thenReturn(Optional.of(stockArticleContent(fresh)));
         when(dedupeStore.markIfFirst(any())).thenReturn(true);
@@ -170,9 +171,10 @@ class AlertProviderCollectionServiceTest {
         when(alertEventRepository.countByPartnerStockAndSourceType("local-dev", "005930", "NEWS"))
                 .thenReturn(5);
         when(naverNewsClient.search(eq("삼성전자 주가"), anyInt())).thenReturn(List.of(article));
+        AlertEvent persistedEvent = publishReadyEvent();
         when(alertEventRepository.findBySourceIdentity(
                 "local-dev", "005930", "NEWS", article.originalUrl()))
-                .thenReturn(Optional.of(mock(AlertEvent.class)));
+                .thenReturn(Optional.of(persistedEvent));
 
         var response = collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
                 "local-dev", List.of("005930"), 5, 1));
@@ -261,9 +263,10 @@ class AlertProviderCollectionServiceTest {
                 Instant.parse("2026-07-05T01:00:00Z"));
         when(stockMasterRepository.findByCode("000660")).thenReturn(Optional.of(stock));
         when(naverNewsClient.search(eq("SK하이닉스 공시"), anyInt())).thenReturn(List.of(article));
+        AlertEvent persistedEvent = publishReadyEvent();
         when(alertEventRepository.findBySourceIdentity(
                 "local-dev", "000660", "NEWS", article.originalUrl()))
-                .thenReturn(Optional.of(mock(AlertEvent.class)));
+                .thenReturn(Optional.of(persistedEvent));
 
         var response = collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
                 "local-dev",
@@ -295,9 +298,10 @@ class AlertProviderCollectionServiceTest {
         when(stockMasterRepository.findByCode("000660")).thenReturn(Optional.of(stock));
         when(openDartDisclosureClient.search(eq("00164779"), any(), any()))
                 .thenReturn(List.of(disclosure));
+        AlertEvent persistedEvent = publishReadyEvent();
         when(alertEventRepository.findBySourceIdentity(
                 "local-dev", "000660", "DISCLOSURE", disclosure.originalUrl()))
-                .thenReturn(Optional.of(mock(AlertEvent.class)));
+                .thenReturn(Optional.of(persistedEvent));
 
         var response = collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
                 "local-dev",
@@ -940,7 +944,7 @@ class AlertProviderCollectionServiceTest {
                 "local-dev", List.of("005930"), 1, 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(dedupeStore).remove("local-dev:005930:NEWS:" + article.originalUrl());
+        verify(dedupeStore).remove("local-dev:COLLECTION:v2:005930:NEWS:" + article.originalUrl());
     }
 
     @Test
@@ -966,8 +970,8 @@ class AlertProviderCollectionServiceTest {
                 "local-dev", List.of("005930"), 1, 1));
 
         assertThat(response.publishedCount()).isZero();
-        verify(dedupeStore).remove("local-dev:005930:NEWS:" + article.originalUrl());
-        verify(dedupeStore).remove("local-dev:AI:005930:NEWS:duplicate-key");
+        verify(dedupeStore).remove("local-dev:COLLECTION:v2:005930:NEWS:" + article.originalUrl());
+        verify(dedupeStore).remove("local-dev:AI:v2:005930:NEWS:duplicate-key");
     }
 
     @Test
@@ -1162,5 +1166,22 @@ class AlertProviderCollectionServiceTest {
                 article.originalUrl(),
                 "content-hash",
                 "licensed_naver_original_full_text_v1");
+    }
+
+    private AlertEvent publishReadyEvent() {
+        AlertEvent event = mock(AlertEvent.class);
+        when(event.originalContent()).thenReturn(
+                "삼성전자는 반도체 수요 회복을 공시했다. 투자자는 실적과 수급 변화를 확인해야 한다.");
+        when(event.summaryLines()).thenReturn(new AlertSummaryLines(
+                "Samsung Electronics reported a semiconductor-demand recovery.",
+                "The source cited improving memory demand.",
+                "Investors should monitor earnings and trading flows."));
+        when(event.translatedSummary()).thenReturn(
+                "Samsung Electronics reported a semiconductor-demand recovery.");
+        when(event.translatedContent()).thenReturn(
+                "Samsung Electronics reported recovering semiconductor demand. "
+                        + "The filing explains the expected earnings effect. "
+                        + "Investors should monitor trading flows.");
+        return event;
     }
 }

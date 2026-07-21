@@ -192,19 +192,24 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
             String partnerId,
             String stockCode,
             String sourceType) {
-        Integer count = jdbcTemplate.queryForObject(
+        return (int) jdbcTemplate.queryForList(
                 """
-                SELECT COUNT(*)
+                SELECT event_json
                 FROM alert_event
                 WHERE partner_id = ?
                   AND stock_code = ?
                   AND source_type = ?
+                  AND content_availability = 'FULL_TEXT'
                 """,
-                Integer.class,
+                String.class,
                 partnerId,
                 stockCode,
-                sourceType);
-        return count == null ? 0 : count;
+                sourceType)
+                .stream()
+                .map(this::readEvent)
+                .flatMap(Optional::stream)
+                .filter(this::isPublishReady)
+                .count();
     }
 
     @Override
@@ -219,14 +224,15 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
                         WHERE partner_id = ?
                           AND stock_code = ?
                           AND source_type = ?
+                          AND content_availability = 'FULL_TEXT'
                         ORDER BY published_at DESC, created_at DESC, alert_id DESC
-                        LIMIT 1
                         """,
                         rowMapper,
                         partnerId,
                         stockCode,
                         sourceType)
                 .stream()
+                .filter(this::isPublishReady)
                 .findFirst();
     }
 
@@ -384,6 +390,18 @@ public class JdbcAlertEventRepository implements AlertEventRepository {
                 || payload.contains("투자 권유")
                 || payload.contains("최종 판단")
                 || payload.contains("투자자 본인");
+    }
+
+    private boolean isPublishReady(AlertEvent event) {
+        return event != null
+                && !isBlank(event.originalContent())
+                && EnglishNewsQualityGate.hasUsableEnglishSummaryLines(event.summaryLines())
+                && EnglishNewsQualityGate.hasUsableEnglishText(event.translatedContent())
+                && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
+                        event.translatedContent(),
+                        event.summaryLines(),
+                        event.translatedSummary(),
+                        event.originalContent());
     }
 
     private boolean isBlank(String value) {
