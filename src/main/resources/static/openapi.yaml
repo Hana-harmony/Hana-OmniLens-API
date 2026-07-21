@@ -1731,6 +1731,10 @@ components:
         - stockName
         - stockNameEn
         - logoUrl
+        - sourceSector
+        - sourceIndustry
+        - sourceBusinessModel
+        - sourceBusinessTags
         - headline
         - summary
         - primaryPeer
@@ -1751,6 +1755,20 @@ components:
           type: string
         logoUrl:
           type: string
+        sourceSector:
+          type: string
+          description: 검증된 한국 종목의 기준 섹터.
+        sourceIndustry:
+          type: string
+          description: 검증된 한국 종목의 기준 산업.
+        sourceBusinessModel:
+          type: string
+          description: 검증된 한국 종목의 사업 모델.
+        sourceBusinessTags:
+          type: array
+          minItems: 1
+          items:
+            type: string
         headline:
           type: string
         summary:

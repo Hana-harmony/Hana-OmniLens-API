@@ -75,6 +75,10 @@ class HannahAiGlobalPeerMatchClientTest {
                 "005930",
                 "삼성전자",
                 "Samsung Electronics",
+                "Information Technology",
+                "Semiconductors",
+                "Memory semiconductor manufacturing",
+                List.of("memory"),
                 "Headline",
                 "Summary",
                 peer(),
@@ -87,6 +91,33 @@ class HannahAiGlobalPeerMatchClientTest {
                 "HANNAH_GLOBAL_PEER"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("comparisons size");
+    }
+
+    @Test
+    void responseRejectsPeerOutsideSourceDomain() {
+        assertThatThrownBy(() -> new HannahAiGlobalPeerMatchResponse(
+                "086790",
+                "하나금융지주",
+                "Hana Financial Group",
+                "Financials",
+                "Banks",
+                "Diversified banking group",
+                List.of("banking", "financials"),
+                "Headline",
+                "Summary",
+                peer(),
+                List.of(peer()),
+                List.of(new HannahAiGlobalPeerComparison(
+                        "financial_services",
+                        "Description",
+                        peer())),
+                strengths(),
+                BigDecimal.ONE,
+                "HIGH",
+                "model-v1",
+                "HANNAH_GLOBAL_PEER_HYBRID_RANKER"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("peer sector");
     }
 
     private HannahAiGlobalPeerMatch peer() {
@@ -132,6 +163,10 @@ class HannahAiGlobalPeerMatchClientTest {
                     "stock_code": "005930",
                     "stock_name": "삼성전자",
                     "stock_name_en": "Samsung Electronics",
+                    "source_sector": "Information Technology",
+                    "source_industry": "Semiconductors",
+                    "source_business_model": "Memory semiconductor manufacturing",
+                    "source_business_tags": ["memory"],
                     "headline": "Samsung Electronics global comparison",
                     "summary": "A diversified semiconductor and electronics leader.",
                     "primary_peer": {
@@ -142,6 +177,8 @@ class HannahAiGlobalPeerMatchClientTest {
                       "country": "US",
                       "similarity_score": 0.91,
                       "business_tags": ["memory"],
+                      "sector": "Information Technology",
+                      "industry": "Semiconductors",
                       "matched_factors": ["Memory portfolio"]
                     },
                     "peers": [{
@@ -152,6 +189,8 @@ class HannahAiGlobalPeerMatchClientTest {
                       "country": "US",
                       "similarity_score": 0.91,
                       "business_tags": ["memory"],
+                      "sector": "Information Technology",
+                      "industry": "Semiconductors",
                       "matched_factors": ["Memory portfolio"]
                     }],
                     "comparisons": [{
@@ -165,6 +204,8 @@ class HannahAiGlobalPeerMatchClientTest {
                         "country": "US",
                         "similarity_score": 0.91,
                         "business_tags": ["memory"],
+                        "sector": "Information Technology",
+                        "industry": "Semiconductors",
                         "matched_factors": ["Memory portfolio"]
                       }
                     }],
