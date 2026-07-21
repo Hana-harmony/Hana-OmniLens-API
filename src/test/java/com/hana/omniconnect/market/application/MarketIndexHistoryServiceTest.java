@@ -169,6 +169,40 @@ class MarketIndexHistoryServiceTest {
     }
 
     @Test
+    void getPreviousCloseUsesStoredPreviousSessionWithoutProviderCall() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        YahooIndexMinuteChartPriceClient yahooClient = mock(YahooIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        repository.recordRealtimeMinute(intraday(LocalDateTime.of(2026, 7, 1, 15, 30), "2870.10"));
+        repository.recordRealtimeMinute(intraday(LocalDateTime.of(2026, 7, 2, 15, 30), "2890.12"));
+        MarketIndexHistoryService service =
+                new MarketIndexHistoryService(kisClient, yahooClient, repository, PRE_OPEN_CLOCK);
+
+        assertThat(service.getPreviousClose("0001", LocalDate.of(2026, 7, 2)))
+                .contains(new BigDecimal("2870.10"));
+        verifyNoInteractions(kisClient, yahooClient);
+    }
+
+    @Test
+    void getPreviousCloseBackfillsYahooPreviousSessionWhenStorageIsEmpty() {
+        KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
+        YahooIndexMinuteChartPriceClient yahooClient = mock(YahooIndexMinuteChartPriceClient.class);
+        InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();
+        when(yahooClient.findMinutePrices("0001", LocalDate.of(2026, 7, 1), 600)).thenReturn(List.of(
+                kisPrice(LocalDateTime.of(2026, 7, 1, 9, 0), "2860.00"),
+                kisPrice(LocalDateTime.of(2026, 7, 1, 15, 30), "2870.10")));
+        MarketIndexHistoryService service =
+                new MarketIndexHistoryService(kisClient, yahooClient, repository, PRE_OPEN_CLOCK);
+
+        assertThat(service.getPreviousClose("0001", LocalDate.of(2026, 7, 2)))
+                .contains(new BigDecimal("2870.10"));
+        assertThat(repository.findLatestBefore("0001", LocalDate.of(2026, 7, 2)))
+                .map(MarketIndexIntradayPrice::closeValue)
+                .contains(new BigDecimal("2870.10"));
+        verifyNoInteractions(kisClient);
+    }
+
+    @Test
     void getIntradayHistoryDropsImplausibleProviderRows() {
         KisIndexMinuteChartPriceClient kisClient = mock(KisIndexMinuteChartPriceClient.class);
         InMemoryMarketIndexSnapshotRepository repository = new InMemoryMarketIndexSnapshotRepository();

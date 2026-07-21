@@ -207,6 +207,26 @@ public class JdbcMarketIndexSnapshotRepository implements MarketIndexSnapshotRep
     }
 
     @Override
+    public Optional<MarketIndexIntradayPrice> findLatestBefore(String indexCode, LocalDate date) {
+        return jdbcTemplate.query(
+                        """
+                        SELECT index_code, index_name, market, bucket_start,
+                               open_value, high_value, low_value, close_value,
+                               trading_volume, trading_value_krw, source, collected_at
+                        FROM market_index_intraday_minute_price
+                        WHERE index_code = ?
+                          AND trade_date < ?
+                        ORDER BY bucket_start DESC
+                        LIMIT 1
+                        """,
+                        INTRADAY_ROW_MAPPER,
+                        indexCode,
+                        date)
+                .stream()
+                .findFirst();
+    }
+
+    @Override
     public Optional<LocalDate> latestTradeDate(String indexCode) {
         LocalDate date = jdbcTemplate.query(
                 """

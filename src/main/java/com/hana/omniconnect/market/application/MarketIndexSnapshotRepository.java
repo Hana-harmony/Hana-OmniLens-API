@@ -19,5 +19,7 @@ public interface MarketIndexSnapshotRepository {
 
     List<MarketIndexIntradayPrice> findIntraday(String indexCode, LocalDate date, int limit);
 
+    Optional<MarketIndexIntradayPrice> findLatestBefore(String indexCode, LocalDate date);
+
     Optional<LocalDate> latestTradeDate(String indexCode);
 }

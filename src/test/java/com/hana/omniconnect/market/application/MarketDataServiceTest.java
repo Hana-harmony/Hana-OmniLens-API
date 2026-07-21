@@ -204,6 +204,12 @@ class MarketDataServiceTest {
         when(indexHistoryService.getIntradayHistory("2001", null, 390)).thenReturn(List.of(
                 indexIntraday("2001", "KOSPI 200", "KOSPI200", LocalDateTime.of(2026, 7, 2, 15, 29), "394.20"),
                 indexIntraday("2001", "KOSPI 200", "KOSPI200", LocalDateTime.of(2026, 7, 2, 15, 30), "395.30")));
+        when(indexHistoryService.getPreviousClose("0001", LocalDate.of(2026, 7, 2)))
+                .thenReturn(Optional.of(new BigDecimal("2900.00")));
+        when(indexHistoryService.getPreviousClose("1001", LocalDate.of(2026, 7, 2)))
+                .thenReturn(Optional.of(new BigDecimal("860.00")));
+        when(indexHistoryService.getPreviousClose("2001", LocalDate.of(2026, 7, 2)))
+                .thenReturn(Optional.of(new BigDecimal("400.00")));
         MarketDataService service = marketDataService(
                 new InMemoryRealtimeMarketDataCache(),
                 indexSnapshotRepository,
@@ -214,8 +220,31 @@ class MarketDataServiceTest {
         assertThat(indices).hasSize(3);
         assertThat(indices.get(0).indexCode()).isEqualTo("0001");
         assertThat(indices.get(0).currentValue()).isEqualByComparingTo("2890.12");
-        assertThat(indices.get(0).source()).isEqualTo("KIS_TIME_INDEX_CHART_PRICE_LATEST_CLOSE");
+        assertThat(indices.get(0).changeValue()).isEqualByComparingTo("-9.88");
+        assertThat(indices.get(0).changeRate()).isEqualByComparingTo("-0.3407");
+        assertThat(indices.get(0).source())
+                .isEqualTo("KIS_TIME_INDEX_CHART_PRICE_LATEST_CLOSE_WITH_PREVIOUS_CLOSE");
         assertThat(indexSnapshotRepository.findLatestIndices()).hasSize(3);
+    }
+
+    @Test
+    void getIndicesDoesNotPublishMisleadingZeroChangesWithoutPreviousClose() {
+        InMemoryMarketIndexSnapshotRepository indexSnapshotRepository = new InMemoryMarketIndexSnapshotRepository();
+        MarketIndexHistoryService indexHistoryService = mock(MarketIndexHistoryService.class);
+        when(indexHistoryService.getIntradayHistory("0001", null, 390)).thenReturn(List.of(
+                indexIntraday("0001", "KOSPI", "KOSPI", LocalDateTime.of(2026, 7, 2, 15, 30), "2890.12")));
+        when(indexHistoryService.getIntradayHistory("1001", null, 390)).thenReturn(List.of(
+                indexIntraday("1001", "KOSDAQ", "KOSDAQ", LocalDateTime.of(2026, 7, 2, 15, 30), "868.41")));
+        when(indexHistoryService.getIntradayHistory("2001", null, 390)).thenReturn(List.of(
+                indexIntraday("2001", "KOSPI 200", "KOSPI200", LocalDateTime.of(2026, 7, 2, 15, 30), "395.30")));
+
+        MarketDataService service = marketDataService(
+                new InMemoryRealtimeMarketDataCache(),
+                indexSnapshotRepository,
+                indexHistoryService);
+
+        assertThat(service.getIndices()).isEmpty();
+        assertThat(indexSnapshotRepository.findLatestIndices()).isEmpty();
     }
 
     @Test
