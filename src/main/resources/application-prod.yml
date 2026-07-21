@@ -41,8 +41,8 @@ omni-connect:
       base-url: ${KRX_OPEN_API_BASE_URL:https://data-dbg.krx.co.kr}
       auth-key: ${KRX_OPEN_API_AUTH_KEY}
     kis:
-      base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
-      websocket-url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}
+      base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}
+      websocket-url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:31000}
       account-number: ${KIS_ACCOUNT_NUMBER}
       app-key: ${KIS_APP_KEY}
       app-secret: ${KIS_APP_SECRET}

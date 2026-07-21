@@ -23,11 +23,12 @@ docker compose -f compose.local.yml down
 - `src/main/resources/application-prod.yml`은 커밋되는 실제 운영 profile 설정 파일이다.
 - 민감값은 `${...}` 환경변수 placeholder로만 작성한다.
 - 관리자 계정은 OCI에 SSH로 접속한 운영자만 DB에서 생성·초기화한다. 임시 비밀번호는 셸 기록·프로세스 인자·환경 파일에 남기지 않고, 초기화와 함께 `password_change_required=true`, `password_changed_at=NULL`, `session_version=session_version+1`을 적용한다.
-- KIS 현재가 provider는 실전 REST domain `https://openapi.koreainvestment.com:9443`을 기본으로 사용한다.
-- KIS 현재가 provider를 사용하려면 `KIS_APP_KEY`, `KIS_APP_SECRET`을 GitHub Secrets에 등록한다. `KIS_ACCESS_TOKEN`은 비워두면 앱이 자동 발급한다.
+- 일반 종목 KIS provider는 모의투자 REST domain `https://openapivts.koreainvestment.com:29443`을 기본으로 사용한다.
+- 일반 종목 KIS provider를 사용하려면 모의투자용 `KIS_APP_KEY`, `KIS_APP_SECRET`을 GitHub Secrets에 등록한다. `KIS_ACCESS_TOKEN`은 비워두면 앱이 자동 발급한다.
+- 지수 KIS provider는 실전 REST domain `https://openapi.koreainvestment.com:9443`과 `KIS_REAL_APP_KEY`, `KIS_REAL_APP_SECRET`을 사용한다.
 - 로컬 Compose는 gitignored `.env.local`에서 일반 종목용 `OMNI_CONNECT_PROVIDERS_KIS_*`에 모의 계정과 모의 endpoint를, 지수 전용 `OMNI_CONNECT_PROVIDERS_REAL_KIS_*`에 실전 계정과 실전 endpoint를 각각 주입한다. 승인키와 access token은 저장하지 않고 기동 시 계정별로 발급한다.
-- KIS WebSocket provider는 실전 WebSocket domain `ws://ops.koreainvestment.com:21000`을 기본으로 사용한다.
-- KIS WebSocket provider를 사용하려면 `KIS_WEBSOCKET_URL`을 설정할 수 있다. `KIS_APPROVAL_KEY`는 비워두면 앱이 자동 발급한다.
+- 일반 종목 KIS WebSocket provider는 모의투자 domain `ws://ops.koreainvestment.com:31000`을 기본으로 사용하고 지수 provider는 실전 domain `ws://ops.koreainvestment.com:21000`을 사용한다.
+- 일반 종목 provider는 `KIS_WEBSOCKET_URL`, 지수 provider는 `KIS_REAL_WEBSOCKET_URL`을 재정의할 수 있다. 승인키는 저장하지 않고 앱이 각 자격증명으로 발급한다.
 - 환율 provider는 `FRANKFURTER_BASE_URL` 하나만 사용한다. Frankfurter public API는 별도 API key가 필요 없다.
 - `main` push 시 외부 credential과 데이터 서비스 비밀번호는 GitHub Secrets로 원격 서버 환경 파일을 생성하고, 내부 런타임 키는 OCI 호스트 루트키에서 자동 파생한다.
 - `main` push 시 Docker 이미지를 GHCR에 push한다.

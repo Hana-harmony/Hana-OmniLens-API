@@ -56,6 +56,11 @@ class DeploymentProfileGuardrailTest {
         }
         assertThat(prodProfile).doesNotContain("replace-with-");
         assertThat(prodProfile).contains("base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}");
+        assertThat(prodProfile).contains(
+                "base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}",
+                "websocket-url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:31000}",
+                "base-url: ${KIS_REAL_BASE_URL:https://openapi.koreainvestment.com:9443}",
+                "websocket-url: ${KIS_REAL_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}");
         assertThat(prodProfile).doesNotContain("bootstrap-admin-password", "PORTAL_BOOTSTRAP_ADMIN_PASSWORD");
     }
 
