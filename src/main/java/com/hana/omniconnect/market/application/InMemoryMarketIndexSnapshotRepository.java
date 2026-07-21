@@ -52,6 +52,13 @@ public class InMemoryMarketIndexSnapshotRepository implements MarketIndexSnapsho
     }
 
     @Override
+    public Optional<MarketIndexIntradayPrice> findLatestBefore(String indexCode, LocalDate date) {
+        return intraday.getOrDefault(indexCode, List.of()).stream()
+                .filter(price -> price.bucketStart().toLocalDate().isBefore(date))
+                .max(Comparator.comparing(MarketIndexIntradayPrice::bucketStart));
+    }
+
+    @Override
     public Optional<LocalDate> latestTradeDate(String indexCode) {
         return intraday.getOrDefault(indexCode, List.of()).stream()
                 .map(price -> price.bucketStart().toLocalDate())

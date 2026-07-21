@@ -804,14 +804,26 @@ public class MarketDataService {
             }
             MarketIndexIntradayPrice first = prices.get(0);
             MarketIndexIntradayPrice last = prices.get(prices.size() - 1);
+            BigDecimal previousClose = marketIndexHistoryService
+                    .getPreviousClose(indexCode, last.bucketStart().toLocalDate())
+                    .filter(value -> value.signum() > 0)
+                    .orElse(null);
+            if (previousClose == null) {
+                log.warn("Market index latest close skipped because previous close is unavailable indexCode={}", indexCode);
+                return Optional.empty();
+            }
+            BigDecimal changeValue = last.closeValue().subtract(previousClose);
+            BigDecimal changeRate = changeValue
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(previousClose, 4, RoundingMode.HALF_UP);
             MarketIndexQuote quote = new MarketIndexQuote(
                     indexCode,
                     last.indexName(),
                     last.market(),
                     last.closeValue(),
-                    "3",
-                    BigDecimal.ZERO,
-                    BigDecimal.ZERO,
+                    indexChangeSign(changeValue),
+                    changeValue,
+                    changeRate,
                     prices.stream().mapToLong(MarketIndexIntradayPrice::tradingVolume).sum(),
                     prices.stream()
                             .map(MarketIndexIntradayPrice::tradingValueKrw)
@@ -827,13 +839,23 @@ public class MarketDataService {
                             .min(BigDecimal::compareTo)
                             .orElse(last.lowValue()),
                     last.bucketStart().atZone(KOREA_ZONE).toInstant(),
-                    last.source() + "_LATEST_CLOSE");
+                    last.source() + "_LATEST_CLOSE_WITH_PREVIOUS_CLOSE");
             return Optional.of(quote);
         } catch (RuntimeException exception) {
             // 지수 목록은 특정 지수의 KIS fallback 실패가 전체 홈 화면을 막지 않도록 분리한다.
             log.warn("Market index latest close fallback failed indexCode={}: {}", indexCode, exception.toString());
             return Optional.empty();
         }
+    }
+
+    private static String indexChangeSign(BigDecimal changeValue) {
+        if (changeValue.signum() > 0) {
+            return "2";
+        }
+        if (changeValue.signum() < 0) {
+            return "5";
+        }
+        return "3";
     }
 
     public OrderBook getOrderBook(String stockCode) {

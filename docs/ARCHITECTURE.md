@@ -44,6 +44,7 @@
 - 협력사 watchlist는 Flyway가 생성한 `partner_watchlist_subscription` 테이블과 JDBC 저장소를 사용한다.
 - watchlist 종목은 `stock_master` FK로 제한하며, REST API 저장 시 미지원 종목은 404로 거부한다.
 - 협력사 API key는 Flyway가 생성한 `partner_api_credential` 테이블에 SHA-256 해시, `partner_id`, 파트너별 요청 제한 정책으로 저장한다.
+- 전문 번역이 비어 있는 상세 GET은 저장된 이벤트를 즉시 반환하고 별도 우선순위 executor에 번역을 요청한다. 백그라운드 적체 처리는 단일 worker로 제한해 Qwen의 다른 슬롯을 상세 조회용으로 남긴다.
 - `MarketDataService`는 KIS 실시간 체결 cache, KIS 현재가 REST, PostgreSQL 최신 정규장 분봉, 공공데이터 전일 snapshot 순서로 실제 provider 가격을 조회한다. 재기동·휴장일에는 저장 분봉의 체결 시각과 출처를 그대로 노출하며, 가격, KRX 외국인 보유량 snapshot, 또는 FX cache가 없으면 가짜 시장 데이터로 성공 응답을 만들지 않고 `MARKET_002`로 실패한다.
 - `MarketDataService`는 KIS 실시간 호가 cache를 우선 사용하고, 장외 또는 초기 구동처럼 cache가 비어 있으면 KIS REST 호가 snapshot으로 orderbook 응답을 보강한다.
 - `MarketQuoteWebSocketHandler`는 raw WebSocket `/ws/market/quotes`에서 인증된 협력사 연결을 관리하고, `RealtimeMarketDataIngestionService`가 KIS 체결 tick을 수신하면 KRW/현지통화/FX metadata가 포함된 `MarketQuote` JSON을 송신한다.
@@ -51,6 +52,7 @@
 - `KisRealtimeSessionRunner`는 인기 10종목의 체결·호가와 장운영정보(`H0STMKO0`)를 고정하고 KIS의 주식 체결·호가 40 TR 한도에서 남은 슬롯을 상세 종목 LRU로 운영한다. 장운영정보의 거래정지 사유에서 서킷브레이커를 판별하고 체결이 중단된 동안에도 상태 quote를 즉시 발행한다. 발동 후 재접속으로 상태 이벤트를 놓친 경우에는 신선한 실전 시장지수의 서킷 임계 하락과 같은 시장의 체결 중단을 함께 확인해 상태를 복구하고, 체결 재개 즉시 해제한다. `KisRealtimeIndexSessionRunner`는 지수 3개를 같은 실전 provider 또는 별도 실전 연결에 고정한다. `QUOTE_STREAM_SUBSCRIBE`와 상세 구독 REST 계약은 같은 주식 구독 관리자를 사용하며, 교체 시 해제 프레임을 먼저 전송한다.
 - `StandardKisRealtimeWebSocketConnection`은 close code와 관계없이 지수 백오프·jitter로 재연결하고 고정·동적 구독 프레임을 복원한다.
 - `MarketDataService`는 KRX 외국인보유량 cache에 snapshot이 있으면 외국인 보유수량, 지분율, 한도소진율을 quote payload에 반영한다. KIS 실시간 체결가·호가 WebSocket은 가격·호가·상태 전용이며 외국인 보유량 필드를 제공하지 않는다.
+- 실전 KIS 지수 REST를 사용할 수 없을 때 지수 카드는 Yahoo 정규장 최근 종가와 직전 거래일 종가를 함께 조회해 전일 대비값을 계산한다. 직전 종가가 없으면 `+0`을 합성하지 않고 해당 fallback 묶음을 반환하지 않는다.
 - 주문 가능 여부 boundary는 KRX snapshot의 외국인 취득한도 제한 종목에만 보유 시계열 예측을 사용한다. 장전 batch가 Hannah-Montana-AI 모델로 금일 예측을 선계산해 cache에 저장하고 API 요청은 cache hit를 우선 반환한다. cache miss 또는 AI 장애 시 OmniConnect 내부 시계열 엔진으로 fallback한다. 제한이 없는 종목은 `FOREIGN_LIMIT_NOT_APPLICABLE`로 반환한다. 외국인 한도 예측은 프론트 사전 고지용 경고 신호이며 주문 차단 조건에 포함하지 않는다.
 - `GET /api/v1/market/stocks/{stockCode}/global-peers`는 종목 master metadata를 Hannah-Montana-AI 글로벌 피어 매칭 모델에 전달해 외국인 투자자용 peer popup copy, 미국 상장 peer 목록, 속성별 `comparisons`, 국내 종목 자체의 4개 `keyStrengths`를 반환한다. AI 응답의 dimension/icon key allowlist와 카드 개수를 provider 경계에서 검증하며, Hannah 장애 fallback은 근거 없는 비교·강점 카드를 만들지 않고 빈 배열로 응답한다.
 - `POST /api/v1/korean-financial-terms/explain`는 뉴스/공시 본문에서 선택한 한국 금융 고유어·전문용어를 Hannah-Montana-AI 단일 검증 사전에 전달한다. `개미`는 번역 문장에서 `Ants`, glossary 정규 라벨에서 `Ant`로 고정한다. 검증된 응답만 TTL cache에 저장하고 클릭 식별자는 salted SHA-256 hash로 기록한다.

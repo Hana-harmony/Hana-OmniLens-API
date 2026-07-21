@@ -23,10 +23,23 @@ public class SchedulingConfiguration {
     @Bean(name = "newsTranslationEnrichmentExecutor")
     public ThreadPoolTaskExecutor newsTranslationEnrichmentExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(2);
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
         executor.setQueueCapacity(0);
         executor.setThreadNamePrefix("news-translation-enrichment-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean(name = "onDemandNewsTranslationExecutor")
+    public ThreadPoolTaskExecutor onDemandNewsTranslationExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("on-demand-news-translation-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();

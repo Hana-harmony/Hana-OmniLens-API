@@ -5,11 +5,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -98,6 +100,33 @@ public class MarketIndexHistoryService {
             return merged;
         }
         return backfillWithYahooIndex(indexCode, resolvedDate, limit, merged);
+    }
+
+    public Optional<BigDecimal> getPreviousClose(String indexCode, LocalDate tradeDate) {
+        Optional<MarketIndexIntradayPrice> saved = marketIndexSnapshotRepository.findLatestBefore(indexCode, tradeDate);
+        if (saved.isPresent()) {
+            return saved.map(MarketIndexIntradayPrice::closeValue);
+        }
+        if (yahooIndexMinuteChartPriceClient == null) {
+            return Optional.empty();
+        }
+        try {
+            List<MarketIndexIntradayPrice> fetched = yahooIndexMinuteChartPriceClient
+                    .findMinutePrices(indexCode, tradeDate.minusDays(1), FULL_SESSION_LOOKUP_LIMIT)
+                    .stream()
+                    .map(price -> toIndexIntradayPrice(indexCode, price, FALLBACK_SOURCE))
+                    .filter(this::isRegularSessionPrice)
+                    .filter(this::isPlausiblePrice)
+                    .sorted(Comparator.comparing(MarketIndexIntradayPrice::bucketStart))
+                    .toList();
+            marketIndexSnapshotRepository.upsertIntradayPrices(fetched);
+            return fetched.isEmpty()
+                    ? Optional.empty()
+                    : Optional.of(fetched.get(fetched.size() - 1).closeValue());
+        } catch (RuntimeException exception) {
+            log.warn("Previous index close fallback failed indexCode={}: {}", indexCode, exception.toString());
+            return Optional.empty();
+        }
     }
 
     private LocalDate defaultTradingDate(String indexCode) {

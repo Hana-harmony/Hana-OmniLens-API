@@ -154,6 +154,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 - KIS 연결이 정상 close code로 종료된 경우도 지수 백오프와 jitter로 재연결하고 고정·동적 구독을 복원한다.
 - API 기동 시 승인키 발급이 실패해 WebSocket 연결 전 단계에서 중단된 경우에도 최대 30초의 지수 백오프와 jitter로 승인키 발급부터 다시 시도한다.
 - 모의투자 app key는 실전 지수 endpoint 인증에 재사용하지 않는다. 지수 3개 실시간 구독에는 `real-kis` app key·app secret을 별도로 설정해야 하며, 누락 시 잘못된 승인키로 재시도하지 않고 지수 연결을 비활성화한다.
+- 실전 KIS 자격증명 장애 시 지수 REST fallback은 Yahoo 최근 5거래일 정규장 데이터에서 최근 종가와 직전 종가를 구해 등락값·등락률을 계산한다. 직전 종가를 검증하지 못하면 0%로 위장하지 않고 지수 묶음을 unavailable로 처리한다.
 - KIS가 `OPSP0011`로 승인키를 거부하면 같은 자격증명으로 재연결을 반복하지 않는다. 일반 원격 종료는 성공 제어 메시지 이후 attempt를 초기화하고, 연속 실패는 누적 attempt의 지수 백오프와 jitter를 적용한다.
 
 ## 한국 증시 시장뉴스
@@ -294,6 +295,8 @@ HANNAH_AI_MAINTENANCE_TOKEN=<호스트 루트키에서 자동 파생>
 - 협력사별 API key는 원문을 저장하지 않고 SHA-256 해시만 저장한다.
 - `active=false` credential은 인증에 사용할 수 없다.
 - `rate_limit_exempt=true`인 활성 credential만 요청 제한을 건너뛰며 인증·서명·nonce 재사용 방지는 건너뛰지 않는다.
+- 전문이 아직 번역되지 않은 뉴스·공시 상세 조회는 현재 저장값을 즉시 반환하고 15분 중복 방지 키와 우선순위 queue로 전문 번역을 요청한다. 클라이언트는 `translatedContent`가 채워질 때까지 상세 GET을 재조회한다.
+- 일반 적체 worker는 한 번에 한 작업만 AI로 보내 Qwen 병렬 슬롯 하나를 상세 조회용으로 확보한다.
 - DB credential로 인증된 요청은 알림 API의 `partnerId`와 인증된 `partner_id`가 일치해야 한다.
 - 회원은 포털에서 API 이용을 신청하고 관리자는 관리자 화면에서 승인·반려한다.
 - 승인·재발급 시 서버가 새 256-bit API key를 생성한다. 인증용 테이블에는 SHA-256 hash만 저장하고, 포털 재조회용 원문은 별도 암호문으로 보관해 소유 회원의 현재 비밀번호 재확인 후 횟수 제한 없이 제공한다.
