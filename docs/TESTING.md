@@ -82,8 +82,8 @@ docker compose -f compose.local.yml up -d
 - Naver News Search 응답 정규화
 - OpenDART 공시검색 응답 매핑
 - Hannah-Montana-AI Qwen3 번역 요청 계약과 응답 매핑
-- 알림 제목·요약·전문 번역 Hannah Qwen 우선, 번역 장애 시 원문 fallback 상태 전파
-- Hannah Qwen 4B 응답 계약과 장애 시 source-language fallback을 검증
+- 알림 제목·What/Why/Impact·전문이 Hannah Qwen 단일 분석 응답에서 함께 오고, 하나라도 실패하면 게시하지 않는 계약 검증
+- 과거 미완성 공시 마이그레이션, 완료 이벤트만 계산하는 수집 진척도, `v2` Redis dedupe 재수집 검증
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 외부 provider 공통 timeout 설정 기본값
 - 외부 provider 재시도, circuit open, 비네트워크 예외 no-retry 정책
