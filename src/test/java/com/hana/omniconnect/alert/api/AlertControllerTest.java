@@ -1094,21 +1094,21 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.data.publishedCount", equalTo(2)))
                 .andExpect(jsonPath("$.data.skippedDuplicateCount", equalTo(1)))
                 .andExpect(jsonPath("$.data.failedAnalysisCount", equalTo(0)))
-                .andExpect(jsonPath("$.data.events[0].sourceType", equalTo("NEWS")))
-                .andExpect(jsonPath("$.data.events[0].duplicateKey", equalTo("provider-collection-duplicate-key")))
-                .andExpect(jsonPath("$.data.events[0].glossaryTerms[*].sourceTerm", hasItem("KOSPI")))
-                .andExpect(jsonPath("$.data.events[0].translationQualityFlags", hasItem("FINANCIAL_GLOSSARY_APPLIED")))
-                .andExpect(jsonPath("$.data.events[0].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
+                .andExpect(jsonPath("$.data.events[0].sourceType", equalTo("DISCLOSURE")))
                 .andExpect(jsonPath("$.data.events[0].contentAvailability", equalTo("FULL_TEXT")))
                 .andExpect(jsonPath("$.data.events[0].originalContent",
-                        containsString("주가가 강세를 보였다")))
-                .andExpect(jsonPath("$.data.events[0].translatedContent", containsString("Samsung Electronics")))
-                .andExpect(jsonPath("$.data.events[0].imageUrls[0]",
-                        equalTo("https://news.example.com/images/1.jpg")))
-                .andExpect(jsonPath("$.data.events[1].sourceType", equalTo("DISCLOSURE")))
+                        equalTo("삼성전자 주요사항보고서 전문이다. 자기주식 취득과 소각 결정으로 주주환원 영향이 있다.")))
+                .andExpect(jsonPath("$.data.events[1].sourceType", equalTo("NEWS")))
+                .andExpect(jsonPath("$.data.events[1].duplicateKey", equalTo("provider-collection-duplicate-key")))
+                .andExpect(jsonPath("$.data.events[1].glossaryTerms[*].sourceTerm", hasItem("KOSPI")))
+                .andExpect(jsonPath("$.data.events[1].translationQualityFlags", hasItem("FINANCIAL_GLOSSARY_APPLIED")))
+                .andExpect(jsonPath("$.data.events[1].modelVersion", equalTo("financial-ml-tfidf-logreg-test")))
                 .andExpect(jsonPath("$.data.events[1].contentAvailability", equalTo("FULL_TEXT")))
                 .andExpect(jsonPath("$.data.events[1].originalContent",
-                        equalTo("삼성전자 주요사항보고서 전문이다. 자기주식 취득과 소각 결정으로 주주환원 영향이 있다.")));
+                        containsString("주가가 강세를 보였다")))
+                .andExpect(jsonPath("$.data.events[1].translatedContent", containsString("Samsung Electronics")))
+                .andExpect(jsonPath("$.data.events[1].imageUrls[0]",
+                        equalTo("https://news.example.com/images/1.jpg")));
     }
 
     @Test

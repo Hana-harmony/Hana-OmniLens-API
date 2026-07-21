@@ -68,6 +68,7 @@ public class AlertAnalysisPublishingService {
     public boolean isPublishReady(AlertPublishRequest request) {
         return request != null
                 && StringUtils.hasText(request.originalContent())
+                && EnglishNewsQualityGate.hasUsableEnglishSummaryLines(request.summaryLines())
                 && EnglishNewsQualityGate.hasUsableEnglishText(request.translatedContent())
                 && !EnglishNewsQualityGate.looksLikeSummaryOnlyContent(
                         request.translatedContent(),

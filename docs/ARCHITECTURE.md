@@ -70,5 +70,6 @@
 - 전문과 이미지 URL은 Naver Search row에서 직접 얻는 값이 아니다. 사용 허가된 원문 URL 또는 공시 원문에서 수집하고, block element 단위 문단과 줄바꿈을 보존해 전문을 저장한 뒤 동일 레코드에서 REST 목록·상세와 WebSocket payload를 만든다. 이미지 후보는 DOM 정제 전에 Open Graph, JSON-LD, article/header의 lazy-loading 속성에서 수집하며 후보가 없으면 빈 `imageUrls`를 반환한다.
 - 한국 증시 시장뉴스는 종목별 alert와 별도 테이블 `market_news_event`에 저장하고 `/api/v1/market/news`, `/api/v1/market/news/{newsId}`, `/api/v1/market/news/collect`로 제공한다. 기본 검색어는 `한국 증시`, `코스피 코스닥`, `국내 증시`이며 원문·이미지 URL을 함께 보관한다.
 - 시장뉴스 수집은 Hannah `DEFERRED` 모드로 완전한 원문과 영문 What/Why/Impact를 먼저 내부 대기 레코드로 적재한다. 백그라운드 보강이 전체 영문 본문을 검증해 `FULL_TEXT`로 전환한 뒤에만 목록·상세·트렌딩에 노출한다.
+- 종목별 주기 수집은 OpenDART 공시를 뉴스보다 먼저 처리한다. `document.xml`의 `014` 등 오류 envelope는 본문으로 저장하지 않고 다음 주기에 재시도하며, 과거 `014 파일이 존재하지 않습니다` 오염 레코드는 Flyway 마이그레이션으로 제거해 정상 ZIP 원문을 다시 수집한다.
 - 종목 뉴스·공시 수집은 Hannah `FULL` 모드를 사용하고 전체 영문 본문 품질 gate를 통과한 이벤트만 DB·REST·WebSocket에 발행한다. 기존 미완료 레코드는 보강 대상으로 유지하되 완료 전에는 외부에 노출하지 않는다.
 - WebSocket subscription 계약 테스트가 실제 STOMP client로 topic 수신과 협력사 topic 권한을 검증한다.

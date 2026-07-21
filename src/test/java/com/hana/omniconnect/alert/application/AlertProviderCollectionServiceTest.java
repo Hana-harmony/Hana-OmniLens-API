@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,6 +21,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.web.client.ResourceAccessException;
 
 import com.hana.omniconnect.alert.api.AlertAnalysisPublishRequest;
@@ -58,6 +61,22 @@ class AlertProviderCollectionServiceTest {
     AlertProviderCollectionServiceTest() {
         when(dedupeStore.acquireLease(any(), any())).thenReturn(Optional.of("test-lease-token"));
         when(publishingService.isPublishReady(any(AlertPublishRequest.class))).thenReturn(true);
+    }
+
+    @Test
+    void collectsOfficialDisclosuresBeforeGeneratedNewsWork() {
+        StockSummary stock = new StockSummary(
+                "005930", "삼성전자", "Samsung Electronics", "KOSPI", "KR7005930003", "00126380");
+        when(stockMasterRepository.findByCode("005930")).thenReturn(Optional.of(stock));
+        when(openDartDisclosureClient.search(eq("00126380"), any(), any())).thenReturn(List.of());
+        when(naverNewsClient.search(any(), anyInt())).thenReturn(List.of());
+
+        collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
+                "local-dev", List.of("005930"), 5, 1));
+
+        InOrder providerOrder = inOrder(openDartDisclosureClient, naverNewsClient);
+        providerOrder.verify(openDartDisclosureClient).search(eq("00126380"), any(), any());
+        providerOrder.verify(naverNewsClient, atLeastOnce()).search(any(), anyInt());
     }
 
     @Test

@@ -18,6 +18,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.jsoup.parser.Parser;
 import org.slf4j.Logger;
@@ -37,6 +38,7 @@ public class OpenDartDisclosureClient {
     public static final String OPENDART_PUBLIC_DISCLOSURE_TEXT = "opendart_public_disclosure_text_v1";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OpenDartDisclosureClient.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final DateTimeFormatter DART_DATE = DateTimeFormatter.BASIC_ISO_DATE;
     private static final int MAX_DOCUMENT_BYTES = 12_000_000;
     private static final int MAX_CORP_CODE_BYTES = 60_000_000;
@@ -96,6 +98,16 @@ public class OpenDartDisclosureClient {
                             .build())
                     .retrieve()
                     .body(byte[].class));
+            Optional<OpenDartApiError> apiError = parseApiError(payload);
+            if (apiError.isPresent()) {
+                OpenDartApiError error = apiError.orElseThrow();
+                LOGGER.info(
+                        "OpenDART document is not ready. receiptNumber={}, status={}, message={}",
+                        receiptNumber,
+                        error.status(),
+                        error.message());
+                return Optional.empty();
+            }
             String documentText = normalize(extractText(payload));
             if (!StringUtils.hasText(documentText)) {
                 return Optional.empty();
@@ -147,6 +159,34 @@ public class OpenDartDisclosureClient {
             return extractZipText(payload);
         }
         return documentText(new String(payload, StandardCharsets.UTF_8));
+    }
+
+    private Optional<OpenDartApiError> parseApiError(byte[] payload) {
+        if (payload == null || payload.length == 0 || isZip(payload)) {
+            return Optional.empty();
+        }
+        String source = new String(payload, StandardCharsets.UTF_8).strip();
+        if (!StringUtils.hasText(source)) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(source);
+            String status = root.path("status").asText("").strip();
+            if (StringUtils.hasText(status) && !"000".equals(status)) {
+                return Optional.of(new OpenDartApiError(status, root.path("message").asText("")));
+            }
+        } catch (IOException ignored) {
+            // document.xml은 오류 시 XML을 반환하므로 JSON 파싱 실패 후 XML을 확인한다.
+        }
+        org.jsoup.nodes.Document document = Jsoup.parse(source, "", Parser.xmlParser());
+        org.jsoup.nodes.Element statusElement = document.selectFirst("status");
+        String status = statusElement == null ? "" : statusElement.text().strip();
+        if (!StringUtils.hasText(status) || "000".equals(status)) {
+            return Optional.empty();
+        }
+        org.jsoup.nodes.Element messageElement = document.selectFirst("message");
+        String message = messageElement == null ? "" : messageElement.text().strip();
+        return Optional.of(new OpenDartApiError(status, message));
     }
 
     private Map<String, String> parseListedCorpCodes(byte[] payload) throws IOException {
@@ -284,5 +324,8 @@ public class OpenDartDisclosureClient {
     }
 
     private record LimitedBytes(byte[] bytes, boolean truncated) {
+    }
+
+    private record OpenDartApiError(String status, String message) {
     }
 }

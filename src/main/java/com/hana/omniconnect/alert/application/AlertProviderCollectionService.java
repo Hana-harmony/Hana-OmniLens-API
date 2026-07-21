@@ -53,6 +53,7 @@ public class AlertProviderCollectionService {
     private static final int MIN_COMPLETE_ARTICLE_CHARS = 180;
     private static final int MIN_COMPLETE_ARTICLE_SENTENCES = 2;
     private static final int DISCLOSURE_FEED_EXCERPT_MAX_CHARS = 1_200;
+    private static final int MAX_DISCLOSURE_DOCUMENT_ATTEMPTS_PER_STOCK = 20;
     private static final Duration COLLECTION_LEASE_DURATION = Duration.ofHours(6);
     private static final Duration INCREMENTAL_COLLECTION_OVERLAP = Duration.ofHours(24);
     private static final int MAX_NEW_EVENTS_PER_SOURCE_RUN = 100;
@@ -167,8 +168,9 @@ public class AlertProviderCollectionService {
                 continue;
             }
             try {
-                publishNews(request, stock, incrementalEnabled, counters, events);
+                // 공식 공시는 생성형 뉴스 처리 지연과 무관하게 먼저 복구한다.
                 publishDisclosures(request, stock, beginDate, endDate, incrementalEnabled, counters, events);
+                publishNews(request, stock, incrementalEnabled, counters, events);
             } finally {
                 // 임대 토큰 소유자만 잠금을 해제해 만료 후 재획득 경쟁을 방지한다.
                 alertDedupeStore.releaseLease(leaseKey, leaseToken.orElseThrow());
@@ -715,9 +717,11 @@ public class AlertProviderCollectionService {
                 incrementalEnabled);
         int satisfiedForStock = progress.satisfiedCount();
         int publishedForStock = 0;
+        int documentAttempts = 0;
         for (OpenDartDisclosure disclosure : latestDisclosures(disclosures)) {
             if ((!progress.incremental() && satisfiedForStock >= targetDisplay)
-                    || publishedForStock >= MAX_NEW_EVENTS_PER_SOURCE_RUN) {
+                    || publishedForStock >= MAX_NEW_EVENTS_PER_SOURCE_RUN
+                    || documentAttempts >= MAX_DISCLOSURE_DOCUMENT_ATTEMPTS_PER_STOCK) {
                 break;
             }
             Instant publishedAt = disclosure.receivedAt().atStartOfDay(KOREA_ZONE).toInstant();
@@ -735,6 +739,7 @@ public class AlertProviderCollectionService {
                 }
                 continue;
             }
+            documentAttempts++;
             Optional<OpenDartDisclosureDocument> document = optionalDocument(disclosure.receiptNumber());
             if (document.isEmpty()) {
                 log.warn(
