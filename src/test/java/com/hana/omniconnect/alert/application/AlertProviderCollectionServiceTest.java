@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +46,7 @@ class AlertProviderCollectionServiceTest {
     private final AlertDedupeStore dedupeStore = mock(AlertDedupeStore.class);
     private final AlertEventRepository alertEventRepository = mock(AlertEventRepository.class);
     private final DisclosureProcessingService disclosureProcessingService = mock(DisclosureProcessingService.class);
+    private final NewsProcessingService newsProcessingService = mock(NewsProcessingService.class);
     private final AlertProviderCollectionService collectionService = new AlertProviderCollectionService(
             naverNewsClient,
             originalArticleClient,
@@ -54,11 +56,14 @@ class AlertProviderCollectionServiceTest {
             dedupeStore,
             alertEventRepository,
             disclosureProcessingService,
+            newsProcessingService,
             Clock.fixed(Instant.parse("2026-07-06T00:00:00Z"), ZoneId.of("Asia/Seoul")));
 
     AlertProviderCollectionServiceTest() {
         when(dedupeStore.acquireLease(any(), any())).thenReturn(Optional.of("test-lease-token"));
         when(publishingService.isPublishReady(any(AlertPublishRequest.class))).thenReturn(true);
+        when(newsProcessingService.enqueue(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(true);
     }
 
     @Test
@@ -218,9 +223,11 @@ class AlertProviderCollectionServiceTest {
         var response = collectionService.collectIncrementalAnalyzeAndPublish(new AlertCollectPublishRequest(
                 "local-dev", List.of("005930"), 5, 1));
 
-        assertThat(response.publishedCount()).isEqualTo(2);
+        assertThat(response.publishedCount()).isZero();
         verify(originalArticleClient).fetch(first.originalUrl());
         verify(originalArticleClient).fetch(second.originalUrl());
+        verify(newsProcessingService, times(2))
+                .enqueue(any(), eq(stock), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
