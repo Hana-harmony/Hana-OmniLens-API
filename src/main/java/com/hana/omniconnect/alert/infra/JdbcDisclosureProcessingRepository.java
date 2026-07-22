@@ -91,39 +91,63 @@ public class JdbcDisclosureProcessingRepository implements DisclosureProcessingR
     public Optional<DisclosureProcessingJob> claimNext(Instant now, Duration leaseDuration) {
         List<DisclosureProcessingJob> candidates = jdbcTemplate.query(
                 """
+                WITH stock_jobs AS (
+                    SELECT job.*,
+                           MAX(CASE WHEN attempt_count > 0 THEN updated_at END)
+                               OVER (PARTITION BY partner_id, stock_code) AS stock_last_attempt_at
+                    FROM disclosure_processing_job job
+                ), ranked AS (
+                    SELECT stock_jobs.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY partner_id, stock_code
+                               ORDER BY attempt_count ASC, published_at DESC, created_at ASC
+                           ) AS stock_rank
+                    FROM stock_jobs
+                    WHERE
+                """ + CLAIMABLE_STATUS_SQL + """
+                )
                 SELECT job_id, partner_id, stock_code, receipt_number, corporation_name,
                        report_name, original_url, published_at, source_content, content_hash,
                        source_license_policy, status, attempt_count, lease_token
-                FROM disclosure_processing_job
-                WHERE
-                """ + CLAIMABLE_STATUS_SQL + """
-                ORDER BY attempt_count ASC, published_at DESC, created_at ASC
-                LIMIT 1
-                FOR UPDATE SKIP LOCKED
+                FROM ranked
+                WHERE stock_rank = 1
+                ORDER BY attempt_count ASC,
+                         stock_last_attempt_at ASC NULLS FIRST,
+                         published_at DESC,
+                         created_at ASC
+                LIMIT 64
                 """,
                 rowMapper,
                 Timestamp.from(now),
                 Timestamp.from(now));
-        if (candidates.isEmpty()) {
-            return Optional.empty();
+        for (DisclosureProcessingJob candidate : candidates) {
+            String leaseToken = UUID.randomUUID().toString();
+            int claimed = jdbcTemplate.update(
+                    """
+                    UPDATE disclosure_processing_job
+                    SET status = 'PROCESSING',
+                        attempt_count = attempt_count + 1,
+                        lease_token = ?,
+                        lease_until = ?,
+                        updated_at = ?
+                    WHERE job_id = ?
+                      AND
+                    """ + CLAIMABLE_STATUS_SQL,
+                    leaseToken,
+                    Timestamp.from(now.plus(leaseDuration)),
+                    Timestamp.from(now),
+                    candidate.jobId(),
+                    Timestamp.from(now),
+                    Timestamp.from(now));
+            if (claimed == 1) {
+                return Optional.of(claimedJob(candidate, leaseToken));
+            }
         }
-        DisclosureProcessingJob candidate = candidates.get(0);
-        String leaseToken = UUID.randomUUID().toString();
-        jdbcTemplate.update(
-                """
-                UPDATE disclosure_processing_job
-                SET status = 'PROCESSING',
-                    attempt_count = attempt_count + 1,
-                    lease_token = ?,
-                    lease_until = ?,
-                    updated_at = ?
-                WHERE job_id = ?
-                """,
-                leaseToken,
-                Timestamp.from(now.plus(leaseDuration)),
-                Timestamp.from(now),
-                candidate.jobId());
-        return Optional.of(new DisclosureProcessingJob(
+        return Optional.empty();
+    }
+
+    private DisclosureProcessingJob claimedJob(DisclosureProcessingJob candidate, String leaseToken) {
+        return new DisclosureProcessingJob(
                 candidate.jobId(),
                 candidate.partnerId(),
                 candidate.stockCode(),
@@ -137,7 +161,7 @@ public class JdbcDisclosureProcessingRepository implements DisclosureProcessingR
                 candidate.sourceLicensePolicy(),
                 "PROCESSING",
                 candidate.attemptCount() + 1,
-                leaseToken));
+                leaseToken);
     }
 
     @Override
