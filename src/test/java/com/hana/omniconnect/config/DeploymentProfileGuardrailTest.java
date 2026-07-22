@@ -195,6 +195,9 @@ class DeploymentProfileGuardrailTest {
         assertThat(deployScript).contains("--network \"${NETWORK}\"");
         assertThat(deployScript).contains("sudo nginx -t");
         assertThat(deployScript).contains("sudo systemctl reload nginx");
+        assertThat(deployScript).contains(
+                "/etc/nginx/conf.d/hana-omni-connect-api-bootstrap.conf",
+                "/etc/nginx/sites-enabled/hana-omni-connect-api");
         assertThat(deployScript).contains("https://api.hanaomni.cloud/actuator/health");
         assertThat(deployScript).doesNotContain("application-local.yml");
     }

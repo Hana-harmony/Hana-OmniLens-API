@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -228,6 +229,28 @@ class AlertProviderCollectionServiceTest {
         verify(originalArticleClient).fetch(second.originalUrl());
         verify(newsProcessingService, times(2))
                 .enqueue(any(), eq(stock), any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void boundsSlowOriginalArticleInspectionsPerStockAndSearchQuery() {
+        StockSummary stock = new StockSummary(
+                "015760", "한국전력", "Korea Electric Power", "KOSPI", "KR7015760002", null);
+        List<NaverNewsArticle> candidates = IntStream.range(0, 20)
+                .mapToObj(index -> new NaverNewsArticle(
+                        "한국전력 주가 후보 " + index,
+                        "한국전력 주가 관련 기사입니다.",
+                        "https://news.example.com/kepco-" + index,
+                        Instant.parse("2026-07-05T01:00:00Z").plusSeconds(index)))
+                .toList();
+        when(stockMasterRepository.findByCode("015760")).thenReturn(Optional.of(stock));
+        when(naverNewsClient.search(any(), anyInt())).thenReturn(candidates);
+        when(originalArticleClient.fetch(any())).thenReturn(Optional.empty());
+
+        collectionService.collectIncrementalAnalyzeAndPublish(new AlertCollectPublishRequest(
+                "local-dev", List.of("015760"), 5, 1));
+
+        verify(originalArticleClient, times(16)).fetch(any());
+        verify(naverNewsClient, times(4)).search(any(), anyInt());
     }
 
     @Test

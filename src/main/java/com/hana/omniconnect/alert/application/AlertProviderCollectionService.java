@@ -49,6 +49,8 @@ public class AlertProviderCollectionService {
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
     private static final int NAVER_STOCK_NEWS_FETCH_MULTIPLIER = 5;
     private static final int NAVER_STOCK_NEWS_MAX_DISPLAY = 100;
+    private static final int MAX_NEWS_CANDIDATES_PER_STOCK_RUN = 16;
+    private static final int MAX_NEWS_CANDIDATES_PER_QUERY = 4;
     private static final int MIN_COMPLETE_ARTICLE_CHARS = 180;
     private static final int MIN_COMPLETE_ARTICLE_SENTENCES = 2;
     private static final int MAX_DISCLOSURE_CANDIDATES_PER_STOCK = 20;
@@ -226,10 +228,13 @@ public class AlertProviderCollectionService {
         int searchDisplay = progress.incremental()
                 ? NAVER_STOCK_NEWS_MAX_DISPLAY
                 : stockNewsSearchDisplay(targetDisplay);
+        int inspectedForStock = 0;
+        queryLoop:
         for (String query : queries) {
             if (!progress.incremental() && satisfiedForStock >= targetDisplay) {
                 break;
             }
+            int inspectedForQuery = 0;
             List<NaverNewsArticle> articles;
             try {
                 articles = Optional
@@ -253,10 +258,18 @@ public class AlertProviderCollectionService {
                 if (progress.incremental() && isBeforeBoundary(article.publishedAt(), progress.boundary())) {
                     continue;
                 }
+                if (inspectedForStock >= MAX_NEWS_CANDIDATES_PER_STOCK_RUN) {
+                    break queryLoop;
+                }
+                if (inspectedForQuery >= MAX_NEWS_CANDIDATES_PER_QUERY) {
+                    break;
+                }
                 if (!seenArticleKeys.add(newsArticleKey(article))) {
                     counters.skippedDuplicateCount++;
                     continue;
                 }
+                inspectedForStock++;
+                inspectedForQuery++;
                 PublicationResult result = processNewsArticle(
                         request, stock, counters, events, article, incrementalEnabled);
                 if (result == PublicationResult.PUBLISHED) {
