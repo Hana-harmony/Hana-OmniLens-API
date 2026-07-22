@@ -20,7 +20,9 @@ import com.hana.omniconnect.alert.api.AlertPublishRequest;
 import com.hana.omniconnect.alert.domain.AlertGlossaryTerm;
 import com.hana.omniconnect.alert.domain.AlertEvent;
 import com.hana.omniconnect.alert.domain.AlertSummaryLines;
+import com.hana.omniconnect.config.HannahAiProperties;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisClient;
+import com.hana.omniconnect.provider.ai.HannahAiAnalysisProvider;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisRequest;
 import com.hana.omniconnect.provider.ai.HannahAiAnalysisResponse;
 import com.hana.omniconnect.provider.ai.HannahAiGlossaryTerm;
@@ -33,15 +35,18 @@ public class AlertAnalysisPublishingService {
     private final HannahAiAnalysisClient hannahAiAnalysisClient;
     private final AlertStreamingService alertStreamingService;
     private final AlertEventRepository alertEventRepository;
+    private final HannahAiProperties hannahAiProperties;
     private final KoreanMarketGlossaryTermExtractor glossaryTermExtractor = new KoreanMarketGlossaryTermExtractor();
 
     public AlertAnalysisPublishingService(
             HannahAiAnalysisClient hannahAiAnalysisClient,
             AlertStreamingService alertStreamingService,
-            AlertEventRepository alertEventRepository) {
+            AlertEventRepository alertEventRepository,
+            HannahAiProperties hannahAiProperties) {
         this.hannahAiAnalysisClient = hannahAiAnalysisClient;
         this.alertStreamingService = alertStreamingService;
         this.alertEventRepository = alertEventRepository;
+        this.hannahAiProperties = hannahAiProperties;
     }
 
     public AlertEvent analyzeAndPublish(AlertAnalysisPublishRequest request) {
@@ -53,7 +58,7 @@ public class AlertAnalysisPublishingService {
     }
 
     public AlertPublishRequest analyzeForCollection(AlertAnalysisPublishRequest request) {
-        return analyze(request, false);
+        return analyze(request, false, collectionProvider(request));
     }
 
     public boolean isPublishReady(AlertPublishRequest request) {
@@ -71,7 +76,14 @@ public class AlertAnalysisPublishingService {
     private AlertPublishRequest analyze(
             AlertAnalysisPublishRequest request,
             boolean allowSingleStockFallback) {
-        HannahAiAnalysisResponse analysis = hannahAiAnalysisClient.analyze(new HannahAiAnalysisRequest(
+        return analyze(request, allowSingleStockFallback, HannahAiAnalysisProvider.QWEN);
+    }
+
+    private AlertPublishRequest analyze(
+            AlertAnalysisPublishRequest request,
+            boolean allowSingleStockFallback,
+            HannahAiAnalysisProvider provider) {
+        HannahAiAnalysisRequest analysisRequest = new HannahAiAnalysisRequest(
                 request.sourceType(),
                 request.title(),
                 request.snippet() == null ? "" : request.snippet(),
@@ -82,7 +94,10 @@ public class AlertAnalysisPublishingService {
                 textOrEmpty(request.sourceLicensePolicy()),
                 request.originalUrl(),
                 toStockUniverse(request.stockUniverse()),
-                HannahAiAnalysisRequest.TRANSLATION_MODE_FULL));
+                HannahAiAnalysisRequest.TRANSLATION_MODE_FULL);
+        HannahAiAnalysisResponse analysis = provider == HannahAiAnalysisProvider.QWEN
+                ? hannahAiAnalysisClient.analyze(analysisRequest)
+                : hannahAiAnalysisClient.analyze(analysisRequest, provider);
 
         ResolvedStock resolvedStock = resolveStock(analysis, request, allowSingleStockFallback);
         if (!StringUtils.hasText(resolvedStock.stockCode()) || !StringUtils.hasText(resolvedStock.stockName())) {
@@ -97,19 +112,19 @@ public class AlertAnalysisPublishingService {
         AlertSummaryLines translatedSummaryLines = EnglishNewsQualityGate.englishSummaryLinesOrEmpty(
                 analysis.summaryLines());
         if (!EnglishNewsQualityGate.hasUsableEnglishSummaryLines(translatedSummaryLines)) {
-            throw new IllegalStateException("Qwen analysis did not return usable English What/Why/Impact");
+            throw new IllegalStateException("AI analysis did not return usable English What/Why/Impact");
         }
         String translatedSummaryText = joinSummaryLines(translatedSummaryLines);
         String sourceSummary = StringUtils.hasText(analysis.summary())
                 ? analysis.summary().strip()
                 : translatedSummaryText;
         ArticleTranslationResult translatedTitle = translatedTitleFromAnalysis(analysis)
-                .orElseThrow(() -> new IllegalStateException("Qwen analysis did not return an English title"));
+                .orElseThrow(() -> new IllegalStateException("AI analysis did not return an English title"));
         String translatedTitleText = requireEnglishText(translatedTitle, "alert title");
         ArticleTranslationResult translatedSummary = translatedSummaryFromAnalysis(analysis)
-                .orElseThrow(() -> new IllegalStateException("Qwen analysis did not return English What/Why/Impact"));
+                .orElseThrow(() -> new IllegalStateException("AI analysis did not return English What/Why/Impact"));
         ArticleTranslationResult translatedContent = translatedContentFromAnalysis(analysis, originalContent)
-                .orElseThrow(() -> new IllegalStateException("Qwen analysis did not return a complete English article"));
+                .orElseThrow(() -> new IllegalStateException("AI analysis did not return a complete English article"));
         String translatedContentText = requireOptionalEnglishContent(
                 translatedContent,
                 originalContent,
@@ -177,6 +192,32 @@ public class AlertAnalysisPublishingService {
                 analysis.sentimentConfidence(),
                 analysis.importanceConfidence(),
                 resolvedStock.stockMatchConfidence());
+    }
+
+    HannahAiAnalysisProvider collectionProvider(AlertAnalysisPublishRequest request) {
+        if (!hannahAiProperties.initialBackfillEnabled()
+                || request.stockUniverse() == null
+                || request.stockUniverse().size() != 1) {
+            return HannahAiAnalysisProvider.QWEN;
+        }
+        String sourceType = textOrEmpty(request.sourceType()).strip().toUpperCase(Locale.ROOT);
+        if (!sourceType.equals("NEWS") && !sourceType.equals("DISCLOSURE")) {
+            return HannahAiAnalysisProvider.QWEN;
+        }
+        String stockCode = request.stockUniverse().get(0).stockCode();
+        int existingCount = alertEventRepository.countByPartnerStockAndSourceType(
+                request.partnerId(), stockCode, sourceType);
+        int targetCount = hannahAiProperties.initialBackfillTargetPerSource();
+        if (existingCount < targetCount) {
+            log.info(
+                    "초기 데이터 확보용 OpenAI 분석 선택: sourceType={}, stockCode={}, existingCount={}, targetCount={}",
+                    sourceType,
+                    stockCode,
+                    existingCount,
+                    targetCount);
+            return HannahAiAnalysisProvider.OPENAI_INITIAL_BACKFILL;
+        }
+        return HannahAiAnalysisProvider.QWEN;
     }
 
     public AlertEvent publishAnalyzed(AlertPublishRequest request) {

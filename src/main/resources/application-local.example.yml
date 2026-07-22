@@ -74,6 +74,9 @@ omni-connect:
       connect-timeout: 2s
       read-timeout: 30m
       tax-read-timeout: 90s
+      maintenance-token: ${HANNAH_AI_MAINTENANCE_TOKEN:}
+      initial-backfill-enabled: false
+      initial-backfill-target-per-source: 5
   market:
     stock-master:
       seed:

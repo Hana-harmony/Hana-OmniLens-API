@@ -71,6 +71,9 @@ omni-connect:
       connect-timeout: ${HANNAH_AI_CONNECT_TIMEOUT:2s}
       read-timeout: ${HANNAH_AI_READ_TIMEOUT:30m}
       tax-read-timeout: ${HANNAH_AI_TAX_READ_TIMEOUT:90s}
+      maintenance-token: ${HANNAH_AI_MAINTENANCE_TOKEN:}
+      initial-backfill-enabled: ${HANNAH_AI_INITIAL_BACKFILL_ENABLED:true}
+      initial-backfill-target-per-source: ${HANNAH_AI_INITIAL_BACKFILL_TARGET_PER_SOURCE:5}
   term:
     analytics:
       hash-salt: ${OMNI_CONNECT_TERM_ANALYTICS_HASH_SALT}
