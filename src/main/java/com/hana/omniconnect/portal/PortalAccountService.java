@@ -17,6 +17,7 @@ import com.hana.omniconnect.observability.BusinessEventPublisher;
 public class PortalAccountService {
 
     private final PortalUserRepository userRepository;
+    private final PortalSessionRepository sessionRepository;
     private final PortalTokenService tokenService;
     private final PasswordEncoder passwordEncoder;
     private final String dummyPasswordHash;
@@ -24,10 +25,12 @@ public class PortalAccountService {
 
     public PortalAccountService(
             PortalUserRepository userRepository,
+            PortalSessionRepository sessionRepository,
             PortalTokenService tokenService,
             PasswordEncoder passwordEncoder,
             BusinessEventPublisher businessEventPublisher) {
         this.userRepository = userRepository;
+        this.sessionRepository = sessionRepository;
         this.tokenService = tokenService;
         this.passwordEncoder = passwordEncoder;
         this.businessEventPublisher = businessEventPublisher;
@@ -104,12 +107,19 @@ public class PortalAccountService {
         }
     }
 
-    public void logout(PortalUser user) {
-        userRepository.revokeSessions(user.userId(), Instant.now());
+    public void logout(PortalUser user, String sessionId) {
+        sessionRepository.revoke(sessionId, user.userId(), Instant.now());
     }
 
     private PortalSession session(PortalUser user) {
-        PortalTokenService.IssuedPortalToken token = tokenService.issue(user);
+        String sessionId = "PSES-" + UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+        PortalTokenService.IssuedPortalToken token = tokenService.issue(user, sessionId);
+        sessionRepository.create(
+                sessionId,
+                user.userId(),
+                user.sessionVersion(),
+                Instant.now(),
+                token.expiresAt());
         return new PortalSession(user, token.value(), token.expiresAt());
     }
 

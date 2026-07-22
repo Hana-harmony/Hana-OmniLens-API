@@ -33,22 +33,22 @@ groups:
         condition: B
         data:
           - refId: A
-            relativeTimeRange: {from: 180, to: 0}
+            relativeTimeRange: {from: 360, to: 0}
             datasourceUid: prometheus
-            model: {expr: 'sum(increase(logback_events_total{application="hana-omni-connect-api",level="error"}[2m]))', instant: true, refId: A}
+            model: {expr: 'sum(increase(logback_events_total{application="hana-omni-connect-api",level="error"}[5m]))', instant: true, refId: A}
           - refId: B
             datasourceUid: __expr__
             model:
               datasource: {type: __expr__, uid: __expr__}
               expression: A
-              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              conditions: [{evaluator: {params: [2], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
               refId: B
               type: threshold
         noDataState: OK
         execErrState: Alerting
-        for: 0s
-        annotations: {summary: "OmniConnect API emitted an ERROR log in the last two minutes"}
-        labels: {service: omni-connect, severity: critical}
+        for: 2m
+        annotations: {summary: "OmniConnect API emitted at least three ERROR logs in five minutes"}
+        labels: {service: omni-connect, severity: warning}
 
       - uid: omni-connect-public-down
         title: OmniConnect public HTTPS unavailable
@@ -99,22 +99,22 @@ groups:
         condition: B
         data:
           - refId: A
-            relativeTimeRange: {from: 180, to: 0}
+            relativeTimeRange: {from: 360, to: 0}
             datasourceUid: prometheus
-            model: {expr: 'sum(increase(application_log_events_total{level="error"}[2m]))', instant: true, refId: A}
+            model: {expr: 'sum(increase(application_log_events_total{level="error"}[5m]))', instant: true, refId: A}
           - refId: B
             datasourceUid: __expr__
             model:
               datasource: {type: __expr__, uid: __expr__}
               expression: A
-              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              conditions: [{evaluator: {params: [2], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
               refId: B
               type: threshold
         noDataState: OK
         execErrState: Alerting
-        for: 0s
-        annotations: {summary: "Hannah Montana AI emitted an ERROR log in the last two minutes"}
-        labels: {service: hannah-ai, severity: critical}
+        for: 2m
+        annotations: {summary: "Hannah Montana AI emitted at least three ERROR logs in five minutes"}
+        labels: {service: hannah-ai, severity: warning}
 
       - uid: omni-connect-host-disk-low
         title: OCI host disk space low
@@ -143,12 +143,12 @@ groups:
         condition: B
         data:
           - refId: A
-            relativeTimeRange: {from: 180, to: 0}
+            relativeTimeRange: {from: 360, to: 0}
             datasourceUid: loki
             model:
               datasource: {type: loki, uid: loki}
               editorMode: code
-              expr: 'sum(count_over_time({container=~"hana-omni-connect-postgres|hana-omni-connect-redis|hannah-qwen"} |~ "(?i)(error|fatal|panic)" [2m]))'
+              expr: 'sum(count_over_time({container=~"hana-omni-connect-postgres|hana-omni-connect-redis|hannah-qwen"} |~ "(?i)(^|\\s)(ERROR|FATAL|PANIC)(:|\\s)" [5m]))'
               intervalMs: 1000
               maxDataPoints: 43200
               queryType: range
@@ -158,11 +158,11 @@ groups:
             model:
               datasource: {type: __expr__, uid: __expr__}
               expression: A
-              conditions: [{evaluator: {params: [0], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
+              conditions: [{evaluator: {params: [2], type: gt}, operator: {type: and}, query: {params: [B]}, reducer: {params: [], type: last}, type: query}]
               refId: B
               type: threshold
         noDataState: OK
         execErrState: Alerting
-        for: 0s
-        annotations: {summary: "PostgreSQL, Redis, or local Qwen emitted an error log"}
-        labels: {service: omni-connect, severity: critical}
+        for: 2m
+        annotations: {summary: "PostgreSQL, Redis, or local Qwen emitted repeated error logs"}
+        labels: {service: omni-connect, severity: warning}

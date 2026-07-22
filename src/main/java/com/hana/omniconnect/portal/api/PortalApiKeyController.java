@@ -78,9 +78,9 @@ public class PortalApiKeyController {
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Revoke every active portal session for the signed-in member")
+    @Operation(summary = "Revoke only the current portal session")
     public ApiResponse<Void> logout(HttpServletRequest request) {
-        accountService.logout(accessService.requireUser(request));
+        accountService.logout(accessService.requireUser(request), accessService.requireSessionId(request));
         return ApiResponse.success(null);
     }
 

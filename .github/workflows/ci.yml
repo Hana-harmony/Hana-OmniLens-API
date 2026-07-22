@@ -69,6 +69,8 @@ jobs:
           [[ "${#GRAFANA_ADMIN_PASSWORD}" -ge 32 ]]
           [[ "${OMNI_CONNECT_DISCORD_WEBHOOK}" == https://discord.com/api/webhooks/* ]]
           [[ "${HANNAH_DISCORD_WEBHOOK}" == https://discord.com/api/webhooks/* ]]
+          curl --fail --silent --show-error --max-time 10 "${OMNI_CONNECT_DISCORD_WEBHOOK}" >/dev/null
+          curl --fail --silent --show-error --max-time 10 "${HANNAH_DISCORD_WEBHOOK}" >/dev/null
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
       - name: 이미지 이름 설정
         run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"

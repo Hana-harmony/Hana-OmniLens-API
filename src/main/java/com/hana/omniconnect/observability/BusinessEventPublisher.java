@@ -34,7 +34,7 @@ public class BusinessEventPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(BusinessEventPublisher.class);
     private static final int MAX_FIELD_LENGTH = 500;
-    private static final int MAX_ATTEMPTS = 3;
+    private static final int MAX_ATTEMPTS = 5;
 
     private final DiscordNotificationProperties properties;
     private final ObjectMapper objectMapper;
@@ -147,7 +147,7 @@ public class BusinessEventPublisher {
             }
             if (attempt < MAX_ATTEMPTS) {
                 try {
-                    Thread.sleep(250L * attempt);
+                    Thread.sleep(1_000L << (attempt - 1));
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                     recordFailure(event, "interrupted", exception);

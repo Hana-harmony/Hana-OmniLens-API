@@ -6,9 +6,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.SyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -25,16 +31,34 @@ public class AlertCollectionScheduler {
     private final AlertCollectionSchedulerProperties properties;
     private final PartnerWatchlistRepository partnerWatchlistRepository;
     private final AlertCollectionTargetUniverseProvider targetUniverseProvider;
+    private final TaskExecutor collectionExecutor;
+    private final Set<String> collectionsInFlight = ConcurrentHashMap.newKeySet();
 
+    @Autowired
     public AlertCollectionScheduler(
             AlertProviderCollectionService alertProviderCollectionService,
             AlertCollectionSchedulerProperties properties,
             PartnerWatchlistRepository partnerWatchlistRepository,
-            AlertCollectionTargetUniverseProvider targetUniverseProvider) {
+            AlertCollectionTargetUniverseProvider targetUniverseProvider,
+            @Qualifier("alertCollectionExecutor") TaskExecutor collectionExecutor) {
         this.alertProviderCollectionService = alertProviderCollectionService;
         this.properties = properties;
         this.partnerWatchlistRepository = partnerWatchlistRepository;
         this.targetUniverseProvider = targetUniverseProvider;
+        this.collectionExecutor = collectionExecutor;
+    }
+
+    AlertCollectionScheduler(
+            AlertProviderCollectionService alertProviderCollectionService,
+            AlertCollectionSchedulerProperties properties,
+            PartnerWatchlistRepository partnerWatchlistRepository,
+            AlertCollectionTargetUniverseProvider targetUniverseProvider) {
+        this(
+                alertProviderCollectionService,
+                properties,
+                partnerWatchlistRepository,
+                targetUniverseProvider,
+                new SyncTaskExecutor());
     }
 
     @Scheduled(
@@ -88,7 +112,27 @@ public class AlertCollectionScheduler {
         }
 
         for (List<String> stockCodes : batches(watchlist.stockCodes())) {
-            collectBatch(watchlist.partnerId(), stockCodes);
+            scheduleBatch(watchlist.partnerId(), stockCodes);
+        }
+    }
+
+    private void scheduleBatch(String partnerId, List<String> stockCodes) {
+        String collectionKey = partnerId + ":" + String.join(",", stockCodes);
+        if (!collectionsInFlight.add(collectionKey)) {
+            log.info("Skip overlapping alert collection partnerId={} stockCount={}", partnerId, stockCodes.size());
+            return;
+        }
+        try {
+            collectionExecutor.execute(() -> {
+                try {
+                    collectBatch(partnerId, stockCodes);
+                } finally {
+                    collectionsInFlight.remove(collectionKey);
+                }
+            });
+        } catch (RejectedExecutionException exception) {
+            collectionsInFlight.remove(collectionKey);
+            log.warn("Alert collection queue rejected partnerId={} stockCount={}", partnerId, stockCodes.size(), exception);
         }
     }
 

@@ -1,6 +1,7 @@
 package com.hana.omniconnect.portal;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -26,11 +27,17 @@ public class PortalAuthenticationFilter extends OncePerRequestFilter {
 
     private final PortalTokenService tokenService;
     private final PortalUserRepository userRepository;
+    private final PortalSessionRepository sessionRepository;
     private final ObjectMapper objectMapper;
 
-    public PortalAuthenticationFilter(PortalTokenService tokenService, PortalUserRepository userRepository, ObjectMapper objectMapper) {
+    public PortalAuthenticationFilter(
+            PortalTokenService tokenService,
+            PortalUserRepository userRepository,
+            PortalSessionRepository sessionRepository,
+            ObjectMapper objectMapper) {
         this.tokenService = tokenService;
         this.userRepository = userRepository;
+        this.sessionRepository = sessionRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -48,7 +55,11 @@ public class PortalAuthenticationFilter extends OncePerRequestFilter {
                 : "";
         PortalTokenService.PortalPrincipal principal = tokenService.verify(token);
         PortalUser user = principal == null ? null : userRepository.findByUserId(principal.userId()).orElse(null);
-        if (user == null || user.role() != principal.role() || user.sessionVersion() != principal.sessionVersion()) {
+        if (user == null
+                || user.role() != principal.role()
+                || user.sessionVersion() != principal.sessionVersion()
+                || !sessionRepository.isActive(
+                        principal.sessionId(), principal.userId(), principal.sessionVersion(), Instant.now())) {
             writeError(response, ErrorCode.PORTAL_AUTHENTICATION_REQUIRED);
             return;
         }
@@ -58,6 +69,7 @@ public class PortalAuthenticationFilter extends OncePerRequestFilter {
         }
         request.setAttribute(PortalAuthentication.USER_ID_ATTRIBUTE, principal.userId());
         request.setAttribute(PortalAuthentication.ROLE_ATTRIBUTE, principal.role());
+        request.setAttribute(PortalAuthentication.SESSION_ID_ATTRIBUTE, principal.sessionId());
         UsernamePasswordAuthenticationToken authentication = UsernamePasswordAuthenticationToken.authenticated(
                 principal.userId(), null, java.util.List.of(new SimpleGrantedAuthority("ROLE_" + principal.role().name())));
         SecurityContextHolder.getContext().setAuthentication(authentication);

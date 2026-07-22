@@ -32,4 +32,12 @@ public class PortalAccessService {
         }
         return user;
     }
+
+    public String requireSessionId(HttpServletRequest request) {
+        Object sessionId = request.getAttribute(PortalAuthentication.SESSION_ID_ATTRIBUTE);
+        if (!(sessionId instanceof String value) || value.isBlank()) {
+            throw new BusinessException(ErrorCode.PORTAL_AUTHENTICATION_REQUIRED);
+        }
+        return value;
+    }
 }

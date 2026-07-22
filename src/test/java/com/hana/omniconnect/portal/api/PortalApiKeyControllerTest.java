@@ -220,6 +220,28 @@ class PortalApiKeyControllerTest {
     }
 
     @Test
+    void logoutRevokesOnlyCurrentPortalSession() throws Exception {
+        String firstToken = token(postJson("/api/v1/portal/auth/sign-up", """
+                {"username":"multi-session-member","password":"MultiSessionPassword1!","passwordConfirmation":"MultiSessionPassword1!","name":"Multi Session","phoneNumber":"+82 10 2222 3333"}
+                """));
+        String secondToken = token(postJson("/api/v1/portal/auth/login", """
+                {"username":"multi-session-member","password":"MultiSessionPassword1!"}
+                """));
+
+        mockMvc.perform(post("/api/v1/portal/logout")
+                        .header("Authorization", "Bearer " + firstToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/portal/me")
+                        .header("Authorization", "Bearer " + firstToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/portal/me")
+                        .header("Authorization", "Bearer " + secondToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.username").value("multi-session-member"));
+    }
+
+    @Test
     void administratorPreparesCorrectionPdfAndApprovesMemberRefund() throws Exception {
         jdbcTemplate.update("""
                 INSERT INTO tax_refund_backoffice_cases (
