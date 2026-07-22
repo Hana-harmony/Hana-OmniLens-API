@@ -34,6 +34,18 @@ public class SchedulingConfiguration {
         return scheduler;
     }
 
+    @Bean(name = "newsTaskScheduler")
+    public ThreadPoolTaskScheduler newsTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("omni-connect-news-");
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        scheduler.setAwaitTerminationSeconds(30);
+        // 뉴스 분석을 수집 및 공시 처리와 분리해 종목별 공정 큐를 유지한다.
+        scheduler.setRemoveOnCancelPolicy(true);
+        return scheduler;
+    }
+
     @Bean(name = "alertCollectionExecutor")
     public ThreadPoolTaskExecutor alertCollectionExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

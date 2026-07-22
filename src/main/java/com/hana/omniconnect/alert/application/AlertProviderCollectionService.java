@@ -92,6 +92,7 @@ public class AlertProviderCollectionService {
     private final AlertDedupeStore alertDedupeStore;
     private final AlertEventRepository alertEventRepository;
     private final DisclosureProcessingService disclosureProcessingService;
+    private final NewsProcessingService newsProcessingService;
     private final Clock clock;
 
     @Autowired
@@ -103,7 +104,8 @@ public class AlertProviderCollectionService {
             AlertAnalysisPublishingService alertAnalysisPublishingService,
             AlertDedupeStore alertDedupeStore,
             AlertEventRepository alertEventRepository,
-            DisclosureProcessingService disclosureProcessingService) {
+            DisclosureProcessingService disclosureProcessingService,
+            NewsProcessingService newsProcessingService) {
         this(
                 naverNewsClient,
                 originalArticleClient,
@@ -113,6 +115,7 @@ public class AlertProviderCollectionService {
                 alertDedupeStore,
                 alertEventRepository,
                 disclosureProcessingService,
+                newsProcessingService,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -125,6 +128,7 @@ public class AlertProviderCollectionService {
             AlertDedupeStore alertDedupeStore,
             AlertEventRepository alertEventRepository,
             DisclosureProcessingService disclosureProcessingService,
+            NewsProcessingService newsProcessingService,
             Clock clock) {
         this.naverNewsClient = naverNewsClient;
         this.originalArticleClient = originalArticleClient;
@@ -134,6 +138,7 @@ public class AlertProviderCollectionService {
         this.alertDedupeStore = alertDedupeStore;
         this.alertEventRepository = alertEventRepository;
         this.disclosureProcessingService = disclosureProcessingService;
+        this.newsProcessingService = newsProcessingService;
         this.clock = clock;
     }
 
@@ -173,7 +178,7 @@ public class AlertProviderCollectionService {
             try {
                 // 공식 공시는 먼저 영속 작업으로 등록해 Qwen 장애가 수집 손실로 이어지지 않게 한다.
                 queueDisclosures(request, stock, beginDate, endDate, incrementalEnabled, counters);
-                publishNews(request, stock, incrementalEnabled, counters, events);
+                collectNews(request, stock, incrementalEnabled, counters, events);
             } finally {
                 // 임대 토큰 소유자만 잠금을 해제해 만료 후 재획득 경쟁을 방지한다.
                 alertDedupeStore.releaseLease(leaseKey, leaseToken.orElseThrow());
@@ -199,7 +204,7 @@ public class AlertProviderCollectionService {
                 .toList();
     }
 
-    private void publishNews(
+    private void collectNews(
             AlertCollectPublishRequest request,
             StockSummary stock,
             boolean incrementalEnabled,
@@ -252,7 +257,8 @@ public class AlertProviderCollectionService {
                     counters.skippedDuplicateCount++;
                     continue;
                 }
-                PublicationResult result = publishNewsArticle(request, stock, counters, events, article);
+                PublicationResult result = processNewsArticle(
+                        request, stock, counters, events, article, incrementalEnabled);
                 if (result == PublicationResult.PUBLISHED) {
                     publishedForStock++;
                 }
@@ -265,12 +271,13 @@ public class AlertProviderCollectionService {
         }
     }
 
-    private PublicationResult publishNewsArticle(
+    private PublicationResult processNewsArticle(
             AlertCollectPublishRequest request,
             StockSummary stock,
             CollectionCounters counters,
             List<AlertEvent> events,
-            NaverNewsArticle article) {
+            NaverNewsArticle article,
+            boolean durableQueue) {
             if (isAlreadyStored(request.partnerId(), stock.stockCode(), "NEWS", article.originalUrl())) {
                 counters.skippedDuplicateCount++;
                 return PublicationResult.ALREADY_STORED;
@@ -299,17 +306,23 @@ public class AlertProviderCollectionService {
                         article.originalUrl());
                 return PublicationResult.SKIPPED;
             }
+            if (durableQueue) {
+                boolean enqueued = newsProcessingService.enqueue(
+                        request.partnerId(), stock,
+                        preferredArticleTitle(article.title(), fullContent), article.snippet(),
+                        article.originalUrl(), article.publishedAt(), fullContent.content(),
+                        fullContent.imageUrls(), fullContent.canonicalUrl(), fullContent.contentHash(),
+                        fullContent.sourceLicensePolicy());
+                if (!enqueued) {
+                    counters.skippedDuplicateCount++;
+                    return PublicationResult.ALREADY_STORED;
+                }
+                return PublicationResult.PUBLISHED;
+            }
             return publishCollectedAlert(
-                    request.partnerId(),
-                    stock,
-                    "NEWS",
-                    preferredArticleTitle(article.title(), fullContent),
-                    article.snippet(),
-                    fullContent,
-                    article.originalUrl(),
-                    article.publishedAt(),
-                    counters,
-                    events);
+                    request.partnerId(), stock, "NEWS",
+                    preferredArticleTitle(article.title(), fullContent), article.snippet(), fullContent,
+                    article.originalUrl(), article.publishedAt(), counters, events);
     }
 
     private int stockNewsSearchDisplay(int targetDisplay) {
