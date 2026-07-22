@@ -46,5 +46,4 @@ public class SchedulingConfiguration {
         executor.initialize();
         return executor;
     }
-
 }
