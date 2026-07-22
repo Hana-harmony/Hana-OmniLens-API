@@ -83,7 +83,8 @@ docker compose -f compose.local.yml up -d
 - OpenDART 공시검색 응답 매핑
 - Hannah-Montana-AI Qwen3 번역 요청 계약과 응답 매핑
 - 알림 제목·What/Why/Impact·전문이 Hannah Qwen 단일 분석 응답에서 함께 오고, 하나라도 실패하면 게시하지 않는 계약 검증
-- 과거 미완성 공시 마이그레이션, 완료 이벤트만 계산하는 수집 진척도, `v2` Redis dedupe 재수집 검증
+- OpenDART 검색 결과의 멱등 작업 등록, 원문 선영속, lease 만료 회수, 지수 backoff 재시도, 완료 이벤트 승격 검증
+- Qwen 실패 후 원문을 다시 다운로드하지 않고 저장된 작업에서 재시도하는 계약 검증
 - Hannah-Montana-AI 분석 클라이언트 계약
 - 외부 provider 공통 timeout 설정 기본값
 - 외부 provider 재시도, circuit open, 비네트워크 예외 no-retry 정책

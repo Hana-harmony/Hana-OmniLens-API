@@ -40,11 +40,25 @@ docker compose -f compose.local.yml down
 - 스케줄러를 켜면 설정 또는 DB에 저장된 협력사 watchlist와 기본 종목 universe마다 Naver 뉴스와 OpenDART 공시를 수집하고 Hannah-Montana-AI 분석 후 WebSocket으로 발행한다.
 - 기본 종목 universe는 `stock_master_priority` 인기 종목과 외국인 취득한도 제한 종목 allowlist를 합친 뒤 20종목 단위로 나누어 수집한다.
 - Naver News Search는 제목, snippet, 링크 발견용으로 사용하고, 사용 허가된 원문 URL에서 기사 전문과 대표 이미지 URL을 추가 수집한다. 저장 허가가 없는 provider를 추가할 때는 원문 저장을 비활성화하고 hash/요약만 남기는 별도 정책을 적용한다.
-- OpenDART는 공시 목록 검색 뒤 `rcept_no` document 원문을 내려받아 본문을 정제한다. 수 MB가 될 수 있는 투자설명서·증권신고서는 동기 피드에 1,200자 분석 excerpt와 공식 DART 전문 URL을 저장해 API payload와 번역 지연을 제한한다.
+- OpenDART 검색 결과는 원문·AI 처리와 분리해 `disclosure_processing_job`에 먼저 저장한다. worker가 `rcept_no` document 원문을 내려받으면 Qwen 호출 전에 원문·hash·라이선스 정책을 영속화한다. 수 MB가 될 수 있는 투자설명서·증권신고서는 작업 테이블에 공식 원본을 보존하고, 공개 피드용 Qwen 입력은 1,200자 excerpt와 공식 DART 전문 URL로 제한한다.
 - 신규 여부는 URL TTL만으로 판단하지 않는다. `(partner_id, stock_code, source_type, original_url)` DB unique identity와 Redis 실행 중 lock을 함께 사용하고, canonical URL, normalized title, content hash, Hannah duplicate key, 시간창 기반 cluster key를 추가 중복 판정에 사용한다.
-- 종목 뉴스·공시와 시장뉴스 주기 수집은 Hannah `FULL` 분석으로 영문 제목, What/Why/Impact, 전문 번역과 품질 검증을 완료한 이벤트만 저장·발행한다. 미완료 결과를 재처리하는 상시 백필 worker는 운영하지 않으며, 상세 GET도 번역을 시작하거나 대기하지 않는다. 전문 분할은 Hannah만 담당하며 OmniConnect에서 중복 분할하지 않는다.
-- 종목별 수집은 OpenDART 공시를 먼저 처리한다. OpenDART `document.xml`이 ZIP 대신 `status/message` 오류 envelope를 반환하면 저장하지 않고 다음 스케줄에서 재시도한다. 한 종목의 원문 확인은 실행당 최대 20건으로 제한한다. V25는 알려진 `014` 오염 행을 제거하고 V26은 영문 전문이 없는 과거 공시를 제거한 뒤 `v2` Redis dedupe namespace로 즉시 다시 수집한다.
+- 종목 뉴스와 시장뉴스는 Hannah `FULL` 분석으로 영문 제목, What/Why/Impact, 전문 번역과 품질 검증을 완료한 이벤트만 저장·발행한다. 공시는 별도 영속 worker가 같은 완료 조건을 충족할 때만 `alert_event`로 승격한다. 상세 GET은 번역을 시작하거나 대기하지 않는다.
+- 종목별 수집은 OpenDART 공시 검색 결과를 먼저 작업 큐에 등록한다. 한 종목당 최신 20건을 등록하며 `(partner_id, stock_code, original_url)`로 멱등 처리한다. `document.xml`이 ZIP 대신 `status/message` 오류 envelope를 반환하거나 Qwen이 실패하면 원본·오류·시도 횟수를 보존한 채 backoff 후 재시도한다.
 - 제목, What/Why/Impact, 전체 번역은 `HANNAH_AI_BASE_URL`의 Hannah `/api/v1/alerts/analyze` Qwen 단일 응답만 사용한다. 내부 AI 호출은 `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`으로 제한한다. 장애, 빈 응답, 한글 잔존, 요약형 전문은 게시하지 않으며 개별 번역 API나 규칙 기반 문장으로 보정하지 않는다.
+- 공시 작업 상태는 아래 조회로 확인한다. `RETRY`는 폐기가 아니라 다음 시각에 다시 처리할 작업이며, `PROCESSING` lease는 45분 뒤 회수된다.
+
+```sql
+SELECT status, count(*)
+FROM disclosure_processing_job
+GROUP BY status
+ORDER BY status;
+
+SELECT stock_code, receipt_number, attempt_count, next_attempt_at, last_error
+FROM disclosure_processing_job
+WHERE status IN ('RETRY', 'REJECTED')
+ORDER BY updated_at DESC
+LIMIT 50;
+```
 - watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
 - Hannah-Montana-AI 분석 결과의 `eventConfidence`, `sentimentConfidence`, `importanceConfidence`, `stockMatchConfidence`는 alert REST/WebSocket payload에 그대로 전파한다.
 - Hana Montana AI(KF-DeBERTa + K-FNSPID)의 감성 후보는 중복·충돌과 파티션 간 중첩을 제거한 Validation Selection에서 잠근 KF-DeBERTa LoRA다. 공개 재현 Test 932건 macro F1은 0.8849로 KR-FinBERT-SC의 0.7266보다 높지만, 해당 Test의 과거 반복 조회 때문에 독립 SOTA 근거로 사용하지 않는다. 실제 뉴스 Gold 정확도 0.8625가 운영 gate 0.90에 미달하면 신규 후보를 승격하지 않고 기존 검증 모델을 유지한다. `importance`는 Validation으로 선택한 제목+요약 공시 의미 모델과 존속위험 정책, `marketImpactImportance/Score/Confidence`는 파일 기반 K-FNSPID v4의 뉴스·공시 출처별 전문가로 분리한다. 시간 Test에서 뉴스 전문가는 9,560건 macro F1 0.3745 / QWK 0.4754, 공시 전문가는 4,615건 macro F1 0.3216 / QWK 0.1550이며 두 출처 모두 자체 기준선을 넘는다. 요청 출처와 모델 출처가 다르면 Hannah가 추론을 거부한다. 가격반응은 의미 라벨이나 confidence를 덮어쓰지 않는다. OmniConnect는 복합 `modelVersion`과 두 신호를 REST/WebSocket 이벤트에 그대로 전파하며, 시장 시세 데이터셋을 운영 DB에서 다시 export하지 않는다.
