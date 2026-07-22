@@ -93,6 +93,12 @@ install_nginx_config() {
   local had_server=false
   backup_dir="$(mktemp -d)"
 
+  # 이전 배포 방식의 활성 설정을 제거해 server_name 중복을 방지한다.
+  sudo rm -f \
+    /etc/nginx/conf.d/hana-omni-connect-api-bootstrap.conf \
+    /etc/nginx/sites-enabled/hana-omni-connect-api \
+    /etc/nginx/sites-enabled/hana-omni-connect-api.conf
+
   if sudo test -f "${upstream_path}"; then
     sudo cat "${upstream_path}" > "${backup_dir}/upstream.conf"
     had_upstream=true
