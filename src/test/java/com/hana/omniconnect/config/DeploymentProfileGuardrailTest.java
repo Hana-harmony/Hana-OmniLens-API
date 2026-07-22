@@ -105,6 +105,7 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).doesNotContain("secrets.OMNI_CONNECT_API_KEY_SHA256");
         assertThat(workflow).doesNotContain("PORTAL_BOOTSTRAP_PASSWORD", "PORTAL_BOOTSTRAP_ADMIN_PASSWORD");
         assertThat(workflow).contains("push: true");
+        assertThat(workflow).contains("cache-from: type=gha", "cache-to: type=gha,mode=max");
         assertThat(workflow).contains("application.env");
         assertThat(workflow).contains("deploy.env");
         assertThat(workflow).contains("platforms: linux/arm64");
@@ -119,6 +120,8 @@ class DeploymentProfileGuardrailTest {
         assertThat(workflow).contains("GHCR_USERNAME", "https://api.github.com/user", "secrets.GHCR_TOKEN");
         assertThat(workflow).doesNotContain("secrets.GHCR_USERNAME");
         assertThat(workflow).contains("scripts/bootstrap-https.sh");
+        assertThat(workflow).contains(
+                "if ! sudo test -f /etc/letsencrypt/live/api.hanaomni.cloud/fullchain.pem");
         assertThat(workflow).contains("scripts/ensure-web-ingress.sh");
         assertThat(workflow).contains("hana-omni-connect-web-ingress.service");
         assertThat(workflow).doesNotContain("secrets.DB_URL");

@@ -20,6 +20,7 @@ public class HannahAiAnalysisClient {
     private final RestClient restClient;
     private final ExternalProviderResiliencePolicy resiliencePolicy;
     private final ObjectMapper objectMapper;
+    private final String maintenanceToken;
 
     @Autowired
     public HannahAiAnalysisClient(
@@ -30,26 +31,51 @@ public class HannahAiAnalysisClient {
         this.restClient = HannahAiRestClientFactory.create(restClientBuilder, properties);
         this.resiliencePolicy = resiliencePolicy;
         this.objectMapper = objectMapper;
+        this.maintenanceToken = properties.maintenanceToken();
     }
 
     HannahAiAnalysisClient(RestClient restClient, ExternalProviderResiliencePolicy resiliencePolicy) {
-        this(restClient, resiliencePolicy, new ObjectMapper());
+        this(restClient, resiliencePolicy, new ObjectMapper(), "");
     }
 
     HannahAiAnalysisClient(
             RestClient restClient,
             ExternalProviderResiliencePolicy resiliencePolicy,
             ObjectMapper objectMapper) {
+        this(restClient, resiliencePolicy, objectMapper, "");
+    }
+
+    HannahAiAnalysisClient(
+            RestClient restClient,
+            ExternalProviderResiliencePolicy resiliencePolicy,
+            ObjectMapper objectMapper,
+            String maintenanceToken) {
         this.restClient = restClient;
         this.resiliencePolicy = resiliencePolicy;
         this.objectMapper = objectMapper;
+        this.maintenanceToken = maintenanceToken == null ? "" : maintenanceToken.strip();
     }
 
     public HannahAiAnalysisResponse analyze(HannahAiAnalysisRequest request) {
+        return analyze(request, HannahAiAnalysisProvider.QWEN);
+    }
+
+    public HannahAiAnalysisResponse analyze(
+            HannahAiAnalysisRequest request,
+            HannahAiAnalysisProvider provider) {
+        if (provider == HannahAiAnalysisProvider.OPENAI_INITIAL_BACKFILL && maintenanceToken.isBlank()) {
+            throw new IllegalStateException("Hannah AI maintenance token is required for OpenAI backfill");
+        }
         HannahAiApiResponse<HannahAiAnalysisResponse> response = resiliencePolicy.execute(
                 "hannah-ai-analysis",
                 () -> parseResponse(restClient.post()
                         .uri("/api/v1/alerts/analyze")
+                        .headers(headers -> {
+                            if (provider == HannahAiAnalysisProvider.OPENAI_INITIAL_BACKFILL) {
+                                headers.set("X-Hannah-Analysis-Provider", provider.name());
+                                headers.set("X-Hannah-AI-Maintenance-Token", maintenanceToken);
+                            }
+                        })
                         .body(request)
                         .retrieve()
                         .body(byte[].class)));

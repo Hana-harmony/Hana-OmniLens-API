@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.MediaType.APPLICATION_OCTET_STREAM;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -19,6 +20,32 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hana.omniconnect.provider.ProviderTestResilience;
 
 class HannahAiAnalysisClientTest {
+
+    @Test
+    void initialBackfillAddsProviderAndSharedMaintenanceHeaders() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        HannahAiAnalysisClient client = new HannahAiAnalysisClient(
+                builder.baseUrl("http://localhost:8000").build(),
+                ProviderTestResilience.disabled(),
+                new ObjectMapper(),
+                "maintenance-secret");
+
+        server.expect(requestTo("http://localhost:8000/api/v1/alerts/analyze"))
+                .andExpect(header("X-Hannah-Analysis-Provider", "OPENAI_INITIAL_BACKFILL"))
+                .andExpect(header("X-Hannah-AI-Maintenance-Token", "maintenance-secret"))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{}}
+                        """, APPLICATION_OCTET_STREAM));
+
+        HannahAiAnalysisResponse response = client.analyze(
+                new HannahAiAnalysisRequest(
+                        "NEWS", "제목", "요약", "https://example.com", List.of()),
+                HannahAiAnalysisProvider.OPENAI_INITIAL_BACKFILL);
+
+        assertThat(response).isNotNull();
+        server.verify();
+    }
 
     @Test
     void rejectsPartialMarketImpactPayloadAtProviderBoundary() {

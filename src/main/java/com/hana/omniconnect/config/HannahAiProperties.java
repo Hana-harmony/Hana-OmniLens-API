@@ -4,18 +4,24 @@ import java.net.URI;
 import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.StringUtils;
 
 @ConfigurationProperties(prefix = "omni-connect.ai.hannah")
 public record HannahAiProperties(
         URI baseUrl,
         Duration connectTimeout,
         Duration readTimeout,
-        Duration taxReadTimeout) {
+        Duration taxReadTimeout,
+        String maintenanceToken,
+        boolean initialBackfillEnabled,
+        int initialBackfillTargetPerSource) {
 
     public HannahAiProperties {
         baseUrl = baseUrl == null ? URI.create("http://hannah-montana-ai:8000") : baseUrl;
         connectTimeout = connectTimeout == null ? Duration.ofSeconds(2) : connectTimeout;
         readTimeout = readTimeout == null ? Duration.ofMinutes(30) : readTimeout;
         taxReadTimeout = taxReadTimeout == null ? Duration.ofSeconds(90) : taxReadTimeout;
+        maintenanceToken = StringUtils.hasText(maintenanceToken) ? maintenanceToken.strip() : "";
+        initialBackfillTargetPerSource = Math.max(1, Math.min(initialBackfillTargetPerSource, 20));
     }
 }
