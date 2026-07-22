@@ -20,7 +20,10 @@ public class HannahAiTaxDocumentVerificationClient {
             RestClient.Builder restClientBuilder,
             HannahAiProperties properties,
             ExternalProviderResiliencePolicy resiliencePolicy) {
-        this.restClient = HannahAiRestClientFactory.create(restClientBuilder, properties);
+        this.restClient = HannahAiRestClientFactory.create(
+                restClientBuilder,
+                properties,
+                properties.taxReadTimeout());
         this.resiliencePolicy = resiliencePolicy;
     }
 

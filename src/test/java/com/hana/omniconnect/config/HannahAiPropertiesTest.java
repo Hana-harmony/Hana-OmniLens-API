@@ -10,10 +10,11 @@ class HannahAiPropertiesTest {
 
     @Test
     void defaultPropertiesUseInternalAiServiceProfile() {
-        HannahAiProperties properties = new HannahAiProperties(null, null, null);
+        HannahAiProperties properties = new HannahAiProperties(null, null, null, null);
 
         assertThat(properties.baseUrl().toString()).isEqualTo("http://hannah-montana-ai:8000");
         assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(2));
         assertThat(properties.readTimeout()).isEqualTo(Duration.ofMinutes(30));
+        assertThat(properties.taxReadTimeout()).isEqualTo(Duration.ofSeconds(90));
     }
 }

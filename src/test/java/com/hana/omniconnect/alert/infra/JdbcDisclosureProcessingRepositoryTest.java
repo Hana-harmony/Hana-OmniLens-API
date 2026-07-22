@@ -61,16 +61,35 @@ class JdbcDisclosureProcessingRepositoryTest {
         assertThat(secondClaim.attemptCount()).isEqualTo(2);
     }
 
+    @Test
+    void claimNextRotatesAcrossStocksBeforeTakingAnotherJobFromSameStock() {
+        repository.enqueue(pendingJob("job-a1", "005930", NOW.minusSeconds(10)), NOW);
+        repository.enqueue(pendingJob("job-a2", "005930", NOW.minusSeconds(20)), NOW.plusSeconds(1));
+        repository.enqueue(pendingJob("job-b1", "030200", NOW.minusSeconds(30)), NOW.plusSeconds(2));
+
+        DisclosureProcessingJob first = repository.claimNext(NOW.plusSeconds(3), Duration.ofMinutes(45))
+                .orElseThrow();
+        DisclosureProcessingJob second = repository.claimNext(NOW.plusSeconds(3), Duration.ofMinutes(45))
+                .orElseThrow();
+
+        assertThat(first.stockCode()).isEqualTo("005930");
+        assertThat(second.stockCode()).isEqualTo("030200");
+    }
+
     private DisclosureProcessingJob pendingJob() {
+        return pendingJob("job-1", "005930", NOW.minus(Duration.ofHours(1)));
+    }
+
+    private DisclosureProcessingJob pendingJob(String jobId, String stockCode, Instant publishedAt) {
         return new DisclosureProcessingJob(
-                "job-1",
+                jobId,
                 "omni-connect-default-universe",
-                "005930",
-                "20260722000001",
-                "삼성전자",
+                stockCode,
+                "20260722" + jobId,
+                stockCode,
                 "주요사항보고서",
-                "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260722000001",
-                NOW.minus(Duration.ofHours(1)),
+                "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=" + jobId,
+                publishedAt,
                 null,
                 null,
                 null,

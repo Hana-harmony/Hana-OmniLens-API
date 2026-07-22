@@ -9,11 +9,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record HannahAiProperties(
         URI baseUrl,
         Duration connectTimeout,
-        Duration readTimeout) {
+        Duration readTimeout,
+        Duration taxReadTimeout) {
 
     public HannahAiProperties {
         baseUrl = baseUrl == null ? URI.create("http://hannah-montana-ai:8000") : baseUrl;
         connectTimeout = connectTimeout == null ? Duration.ofSeconds(2) : connectTimeout;
         readTimeout = readTimeout == null ? Duration.ofMinutes(30) : readTimeout;
+        taxReadTimeout = taxReadTimeout == null ? Duration.ofSeconds(90) : taxReadTimeout;
     }
 }

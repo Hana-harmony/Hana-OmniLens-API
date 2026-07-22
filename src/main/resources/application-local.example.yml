@@ -73,6 +73,7 @@ omni-connect:
       base-url: http://localhost:8000
       connect-timeout: 2s
       read-timeout: 30m
+      tax-read-timeout: 90s
   market:
     stock-master:
       seed:
