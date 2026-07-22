@@ -46,11 +46,25 @@ public class SchedulingConfiguration {
         return scheduler;
     }
 
+    @Bean(name = "newsProcessingExecutor")
+    public ThreadPoolTaskExecutor newsProcessingExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(0);
+        executor.setThreadNamePrefix("omni-connect-news-processing-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        // Qwen 운영 병렬 슬롯에 맞춰 두 작업만 실행하고 추가 작업은 다음 주기에 다시 시도한다.
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "alertCollectionExecutor")
     public ThreadPoolTaskExecutor alertCollectionExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(4);
+        executor.setCorePoolSize(8);
+        executor.setMaxPoolSize(8);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("omni-connect-alert-collection-");
         executor.setWaitForTasksToCompleteOnShutdown(true);

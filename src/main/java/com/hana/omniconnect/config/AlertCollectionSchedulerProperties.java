@@ -23,7 +23,7 @@ public record AlertCollectionSchedulerProperties(
     private static final String DEFAULT_UNIVERSE_PARTNER_ID = "omni-connect-default-universe";
     private static final int DEFAULT_DISCLOSURE_LOOKBACK_DAYS = 365;
     private static final int DEFAULT_PRIORITY_STOCK_LIMIT = 10;
-    private static final int DEFAULT_COLLECTION_BATCH_SIZE = 20;
+    private static final int DEFAULT_COLLECTION_BATCH_SIZE = 1;
     private static final int MAX_COLLECTION_BATCH_SIZE = 20;
 
     public AlertCollectionSchedulerProperties {

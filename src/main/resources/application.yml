@@ -217,5 +217,5 @@ omni-connect:
       default-universe-partner-id: omni-connect-default-universe
       priority-stock-limit: 10
       include-foreign-ownership-restricted-stocks: true
-      collection-batch-size: 20
+      collection-batch-size: 1
       watchlists: []
