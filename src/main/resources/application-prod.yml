@@ -150,7 +150,7 @@ omni-connect:
       default-universe-partner-id: ${ALERT_SCHEDULER_DEFAULT_UNIVERSE_PARTNER_ID:omni-connect-default-universe}
       priority-stock-limit: ${ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT:10}
       include-foreign-ownership-restricted-stocks: ${ALERT_SCHEDULER_INCLUDE_FOREIGN_OWNERSHIP_RESTRICTED_STOCKS:true}
-      collection-batch-size: ${ALERT_SCHEDULER_COLLECTION_BATCH_SIZE:20}
+      collection-batch-size: ${ALERT_SCHEDULER_COLLECTION_BATCH_SIZE:1}
       watchlists: []
 
 spring:

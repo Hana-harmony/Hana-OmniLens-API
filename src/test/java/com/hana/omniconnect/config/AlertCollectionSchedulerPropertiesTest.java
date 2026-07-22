@@ -21,7 +21,7 @@ class AlertCollectionSchedulerPropertiesTest {
         assertThat(properties.defaultUniversePartnerId()).isEqualTo("omni-connect-default-universe");
         assertThat(properties.priorityStockLimit()).isEqualTo(10);
         assertThat(properties.includeForeignOwnershipRestrictedStocks()).isFalse();
-        assertThat(properties.collectionBatchSize()).isEqualTo(20);
+        assertThat(properties.collectionBatchSize()).isEqualTo(1);
     }
 
     @Test
