@@ -70,6 +70,7 @@ omni-connect:
       base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}
       connect-timeout: ${HANNAH_AI_CONNECT_TIMEOUT:2s}
       read-timeout: ${HANNAH_AI_READ_TIMEOUT:30m}
+      tax-read-timeout: ${HANNAH_AI_TAX_READ_TIMEOUT:90s}
   term:
     analytics:
       hash-salt: ${OMNI_CONNECT_TERM_ANALYTICS_HASH_SALT}

@@ -105,6 +105,7 @@ omni-connect:
       base-url: http://hannah-montana-ai:8000
       connect-timeout: 2s
       read-timeout: 30m
+      tax-read-timeout: 90s
   term:
     analytics:
       hash-salt: ${OMNI_CONNECT_TERM_ANALYTICS_HASH_SALT:local-term-analytics-salt}
