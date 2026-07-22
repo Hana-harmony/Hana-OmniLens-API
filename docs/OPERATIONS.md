@@ -46,6 +46,7 @@ docker compose -f compose.local.yml down
 - 종목별 수집은 OpenDART 공시 검색 결과를 먼저 작업 큐에 등록한다. 한 종목당 최신 20건을 등록하며 `(partner_id, stock_code, original_url)`로 멱등 처리한다. `document.xml`이 ZIP 대신 `status/message` 오류 envelope를 반환하거나 Qwen이 실패하면 원본·오류·시도 횟수를 보존한 채 backoff 후 재시도한다.
 - 제목, What/Why/Impact, 전체 번역은 `HANNAH_AI_BASE_URL`의 Hannah `/api/v1/alerts/analyze` Qwen 단일 응답만 사용한다. 내부 AI 호출은 `HANNAH_AI_CONNECT_TIMEOUT`, `HANNAH_AI_READ_TIMEOUT`으로 제한한다. 장애, 빈 응답, 한글 잔존, 요약형 전문은 게시하지 않으며 개별 번역 API나 규칙 기반 문장으로 보정하지 않는다.
 - 공시 작업 상태는 아래 조회로 확인한다. `RETRY`는 폐기가 아니라 다음 시각에 다시 처리할 작업이며, `PROCESSING` lease는 45분 뒤 회수된다.
+- 공시 worker thread 이름은 `omni-connect-disclosure-`로 시작한다. 공용 `omni-connect-scheduler-`가 뉴스·시세 수집으로 점유돼도 공시 큐는 독립적으로 claim한다.
 
 ```sql
 SELECT status, count(*)

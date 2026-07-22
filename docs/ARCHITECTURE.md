@@ -72,6 +72,7 @@
 - 시장뉴스 수집은 Hannah `FULL` 분석으로 영문 제목, What/Why/Impact, 전체 영문 본문을 모두 검증한 뒤에만 저장한다. 미완료 결과는 DB에 적재하지 않으며 목록·상세·트렌딩에도 노출하지 않는다.
 - 종목별 주기 수집은 OpenDART 검색 결과를 `disclosure_processing_job`에 먼저 등록한다. worker가 공식 원문을 가져오면 Qwen 호출 전에 원문·hash·라이선스 정책을 같은 작업에 영속화한다. 프로세스 중단, AI timeout, 품질 gate 실패가 발생해도 원본과 재시도 상태를 잃지 않는다.
 - 공시 작업은 `PENDING → PROCESSING → READY`로 진행한다. 일시 실패는 `RETRY`로 전이해 1·2·5·10·30·60·180·360분 간격으로 계속 재시도하고, lease가 만료된 `PROCESSING` 작업도 다시 회수한다. 종목 불일치처럼 동일 입력으로 복구할 수 없는 계약 오류만 `REJECTED`로 격리한다.
+- 공시 worker는 뉴스·시세 수집용 공용 scheduler와 분리된 단일 전용 scheduler를 사용한다. 장시간 뉴스 수집이 공시 claim을 지연시키지 않으며 Qwen 공시 요청은 한 건씩 순차 처리한다.
 - `document.xml`의 `014` 등 오류 envelope는 원문으로 저장하지 않고 작업을 `RETRY`로 유지한다. 제목, What/Why/Impact, 영문 전문은 하나의 Qwen 분석 응답에서만 수용하고 전체 품질 gate를 통과한 `READY` 이벤트만 DB·REST·WebSocket에 발행한다. 개별 번역 API나 규칙 기반 요약으로 후퇴하지 않는다.
 - 시장뉴스의 후속 보강도 Qwen 전체 재분석을 사용하며 종목 뉴스와 독립된 두 worker가 모델 동시 추론 한도 2개에 맞춰 병렬 처리한다.
 - WebSocket subscription 계약 테스트가 실제 STOMP client로 topic 수신과 협력사 topic 권한을 검증한다.

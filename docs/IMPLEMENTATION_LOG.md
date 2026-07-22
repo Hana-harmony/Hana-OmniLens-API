@@ -5,6 +5,7 @@
 - OpenDART 검색 결과를 Qwen 호출 전에 `disclosure_processing_job`에 멱등 등록하고, 공식 원문을 가져온 즉시 작업 레코드에 영속화한다.
 - Qwen timeout·품질 gate·일시 provider 장애는 공시를 폐기하지 않고 시도 횟수와 다음 실행 시각을 보존한 `RETRY`로 전이한다. 만료된 처리 lease도 자동 회수한다.
 - 전체 품질 gate를 통과한 작업만 `alert_event`와 WebSocket으로 승격하며, 기존의 조회·원문 다운로드·Qwen·저장을 한 요청에서 처리하던 동기 폐기 경로를 제거했다.
+- 운영에서 공용 scheduler가 장시간 뉴스 수집으로 점유되는 것을 확인해 공시 worker를 전용 단일 thread scheduler로 분리했다.
 
 ## 2026-07-21 · Qwen 단일 기사 처리와 공시 재수집 복구
 

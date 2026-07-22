@@ -15,7 +15,10 @@ public class DisclosureProcessingScheduler {
         this.processingService = processingService;
     }
 
-    @Scheduled(fixedDelay = 5_000, initialDelay = 30_000)
+    @Scheduled(
+            fixedDelay = 5_000,
+            initialDelay = 30_000,
+            scheduler = "disclosureTaskScheduler")
     public void processNextDisclosure() {
         try {
             processingService.processNext();

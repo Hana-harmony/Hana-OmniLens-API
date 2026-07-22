@@ -14,4 +14,12 @@ class SchedulingConfigurationTest {
         assertThat(scheduler.getPoolSize()).isEqualTo(4);
         assertThat(scheduler.getThreadNamePrefix()).isEqualTo("omni-connect-scheduler-");
     }
+
+    @Test
+    void createsSingleThreadDisclosureScheduler() {
+        ThreadPoolTaskScheduler scheduler = new SchedulingConfiguration().disclosureTaskScheduler();
+
+        assertThat(scheduler.getPoolSize()).isEqualTo(1);
+        assertThat(scheduler.getThreadNamePrefix()).isEqualTo("omni-connect-disclosure-");
+    }
 }
