@@ -114,7 +114,7 @@ public class NewsProcessingService {
                 return Optional.empty();
             }
             if (!publishingService.isPublishReady(analyzed)) {
-                throw new IllegalStateException("Qwen news output is not publish-ready");
+                throw new IllegalStateException("AI news output is not publish-ready");
             }
             AlertEvent event = publishingService.publishAnalyzed(analyzed);
             processingRepository.markReady(job, event.alertId(), clock.instant());

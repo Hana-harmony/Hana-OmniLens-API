@@ -155,7 +155,7 @@ public class DisclosureProcessingService {
                 return Optional.empty();
             }
             if (!publishingService.isPublishReady(analyzed)) {
-                throw new IllegalStateException("Qwen disclosure output is not publish-ready");
+                throw new IllegalStateException("AI disclosure output is not publish-ready");
             }
 
             AlertEvent event = publishingService.publishAnalyzed(analyzed);

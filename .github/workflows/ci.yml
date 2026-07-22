@@ -86,6 +86,8 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha,scope=hana-omni-connect-api-arm64
+          cache-to: type=gha,mode=max,scope=hana-omni-connect-api-arm64
       - name: SSH 설정
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -202,6 +204,6 @@ jobs:
           scp deploy/systemd/hana-omni-connect-monitoring.service 'production:/opt/hana-omni-connect-api/deploy/systemd/'
           ssh production 'chmod 700 /opt/hana-omni-connect-api/bootstrap-host.sh && /opt/hana-omni-connect-api/bootstrap-host.sh'
           ssh production 'chmod 700 /opt/hana-omni-connect-api/bootstrap-data-services.sh && /opt/hana-omni-connect-api/bootstrap-data-services.sh'
-          ssh production "if [ ! -f /etc/letsencrypt/live/api.hanaomni.cloud/fullchain.pem ]; then chmod 700 /opt/hana-omni-connect-api/bootstrap-https.sh && LETSENCRYPT_EMAIL='${{ secrets.LETSENCRYPT_EMAIL }}' /opt/hana-omni-connect-api/bootstrap-https.sh; fi"
+          ssh production "if ! sudo test -f /etc/letsencrypt/live/api.hanaomni.cloud/fullchain.pem; then chmod 700 /opt/hana-omni-connect-api/bootstrap-https.sh && LETSENCRYPT_EMAIL='${{ secrets.LETSENCRYPT_EMAIL }}' /opt/hana-omni-connect-api/bootstrap-https.sh; fi"
           ssh production 'chmod 700 /opt/hana-omni-connect-api/deploy-prod.sh && /opt/hana-omni-connect-api/deploy-prod.sh'
           ssh production 'chmod 700 /opt/hana-omni-connect-api/bootstrap-monitoring.sh && /opt/hana-omni-connect-api/bootstrap-monitoring.sh'
