@@ -37,7 +37,6 @@ import com.hana.omniconnect.market.application.StockMasterRepository;
 import com.hana.omniconnect.market.domain.StockSummary;
 import com.hana.omniconnect.provider.disclosure.OpenDartDisclosure;
 import com.hana.omniconnect.provider.disclosure.OpenDartDisclosureClient;
-import com.hana.omniconnect.provider.disclosure.OpenDartDisclosureDocument;
 import com.hana.omniconnect.provider.news.NaverNewsArticle;
 import com.hana.omniconnect.provider.news.NaverNewsClient;
 import com.hana.omniconnect.provider.news.OriginalArticleClient;
@@ -52,8 +51,7 @@ public class AlertProviderCollectionService {
     private static final int NAVER_STOCK_NEWS_MAX_DISPLAY = 100;
     private static final int MIN_COMPLETE_ARTICLE_CHARS = 180;
     private static final int MIN_COMPLETE_ARTICLE_SENTENCES = 2;
-    private static final int DISCLOSURE_FEED_EXCERPT_MAX_CHARS = 1_200;
-    private static final int MAX_DISCLOSURE_DOCUMENT_ATTEMPTS_PER_STOCK = 20;
+    private static final int MAX_DISCLOSURE_CANDIDATES_PER_STOCK = 20;
     private static final Duration COLLECTION_LEASE_DURATION = Duration.ofHours(6);
     private static final Duration INCREMENTAL_COLLECTION_OVERLAP = Duration.ofHours(24);
     private static final int MAX_NEW_EVENTS_PER_SOURCE_RUN = 100;
@@ -93,6 +91,7 @@ public class AlertProviderCollectionService {
     private final AlertAnalysisPublishingService alertAnalysisPublishingService;
     private final AlertDedupeStore alertDedupeStore;
     private final AlertEventRepository alertEventRepository;
+    private final DisclosureProcessingService disclosureProcessingService;
     private final Clock clock;
 
     @Autowired
@@ -103,7 +102,8 @@ public class AlertProviderCollectionService {
             StockMasterRepository stockMasterRepository,
             AlertAnalysisPublishingService alertAnalysisPublishingService,
             AlertDedupeStore alertDedupeStore,
-            AlertEventRepository alertEventRepository) {
+            AlertEventRepository alertEventRepository,
+            DisclosureProcessingService disclosureProcessingService) {
         this(
                 naverNewsClient,
                 originalArticleClient,
@@ -112,6 +112,7 @@ public class AlertProviderCollectionService {
                 alertAnalysisPublishingService,
                 alertDedupeStore,
                 alertEventRepository,
+                disclosureProcessingService,
                 Clock.system(KOREA_ZONE));
     }
 
@@ -123,6 +124,7 @@ public class AlertProviderCollectionService {
             AlertAnalysisPublishingService alertAnalysisPublishingService,
             AlertDedupeStore alertDedupeStore,
             AlertEventRepository alertEventRepository,
+            DisclosureProcessingService disclosureProcessingService,
             Clock clock) {
         this.naverNewsClient = naverNewsClient;
         this.originalArticleClient = originalArticleClient;
@@ -131,6 +133,7 @@ public class AlertProviderCollectionService {
         this.alertAnalysisPublishingService = alertAnalysisPublishingService;
         this.alertDedupeStore = alertDedupeStore;
         this.alertEventRepository = alertEventRepository;
+        this.disclosureProcessingService = disclosureProcessingService;
         this.clock = clock;
     }
 
@@ -168,8 +171,8 @@ public class AlertProviderCollectionService {
                 continue;
             }
             try {
-                // 공식 공시는 생성형 뉴스 처리 지연과 무관하게 먼저 복구한다.
-                publishDisclosures(request, stock, beginDate, endDate, incrementalEnabled, counters, events);
+                // 공식 공시는 먼저 영속 작업으로 등록해 Qwen 장애가 수집 손실로 이어지지 않게 한다.
+                queueDisclosures(request, stock, beginDate, endDate, incrementalEnabled, counters);
                 publishNews(request, stock, incrementalEnabled, counters, events);
             } finally {
                 // 임대 토큰 소유자만 잠금을 해제해 만료 후 재획득 경쟁을 방지한다.
@@ -679,14 +682,13 @@ public class AlertProviderCollectionService {
                 .toLowerCase(Locale.ROOT);
     }
 
-    private void publishDisclosures(
+    private void queueDisclosures(
             AlertCollectPublishRequest request,
             StockSummary stock,
             LocalDate beginDate,
             LocalDate endDate,
             boolean incrementalEnabled,
-            CollectionCounters counters,
-            List<AlertEvent> events) {
+            CollectionCounters counters) {
         if (stock.dartCorpCode() == null || stock.dartCorpCode().isBlank()) {
             return;
         }
@@ -715,13 +717,10 @@ public class AlertProviderCollectionService {
                 "DISCLOSURE",
                 targetDisplay,
                 incrementalEnabled);
-        int satisfiedForStock = progress.satisfiedCount();
-        int publishedForStock = 0;
-        int documentAttempts = 0;
+        int candidateCount = 0;
+        int candidateLimit = progress.latestCheckOnly() ? 1 : MAX_DISCLOSURE_CANDIDATES_PER_STOCK;
         for (OpenDartDisclosure disclosure : latestDisclosures(disclosures)) {
-            if ((!progress.incremental() && satisfiedForStock >= targetDisplay)
-                    || publishedForStock >= MAX_NEW_EVENTS_PER_SOURCE_RUN
-                    || documentAttempts >= MAX_DISCLOSURE_DOCUMENT_ATTEMPTS_PER_STOCK) {
+            if (candidateCount >= candidateLimit) {
                 break;
             }
             Instant publishedAt = disclosure.receivedAt().atStartOfDay(KOREA_ZONE).toInstant();
@@ -734,41 +733,16 @@ public class AlertProviderCollectionService {
                     "DISCLOSURE",
                     disclosure.originalUrl())) {
                 counters.skippedDuplicateCount++;
-                if (progress.latestCheckOnly()) {
-                    satisfiedForStock++;
-                }
                 continue;
             }
-            documentAttempts++;
-            Optional<OpenDartDisclosureDocument> document = optionalDocument(disclosure.receiptNumber());
-            if (document.isEmpty()) {
-                log.warn(
-                        "Skipping disclosure because official document body was not extracted: stockCode={}, receiptNumber={}, url={}",
-                        stock.stockCode(),
-                        disclosure.receiptNumber(),
-                        disclosure.originalUrl());
-                counters.failedAnalysisCount++;
-                continue;
-            }
-            CollectedContent fullContent = CollectedContent.fromDisclosure(document.orElseThrow());
-            PublicationResult result = publishCollectedAlert(
+            candidateCount++;
+            boolean enqueued = disclosureProcessingService.enqueue(
                     request.partnerId(),
                     stock,
-                    "DISCLOSURE",
-                    disclosure.corporationName() + " " + disclosure.reportName(),
-                    disclosure.reportName(),
-                    fullContent,
-                    disclosure.originalUrl(),
-                    publishedAt,
-                    counters,
-                    events);
-            if (result == PublicationResult.PUBLISHED) {
-                publishedForStock++;
-            }
-            if (!progress.incremental()
-                    && (result == PublicationResult.PUBLISHED
-                            || progress.latestCheckOnly() && result == PublicationResult.ALREADY_STORED)) {
-                satisfiedForStock++;
+                    disclosure,
+                    publishedAt);
+            if (!enqueued) {
+                counters.skippedDuplicateCount++;
             }
         }
     }
@@ -966,11 +940,6 @@ public class AlertProviderCollectionService {
         }
     }
 
-    private Optional<OpenDartDisclosureDocument> optionalDocument(String receiptNumber) {
-        Optional<OpenDartDisclosureDocument> document = openDartDisclosureClient.fetchDocumentContent(receiptNumber);
-        return document == null ? Optional.empty() : document;
-    }
-
     private record CollectedContent(
             String content,
             List<String> imageUrls,
@@ -996,28 +965,6 @@ public class AlertProviderCollectionService {
                     content.contentHash(),
                     content.sourceLicensePolicy(),
                     content.title());
-        }
-
-        private static CollectedContent fromDisclosure(OpenDartDisclosureDocument document) {
-            String feedContent = disclosureFeedContent(document.content());
-            return new CollectedContent(
-                    feedContent,
-                    List.of(),
-                    "",
-                    document.contentHash(),
-                    document.sourceLicensePolicy() + ":feed-excerpt-v1");
-        }
-
-        private static String disclosureFeedContent(String content) {
-            if (!StringUtils.hasText(content) || content.length() <= DISCLOSURE_FEED_EXCERPT_MAX_CHARS) {
-                return content == null ? "" : content;
-            }
-            int split = content.lastIndexOf(' ', DISCLOSURE_FEED_EXCERPT_MAX_CHARS);
-            if (split < DISCLOSURE_FEED_EXCERPT_MAX_CHARS / 2) {
-                split = DISCLOSURE_FEED_EXCERPT_MAX_CHARS;
-            }
-            // 다중 MB 공시는 피드 분석용 본문만 전달하고 전체 문서는 공식 DART URL로 제공한다.
-            return content.substring(0, split).strip();
         }
 
     }

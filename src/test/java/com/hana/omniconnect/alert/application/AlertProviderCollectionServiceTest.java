@@ -16,11 +16,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
-import java.util.HashSet;
-import java.util.Set;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.web.client.ResourceAccessException;
 
@@ -33,7 +30,6 @@ import com.hana.omniconnect.market.application.StockMasterRepository;
 import com.hana.omniconnect.market.domain.StockSummary;
 import com.hana.omniconnect.provider.disclosure.OpenDartDisclosureClient;
 import com.hana.omniconnect.provider.disclosure.OpenDartDisclosure;
-import com.hana.omniconnect.provider.disclosure.OpenDartDisclosureDocument;
 import com.hana.omniconnect.provider.news.NaverNewsArticle;
 import com.hana.omniconnect.provider.news.NaverNewsClient;
 import com.hana.omniconnect.provider.news.OriginalArticleClient;
@@ -48,6 +44,7 @@ class AlertProviderCollectionServiceTest {
     private final AlertAnalysisPublishingService publishingService = mock(AlertAnalysisPublishingService.class);
     private final AlertDedupeStore dedupeStore = mock(AlertDedupeStore.class);
     private final AlertEventRepository alertEventRepository = mock(AlertEventRepository.class);
+    private final DisclosureProcessingService disclosureProcessingService = mock(DisclosureProcessingService.class);
     private final AlertProviderCollectionService collectionService = new AlertProviderCollectionService(
             naverNewsClient,
             originalArticleClient,
@@ -56,6 +53,7 @@ class AlertProviderCollectionServiceTest {
             publishingService,
             dedupeStore,
             alertEventRepository,
+            disclosureProcessingService,
             Clock.fixed(Instant.parse("2026-07-06T00:00:00Z"), ZoneId.of("Asia/Seoul")));
 
     AlertProviderCollectionServiceTest() {
@@ -312,6 +310,7 @@ class AlertProviderCollectionServiceTest {
         assertThat(response.publishedCount()).isZero();
         assertThat(response.skippedDuplicateCount()).isEqualTo(1);
         verify(openDartDisclosureClient, never()).fetchDocumentContent(disclosure.receiptNumber());
+        verify(disclosureProcessingService, never()).enqueue(any(), any(), any(), any());
         verify(publishingService, never()).analyzeForCollection(any(AlertAnalysisPublishRequest.class));
     }
 
@@ -334,28 +333,19 @@ class AlertProviderCollectionServiceTest {
         when(stockMasterRepository.findByCode("000660")).thenReturn(Optional.of(stock));
         when(openDartDisclosureClient.search(eq("00164779"), any(), any()))
                 .thenReturn(List.of(older, latest));
-        when(openDartDisclosureClient.fetchDocumentContent(any()))
-                .thenReturn(Optional.of(new OpenDartDisclosureDocument(
-                        "SK하이닉스 임원의 주식 소유 변동 내역을 신고한 공시 문서입니다.",
-                        "document-hash",
-                        OpenDartDisclosureClient.OPENDART_PUBLIC_DISCLOSURE_TEXT)));
-        Set<String> dedupeKeys = new HashSet<>();
-        when(dedupeStore.markIfFirst(any())).thenAnswer(invocation -> dedupeKeys.add(invocation.getArgument(0)));
-        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
-                .thenAnswer(invocation -> publishRequestForDisclosure(
-                        stock,
-                        invocation.getArgument(0, AlertAnalysisPublishRequest.class)));
+        when(disclosureProcessingService.enqueue(any(), any(), any(), any())).thenReturn(true);
 
         var response = collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
                 "local-dev", List.of("000660"), 2, 365));
 
-        assertThat(response.publishedCount()).isEqualTo(2);
-        verify(publishingService, org.mockito.Mockito.times(2))
-                .publishAnalyzed(any(AlertPublishRequest.class));
+        assertThat(response.publishedCount()).isZero();
+        verify(disclosureProcessingService, org.mockito.Mockito.times(2))
+                .enqueue(eq("local-dev"), eq(stock), any(OpenDartDisclosure.class), any(Instant.class));
+        verify(openDartDisclosureClient, never()).fetchDocumentContent(any());
     }
 
     @Test
-    void boundsMultiMegabyteDisclosureToTheSynchronousFeedAnalysisContract() {
+    void queuesDisclosureWithoutBlockingOnDocumentDownloadOrQwen() {
         StockSummary stock = new StockSummary(
                 "000660",
                 "SK하이닉스",
@@ -369,24 +359,10 @@ class AlertProviderCollectionServiceTest {
                 "투자설명서",
                 java.time.LocalDate.of(2026, 7, 10),
                 "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260710000012");
-        String disclosureBody = "SK하이닉스 투자설명서의 발행조건과 투자위험을 설명한다. ".repeat(100_000);
         when(stockMasterRepository.findByCode("000660")).thenReturn(Optional.of(stock));
         when(openDartDisclosureClient.search(eq("00164779"), any(), any()))
                 .thenReturn(List.of(disclosure));
-        when(openDartDisclosureClient.fetchDocumentContent(disclosure.receiptNumber()))
-                .thenReturn(Optional.of(new OpenDartDisclosureDocument(
-                        disclosureBody,
-                        "document-hash",
-                        OpenDartDisclosureClient.OPENDART_PUBLIC_DISCLOSURE_TEXT)));
-        when(dedupeStore.markIfFirst(any())).thenReturn(true);
-        when(publishingService.analyzeForCollection(any(AlertAnalysisPublishRequest.class)))
-                .thenReturn(publishRequestForStock("000660", "SK하이닉스", new NaverNewsArticle(
-                        disclosure.reportName(),
-                        disclosure.reportName(),
-                        disclosure.originalUrl(),
-                        disclosure.receivedAt().atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant())));
-        when(publishingService.publishAnalyzed(any(AlertPublishRequest.class)))
-                .thenReturn(mock(AlertEvent.class));
+        when(disclosureProcessingService.enqueue(any(), any(), any(), any())).thenReturn(true);
 
         collectionService.collectAnalyzeAndPublish(new AlertCollectPublishRequest(
                 "local-dev",
@@ -394,11 +370,13 @@ class AlertProviderCollectionServiceTest {
                 1,
                 365));
 
-        ArgumentCaptor<AlertAnalysisPublishRequest> captor =
-                ArgumentCaptor.forClass(AlertAnalysisPublishRequest.class);
-        verify(publishingService).analyzeForCollection(captor.capture());
-        assertThat(captor.getValue().content()).hasSizeLessThanOrEqualTo(1_200);
-        assertThat(captor.getValue().sourceLicensePolicy()).endsWith(":feed-excerpt-v1");
+        verify(disclosureProcessingService).enqueue(
+                eq("local-dev"),
+                eq(stock),
+                eq(disclosure),
+                eq(disclosure.receivedAt().atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant()));
+        verify(openDartDisclosureClient, never()).fetchDocumentContent(any());
+        verify(publishingService, never()).analyzeForCollection(any());
     }
 
     @Test
@@ -1104,48 +1082,6 @@ class AlertProviderCollectionServiceTest {
                 "TRANSLATED",
                 "duplicate-key",
                 "cluster-key",
-                "test-model",
-                0.9,
-                0.9,
-                0.9,
-                0.9);
-    }
-
-    private AlertPublishRequest publishRequestForDisclosure(
-            StockSummary stock,
-            AlertAnalysisPublishRequest request) {
-        return new AlertPublishRequest(
-                "local-dev",
-                stock.stockCode(),
-                stock.stockName(),
-                "DISCLOSURE",
-                request.title(),
-                "SK hynix ownership disclosure",
-                "주식 소유 변동 공시",
-                new AlertSummaryLines("Ownership changed.", "An officer filed it.", "Track holdings."),
-                "Ownership changed in an official filing.",
-                request.content(),
-                "The filing reports an ownership change.",
-                List.of(),
-                "FULL_TEXT",
-                request.originalUrl(),
-                request.publishedAt(),
-                List.of("DISCLOSURE"),
-                "NEUTRAL",
-                "MEDIUM",
-                null,
-                null,
-                null,
-                List.of(stock.stockCode()),
-                false,
-                false,
-                List.of(),
-                List.of(),
-                "local-open-source-qwen",
-                "Qwen3-4B-GGUF-Q4",
-                "TRANSLATED",
-                "same-report-title-key",
-                "cluster-key-" + request.originalUrl(),
                 "test-model",
                 0.9,
                 0.9,
