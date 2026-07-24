@@ -55,6 +55,12 @@ class DeploymentProfileGuardrailTest {
             assertThat(prodProfile).doesNotContain("${" + placeholder + ":");
         }
         assertThat(prodProfile).doesNotContain("replace-with-");
+        assertThat(prodProfile).contains(
+                "query-cache-ttl: ${NAVER_NEWS_QUERY_CACHE_TTL:10m}",
+                "daily-request-limit: ${NAVER_NEWS_DAILY_REQUEST_LIMIT:25000}",
+                "daily-request-reserve: ${NAVER_NEWS_DAILY_REQUEST_RESERVE:5000}",
+                "fixed-delay-ms: ${ALERT_SCHEDULER_FIXED_DELAY_MS:600000}",
+                "fixed-delay-ms: ${MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS:600000}");
         assertThat(prodProfile).contains("base-url: ${HANNAH_AI_BASE_URL:http://hannah-montana-ai:8000}");
         assertThat(prodProfile).contains(
                 "base-url: ${KIS_BASE_URL:https://openapivts.koreainvestment.com:29443}",

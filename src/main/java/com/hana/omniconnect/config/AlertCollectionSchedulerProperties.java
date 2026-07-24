@@ -27,7 +27,7 @@ public record AlertCollectionSchedulerProperties(
     private static final int MAX_COLLECTION_BATCH_SIZE = 20;
 
     public AlertCollectionSchedulerProperties {
-        fixedDelayMs = fixedDelayMs <= 0 ? 300_000L : fixedDelayMs;
+        fixedDelayMs = fixedDelayMs <= 0 ? 600_000L : fixedDelayMs;
         initialDelayMs = initialDelayMs <= 0 ? 60_000L : initialDelayMs;
         newsDisplay = newsDisplay <= 0 ? 5 : newsDisplay;
         disclosureLookbackDays = disclosureLookbackDays <= 0

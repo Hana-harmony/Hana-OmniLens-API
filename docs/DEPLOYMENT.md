@@ -129,7 +129,7 @@ REDIS_USERNAME=omni_connect_app
 - `ALERT_DEDUPE_TTL`: Redis dedupe key 보존 시간. 기본값은 `24h`이다.
 - `ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES`: Redis 장애 fallback용 in-memory 최대 key 수. 기본값은 `10000`이다.
 - `ALERT_SCHEDULER_ENABLED`: 협력사 watchlist와 기본 종목 universe 주기 수집 활성화 여부. 기본값은 `true`이다.
-- `ALERT_SCHEDULER_FIXED_DELAY_MS`: 주기 수집 간격. 기본값은 `300000`이다.
+- `ALERT_SCHEDULER_FIXED_DELAY_MS`: 주기 수집 간격. 기본값은 `600000`이다.
 - `ALERT_SCHEDULER_NEWS_DISPLAY`: 종목별 뉴스와 공시의 최신 수집 목표 개수. 기본값은 `5`이다.
 - `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`: 공시 조회 기간. 기본값은 `365`이다.
 - `ALERT_SCHEDULER_DEFAULT_UNIVERSE_ENABLED`: `stock_master_priority` 인기 종목과 외국인 취득한도 제한 종목 자동 수집 활성화 여부. 기본값은 `true`이다.
@@ -137,6 +137,10 @@ REDIS_USERNAME=omni_connect_app
 - `ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT`: 기본 universe에 포함할 인기 종목 수. 기본값은 `10`이다.
 - `ALERT_SCHEDULER_INCLUDE_FOREIGN_OWNERSHIP_RESTRICTED_STOCKS`: 외국인 취득한도 제한 종목 allowlist 포함 여부. 기본값은 `true`이다.
 - `ALERT_SCHEDULER_COLLECTION_BATCH_SIZE`: 종목별 뉴스·공시 수집 배치 크기. 기본값은 `1`, 상한은 `20`이다. 기본값은 한 종목의 원문 응답 지연이 다른 종목 수집을 막지 않게 한다.
+- `NAVER_NEWS_QUERY_CACHE_TTL`: 같은 검색어 결과를 공유하는 시간. 기본값은 `10m`이다.
+- `NAVER_NEWS_QUERY_CACHE_MAX_ENTRIES`: 네이버 뉴스 검색 cache 최대 항목 수. 기본값은 `1024`이다.
+- `NAVER_NEWS_DAILY_REQUEST_LIMIT`: 네이버 애플리케이션 일일 호출 한도. 기본값은 `25000`이다.
+- `NAVER_NEWS_DAILY_REQUEST_RESERVE`: 장애 대응과 수동 조회를 위해 자동 수집에서 사용하지 않는 일일 여유분. 기본값은 `5000`이다.
 - `EXCHANGE_RATE_REFRESH_ENABLED`: FX 환율 주기 갱신 활성화 여부. 기본값은 `false`이다.
 - `EXCHANGE_RATE_REFRESH_FIXED_DELAY_MS`: 환율 갱신 간격. 기본값은 `300000`이다.
 - `EXCHANGE_RATE_REFRESH_BASE_DATE_OFFSET_DAYS`: fallback provider가 기준일을 요구할 때 사용할 조회 기준일 offset. 기본값은 `0`이다.
