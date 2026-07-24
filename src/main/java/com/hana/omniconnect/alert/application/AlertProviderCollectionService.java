@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,6 +53,7 @@ public class AlertProviderCollectionService {
     private static final int NAVER_STOCK_NEWS_MAX_DISPLAY = 100;
     private static final int MAX_NEWS_CANDIDATES_PER_STOCK_RUN = 16;
     private static final int MAX_NEWS_CANDIDATES_PER_QUERY = 4;
+    private static final int MAX_BOOTSTRAP_QUERIES_PER_STOCK_RUN = 3;
     private static final int MIN_COMPLETE_ARTICLE_CHARS = 180;
     private static final int MIN_COMPLETE_ARTICLE_SENTENCES = 2;
     private static final int MAX_DISCLOSURE_CANDIDATES_PER_STOCK = 20;
@@ -96,6 +99,7 @@ public class AlertProviderCollectionService {
     private final DisclosureProcessingService disclosureProcessingService;
     private final NewsProcessingService newsProcessingService;
     private final Clock clock;
+    private final ConcurrentHashMap<String, AtomicInteger> bootstrapQueryOffsets = new ConcurrentHashMap<>();
 
     @Autowired
     public AlertProviderCollectionService(
@@ -224,7 +228,7 @@ public class AlertProviderCollectionService {
         int publishedForStock = 0;
         List<String> queries = progress.incremental()
                 ? List.of(stock.stockName(), stock.stockName() + " 주가")
-                : stockNewsQueries(stock);
+                : bootstrapQueries(stock, incrementalEnabled);
         int searchDisplay = progress.incremental()
                 ? NAVER_STOCK_NEWS_MAX_DISPLAY
                 : stockNewsSearchDisplay(targetDisplay);
@@ -366,6 +370,31 @@ public class AlertProviderCollectionService {
                 .map(alias -> alias + " 주가")
                 .forEach(queries::add);
         return queries.stream().distinct().toList();
+    }
+
+    private List<String> nextBootstrapQueries(StockSummary stock) {
+        List<String> queries = stockNewsQueries(stock);
+        if (queries.size() <= MAX_BOOTSTRAP_QUERIES_PER_STOCK_RUN) {
+            return queries;
+        }
+        AtomicInteger offset = bootstrapQueryOffsets.computeIfAbsent(
+                stock.stockCode(),
+                ignored -> new AtomicInteger());
+        int start = Math.floorMod(
+                offset.getAndAdd(MAX_BOOTSTRAP_QUERIES_PER_STOCK_RUN),
+                queries.size());
+        List<String> selected = new ArrayList<>(MAX_BOOTSTRAP_QUERIES_PER_STOCK_RUN);
+        for (int index = 0; index < MAX_BOOTSTRAP_QUERIES_PER_STOCK_RUN; index++) {
+            selected.add(queries.get((start + index) % queries.size()));
+        }
+        return List.copyOf(selected);
+    }
+
+    private List<String> bootstrapQueries(StockSummary stock, boolean scheduledIncrementalCollection) {
+        if (!scheduledIncrementalCollection) {
+            return stockNewsQueries(stock);
+        }
+        return nextBootstrapQueries(stock);
     }
 
     private List<String> stockSectorNewsKeywords(StockSummary stock) {

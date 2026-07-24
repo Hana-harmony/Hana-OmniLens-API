@@ -1,6 +1,7 @@
 package com.hana.omniconnect.config;
 
 import java.net.URI;
+import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
@@ -45,17 +46,43 @@ public record ExternalProviderProperties(
         }
     }
 
-    public record NaverNews(URI baseUrl, String clientId, String clientSecret) {
+    public record NaverNews(
+            URI baseUrl,
+            String clientId,
+            String clientSecret,
+            Duration queryCacheTtl,
+            int queryCacheMaxEntries,
+            int dailyRequestLimit,
+            int dailyRequestReserve) {
 
         private static NaverNews defaults() {
-            return new NaverNews(URI.create("https://openapi.naver.com"), "", "");
+            return new NaverNews(
+                    URI.create("https://openapi.naver.com"),
+                    "",
+                    "",
+                    Duration.ofMinutes(10),
+                    1_024,
+                    25_000,
+                    5_000);
         }
 
         private NaverNews withDefaults() {
+            NaverNews defaults = defaults();
+            int effectiveDailyRequestLimit =
+                    dailyRequestLimit <= 0 ? defaults.dailyRequestLimit() : dailyRequestLimit;
+            int effectiveDailyRequestReserve = dailyRequestReserve < 0
+                    ? defaults.dailyRequestReserve()
+                    : Math.min(dailyRequestReserve, Math.max(0, effectiveDailyRequestLimit - 1));
             return new NaverNews(
-                    baseUrl == null ? defaults().baseUrl() : baseUrl,
+                    baseUrl == null ? defaults.baseUrl() : baseUrl,
                     clientId == null ? "" : clientId,
-                    clientSecret == null ? "" : clientSecret);
+                    clientSecret == null ? "" : clientSecret,
+                    queryCacheTtl == null || queryCacheTtl.isNegative() || queryCacheTtl.isZero()
+                            ? defaults.queryCacheTtl()
+                            : queryCacheTtl,
+                    queryCacheMaxEntries <= 0 ? defaults.queryCacheMaxEntries() : queryCacheMaxEntries,
+                    effectiveDailyRequestLimit,
+                    effectiveDailyRequestReserve);
         }
 
         public String requiredClientId() {
@@ -64,6 +91,10 @@ public record ExternalProviderProperties(
 
         public String requiredClientSecret() {
             return requireSecret(clientSecret, "omni-connect.providers.naver-news.client-secret");
+        }
+
+        public int effectiveDailyRequestBudget() {
+            return Math.max(1, dailyRequestLimit - dailyRequestReserve);
         }
     }
 

@@ -2,12 +2,16 @@ package com.hana.omniconnect.provider.news;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -24,7 +28,12 @@ class NaverNewsClientTest {
     void searchMapsSanitizedNewsItems() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        NaverNewsClient client = new NaverNewsClient(builder, properties(), ProviderTestResilience.disabled());
+        NaverNewsRequestBudget requestBudget = mock(NaverNewsRequestBudget.class);
+        NaverNewsClient client = new NaverNewsClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled(),
+                requestBudget);
 
         server.expect(requestTo(containsString("/v1/search/news.json")))
                 .andExpect(requestTo(containsString("query=Samsung")))
@@ -51,6 +60,28 @@ class NaverNewsClientTest {
         assertThat(articles.get(0).snippet()).isEqualTo("반도체 \"회복\" 기대");
         assertThat(articles.get(0).originalUrl()).isEqualTo("https://news.example.com/original");
         assertThat(articles.get(0).publishedAt()).isEqualTo(Instant.parse("2025-06-04T01:15:30Z"));
+        verify(requestBudget).consumeOrThrow();
+        server.verify();
+    }
+
+    @Test
+    void searchReusesQueryResultWithinCacheTtl() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        NaverNewsRequestBudget requestBudget = mock(NaverNewsRequestBudget.class);
+        NaverNewsClient client = new NaverNewsClient(
+                builder,
+                properties(),
+                ProviderTestResilience.disabled(),
+                requestBudget);
+
+        server.expect(requestTo(containsString("/v1/search/news.json")))
+                .andRespond(withSuccess("{\"items\":[]}", APPLICATION_JSON));
+
+        client.search("삼성전자 주가", 10);
+        client.search("삼성전자 주가", 5);
+
+        verify(requestBudget, times(1)).consumeOrThrow();
         server.verify();
     }
 
@@ -60,7 +91,11 @@ class NaverNewsClientTest {
                 new ExternalProviderProperties.NaverNews(
                         URI.create("https://openapi.naver.com"),
                         "naver-client",
-                        "naver-secret"),
+                        "naver-secret",
+                        Duration.ofMinutes(10),
+                        100,
+                        25_000,
+                        5_000),
                 null,
                 null,
                 null,

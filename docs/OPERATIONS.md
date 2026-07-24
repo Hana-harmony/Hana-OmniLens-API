@@ -63,7 +63,7 @@ LIMIT 50;
 - watchlist 조회/갱신, 단건 분석 발행, 수집 발행 REST 응답은 모두 `data`에 alert payload를 담은 공동 응답 envelope이다.
 - Hannah-Montana-AI 분석 결과의 `eventConfidence`, `sentimentConfidence`, `importanceConfidence`, `stockMatchConfidence`는 alert REST/WebSocket payload에 그대로 전파한다.
 - Hana Montana AI(KF-DeBERTa + K-FNSPID)의 감성 후보는 중복·충돌과 파티션 간 중첩을 제거한 Validation Selection에서 잠근 KF-DeBERTa LoRA다. 공개 재현 Test 932건 macro F1은 0.8849로 KR-FinBERT-SC의 0.7266보다 높지만, 해당 Test의 과거 반복 조회 때문에 독립 SOTA 근거로 사용하지 않는다. 실제 뉴스 Gold 정확도 0.8625가 운영 gate 0.90에 미달하면 신규 후보를 승격하지 않고 기존 검증 모델을 유지한다. `importance`는 Validation으로 선택한 제목+요약 공시 의미 모델과 존속위험 정책, `marketImpactImportance/Score/Confidence`는 파일 기반 K-FNSPID v4의 뉴스·공시 출처별 전문가로 분리한다. 시간 Test에서 뉴스 전문가는 9,560건 macro F1 0.3745 / QWK 0.4754, 공시 전문가는 4,615건 macro F1 0.3216 / QWK 0.1550이며 두 출처 모두 자체 기준선을 넘는다. 요청 출처와 모델 출처가 다르면 Hannah가 추론을 거부한다. 가격반응은 의미 라벨이나 confidence를 덮어쓰지 않는다. OmniConnect는 복합 `modelVersion`과 두 신호를 REST/WebSocket 이벤트에 그대로 전파하며, 시장 시세 데이터셋을 운영 DB에서 다시 export하지 않는다.
-- 주기는 `ALERT_SCHEDULER_FIXED_DELAY_MS`로 조정한다. 기본값은 `300000`이다.
+- 주기는 `ALERT_SCHEDULER_FIXED_DELAY_MS`로 조정한다. 기본값은 `600000`이다.
 - 수집 범위는 `ALERT_SCHEDULER_NEWS_DISPLAY`, `ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS`로 조정한다. 완성된 영문 What/Why/Impact와 전문을 가진 최신 이벤트만 완료 슬롯으로 계산한다.
 - 기본 universe는 `ALERT_SCHEDULER_DEFAULT_UNIVERSE_ENABLED`, `ALERT_SCHEDULER_PRIORITY_STOCK_LIMIT`, `ALERT_SCHEDULER_INCLUDE_FOREIGN_OWNERSHIP_RESTRICTED_STOCKS`, `ALERT_SCHEDULER_COLLECTION_BATCH_SIZE`로 조정한다.
 - 운영 중 watchlist는 `PUT /api/v1/alerts/watchlists/{partnerId}`로 DB에 저장한다.
@@ -188,7 +188,7 @@ MARKET_HISTORY_COLLECTION_BASE_DATE_OFFSET_DAYS=1
 
 ```text
 MARKET_NEWS_SCHEDULER_ENABLED=true
-MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS=300000
+MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS=600000
 MARKET_NEWS_SCHEDULER_DISPLAY=10
 MARKET_NEWS_SCHEDULER_QUERIES=한국 증시,코스피 코스닥,국내 증시
 ```

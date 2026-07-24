@@ -14,7 +14,7 @@ public record MarketNewsCollectionProperties(
 ) {
 
     public MarketNewsCollectionProperties {
-        fixedDelayMs = fixedDelayMs <= 0 ? 300_000L : fixedDelayMs;
+        fixedDelayMs = fixedDelayMs <= 0 ? 600_000L : fixedDelayMs;
         initialDelayMs = initialDelayMs < 0 ? 60_000L : initialDelayMs;
         display = display <= 0 ? 10 : display;
         queries = queries == null || queries.isEmpty()
