@@ -62,7 +62,7 @@ public class AlertCollectionScheduler {
     }
 
     @Scheduled(
-            fixedDelayString = "${omni-connect.alert.scheduler.fixed-delay-ms:300000}",
+            fixedDelayString = "${omni-connect.alert.scheduler.fixed-delay-ms:600000}",
             initialDelayString = "${omni-connect.alert.scheduler.initial-delay-ms:60000}")
     public void collectConfiguredWatchlists() {
         if (!properties.enabled()) {

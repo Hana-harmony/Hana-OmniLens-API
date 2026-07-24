@@ -15,6 +15,8 @@ class ExternalProviderPropertiesTest {
         assertThat(properties.publicData().stockSecuritiesBaseUrl().toString())
                 .isEqualTo("https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService");
         assertThat(properties.naverNews().baseUrl().toString()).isEqualTo("https://openapi.naver.com");
+        assertThat(properties.naverNews().queryCacheTtl()).isEqualTo(java.time.Duration.ofMinutes(10));
+        assertThat(properties.naverNews().effectiveDailyRequestBudget()).isEqualTo(20_000);
         assertThat(properties.openDart().baseUrl().toString()).isEqualTo("https://opendart.fss.or.kr");
         assertThat(properties.kis().baseUrl().toString())
                 .isEqualTo("https://openapivts.koreainvestment.com:29443");

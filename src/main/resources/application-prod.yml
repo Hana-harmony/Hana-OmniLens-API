@@ -27,6 +27,10 @@ omni-connect:
       base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
       client-id: ${NAVER_NEWS_CLIENT_ID}
       client-secret: ${NAVER_NEWS_CLIENT_SECRET}
+      query-cache-ttl: ${NAVER_NEWS_QUERY_CACHE_TTL:10m}
+      query-cache-max-entries: ${NAVER_NEWS_QUERY_CACHE_MAX_ENTRIES:1024}
+      daily-request-limit: ${NAVER_NEWS_DAILY_REQUEST_LIMIT:25000}
+      daily-request-reserve: ${NAVER_NEWS_DAILY_REQUEST_RESERVE:5000}
     open-dart:
       base-url: ${OPEN_DART_BASE_URL:https://opendart.fss.or.kr}
       api-key: ${OPEN_DART_API_KEY}
@@ -134,7 +138,7 @@ omni-connect:
   market-news:
     scheduler:
       enabled: true
-      fixed-delay-ms: ${MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS:300000}
+      fixed-delay-ms: ${MARKET_NEWS_SCHEDULER_FIXED_DELAY_MS:600000}
       initial-delay-ms: ${MARKET_NEWS_SCHEDULER_INITIAL_DELAY_MS:60000}
       display: ${MARKET_NEWS_SCHEDULER_DISPLAY:5}
       queries: "${MARKET_NEWS_SCHEDULER_QUERIES:한국 증시,코스피,코스닥,국내 증시,외국인 순매수}"
@@ -145,7 +149,7 @@ omni-connect:
       max-in-memory-entries: ${ALERT_DEDUPE_MAX_IN_MEMORY_ENTRIES:10000}
     scheduler:
       enabled: true
-      fixed-delay-ms: ${ALERT_SCHEDULER_FIXED_DELAY_MS:300000}
+      fixed-delay-ms: ${ALERT_SCHEDULER_FIXED_DELAY_MS:600000}
       initial-delay-ms: ${ALERT_SCHEDULER_INITIAL_DELAY_MS:60000}
       news-display: ${ALERT_SCHEDULER_NEWS_DISPLAY:5}
       disclosure-lookback-days: ${ALERT_SCHEDULER_DISCLOSURE_LOOKBACK_DAYS:365}

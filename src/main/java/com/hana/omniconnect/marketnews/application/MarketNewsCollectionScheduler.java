@@ -23,7 +23,7 @@ public class MarketNewsCollectionScheduler {
     }
 
     @Scheduled(
-            fixedDelayString = "${omni-connect.market-news.scheduler.fixed-delay-ms:300000}",
+            fixedDelayString = "${omni-connect.market-news.scheduler.fixed-delay-ms:600000}",
             initialDelayString = "${omni-connect.market-news.scheduler.initial-delay-ms:60000}")
     public void collectMarketNews() {
         if (!properties.enabled()) {

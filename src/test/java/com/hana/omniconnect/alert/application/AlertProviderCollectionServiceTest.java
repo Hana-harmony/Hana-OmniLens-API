@@ -249,8 +249,8 @@ class AlertProviderCollectionServiceTest {
         collectionService.collectIncrementalAnalyzeAndPublish(new AlertCollectPublishRequest(
                 "local-dev", List.of("015760"), 5, 1));
 
-        verify(originalArticleClient, times(16)).fetch(any());
-        verify(naverNewsClient, times(4)).search(any(), anyInt());
+        verify(originalArticleClient, times(12)).fetch(any());
+        verify(naverNewsClient, times(3)).search(any(), anyInt());
     }
 
     @Test
@@ -290,7 +290,7 @@ class AlertProviderCollectionServiceTest {
                 "https://news.example.com/sk-hynix-latest",
                 Instant.parse("2026-07-05T01:00:00Z"));
         when(stockMasterRepository.findByCode("000660")).thenReturn(Optional.of(stock));
-        when(naverNewsClient.search(eq("SK하이닉스 공시"), anyInt())).thenReturn(List.of(article));
+        when(naverNewsClient.search(eq("SK하이닉스 주가"), anyInt())).thenReturn(List.of(article));
         AlertEvent persistedEvent = publishReadyEvent();
         when(alertEventRepository.findBySourceIdentity(
                 "local-dev", "000660", "NEWS", article.originalUrl()))

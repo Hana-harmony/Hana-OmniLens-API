@@ -30,10 +30,18 @@ public class ExternalProviderResiliencePolicy {
     }
 
     public <T> T execute(String providerName, Supplier<T> supplier) {
+        int maxAttempts = properties.retry().enabled() ? properties.retry().maxAttempts() : 1;
+        return execute(providerName, maxAttempts, supplier);
+    }
+
+    public <T> T executeOnce(String providerName, Supplier<T> supplier) {
+        return execute(providerName, 1, supplier);
+    }
+
+    private <T> T execute(String providerName, int maxAttempts, Supplier<T> supplier) {
         CircuitState circuit = circuits.computeIfAbsent(providerName, ignored -> new CircuitState());
         circuit.throwIfOpen(providerName);
 
-        int maxAttempts = properties.retry().enabled() ? properties.retry().maxAttempts() : 1;
         RestClientException lastException = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {

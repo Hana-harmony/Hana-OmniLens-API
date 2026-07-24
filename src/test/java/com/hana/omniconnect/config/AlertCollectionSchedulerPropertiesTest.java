@@ -12,7 +12,7 @@ class AlertCollectionSchedulerPropertiesTest {
                 new AlertCollectionSchedulerProperties(false, 0, 0, 0, 0, null, false, "", 0, false, 0);
 
         assertThat(properties.enabled()).isFalse();
-        assertThat(properties.fixedDelayMs()).isEqualTo(300_000L);
+        assertThat(properties.fixedDelayMs()).isEqualTo(600_000L);
         assertThat(properties.initialDelayMs()).isEqualTo(60_000L);
         assertThat(properties.newsDisplay()).isEqualTo(5);
         assertThat(properties.disclosureLookbackDays()).isEqualTo(365);

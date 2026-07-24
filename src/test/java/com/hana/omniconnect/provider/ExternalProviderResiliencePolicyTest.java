@@ -35,6 +35,21 @@ class ExternalProviderResiliencePolicyTest {
     }
 
     @Test
+    void executeOnceDoesNotSpendProviderQuotaOnRetry() {
+        ExternalProviderResiliencePolicy policy = new ExternalProviderResiliencePolicy(
+                properties(true, 3, Duration.ZERO, true, 5, Duration.ofSeconds(30)),
+                Clock.systemUTC());
+        AtomicInteger attempts = new AtomicInteger();
+
+        assertThatThrownBy(() -> policy.executeOnce("naver-news", () -> {
+            attempts.incrementAndGet();
+            throw new ResourceAccessException("temporary network failure");
+        })).isInstanceOf(ResourceAccessException.class);
+
+        assertThat(attempts).hasValue(1);
+    }
+
+    @Test
     void executeOpensCircuitAfterFailureThreshold() {
         ExternalProviderResiliencePolicy policy = new ExternalProviderResiliencePolicy(
                 properties(false, 1, Duration.ZERO, true, 2, Duration.ofSeconds(30)),
